@@ -215,7 +215,7 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 
 ## License
 
-MIT (to be added)
+AGPL-3.0
 
 ## Contributing
 
