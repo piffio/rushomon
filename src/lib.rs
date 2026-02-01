@@ -17,9 +17,9 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let router = Router::new();
 
     router
-        // Public redirect route - must come first to catch short codes
-        .get_async("/:code", |req, ctx| async move {
-            let code = ctx
+        // Public redirect routes - must come first to catch short codes
+        .get_async("/:code", |req, route_ctx| async move {
+            let code = route_ctx
                 .param("code")
                 .ok_or_else(|| Error::RustError("Missing short code".to_string()))?
                 .to_string();
@@ -29,7 +29,20 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 return Response::error("Not found", 404);
             }
 
-            router::handle_redirect(req, ctx, code).await
+            router::handle_redirect(req, route_ctx, code).await
+        })
+        .head_async("/:code", |req, route_ctx| async move {
+            let code = route_ctx
+                .param("code")
+                .ok_or_else(|| Error::RustError("Missing short code".to_string()))?
+                .to_string();
+
+            // Skip if it looks like an API route
+            if code.starts_with("api") {
+                return Response::error("Not found", 404);
+            }
+
+            router::handle_redirect(req, route_ctx, code).await
         })
         // API routes - authentication required (TODO: add auth middleware)
         .post_async("/api/links", router::handle_create_link)

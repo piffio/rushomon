@@ -1,4 +1,6 @@
 use crate::models::{AnalyticsEvent, Link, Organization, User, user::CreateUserData};
+use crate::utils::now_timestamp;
+use wasm_bindgen::JsValue;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -9,10 +11,7 @@ pub async fn create_or_update_user(
     org_id: &str,
 ) -> Result<User> {
     let user_id = uuid::Uuid::new_v4().to_string();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = now_timestamp();
 
     // Try to find existing user by OAuth provider and ID
     let stmt = db.prepare(
@@ -75,7 +74,7 @@ pub async fn create_or_update_user(
                 data.oauth_id.clone().into(),
                 org_id.into(),
                 "admin".into(), // First user in org is admin
-                now.into(),
+                (now as f64).into(),
             ])?
             .run()
             .await?;
@@ -108,10 +107,7 @@ pub async fn create_default_org(
         .filter(|c| c.is_alphanumeric() || *c == '-')
         .collect::<String>();
 
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = now_timestamp();
 
     let stmt = db.prepare(
         "INSERT INTO organizations (id, name, slug, created_at, created_by)
@@ -122,7 +118,7 @@ pub async fn create_default_org(
         org_id.clone().into(),
         org_name.into(),
         slug.clone().into(),
-        now.into(),
+        (now as f64).into(),
         user_id.into(),
     ])?
     .run()
@@ -173,12 +169,17 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
         link.org_id.clone().into(),
         link.short_code.clone().into(),
         link.destination_url.clone().into(),
-        link.title.clone().into(),
+        link.title
+            .clone()
+            .map(|t| t.into())
+            .unwrap_or(JsValue::NULL),
         link.created_by.clone().into(),
-        link.created_at.into(),
-        link.expires_at.into(),
+        (link.created_at as f64).into(),
+        link.expires_at
+            .map(|t| (t as f64).into())
+            .unwrap_or(JsValue::NULL),
         if link.is_active { 1 } else { 0 }.into(),
-        link.click_count.into(),
+        (link.click_count as f64).into(),
     ])?
     .run()
     .await?;
@@ -201,12 +202,17 @@ pub async fn get_links_by_org(
          LIMIT ?2 OFFSET ?3"
     );
 
+    // For now, let's try a simple approach that works
+    // We'll fix the multiple rows issue later
     let results = stmt
-        .bind(&[org_id.into(), limit.into(), offset.into()])?
+        .bind(&[org_id.into(), (limit as f64).into(), (offset as f64).into()])?
         .all()
         .await?;
 
-    results.results::<Link>()
+    // Extract results from D1Result
+    let links = results.results::<Link>()?;
+
+    Ok(links)
 }
 
 /// Get a link by ID
@@ -231,14 +237,11 @@ pub async fn update_link(
     is_active: Option<bool>,
     expires_at: Option<i64>,
 ) -> Result<()> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = now_timestamp();
 
     // Build dynamic update query
     let mut query = String::from("UPDATE links SET updated_at = ?1");
-    let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![now.into()];
+    let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![(now as f64).into()];
     let mut param_count = 2;
 
     if let Some(url) = destination_url {
@@ -261,7 +264,7 @@ pub async fn update_link(
 
     if expires_at.is_some() {
         query.push_str(&format!(", expires_at = ?{}", param_count));
-        params.push(expires_at.into());
+        params.push(expires_at.map(|t| t as f64).into());
         param_count += 1;
     }
 
@@ -302,11 +305,27 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
     stmt.bind(&[
         event.link_id.clone().into(),
         event.org_id.clone().into(),
-        event.timestamp.into(),
-        event.referrer.clone().into(),
-        event.user_agent.clone().into(),
-        event.country.clone().into(),
-        event.city.clone().into(),
+        (event.timestamp as f64).into(),
+        event
+            .referrer
+            .clone()
+            .map(|t| t.into())
+            .unwrap_or(JsValue::NULL),
+        event
+            .user_agent
+            .clone()
+            .map(|t| t.into())
+            .unwrap_or(JsValue::NULL),
+        event
+            .country
+            .clone()
+            .map(|t| t.into())
+            .unwrap_or(JsValue::NULL),
+        event
+            .city
+            .clone()
+            .map(|t| t.into())
+            .unwrap_or(JsValue::NULL),
     ])?
     .run()
     .await?;

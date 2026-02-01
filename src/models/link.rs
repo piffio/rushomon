@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
+use crate::utils::now_timestamp;
+use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Link {
     pub id: String,
     pub org_id: String,
@@ -15,6 +16,47 @@ pub struct Link {
     pub click_count: i64,
 }
 
+impl<'de> Deserialize<'de> for Link {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct LinkHelper {
+            id: String,
+            org_id: String,
+            short_code: String,
+            destination_url: String,
+            title: Option<String>,
+            created_by: String,
+            created_at: i64,
+            updated_at: Option<i64>,
+            expires_at: Option<i64>,
+            is_active: i64, // D1 returns numbers, so use i64 directly
+            click_count: i64,
+        }
+
+        let helper = LinkHelper::deserialize(deserializer)?;
+
+        // Convert integer to boolean (0 → false, non-zero → true)
+        let is_active = helper.is_active != 0;
+
+        Ok(Link {
+            id: helper.id,
+            org_id: helper.org_id,
+            short_code: helper.short_code,
+            destination_url: helper.destination_url,
+            title: helper.title,
+            created_by: helper.created_by,
+            created_at: helper.created_at,
+            updated_at: helper.updated_at,
+            expires_at: helper.expires_at,
+            is_active,
+            click_count: helper.click_count,
+        })
+    }
+}
+
 /// The data stored in KV for fast redirect lookups
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkMapping {
@@ -25,6 +67,7 @@ pub struct LinkMapping {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateLinkRequest {
     pub destination_url: String,
     pub short_code: Option<String>,
@@ -43,10 +86,7 @@ pub struct UpdateLinkRequest {
 impl Link {
     pub fn is_expired(&self) -> bool {
         if let Some(expires_at) = self.expires_at {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64;
+            let now = now_timestamp();
             return now > expires_at;
         }
         false
@@ -89,7 +129,8 @@ mod tests {
         let future_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64 + 3600; // 1 hour in future
+            .as_secs() as i64
+            + 3600; // 1 hour in future
 
         let link = Link {
             id: "test-id".to_string(),
