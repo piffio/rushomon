@@ -1,0 +1,33 @@
+# Rust
+/target
+Cargo.lock
+
+# Cloudflare Workers
+/build
+/worker-build
+.wrangler
+
+# D1 local database
+.mf
+
+# Environment variables and secrets
+.env
+.dev.vars
+
+# Node.js (for frontend)
+node_modules
+.DS_Store
+
+# SvelteKit
+frontend/.svelte-kit
+frontend/build
+frontend/.vercel
+
+# Logs
+*.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo

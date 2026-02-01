@@ -1,0 +1,32 @@
+name = "rushomon"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-01-31"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+# KV Namespace for URL mappings
+# Run: wrangler kv:namespace create "URL_MAPPINGS"
+# Then update the id below with the returned namespace ID
+[[kv_namespaces]]
+binding = "URL_MAPPINGS"
+id = "8bd613d0dfc4464189531023547c79f5"
+preview_id = "48136fe5129f406184e6956849b5280f"
+
+# D1 Database for metadata and analytics
+# Run: wrangler d1 create rushomon
+# Then update the database_id below with the returned ID
+[[d1_databases]]
+binding = "rushomon"
+database_name = "rushomon"
+database_id = "3770f758-a236-41e3-b158-58c6a6253da8"
+
+# Environment variables (non-sensitive)
+[vars]
+GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"
+DOMAIN = "yourdomain.com"
+
+# Secrets (sensitive values - set via wrangler secret put)
+# Run these commands to set secrets:
+# wrangler secret put GITHUB_CLIENT_SECRET
+# wrangler secret put JWT_SECRET (use a random 32+ character string)
