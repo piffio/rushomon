@@ -1,0 +1,114 @@
+name: Cleanup Ephemeral Environment
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  cleanup:
+    name: Cleanup Ephemeral Resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract PR Number
+        id: pr_number
+        run: |
+          echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+
+      - name: Delete D1 Database
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DB_NAME="rushomon-pr-$PR_NUMBER"
+
+          echo "Attempting to delete D1 database: $DB_NAME"
+
+          # List databases to find the one matching our PR
+          RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          DB_ID=$(echo "$RESPONSE" | jq -r ".result[] | select(.name == \"$DB_NAME\") | .uuid // .id" | head -1)
+
+          if [ -z "$DB_ID" ]; then
+            echo "⚠️  Database not found: $DB_NAME (may have already been deleted)"
+            exit 0
+          fi
+
+          echo "Found database ID: $DB_ID"
+
+          # Delete the database
+          DELETE_RESPONSE=$(curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/$DB_ID" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          SUCCESS=$(echo "$DELETE_RESPONSE" | jq -r '.success // false')
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Successfully deleted D1 database: $DB_NAME"
+          else
+            echo "⚠️  Failed to delete D1 database"
+            echo "Response: $DELETE_RESPONSE"
+            # Don't exit with error - continue to cleanup KV
+          fi
+
+      - name: Delete KV Namespace
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          KV_NAME="URL_MAPPINGS_pr_$PR_NUMBER"
+
+          echo "Attempting to delete KV namespace: $KV_NAME"
+
+          # List namespaces to find the one matching our PR
+          RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          KV_ID=$(echo "$RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAME\") | .id" | head -1)
+
+          if [ -z "$KV_ID" ]; then
+            echo "⚠️  KV namespace not found: $KV_NAME (may have already been deleted)"
+            exit 0
+          fi
+
+          echo "Found KV namespace ID: $KV_ID"
+
+          # Delete the KV namespace
+          DELETE_RESPONSE=$(curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_ID" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          SUCCESS=$(echo "$DELETE_RESPONSE" | jq -r '.success // false')
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Successfully deleted KV namespace: $KV_NAME"
+          else
+            echo "⚠️  Failed to delete KV namespace"
+            echo "Response: $DELETE_RESPONSE"
+          fi
+
+      - name: Post Cleanup Notification
+        if: always()
+        uses: thollander/actions-comment-pull-request@v3.0.1
+        with:
+          pr-number: ${{ steps.pr_number.outputs.pr_number }}
+          message: |
+            🧹 **Ephemeral Environment Cleaned Up**
+
+            Resources for PR #${{ steps.pr_number.outputs.pr_number }} have been automatically deleted:
+            - D1 Database: `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}`
+            - KV Namespace: `URL_MAPPINGS_pr_${{ steps.pr_number.outputs.pr_number }}`
+            - Worker Route: `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}`
