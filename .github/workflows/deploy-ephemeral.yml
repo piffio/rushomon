@@ -357,20 +357,15 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: thollander/actions-comment-pull-request@v3.0.1
         with:
-          script: |
-            const pr_number = ${{ steps.pr_number.outputs.pr_number }};
-            const workers_domain = "${{ secrets.WORKERS_DOMAIN }}";
-            const deployment_url = `https://rushomon-pr-${pr_number}.${workers_domain}`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🚀 **Ephemeral Environment Deployed**\n\n` +
-                    `**URL**: [${deployment_url}](${deployment_url})\n\n` +
-                    `This environment will be automatically cleaned up when the PR is closed.\n\n` +
-                    `**Database ID**: \`${{ steps.create_d1.outputs.database_id }}\`\n` +
-                    `**KV Namespace ID**: \`${{ steps.create_kv.outputs.kv_id }}\``
-            });
+          pr-number: ${{ steps.pr_number.outputs.pr_number }}
+          message: |
+            🚀 **Ephemeral Environment Deployed**
+
+            **URL**: [https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}](https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }})
+
+            This environment will be automatically cleaned up when the PR is closed.
+
+            **Database ID**: `${{ steps.create_d1.outputs.database_id }}`
+            **KV Namespace ID**: `${{ steps.create_kv.outputs.kv_id }}`
