@@ -154,8 +154,6 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
           DB_ID: ${{ steps.create_d1.outputs.database_id }}
           KV_ID: ${{ steps.create_kv.outputs.kv_id }}
-          DB_NAME: ${{ steps.create_d1.outputs.database_name }}
-          KV_NAME: ${{ steps.create_kv.outputs.kv_name }}
         run: |
           cat > wrangler.ephemeral.toml << 'EOF'
           name = "rushomon-pr-${{ env.PR_NUMBER }}"
@@ -167,20 +165,15 @@ jobs:
 
           [[d1_databases]]
           binding = "rushomon"
-          name = "${{ env.DB_NAME }}"
           database_id = "${{ env.DB_ID }}"
 
           [[kv_namespaces]]
           binding = "URL_MAPPINGS"
-          name = "${{ env.KV_NAME }}"
           id = "${{ env.KV_ID }}"
-
-          [env]
-          route = "pr-${{ env.PR_NUMBER }}.rushomon-staging.workers.dev/*"
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
-          DOMAIN = "rushomon-staging.workers.dev"
+          DOMAIN = "piffio.workers.dev"
           EOF
 
       - name: Apply D1 Migrations
@@ -188,10 +181,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_NAME: ${{ steps.create_d1.outputs.database_name }}
         run: |
-          DB_ID="${{ steps.create_d1.outputs.database_id }}"
-          DB_NAME="${{ steps.create_d1.outputs.database_name }}"
-          
           # Wait for database to be ready
           sleep 2
           
@@ -210,7 +201,7 @@ jobs:
         env:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
-          DEPLOYMENT_URL="https://pr-$PR_NUMBER.rushomon-staging.workers.dev"
+          DEPLOYMENT_URL="https://rushomon-pr-$PR_NUMBER.piffio.workers.dev"
           
           echo "Testing deployment at: $DEPLOYMENT_URL"
           
@@ -259,7 +250,7 @@ jobs:
             "database_id": "$DB_ID",
             "kv_id": "$KV_ID",
             "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "deployment_url": "https://pr-$PR_NUMBER.rushomon-staging.workers.dev"
+            "deployment_url": "https://rushomon-pr-$PR_NUMBER.piffio.workers.dev"
           }
           EOF
 
@@ -269,7 +260,7 @@ jobs:
         with:
           script: |
             const pr_number = ${{ steps.pr_number.outputs.pr_number }};
-            const deployment_url = `https://pr-${pr_number}.rushomon-staging.workers.dev`;
+            const deployment_url = `https://rushomon-pr-${pr_number}.piffio.workers.dev`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
