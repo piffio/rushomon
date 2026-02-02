@@ -160,7 +160,7 @@ jobs:
           route = "pr-${{ env.PR_NUMBER }}.rushomon-staging.workers.dev/*"
           
           [vars]
-          GITHUB_CLIENT_ID = "${{ secrets.GITHUB_CLIENT_ID }}"
+          GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
           DOMAIN = "rushomon-staging.workers.dev"
           EOF
 
