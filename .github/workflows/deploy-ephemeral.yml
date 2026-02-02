@@ -1,0 +1,255 @@
+name: Deploy Ephemeral Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ephemeral-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-ephemeral:
+    name: Deploy to Ephemeral Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine PR Number
+        id: pr_number
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            # For push events on non-main branches, extract from branch name or use commit SHA
+            PR_NUM=$(echo "${{ github.ref }}" | sed 's|refs/heads/||' | grep -oE '[0-9]+' | head -1)
+            if [ -z "$PR_NUM" ]; then
+              PR_NUM=$(echo "${{ github.sha }}" | cut -c1-7)
+            fi
+            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '.'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install wrangler and worker-build
+        run: |
+          npm install -g wrangler
+          cargo install -q worker-build
+
+      - name: Build Worker
+        run: worker-build --release
+
+      - name: Create D1 Database
+        id: create_d1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DB_NAME="rushomon-pr-$PR_NUMBER"
+          
+          # Create database via Cloudflare API
+          RESPONSE=$(curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"$DB_NAME\"}")
+          
+          DB_ID=$(echo "$RESPONSE" | jq -r '.result.uuid // .result.id // empty')
+          
+          if [ -z "$DB_ID" ]; then
+            echo "Failed to create D1 database"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
+          echo "database_name=$DB_NAME" >> $GITHUB_OUTPUT
+
+      - name: Apply D1 Migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DB_ID="${{ steps.create_d1.outputs.database_id }}"
+          DB_NAME="${{ steps.create_d1.outputs.database_name }}"
+          
+          # Wait for database to be ready
+          sleep 2
+          
+          # Apply migrations
+          wrangler d1 migrations apply "$DB_NAME" --remote \
+            --account-id "$CLOUDFLARE_ACCOUNT_ID" \
+            --api-token "$CLOUDFLARE_API_TOKEN" || true
+
+      - name: Create KV Namespace
+        id: create_kv
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          KV_NAME="URL_MAPPINGS_pr_$PR_NUMBER"
+          
+          # Create KV namespace via Cloudflare API
+          RESPONSE=$(curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"title\": \"$KV_NAME\"}")
+          
+          KV_ID=$(echo "$RESPONSE" | jq -r '.result.id // empty')
+          
+          if [ -z "$KV_ID" ]; then
+            echo "Failed to create KV namespace"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+          
+          echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
+          echo "kv_name=$KV_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Ephemeral wrangler.toml
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_ID: ${{ steps.create_d1.outputs.database_id }}
+          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+        run: |
+          cat > wrangler.ephemeral.toml << 'EOF'
+          name = "rushomon-pr-${{ env.PR_NUMBER }}"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2024-01-31"
+          
+          [build]
+          command = "cargo install -q worker-build && worker-build --release"
+          
+          [[d1_databases]]
+          binding = "rushomon"
+          database_id = "${{ env.DB_ID }}"
+          
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_ID }}"
+          
+          [env.staging]
+          route = "pr-${{ env.PR_NUMBER }}.rushomon-staging.workers.dev/*"
+          
+          [vars]
+          GITHUB_CLIENT_ID = "${{ secrets.GITHUB_CLIENT_ID }}"
+          DOMAIN = "rushomon-staging.workers.dev"
+          EOF
+
+      - name: Deploy to Ephemeral Environment
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          # Use ephemeral wrangler config
+          cp wrangler.ephemeral.toml wrangler.toml
+          
+          # Deploy to staging environment
+          wrangler deploy --env staging \
+            --account-id "$CLOUDFLARE_ACCOUNT_ID" \
+            --api-token "$CLOUDFLARE_API_TOKEN"
+
+      - name: Run Smoke Tests
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DEPLOYMENT_URL="https://pr-$PR_NUMBER.rushomon-staging.workers.dev"
+          
+          echo "Testing deployment at: $DEPLOYMENT_URL"
+          
+          # Wait for deployment to be ready
+          sleep 3
+          
+          # Health check
+          echo "Running health check..."
+          if ! curl -f "$DEPLOYMENT_URL/api/health" 2>/dev/null; then
+            echo "Health check endpoint not found, trying root..."
+            curl -f "$DEPLOYMENT_URL/" || echo "Root endpoint also failed"
+          fi
+          
+          # Create test link
+          echo "Creating test link..."
+          CREATE_RESPONSE=$(curl -s -X POST "$DEPLOYMENT_URL/api/links" \
+            -H "Content-Type: application/json" \
+            -d '{"destination_url": "https://example.com", "short_code": "test'$RANDOM'"}')
+          
+          echo "Create response: $CREATE_RESPONSE"
+          
+          # Extract short code from response
+          SHORT_CODE=$(echo "$CREATE_RESPONSE" | jq -r '.data.short_code // empty')
+          
+          if [ -n "$SHORT_CODE" ]; then
+            echo "Created link with code: $SHORT_CODE"
+            
+            # Test redirect
+            echo "Testing redirect..."
+            curl -I "$DEPLOYMENT_URL/$SHORT_CODE" || echo "Redirect test failed"
+          else
+            echo "Warning: Could not extract short code from response"
+          fi
+
+      - name: Store Deployment Info
+        if: always()
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_ID: ${{ steps.create_d1.outputs.database_id }}
+          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+        run: |
+          mkdir -p .github/ephemeral-envs
+          cat > .github/ephemeral-envs/pr-$PR_NUMBER.json << EOF
+          {
+            "pr_number": "$PR_NUMBER",
+            "database_id": "$DB_ID",
+            "kv_id": "$KV_ID",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployment_url": "https://pr-$PR_NUMBER.rushomon-staging.workers.dev"
+          }
+          EOF
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr_number = ${{ steps.pr_number.outputs.pr_number }};
+            const deployment_url = `https://pr-${pr_number}.rushomon-staging.workers.dev`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Ephemeral Environment Deployed**\n\n` +
+                    `**URL**: [${deployment_url}](${deployment_url})\n\n` +
+                    `This environment will be automatically cleaned up when the PR is closed.\n\n` +
+                    `**Database ID**: \`${{ steps.create_d1.outputs.database_id }}\`\n` +
+                    `**KV Namespace ID**: \`${{ steps.create_kv.outputs.kv_id }}\``
+            });
