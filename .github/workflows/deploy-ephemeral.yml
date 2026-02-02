@@ -72,19 +72,35 @@ jobs:
         run: |
           DB_NAME="rushomon-pr-$PR_NUMBER"
           
-          # Create database via Cloudflare API
-          RESPONSE=$(curl -s -X POST \
+          # Check if database already exists
+          echo "Checking if database '$DB_NAME' already exists..."
+          LIST_RESPONSE=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\": \"$DB_NAME\"}")
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
           
-          DB_ID=$(echo "$RESPONSE" | jq -r '.result.uuid // .result.id // empty')
+          DB_ID=$(echo "$LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$DB_NAME\") | .uuid // .id" | head -1)
           
-          if [ -z "$DB_ID" ]; then
-            echo "Failed to create D1 database"
-            echo "Response: $RESPONSE"
-            exit 1
+          if [ -n "$DB_ID" ]; then
+            echo "✅ Database already exists: $DB_NAME (ID: $DB_ID)"
+          else
+            echo "🆕 Creating new database: $DB_NAME"
+
+            # Create database via Cloudflare API
+            RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"$DB_NAME\"}")
+
+            DB_ID=$(echo "$RESPONSE" | jq -r '.result.uuid // .result.id // empty')
+
+            if [ -z "$DB_ID" ]; then
+              echo "❌ Failed to create D1 database"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
+
+            echo "✅ Created database: $DB_NAME (ID: $DB_ID)"
           fi
           
           echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
@@ -144,19 +160,35 @@ jobs:
         run: |
           KV_NAME="URL_MAPPINGS_pr_$PR_NUMBER"
           
-          # Create KV namespace via Cloudflare API
-          RESPONSE=$(curl -s -X POST \
+          # Check if KV namespace already exists
+          echo "Checking if KV namespace '$KV_NAME' already exists..."
+          LIST_RESPONSE=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"title\": \"$KV_NAME\"}")
-          
-          KV_ID=$(echo "$RESPONSE" | jq -r '.result.id // empty')
-          
-          if [ -z "$KV_ID" ]; then
-            echo "Failed to create KV namespace"
-            echo "Response: $RESPONSE"
-            exit 1
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          KV_ID=$(echo "$LIST_RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAME\") | .id" | head -1)
+
+          if [ -n "$KV_ID" ]; then
+            echo "✅ KV namespace already exists: $KV_NAME (ID: $KV_ID)"
+          else
+            echo "🆕 Creating new KV namespace: $KV_NAME"
+
+            # Create KV namespace via Cloudflare API
+            RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"title\": \"$KV_NAME\"}")
+
+            KV_ID=$(echo "$RESPONSE" | jq -r '.result.id // empty')
+
+            if [ -z "$KV_ID" ]; then
+              echo "❌ Failed to create KV namespace"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
+
+            echo "✅ Created KV namespace: $KV_NAME (ID: $KV_ID)"
           fi
           
           echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
