@@ -106,51 +106,6 @@ jobs:
           echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
           echo "database_name=$DB_NAME" >> $GITHUB_OUTPUT
 
-      - name: Create Ephemeral wrangler.toml
-        env:
-          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
-          DB_ID: ${{ steps.create_d1.outputs.database_id }}
-          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
-        run: |
-          cat > wrangler.ephemeral.toml << 'EOF'
-          name = "rushomon-pr-${{ env.PR_NUMBER }}"
-          main = "build/worker/shim.mjs"
-          compatibility_date = "2024-01-31"
-
-          [build]
-          command = "cargo install -q worker-build && worker-build --release"
-
-          [[d1_databases]]
-          binding = "rushomon"
-          database_id = "${{ env.DB_ID }}"
-
-          [[kv_namespaces]]
-          binding = "URL_MAPPINGS"
-          id = "${{ env.KV_ID }}"
-
-          [env.staging]
-          route = "pr-${{ env.PR_NUMBER }}.rushomon-staging.workers.dev/*"
-
-          [vars]
-          GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
-          DOMAIN = "rushomon-staging.workers.dev"
-          EOF
-
-      - name: Apply D1 Migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
-        run: |
-          DB_ID="${{ steps.create_d1.outputs.database_id }}"
-          DB_NAME="${{ steps.create_d1.outputs.database_name }}"
-          
-          # Wait for database to be ready
-          sleep 2
-          
-          # Apply migrations using environment variables
-          wrangler d1 migrations apply "$DB_NAME" --remote -c wrangler.ephemeral.toml || true
-
       - name: Create KV Namespace
         id: create_kv
         env:
@@ -159,7 +114,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           KV_NAME="URL_MAPPINGS_pr_$PR_NUMBER"
-          
+
           # Check if KV namespace already exists
           echo "Checking if KV namespace '$KV_NAME' already exists..."
           LIST_RESPONSE=$(curl -s -X GET \
@@ -190,9 +145,54 @@ jobs:
 
             echo "✅ Created KV namespace: $KV_NAME (ID: $KV_ID)"
           fi
-          
+
           echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
           echo "kv_name=$KV_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Ephemeral wrangler.toml
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_ID: ${{ steps.create_d1.outputs.database_id }}
+          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+        run: |
+          cat > wrangler.ephemeral.toml << 'EOF'
+          name = "rushomon-pr-${{ env.PR_NUMBER }}"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2024-01-31"
+
+          [build]
+          command = "cargo install -q worker-build && worker-build --release"
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_id = "${{ env.DB_ID }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_ID }}"
+
+          [env]
+          route = "pr-${{ env.PR_NUMBER }}.rushomon-staging.workers.dev/*"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
+          DOMAIN = "rushomon-staging.workers.dev"
+          EOF
+
+      - name: Apply D1 Migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DB_ID="${{ steps.create_d1.outputs.database_id }}"
+          DB_NAME="${{ steps.create_d1.outputs.database_name }}"
+          
+          # Wait for database to be ready
+          sleep 2
+          
+          # Apply migrations using environment variables
+          wrangler d1 migrations apply "$DB_NAME" --remote -c wrangler.ephemeral.toml || true
 
       - name: Deploy to Ephemeral Environment
         env:
@@ -200,8 +200,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
-          # Deploy to staging environment using environment variables
-          wrangler deploy --env staging -c wrangler.ephemeral.toml
+          wrangler deploy -c wrangler.ephemeral.toml
 
       - name: Run Smoke Tests
         env:
