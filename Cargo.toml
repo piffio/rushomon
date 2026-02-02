@@ -15,6 +15,11 @@ url = "2.5"
 console_error_panic_hook = "0.1"
 getrandom = { version = "0.3.4", features = ["std", "wasm_js"] }
 rand = "0.9.2"
+wasm-bindgen-futures = "0.4"
+
+[dev-dependencies]
+reqwest = { version = "0.13.1", features = ["json"] }
+tokio = { version = "1", features = ["full", "test-util"] }
 
 [profile.release]
 opt-level = "s"
