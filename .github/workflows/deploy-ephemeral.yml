@@ -154,6 +154,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
           DB_ID: ${{ steps.create_d1.outputs.database_id }}
           KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+          DB_NAME: ${{ steps.create_d1.outputs.database_name }}
+          KV_NAME: ${{ steps.create_kv.outputs.kv_name }}
         run: |
           cat > wrangler.ephemeral.toml << 'EOF'
           name = "rushomon-pr-${{ env.PR_NUMBER }}"
@@ -165,10 +167,12 @@ jobs:
 
           [[d1_databases]]
           binding = "rushomon"
+          name = "${{ env.DB_NAME }}"
           database_id = "${{ env.DB_ID }}"
 
           [[kv_namespaces]]
           binding = "URL_MAPPINGS"
+          name = "${{ env.KV_NAME }}"
           id = "${{ env.KV_ID }}"
 
           [env]
