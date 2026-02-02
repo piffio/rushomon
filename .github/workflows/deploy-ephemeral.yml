@@ -187,7 +187,7 @@ jobs:
           sleep 2
           
           # Apply migrations using environment variables
-          wrangler d1 migrations apply rushomon --remote -c wrangler.ephemeral.toml || true
+          wrangler d1 migrations apply rushomon --remote -c wrangler.ephemeral.toml
 
       - name: Deploy to Ephemeral Environment
         env:
