@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# Enhanced pre-commit hook for Rushomon
+# Uses configuration from repo-config/config/
+
+set -euo pipefail
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Load configuration
+CONFIG_DIR="$REPO_ROOT/repo-config/config"
+
+if [ -f "$CONFIG_DIR/default.sh" ]; then
+    source "$CONFIG_DIR/default.sh"
+else
+    echo "❌ Configuration file not found: $CONFIG_DIR/default.sh"
+    echo "Please run: ./repo-config/scripts/setup.sh"
+    exit 1
+fi
+
+# Load user overrides if they exist
+if [ -f "$CONFIG_DIR/user.sh" ]; then
+    source "$CONFIG_DIR/user.sh"
+fi
+
+# Helper functions
+log_verbose() {
+    if [ "${PRE_COMMIT_VERBOSE:-true}" = true ]; then
+        echo "$@"
+    fi
+}
+
+check_tool() {
+    local tool="$1"
+    local required="$2"
+    local install_msg="$3"
+    
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        if [ "$required" = true ]; then
+            echo "❌ Required tool '$tool' not found"
+            echo "💡 $install_msg"
+            return 1
+        else
+            log_verbose "⚠️  Optional tool '$tool' not found (install: $install_msg)"
+            return 0
+        fi
+    fi
+    log_verbose "✅ Tool '$tool' found"
+    return 0
+}
+
+run_check() {
+    local enabled_var="$1"
+    local command_var="$2"
+    local required_var="$3"
+    local error_msg_var="$4"
+    local check_name="$5"
+    
+    local enabled="${!enabled_var:-false}"
+    local command="${!command_var}"
+    local required="${!required_var:-false}"
+    local error_msg="${!error_msg_var:-Check failed}"
+    
+    if [ "$enabled" = true ]; then
+        log_verbose "🔍 Running $check_name..."
+        echo "🧪 Running $check_name..."
+        
+        if ! eval "$command"; then
+            echo ""
+            echo "❌ $error_msg"
+            echo ""
+            
+            if [ "$required" = true ]; then
+                echo "To skip this hook (not recommended):"
+                echo "  git commit --no-verify"
+                echo ""
+                exit 1
+            else
+                echo "⚠️  Continuing commit (non-critical check failed)"
+                echo ""
+            fi
+        else
+            log_verbose "✅ $check_name passed"
+        fi
+    else
+        log_verbose "⏭️  Skipping $check_name (disabled)"
+    fi
+}
+
+# Main execution
+main() {
+    echo "🔍 Running pre-commit checks..."
+    echo ""
+    
+    # Check required tools
+    log_verbose "🔧 Checking tool availability..."
+    
+    if ! check_tool "cargo" "$CARGO_REQUIRED" "$CARGO_INSTALL_MSG"; then
+        exit 1
+    fi
+    
+    # Optional tools
+    if [ "$CODE_FORMATTING_ENABLED" = true ] && [ "$CODE_FORMATTING_REQUIRED" = true ]; then
+        check_tool "rustfmt" true "$RUSTFMT_INSTALL_MSG"
+    fi
+    
+    if [ "$CLIPPY_ENABLED" = true ] && [ "$CLIPPY_REQUIRED" = true ]; then
+        check_tool "clippy" true "$CLIPPY_INSTALL_MSG"
+    fi
+    
+    echo ""
+    
+    # Run checks
+    run_check "UNIT_TESTS_ENABLED" "UNIT_TESTS_COMMAND" "UNIT_TESTS_REQUIRED" "UNIT_TESTS_ERROR_MSG" "unit tests"
+    run_check "CODE_FORMATTING_ENABLED" "CODE_FORMATTING_COMMAND" "CODE_FORMATTING_REQUIRED" "CODE_FORMATTING_ERROR_MSG" "code formatting"
+    run_check "CLIPPY_ENABLED" "CLIPPY_COMMAND" "CLIPPY_REQUIRED" "CLIPPY_ERROR_MSG" "clippy linting"
+    
+    echo ""
+    echo "✅ All enabled checks passed! Proceeding with commit..."
+}
+
+# Run main function
+main "$@"

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Personal configuration overrides for Rushomon repo hooks
+# Copy this file to user.sh and modify as needed
+
+# Example: Disable formatting checks if you prefer to format manually
+# CODE_FORMATTING_ENABLED=false
+# CODE_FORMATTING_REQUIRED=false
+
+# Example: Make clippy warnings block commits
+# CLIPPY_REQUIRED=true
+
+# Example: Use faster test command for development
+# UNIT_TESTS_COMMAND="cargo test --lib --release"
+
+# Example: Add custom flags to clippy
+# CLIPPY_COMMAND="cargo clippy -- -D warnings -W clippy::unwrap_used"
+
+# Example: Increase timeout for slow machines
+# PRE_COMMIT_TIMEOUT_SECONDS=600
+
+# Example: Disable verbose output
+# PRE_COMMIT_VERBOSE=false
