@@ -1,5 +1,5 @@
-use worker::{kv::KvStore, Result};
 use crate::models::LinkMapping;
+use worker::{Result, kv::KvStore};
 
 /// KV key format: link:{org_id}:{short_code}
 /// For Phase 1 (single domain), we use a simpler global format: {short_code}
