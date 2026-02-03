@@ -1,8 +1,4 @@
 -- Migration to convert tables to STRICT
--- Disable foreign key constraints temporarily
-PRAGMA foreign_keys = OFF;
-
-BEGIN TRANSACTION;
 
 -- Create new STRICT links table without foreign keys first
 CREATE TABLE links_new (
@@ -30,8 +26,3 @@ DROP TABLE links;
 
 -- Rename the new table to the original name
 ALTER TABLE links_new RENAME TO links;
-
-COMMIT;
-
--- Re-enable foreign key constraints
-PRAGMA foreign_keys = ON;

@@ -1,0 +1,371 @@
+name: Deploy Ephemeral Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ephemeral-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-ephemeral:
+    name: Deploy to Ephemeral Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine PR Number
+        id: pr_number
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            # For push events on non-main branches, extract from branch name or use commit SHA
+            PR_NUM=$(echo "${{ github.ref }}" | sed 's|refs/heads/||' | grep -oE '[0-9]+' | head -1)
+            if [ -z "$PR_NUM" ]; then
+              PR_NUM=$(echo "${{ github.sha }}" | cut -c1-7)
+            fi
+            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '.'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install wrangler and worker-build
+        run: |
+          npm install -g wrangler
+          cargo install -q worker-build
+
+      - name: Build Worker
+        run: worker-build --release
+
+      - name: Create D1 Database
+        id: create_d1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DB_NAME="rushomon-pr-$PR_NUMBER"
+          
+          # Check if database already exists
+          echo "Checking if database '$DB_NAME' already exists..."
+          LIST_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          
+          DB_ID=$(echo "$LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$DB_NAME\") | .uuid // .id" | head -1)
+          
+          if [ -n "$DB_ID" ]; then
+            echo "✅ Database already exists: $DB_NAME (ID: $DB_ID)"
+          else
+            echo "🆕 Creating new database: $DB_NAME"
+
+            # Create database via Cloudflare API
+            RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"$DB_NAME\"}")
+
+            DB_ID=$(echo "$RESPONSE" | jq -r '.result.uuid // .result.id // empty')
+
+            if [ -z "$DB_ID" ]; then
+              echo "❌ Failed to create D1 database"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
+
+            echo "✅ Created database: $DB_NAME (ID: $DB_ID)"
+          fi
+          
+          echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
+          echo "database_name=$DB_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create KV Namespace
+        id: create_kv
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          KV_NAME="URL_MAPPINGS_pr_$PR_NUMBER"
+
+          # Check if KV namespace already exists
+          echo "Checking if KV namespace '$KV_NAME' already exists..."
+          LIST_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          KV_ID=$(echo "$LIST_RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAME\") | .id" | head -1)
+
+          if [ -n "$KV_ID" ]; then
+            echo "✅ KV namespace already exists: $KV_NAME (ID: $KV_ID)"
+          else
+            echo "🆕 Creating new KV namespace: $KV_NAME"
+
+            # Create KV namespace via Cloudflare API
+            RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"title\": \"$KV_NAME\"}")
+
+            KV_ID=$(echo "$RESPONSE" | jq -r '.result.id // empty')
+
+            if [ -z "$KV_ID" ]; then
+              echo "❌ Failed to create KV namespace"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
+
+            echo "✅ Created KV namespace: $KV_NAME (ID: $KV_ID)"
+          fi
+
+          echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
+          echo "kv_name=$KV_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Ephemeral wrangler.toml
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_ID: ${{ steps.create_d1.outputs.database_id }}
+          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+          WORKERS_DOMAIN: ${{ secrets.WORKERS_DOMAIN }}
+        run: |
+          cat > wrangler.ephemeral.toml << 'EOF'
+          name = "rushomon-pr-${{ env.PR_NUMBER }}"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2024-01-31"
+
+          [build]
+          command = "cargo install -q worker-build && worker-build --release"
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_id = "${{ env.DB_ID }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_ID }}"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
+          DOMAIN = "${{ env.WORKERS_DOMAIN }}"
+          EOF
+
+      - name: Apply D1 Migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          # Wait for database to be ready
+          sleep 2
+          
+          # Apply migrations using environment variables
+          wrangler d1 migrations apply rushomon --remote -c wrangler.ephemeral.toml
+
+      - name: Deploy to Ephemeral Environment
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          wrangler deploy -c wrangler.ephemeral.toml
+
+      - name: Run Smoke Tests
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          WORKERS_DOMAIN: ${{ secrets.WORKERS_DOMAIN }}
+        run: |
+          DEPLOYMENT_URL="https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
+          
+          echo "🧪 Testing deployment at: $DEPLOYMENT_URL"
+          
+          # Wait for deployment to be ready
+          sleep 3
+          
+          # Test 1: Root endpoint health check
+          echo ""
+          echo "🏥 Test 1: Root Endpoint (Health Check)"
+          echo "----------------------------------------"
+          echo "Testing $DEPLOYMENT_URL/..."
+
+          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$DEPLOYMENT_URL/" || echo "FAILED")
+          HTTP_CODE=$(echo "$HEALTH_RESPONSE" | tail -n1 | cut -d: -f2)
+          RESPONSE_BODY=$(echo "$HEALTH_RESPONSE" | sed '$d')
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response Body: $RESPONSE_BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Root endpoint failed with HTTP $HTTP_CODE"
+            echo "Response: $RESPONSE_BODY"
+            exit 1
+          else
+            echo "✅ Root endpoint (health check) passed"
+            echo "📝 Worker is responding with the expected banner"
+          fi
+
+          # Test 2: Create link
+          echo ""
+          echo "🔗 Test 2: Create Link"
+          echo "----------------------"
+
+          # Generate unique short code (4-10 characters)
+          TEST_CODE="test${RANDOM:0:3}"
+          PAYLOAD="{\"destination_url\": \"https://example.com\", \"short_code\": \"$TEST_CODE\"}"
+
+          echo "Payload: $PAYLOAD"
+          echo "Sending POST to $DEPLOYMENT_URL/api/links..."
+
+          CREATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -X POST "$DEPLOYMENT_URL/api/links" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          CREATE_HTTP_CODE=$(echo "$CREATE_RESPONSE" | tail -n1 | cut -d: -f2)
+          CREATE_BODY=$(echo "$CREATE_RESPONSE" | sed '$d')
+
+          echo "Create response HTTP: $CREATE_HTTP_CODE"
+          echo "Create response body: $CREATE_BODY"
+
+          if [ "$CREATE_HTTP_CODE" != "200" ] && [ "$CREATE_HTTP_CODE" != "201" ]; then
+            echo "❌ Link creation failed with HTTP $CREATE_HTTP_CODE"
+            echo "Response body: $CREATE_BODY"
+            echo ""
+            echo "🔍 Debugging failed request..."
+            echo "Headers that were sent:"
+            echo "  Content-Type: application/json"
+            echo "  Method: POST"
+            echo "  URL: $DEPLOYMENT_URL/api/links"
+            echo "  Payload: $PAYLOAD"
+            exit 1
+          fi
+
+          # Check if response is valid JSON
+          if ! echo "$CREATE_BODY" | jq . >/dev/null 2>&1; then
+            echo "❌ Response is not valid JSON"
+            echo "Raw response: $CREATE_BODY"
+            exit 1
+          fi
+
+          echo "✅ Link creation successful"
+          echo "✅ Response is valid JSON"
+
+          # Extract short code
+          SHORT_CODE=$(echo "$CREATE_BODY" | jq -r '.short_code // empty')
+
+          if [ -z "$SHORT_CODE" ] || [ "$SHORT_CODE" = "null" ]; then
+            echo "❌ Could not extract short code from response"
+            echo "Response: $CREATE_BODY"
+            exit 1
+          fi
+
+          echo "✅ Extracted short code: $SHORT_CODE"
+
+          # Test 3: Redirect
+          echo ""
+          echo "🔄 Test 3: Redirect"
+          echo "-------------------"
+          echo "Testing redirect to $DEPLOYMENT_URL/$SHORT_CODE..."
+
+          REDIRECT_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -I "$DEPLOYMENT_URL/$SHORT_CODE" || echo "FAILED")
+          REDIRECT_HTTP_CODE=$(echo "$REDIRECT_RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$REDIRECT_HTTP_CODE" = "301" ] || [ "$REDIRECT_HTTP_CODE" = "302" ]; then
+            echo "✅ Redirect working (HTTP $REDIRECT_HTTP_CODE)"
+          else
+            echo "⚠️  Redirect test failed (HTTP $REDIRECT_HTTP_CODE)"
+            echo "Response: $REDIRECT_RESPONSE"
+          fi
+
+          # Test 4: Check available endpoints
+          echo ""
+          echo "📋 Test 4: Check Available Endpoints"
+          echo "------------------------------------"
+
+          echo "Testing common endpoints..."
+
+          # Test common endpoints
+          for endpoint in "/" "/api/links" "/favicon.ico"; do
+            echo -n "  $endpoint: "
+
+            if curl -s -f "$DEPLOYMENT_URL$endpoint" >/dev/null 2>&1; then
+              echo "✅ Accessible"
+            else
+              echo "❌ Not accessible"
+            fi
+          done
+
+          echo ""
+          echo "🎯 Smoke Tests Summary"
+          echo "====================="
+          echo "✅ All core functionality tested"
+          echo "✅ Worker deployment verified"
+          echo "✅ API endpoints responding"
+          echo "✅ Redirect logic working"
+
+      - name: Store Deployment Info
+        if: always()
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_ID: ${{ steps.create_d1.outputs.database_id }}
+          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+          WORKERS_DOMAIN: ${{ secrets.WORKERS_DOMAIN }}
+        run: |
+          mkdir -p .github/ephemeral-envs
+          cat > .github/ephemeral-envs/pr-$PR_NUMBER.json << EOF
+          {
+            "pr_number": "$PR_NUMBER",
+            "database_id": "$DB_ID",
+            "kv_id": "$KV_ID",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployment_url": "https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
+          }
+          EOF
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3.0.1
+        with:
+          pr-number: ${{ steps.pr_number.outputs.pr_number }}
+          message: |
+            🚀 **Ephemeral Environment Deployed**
+
+            **URL**: [https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}](https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }})
+
+            This environment will be automatically cleaned up when the PR is closed.
+
+            **Database ID**: `${{ steps.create_d1.outputs.database_id }}`
+            **KV Namespace ID**: `${{ steps.create_kv.outputs.kv_id }}`

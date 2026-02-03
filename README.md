@@ -41,6 +41,9 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 ```bash
 git clone <your-repo>
 cd rushomon
+
+# Set up development hooks and configuration
+./repo-config/scripts/setup.sh
 ```
 
 ### Step 2: Create Cloudflare Resources
@@ -131,6 +134,20 @@ wrangler deploy
 
 ## Development
 
+### Repository Configuration
+
+This project uses a sophisticated repository configuration system for consistent development experience. See [repo-config/README.md](repo-config/README.md) for complete setup and customization instructions.
+
+**Quick Setup:**
+```bash
+./repo-config/scripts/setup.sh
+```
+
+This installs:
+- **Pre-commit hooks** with unit tests, formatting, and linting
+- **Configurable checks** (personalize via `repo-config/config/user.sh`)
+- **Team consistency** while allowing individual preferences
+
 ### Project Structure
 
 ```
@@ -144,6 +161,11 @@ rushomon/
 │   ├── db/                 # D1 queries
 │   ├── kv/                 # KV operations
 │   └── utils/              # Utilities (short codes, validation)
+├── repo-config/            # Repository configuration system
+│   ├── hooks/              # Git hooks
+│   ├── scripts/            # Setup and management scripts
+│   ├── config/             # Configuration files
+│   └── README.md           # Complete documentation
 ├── migrations/             # D1 schema
 ├── Cargo.toml              # Rust dependencies
 └── wrangler.toml           # Cloudflare config

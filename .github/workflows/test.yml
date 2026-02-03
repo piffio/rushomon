@@ -1,0 +1,87 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '.'
+
+      - name: Run unit tests
+        run: cargo test --lib
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '.'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install wrangler and worker-build
+        run: |
+          npm install -g wrangler
+          cargo install -q worker-build
+
+      - name: Build Worker
+        run: worker-build --release
+
+      - name: Apply D1 migrations (local)
+        run: wrangler d1 migrations apply rushomon --local
+
+      - name: Start wrangler dev server
+        run: |
+          wrangler dev --local --port 8787 &
+          sleep 5
+          # Verify server is running
+          curl -f http://localhost:8787/ || exit 1
+
+      - name: Run integration tests
+        run: cargo test --test '*' -- --test-threads=1 --nocapture
+
+      - name: Stop wrangler dev server
+        if: always()
+        run: pkill -f "wrangler dev" || true
