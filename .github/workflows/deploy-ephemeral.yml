@@ -2,7 +2,16 @@ name: Deploy Ephemeral Environment
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    # Only trigger if code files change (skip docs-only changes)
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'wrangler.toml'
+      - 'migrations/**'
+      - '.github/workflows/deploy-ephemeral.yml'
 
 permissions:
   contents: read
@@ -18,7 +27,16 @@ jobs:
     name: Deploy to Ephemeral Environment
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # Deploy only if:
+    # 1. PR is from the same repo (not a fork) OR it's a push event
+    # 2. PR is not in draft state
+    # 3. PR does not have 'skip-preview' label
+    if: |
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.draft == false &&
+       !contains(github.event.pull_request.labels.*.name, 'skip-preview')) ||
+      github.event_name == 'push'
 
     steps:
       - uses: actions/checkout@v4
@@ -369,3 +387,36 @@ jobs:
 
             **Database ID**: `${{ steps.create_d1.outputs.database_id }}`
             **KV Namespace ID**: `${{ steps.create_kv.outputs.kv_id }}`
+
+            ---
+
+            💡 **Tip**: To skip preview deployment, add the `skip-preview` label to this PR.
+
+  # Job that runs when deployment is skipped to inform the user
+  deployment-skipped:
+    name: Deployment Skipped Notification
+    runs-on: ubuntu-latest
+    # Run if PR event but deployment was skipped due to conditions
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.pull_request.draft == true ||
+       contains(github.event.pull_request.labels.*.name, 'skip-preview'))
+
+    steps:
+      - name: Comment why deployment was skipped
+        uses: thollander/actions-comment-pull-request@v3.0.1
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          message: |
+            ⏭️ **Ephemeral Environment Deployment Skipped**
+
+            Preview deployment was not triggered because:
+            ${{ github.event.pull_request.draft == true && '- ✏️ This PR is in **draft** state' || '' }}
+            ${{ contains(github.event.pull_request.labels.*.name, 'skip-preview') && '- 🏷️ This PR has the **skip-preview** label' || '' }}
+
+            **To enable deployment:**
+            ${{ github.event.pull_request.draft == true && '- Mark this PR as "Ready for review"' || '' }}
+            ${{ contains(github.event.pull_request.labels.*.name, 'skip-preview') && '- Remove the `skip-preview` label' || '' }}
+
+            *Note: Deployments are also skipped for documentation-only changes.*
