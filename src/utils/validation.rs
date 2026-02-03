@@ -24,7 +24,10 @@ pub fn validate_url(url_str: &str) -> Result<String, String> {
         Ok(url) => {
             let scheme = url.scheme();
             if scheme != "http" && scheme != "https" {
-                return Err(format!("Invalid URL scheme: {}. Only http and https are allowed", scheme));
+                return Err(format!(
+                    "Invalid URL scheme: {}. Only http and https are allowed",
+                    scheme
+                ));
             }
             Ok(url.to_string())
         }

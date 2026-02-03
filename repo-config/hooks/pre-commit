@@ -67,6 +67,12 @@ run_check() {
         log_verbose "🔍 Running $check_name..."
         echo "🧪 Running $check_name..."
         
+        # Special handling for code formatting
+        if [ "$check_name" = "code formatting" ]; then
+            run_formatting_check "$command" "$error_msg" "$required"
+            return $?
+        fi
+
         if ! eval "$command"; then
             echo ""
             echo "❌ $error_msg"
@@ -86,6 +92,80 @@ run_check() {
         fi
     else
         log_verbose "⏭️  Skipping $check_name (disabled)"
+    fi
+}
+
+run_formatting_check() {
+    local check_command="$1"
+    local error_msg="$2"
+    local required="$3"
+    local auto_format_and_stage="${AUTO_FORMAT_AND_STAGE:-false}"
+
+    # Check if formatting is needed
+    if ! eval "$check_command"; then
+        echo ""
+        echo "🔧 Formatting issues detected."
+
+        if [ "$auto_format_and_stage" = true ]; then
+            echo "🤖 Auto-formatting and staging changes..."
+            cargo fmt
+
+            # Show what changed
+            local changed_files
+            changed_files=$(git diff --name-only)
+
+            if [ -n "$changed_files" ]; then
+                echo "📝 Files formatted and staged:"
+                echo "$changed_files" | sed 's/^/   - /'
+
+                # Stage the formatted files
+                git add $changed_files
+
+                echo ""
+                echo "✅ Formatting applied and changes staged automatically"
+                echo "💡 To disable this behavior, set AUTO_FORMAT_AND_STAGE=false in repo-config/config/user.sh"
+            else
+                echo "ℹ️  No files were changed by formatting"
+            fi
+        else
+            echo "🔧 Auto-formatting files..."
+            cargo fmt
+
+            # Show what changed
+            local changed_files
+            changed_files=$(git diff --name-only)
+
+            if [ -n "$changed_files" ]; then
+                echo ""
+                echo "📝 The following files were formatted:"
+                echo "$changed_files" | sed 's/^/   - /'
+                echo ""
+                echo "❌ Commit aborted - please review the formatting changes"
+                echo ""
+                echo "💡 Next steps:"
+                echo "   1. Review the changes above"
+                echo "   2. Stage the formatted files:"
+                echo "      git add ."
+                echo "   3. Retry your commit:"
+                echo "      git commit"
+                echo ""
+                echo "💡 To enable auto-format and stage, set AUTO_FORMAT_AND_STAGE=true in repo-config/config/user.sh"
+            else
+                echo "ℹ️  No files were changed by formatting"
+                return 0
+            fi
+        fi
+
+        echo ""
+        if [ "$required" = true ]; then
+            echo "To skip this hook (not recommended):"
+            echo "  git commit --no-verify"
+            echo ""
+            exit 1
+        fi
+    else
+        log_verbose "✅ Code formatting is correct"
+        echo "✅ Code formatting is correct"
     fi
 }
 

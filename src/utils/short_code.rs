@@ -39,7 +39,8 @@ mod tests {
         for c in code.chars() {
             assert!(
                 c.is_ascii_digit() || c.is_ascii_uppercase() || c.is_ascii_lowercase(),
-                "Character {} not in base62 charset", c
+                "Character {} not in base62 charset",
+                c
             );
         }
     }

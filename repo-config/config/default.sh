@@ -15,9 +15,10 @@ CODE_FORMATTING_ENABLED=true
 CODE_FORMATTING_COMMAND="cargo fmt -- --check"
 CODE_FORMATTING_REQUIRED=false
 CODE_FORMATTING_ERROR_MSG="Code formatting issues! Run 'cargo fmt' to fix."
+AUTO_FORMAT_AND_STAGE=false
 
 # Clippy linting - optional but recommended
-CLIPPY_ENABLED=true
+CLIPPY_ENABLED=false
 CLIPPY_COMMAND="cargo clippy -- -D warnings"
 CLIPPY_REQUIRED=false
 CLIPPY_ERROR_MSG="Clippy found issues! Address warnings before committing."

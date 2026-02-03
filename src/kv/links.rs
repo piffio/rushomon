@@ -1,5 +1,5 @@
-use worker::{kv::KvStore, Result};
 use crate::models::LinkMapping;
+use worker::{Result, kv::KvStore};
 
 /// KV key format: link:{org_id}:{short_code}
 /// For Phase 1 (single domain), we use a simpler global format: {short_code}
@@ -17,17 +17,12 @@ pub async fn store_link_mapping(
     mapping: &LinkMapping,
 ) -> Result<()> {
     let key = make_key(org_id, short_code);
-    kv.put(&key, mapping)?
-        .execute()
-        .await?;
+    kv.put(&key, mapping)?.execute().await?;
     Ok(())
 }
 
 /// Get a link mapping from KV
-pub async fn get_link_mapping(
-    kv: &KvStore,
-    short_code: &str,
-) -> Result<Option<LinkMapping>> {
+pub async fn get_link_mapping(kv: &KvStore, short_code: &str) -> Result<Option<LinkMapping>> {
     // Note: For global namespace, we don't need org_id
     // For multi-tenant with org prefix, would need to iterate or use secondary lookup
     kv.get(short_code)
@@ -37,20 +32,13 @@ pub async fn get_link_mapping(
 }
 
 /// Delete a link mapping from KV
-pub async fn delete_link_mapping(
-    kv: &KvStore,
-    org_id: &str,
-    short_code: &str,
-) -> Result<()> {
+pub async fn delete_link_mapping(kv: &KvStore, org_id: &str, short_code: &str) -> Result<()> {
     let key = make_key(org_id, short_code);
     kv.delete(&key).await?;
     Ok(())
 }
 
 /// Check if a short code already exists (collision detection)
-pub async fn short_code_exists(
-    kv: &KvStore,
-    short_code: &str,
-) -> Result<bool> {
+pub async fn short_code_exists(kv: &KvStore, short_code: &str) -> Result<bool> {
     Ok(kv.get(short_code).text().await?.is_some())
 }

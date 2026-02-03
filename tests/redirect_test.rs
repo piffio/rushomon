@@ -55,7 +55,10 @@ async fn test_redirect_increments_click_count() {
         .unwrap();
 
     // Verify we got the redirect
-    assert_eq!(redirect_response.status(), reqwest::StatusCode::MOVED_PERMANENTLY);
+    assert_eq!(
+        redirect_response.status(),
+        reqwest::StatusCode::MOVED_PERMANENTLY
+    );
 
     // Get link and check click count (should be incremented immediately now)
     let get_response = client
