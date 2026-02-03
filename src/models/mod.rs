@@ -1,9 +1,9 @@
-pub mod user;
-pub mod organization;
-pub mod link;
 pub mod analytics;
+pub mod link;
+pub mod organization;
+pub mod user;
 
-pub use user::User;
-pub use organization::Organization;
-pub use link::{Link, LinkMapping};
 pub use analytics::AnalyticsEvent;
+pub use link::{Link, LinkMapping};
+pub use organization::Organization;
+pub use user::User;
