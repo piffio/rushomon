@@ -1,5 +1,5 @@
 use reqwest::{Client, Response};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const BASE_URL: &str = "http://localhost:8787";
 
