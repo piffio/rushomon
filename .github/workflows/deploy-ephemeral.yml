@@ -12,11 +12,6 @@ on:
       - 'wrangler.toml'
       - 'migrations/**'
       - '.github/workflows/deploy-ephemeral.yml'
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
 
 permissions:
   contents: read
