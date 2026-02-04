@@ -6,7 +6,7 @@ use common::*;
 
 #[tokio::test]
 async fn test_reject_javascript_url() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -26,7 +26,7 @@ async fn test_reject_javascript_url() {
 
 #[tokio::test]
 async fn test_reject_file_url() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -46,7 +46,7 @@ async fn test_reject_file_url() {
 
 #[tokio::test]
 async fn test_reject_data_uri() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -66,7 +66,7 @@ async fn test_reject_data_uri() {
 
 #[tokio::test]
 async fn test_reject_malformed_url() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -86,7 +86,7 @@ async fn test_reject_malformed_url() {
 
 #[tokio::test]
 async fn test_accept_valid_http_url() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -102,7 +102,7 @@ async fn test_accept_valid_http_url() {
 
 #[tokio::test]
 async fn test_accept_valid_https_url() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -118,7 +118,7 @@ async fn test_accept_valid_https_url() {
 
 #[tokio::test]
 async fn test_reject_short_code_too_short() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -139,7 +139,7 @@ async fn test_reject_short_code_too_short() {
 
 #[tokio::test]
 async fn test_reject_short_code_too_long() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -160,7 +160,7 @@ async fn test_reject_short_code_too_long() {
 
 #[tokio::test]
 async fn test_reject_short_code_with_special_chars() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -181,7 +181,7 @@ async fn test_reject_short_code_with_special_chars() {
 
 #[tokio::test]
 async fn test_reject_short_code_with_underscore() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -202,7 +202,7 @@ async fn test_reject_short_code_with_underscore() {
 
 #[tokio::test]
 async fn test_reject_reserved_word_api() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -223,7 +223,7 @@ async fn test_reject_reserved_word_api() {
 
 #[tokio::test]
 async fn test_reject_reserved_word_auth() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -244,7 +244,7 @@ async fn test_reject_reserved_word_auth() {
 
 #[tokio::test]
 async fn test_reserved_word_case_insensitive() {
-    let client = test_client();
+    let client = authenticated_client();
 
     let response = client
         .post(&format!("{}/api/links", BASE_URL))
@@ -265,7 +265,7 @@ async fn test_reserved_word_case_insensitive() {
 
 #[tokio::test]
 async fn test_accept_valid_alphanumeric_code() {
-    let client = test_client();
+    let client = authenticated_client();
 
     // Use unique code to avoid collisions between test runs
     let valid_code = unique_short_code("test");

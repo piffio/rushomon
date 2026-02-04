@@ -1,7 +1,7 @@
 use worker::*;
 
 mod api;
-mod auth;
+pub mod auth;
 mod db;
 mod kv;
 mod models;
@@ -44,7 +44,12 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
             router::handle_redirect(req, route_ctx, code).await
         })
-        // API routes - authentication required (TODO: add auth middleware)
+        // Auth routes (public)
+        .get_async("/api/auth/github", router::handle_github_login)
+        .get_async("/api/auth/callback", router::handle_oauth_callback)
+        // API routes - authentication required
+        .get_async("/api/auth/me", router::handle_get_current_user)
+        .post_async("/api/auth/logout", router::handle_logout)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
         .get_async("/api/links/:id", router::handle_get_link)

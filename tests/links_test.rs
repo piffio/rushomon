@@ -6,9 +6,28 @@ use common::*;
 
 #[tokio::test]
 async fn test_create_link_with_random_short_code() {
-    let response = create_test_link("https://example.com/test-page", Some("Test Link")).await;
+    let client = authenticated_client();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    let response = client
+        .post(&format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/test-page",
+            "title": "Test Link"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = response.status();
+    println!("Response status: {}", status);
+
+    if status.is_server_error() {
+        let error_text = response.text().await.unwrap();
+        println!("Error response: {}", error_text);
+        panic!("Expected 200, got {} with error: {}", status, error_text);
+    }
+
+    assert_eq!(status, StatusCode::OK);
 
     let link: serde_json::Value = response.json().await.unwrap();
 
@@ -24,7 +43,7 @@ async fn test_create_link_with_random_short_code() {
 
 #[tokio::test]
 async fn test_create_link_with_custom_short_code() {
-    let client = test_client();
+    let client = authenticated_client();
 
     // Generate unique short code for this test run to avoid collisions
     let custom_code = unique_short_code("gh");
@@ -48,7 +67,7 @@ async fn test_create_link_with_custom_short_code() {
 
 #[tokio::test]
 async fn test_create_duplicate_short_code_fails() {
-    let client = test_client();
+    let client = authenticated_client();
 
     // Generate unique code for this test run
     let unique_code = unique_short_code("dup");
@@ -85,11 +104,30 @@ async fn test_create_duplicate_short_code_fails() {
 
 #[tokio::test]
 async fn test_list_links() {
-    let client = test_client();
+    let client = authenticated_client();
 
     // Create a few test links
-    create_test_link("https://example.com/1", Some("Link 1")).await;
-    create_test_link("https://example.com/2", Some("Link 2")).await;
+    let create_response1 = client
+        .post(&format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/1",
+            "title": "Link 1"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response1.status(), StatusCode::OK);
+
+    let create_response2 = client
+        .post(&format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/2",
+            "title": "Link 2"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response2.status(), StatusCode::OK);
 
     // List links
     let response = client
@@ -106,10 +144,19 @@ async fn test_list_links() {
 
 #[tokio::test]
 async fn test_get_link_by_id() {
-    let client = test_client();
+    let client = authenticated_client();
 
     // Create a link
-    let create_response = create_test_link("https://example.com", None).await;
+    let create_response = client
+        .post(&format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+
     let created_link: serde_json::Value = create_response.json().await.unwrap();
     let link_id = created_link["id"].as_str().unwrap();
 
@@ -128,10 +175,19 @@ async fn test_get_link_by_id() {
 
 #[tokio::test]
 async fn test_delete_link() {
-    let client = test_client();
+    let client = authenticated_client();
 
     // Create a link
-    let create_response = create_test_link("https://example.com", None).await;
+    let create_response = client
+        .post(&format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+
     let created_link: serde_json::Value = create_response.json().await.unwrap();
     let link_id = created_link["id"].as_str().unwrap();
     let short_code = created_link["short_code"].as_str().unwrap();

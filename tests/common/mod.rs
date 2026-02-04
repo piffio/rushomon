@@ -1,24 +1,44 @@
+// Allow dead_code warnings - these functions are used across different test files
+// but Rust's test compilation model treats each test file as a separate crate
+#![allow(dead_code)]
+
 use reqwest::{Client, Response};
 use serde_json::{Value, json};
 
 pub const BASE_URL: &str = "http://localhost:8787";
 
-/// Helper to create a test HTTP client that doesn't follow redirects
+/// Helper to create a test HTTP client that doesn't follow redirects (unauthenticated)
 pub fn test_client() -> Client {
     Client::builder()
-        .redirect(reqwest::redirect::Policy::none()) // Don't auto-follow redirects
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .unwrap()
 }
 
-/// Helper to create a client that follows redirects
-pub fn following_client() -> Client {
-    Client::new()
+/// Get the test JWT from environment variable
+/// Panics if TEST_JWT is not set - run scripts/run-integration-tests.sh first
+pub fn get_test_jwt() -> String {
+    std::env::var("TEST_JWT").expect("TEST_JWT not set. Run: ./scripts/run-integration-tests.sh")
 }
 
-/// Helper to create a test link and return the response
+/// Create an authenticated test client using JWT from environment
+pub fn authenticated_client() -> Client {
+    let jwt = get_test_jwt();
+    let cookie = format!("rushomon_session={}", jwt);
+
+    Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .default_headers(reqwest::header::HeaderMap::from_iter([(
+            reqwest::header::COOKIE,
+            cookie.parse().unwrap(),
+        )]))
+        .build()
+        .unwrap()
+}
+
+/// Helper to create a test link (authenticated) and return the response
 pub async fn create_test_link(url: &str, title: Option<&str>) -> Response {
-    let client = test_client();
+    let client = authenticated_client();
     let mut body = json!({"destination_url": url});
 
     if let Some(t) = title {
@@ -38,22 +58,6 @@ pub async fn create_link_and_get_code(url: &str) -> String {
     let response = create_test_link(url, None).await;
     let link: Value = response.json().await.unwrap();
     link["short_code"].as_str().unwrap().to_string()
-}
-
-/// Helper to poll for a condition with timeout
-/// Used for testing async operations like analytics logging
-pub async fn poll_until<F, Fut>(mut condition: F, max_attempts: u32, interval_ms: u64) -> bool
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = bool>,
-{
-    for _ in 0..max_attempts {
-        if condition().await {
-            return true;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
-    }
-    false
 }
 
 /// Generate a unique short code for testing
