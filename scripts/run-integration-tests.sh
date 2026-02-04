@@ -88,7 +88,7 @@ if [ "$FRESH_START" = true ]; then
 fi
 
 # Step 2: Build the mock OAuth server
-echo "� Building mock OAuth server..."
+echo "🔨 Building mock OAuth server..."
 cargo build --features test-utils --bin mock_oauth_server --quiet
 
 # Step 3: Create .dev.vars file with mock OAuth URLs

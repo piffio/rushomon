@@ -24,6 +24,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static USER_COUNTER: AtomicU64 = AtomicU64::new(1000);
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Mock OAuth server doesn't use all GitHub OAuth fields
 struct AuthorizeParams {
     client_id: String,
     redirect_uri: String,
@@ -33,6 +34,7 @@ struct AuthorizeParams {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Mock OAuth server doesn't use all GitHub OAuth fields
 struct TokenRequest {
     client_id: String,
     client_secret: String,

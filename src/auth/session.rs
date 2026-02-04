@@ -121,11 +121,9 @@ pub fn create_session_cookie(jwt: &str) -> String {
 pub fn parse_cookie_header(cookie_header: &str) -> Option<String> {
     cookie_header.split(';').find_map(|cookie| {
         let cookie = cookie.trim();
-        if let Some(value) = cookie.strip_prefix("rushomon_session=") {
-            Some(value.to_string())
-        } else {
-            None
-        }
+        cookie
+            .strip_prefix("rushomon_session=")
+            .map(|value| value.to_string())
     })
 }
 
