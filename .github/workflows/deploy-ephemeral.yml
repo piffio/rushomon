@@ -243,8 +243,23 @@ jobs:
 
           # Create test link for redirect testing
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT OR IGNORE INTO links (id, short_code, destination_url, created_at, created_by, is_active) 
-             VALUES ('test-link-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 1)" || true
+            "INSERT OR IGNORE INTO links (id, org_id, short_code, destination_url, created_at, created_by, is_active) 
+             VALUES ('test-link-smoke', 'test-org-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 1)" || true
+
+          # Verify test data was created
+          echo "🔍 Verifying test data..."
+          LINK_COUNT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "SELECT COUNT(*) as count FROM links WHERE short_code = 'smoke-test'" --output json | jq -r '.result[0].results[0].count')
+
+          if [ "$LINK_COUNT" = "1" ]; then
+            echo "✅ Test link 'smoke-test' created successfully"
+          else
+            echo "❌ Test link creation failed. Found $LINK_COUNT links with short_code 'smoke-test'"
+            echo "🔍 Debugging database state..."
+            wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --output json || true
+            exit 1
+          fi
 
           echo "✅ Test data setup complete"
 
@@ -300,8 +315,15 @@ jobs:
             LOCATION=$(echo "$REDIRECT_RESPONSE" | grep -i location | cut -d' ' -f2- | tr -d '\r')
             echo "📍 Redirects to: $LOCATION"
           else
-            echo "⚠️  Redirect test failed (HTTP $REDIRECT_HTTP_CODE)"
+            echo "❌ Redirect test failed (HTTP $REDIRECT_HTTP_CODE)"
             echo "Response: $REDIRECT_RESPONSE"
+            echo ""
+            echo "🔍 Debugging redirect test failure..."
+            echo "Expected: 301 or 302 redirect"
+            echo "Got: $REDIRECT_HTTP_CODE"
+            echo "Test URL: $DEPLOYMENT_URL/smoke-test"
+            echo "This suggests the test link 'smoke-test' was not created properly in the database."
+            exit 1
           fi
 
           # Test 3: Authentication Validation
@@ -356,6 +378,7 @@ jobs:
             echo "✅ Correctly protected"
           else
             echo "❌ Expected 401, got $PROTECTED_HTTP_CODE"
+            exit 1
           fi
 
           echo ""
