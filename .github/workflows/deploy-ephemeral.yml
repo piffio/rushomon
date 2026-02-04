@@ -249,15 +249,15 @@ jobs:
           # Verify test data was created
           echo "🔍 Verifying test data..."
           LINK_COUNT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "SELECT COUNT(*) as count FROM links WHERE short_code = 'smoke-test'" --output json | jq -r '.result[0].results[0].count')
+            "SELECT COUNT(*) as count FROM links WHERE short_code = 'smoke-test'" --json | jq -r '.[0].results[0].count')
 
           if [ "$LINK_COUNT" = "1" ]; then
             echo "✅ Test link 'smoke-test' created successfully"
           else
-            echo "❌ Test link creation failed. Found $LINK_COUNT links with short_code 'smoke-test'"
+            echo "❌ Test link creation failed. Found $LINK_COUNT links with short_code = 'smoke-test'"
             echo "🔍 Debugging database state..."
             wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --output json || true
+              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --json | jq '.' || true
             exit 1
           fi
 
