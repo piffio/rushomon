@@ -25,6 +25,7 @@ database_id = "3770f758-a236-41e3-b158-58c6a6253da8"
 [vars]
 GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"
 DOMAIN = "yourdomain.com"
+FRONTEND_URL = "http://localhost:5173"
 
 # Secrets (sensitive values - set via wrangler secret put)
 # Run these commands to set secrets:

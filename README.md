@@ -21,10 +21,10 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 ## Project Status
 
 ✅ **Phase 1-2 Complete**: Core infrastructure, data models, KV operations
+✅ **Phase 3 Complete**: Authentication system (GitHub OAuth + JWT)
 ✅ **Phase 4-5 Complete**: Link management API, URL redirection
-🚧 **Phase 3 In Progress**: Authentication system
 ⏳ **Phase 6-7 Pending**: Analytics, Frontend
-⏳ **Phase 8 Pending**: Testing & Deployment
+⏳ **Phase 8 Pending**: Production deployment
 
 ## Setup Instructions
 
@@ -119,18 +119,19 @@ wrangler deploy
 
 - `GET /{short_code}` - Redirect to destination URL
 
-### API Routes (Authentication Required - Coming Soon)
+### API Routes (Authentication Required)
 
 - `POST /api/links` - Create a new short link
 - `GET /api/links` - List all links (paginated)
 - `GET /api/links/{id}` - Get link details
 - `DELETE /api/links/{id}` - Delete a link
 
-### Authentication (Coming Soon)
+### Authentication Routes
 
 - `GET /api/auth/github` - Initiate GitHub OAuth
-- `GET /api/auth/callback` - OAuth callback
-- `POST /api/auth/logout` - Logout
+- `GET /api/auth/callback` - OAuth callback handler
+- `GET /api/auth/me` - Get current authenticated user
+- `POST /api/auth/logout` - Logout and invalidate session
 
 ## Development
 
@@ -174,8 +175,14 @@ rushomon/
 ### Running Tests
 
 ```bash
+# Run unit tests
 cargo test
+
+# Run integration tests (includes mock OAuth server)
+./scripts/run-integration-tests.sh
 ```
+
+**Integration Tests**: The project includes a mock OAuth server for testing the complete authentication flow without requiring real GitHub OAuth credentials. The integration test script automatically starts the mock server, runs all tests, and cleans up afterward.
 
 ## Data Model
 
@@ -222,13 +229,15 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 - [x] KV operations
 - [x] Link management API
 - [x] URL redirection handler
-- [ ] GitHub OAuth authentication
-- [ ] Session management (JWT)
-- [ ] Analytics collection
+- [x] GitHub OAuth authentication
+- [x] Session management (JWT with `jwt-compact`)
+- [x] Authentication middleware
+- [x] Integration tests with mock OAuth server
+- [x] Analytics collection (on redirects)
+- [ ] Analytics aggregation queries
 - [ ] Analytics query API
 - [ ] SvelteKit frontend
 - [ ] Dashboard UI
-- [ ] E2E tests
 - [ ] Production deployment
 - [ ] Google OAuth support
 - [ ] Multi-domain support

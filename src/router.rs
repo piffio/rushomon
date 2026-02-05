@@ -338,28 +338,19 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     // Store session in KV
     auth::session::store_session(&kv, &claims.session_id, &user.id, &user.org_id).await?;
 
-    // Set cookie and redirect
-    let domain = ctx
+    // Redirect to frontend with token in URL
+    // Frontend will set the cookie on its own domain
+    let frontend_url = ctx
         .env
-        .var("DOMAIN")
-        .map(|d| d.to_string())
-        .unwrap_or_else(|_| "localhost".to_string());
+        .var("FRONTEND_URL")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "http://localhost:5173".to_string());
 
-    // Use http for localhost, https for production
-    let scheme = if domain.starts_with("localhost") {
-        "http"
-    } else {
-        "https"
-    };
+    let redirect_url = format!("{}/auth/callback?token={}", frontend_url, jwt);
 
-    let cookie = auth::session::create_session_cookie_with_scheme(&jwt, scheme);
-    let redirect_url = format!("{}://{}/dashboard", scheme, domain);
-
-    // Build redirect response with cookie
-    // Note: Response::redirect returns immutable headers, so we build manually
+    // Build redirect response (no cookie - frontend will set it)
     let headers = Headers::new();
     headers.set("Location", &redirect_url)?;
-    headers.set("Set-Cookie", &cookie)?;
 
     Ok(Response::empty()?.with_status(302).with_headers(headers))
 }
