@@ -14,7 +14,7 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 ## Tech Stack
 
 - **Backend**: Rust + Cloudflare Workers (WebAssembly)
-- **Frontend**: SvelteKit + Cloudflare Pages (coming soon)
+- **Frontend**: SvelteKit + Tailwind CSS v4 + Cloudflare Pages
 - **Storage**: Cloudflare KV (URL mappings) + D1 (metadata & analytics)
 - **Authentication**: OAuth 2.0 with JWT sessions
 
@@ -23,8 +23,10 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 ✅ **Phase 1-2 Complete**: Core infrastructure, data models, KV operations
 ✅ **Phase 3 Complete**: Authentication system (GitHub OAuth + JWT)
 ✅ **Phase 4-5 Complete**: Link management API, URL redirection
-⏳ **Phase 6-7 Pending**: Analytics, Frontend
-⏳ **Phase 8 Pending**: Production deployment
+✅ **Phase 6 Complete**: Analytics collection (on redirects)
+✅ **Phase 7 Complete**: Minimal frontend with dashboard
+⏳ **Phase 8 Pending**: Analytics aggregation queries and UI
+⏳ **Phase 9 Pending**: Production deployment
 
 ## Setup Instructions
 
@@ -96,6 +98,8 @@ wrangler secret put JWT_SECRET
 
 ### Step 4: Local Development
 
+#### Backend (Rust Worker)
+
 ```bash
 # Start the Worker locally
 wrangler dev
@@ -103,7 +107,27 @@ wrangler dev
 # The Worker will be available at http://localhost:8787
 ```
 
+#### Frontend (SvelteKit)
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Frontend will be available at http://localhost:5173
+# Configure .env for local backend: VITE_API_URL=http://localhost:8787
+```
+
+**Note**: For local development, run both the backend (wrangler dev) and frontend (npm run dev) simultaneously. The frontend proxies API requests to the backend.
+
 ### Step 5: Deploy to Production
+
+#### Backend (Rust Worker)
 
 ```bash
 # Deploy the Worker
@@ -111,6 +135,24 @@ wrangler deploy
 
 # Your Worker will be live at https://rushomon.<your-subdomain>.workers.dev
 # Configure a custom domain in the Cloudflare dashboard
+```
+
+#### Frontend (SvelteKit to Cloudflare Pages)
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Build the static site
+npm run build
+
+# Deploy to Cloudflare Pages
+npx wrangler pages deploy .svelte-kit/cloudflare
+
+# Or connect your GitHub repo to Cloudflare Pages for automatic deployments
+# Build command: npm run build
+# Build output directory: .svelte-kit/cloudflare
+# Environment variable: VITE_API_URL=https://yourdomain.com
 ```
 
 ## API Endpoints
@@ -153,15 +195,27 @@ This installs:
 
 ```
 rushomon/
-├── src/
+├── src/                    # Backend (Rust Worker)
 │   ├── lib.rs              # Wasm entry point
 │   ├── router.rs           # Route handlers
 │   ├── models/             # Data models
-│   ├── auth/               # OAuth & session (WIP)
+│   ├── auth/               # OAuth & session management
 │   ├── api/                # API endpoints
 │   ├── db/                 # D1 queries
 │   ├── kv/                 # KV operations
 │   └── utils/              # Utilities (short codes, validation)
+├── frontend/               # Frontend (SvelteKit)
+│   ├── src/
+│   │   ├── routes/         # SvelteKit routes
+│   │   │   ├── +page.svelte          # Landing page
+│   │   │   └── dashboard/            # Dashboard routes
+│   │   ├── lib/            # Shared components and utilities
+│   │   │   ├── api/        # API client
+│   │   │   └── components/ # Reusable components
+│   │   └── app.css         # Tailwind CSS v4 styles
+│   ├── package.json        # Frontend dependencies
+│   ├── tailwind.config.js  # Tailwind configuration
+│   └── svelte.config.js    # SvelteKit configuration
 ├── repo-config/            # Repository configuration system
 │   ├── hooks/              # Git hooks
 │   ├── scripts/            # Setup and management scripts
@@ -174,6 +228,8 @@ rushomon/
 
 ### Running Tests
 
+#### Backend Tests
+
 ```bash
 # Run unit tests
 cargo test
@@ -183,6 +239,19 @@ cargo test
 ```
 
 **Integration Tests**: The project includes a mock OAuth server for testing the complete authentication flow without requiring real GitHub OAuth credentials. The integration test script automatically starts the mock server, runs all tests, and cleans up afterward.
+
+#### Frontend Tests
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Run type checking
+npm run check
+
+# Run build test
+npm run build
+```
 
 ## Data Model
 
@@ -224,6 +293,7 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 
 ## Roadmap
 
+### Completed
 - [x] Core Worker infrastructure
 - [x] Data models and validation
 - [x] KV operations
@@ -234,15 +304,27 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 - [x] Authentication middleware
 - [x] Integration tests with mock OAuth server
 - [x] Analytics collection (on redirects)
+- [x] SvelteKit frontend with Tailwind CSS v4
+- [x] Landing page with modern design
+- [x] Dashboard with link creation
+- [x] Link management UI (list, create, delete)
+
+### In Progress
 - [ ] Analytics aggregation queries
-- [ ] Analytics query API
-- [ ] SvelteKit frontend
-- [ ] Dashboard UI
-- [ ] Production deployment
+- [ ] Analytics dashboard UI
+- [ ] Link editing functionality
+
+### Planned
+- [ ] Production deployment guide
+- [ ] Link analytics detail view
+- [ ] Custom short code validation UI
+- [ ] Link expiration management
 - [ ] Google OAuth support
 - [ ] Multi-domain support
 - [ ] API keys for programmatic access
 - [ ] Webhooks
+- [ ] Bulk link operations
+- [ ] Export functionality
 
 ## License
 
