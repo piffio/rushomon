@@ -271,7 +271,7 @@ jobs:
 
           # Create KV mapping for redirect lookup
           echo "📝 Creating KV mapping for redirect..."
-          wrangler kv key put smoke-test --binding URL_MAPPINGS --preview false '{"destination_url":"https://example.com","link_id":"test-link-smoke","expires_at":null,"is_active":true}'
+          wrangler kv key put smoke-test --binding URL_MAPPINGS --remote --preview false '{"destination_url":"https://example.com","link_id":"test-link-smoke","expires_at":null,"is_active":true}'
           echo "KV mapping result: Created"
 
           # Verify test data was created
@@ -284,7 +284,7 @@ jobs:
 
           # Verify KV mapping was created
           echo "🔍 KV state check:"
-          KV_CHECK=$(wrangler kv key get smoke-test --binding URL_MAPPINGS --preview false || echo "KV_NOT_FOUND")
+          KV_CHECK=$(wrangler kv key get smoke-test --binding URL_MAPPINGS --remote --preview false --json || echo "KV_NOT_FOUND")
 
           if [ "$KV_CHECK" != "KV_NOT_FOUND" ]; then
             echo "  KV mapping: ✅ Found"
