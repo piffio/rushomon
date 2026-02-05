@@ -232,27 +232,54 @@ jobs:
           NOW=$(date +%s)
           echo "🔧 Setting up test data for smoke tests..."
 
-          # Create test organization and user first
+          # Clean up any existing test data first
+          echo "🧹 Cleaning up existing test data..."
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT OR IGNORE INTO organizations (id, name, slug, created_at, created_by) 
-             VALUES ('test-org-smoke', 'Smoke Test Org', 'smoke-test', $NOW, 'test-user-smoke')" || true
+            "DELETE FROM links WHERE short_code = 'smoke-test'" || true
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM users WHERE id = 'test-user-smoke'" || true
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM organizations WHERE id = 'test-org-smoke'" || true
 
-          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT OR IGNORE INTO users (id, email, name, oauth_provider, oauth_id, org_id, role, created_at) 
-             VALUES ('test-user-smoke', 'smoke-test@example.com', 'Smoke Test User', 'github', '12345', 'test-org-smoke', 'admin', $NOW)" || true
+          # Create test organization and user first
+          echo "📝 Creating test organization..."
+          ORG_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO organizations (id, name, slug, created_at, created_by) 
+             VALUES ('test-org-smoke', 'Smoke Test Org', 'smoke-test', $NOW, 'test-user-smoke')" --json)
+          echo "Organization insert result: $(echo "$ORG_RESULT" | jq '.[0].meta.changes // 0') changes"
+
+          echo "📝 Creating test user..."
+          USER_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO users (id, email, name, oauth_provider, oauth_id, org_id, role, created_at) 
+             VALUES ('test-user-smoke', 'smoke-test@example.com', 'Smoke Test User', 'github', '12345', 'test-org-smoke', 'admin', $NOW)" --json)
+          echo "User insert result: $(echo "$USER_RESULT" | jq '.[0].meta.changes // 0') changes"
 
           # Create test link for redirect testing
-          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT OR IGNORE INTO links (id, org_id, short_code, destination_url, created_at, created_by, is_active) 
-             VALUES ('test-link-smoke', 'test-org-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 1)" || true
+          echo "📝 Creating test link..."
+          LINK_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO links (id, org_id, short_code, destination_url, created_at, created_by, is_active) 
+             VALUES ('test-link-smoke', 'test-org-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 1)" --json)
+          echo "Link insert result: $(echo "$LINK_RESULT" | jq '.[0].meta.changes // 0') changes"
 
           # Verify test data was created
           echo "🔍 Verifying test data..."
           LINK_COUNT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "SELECT COUNT(*) as count FROM links WHERE short_code = 'smoke-test'" --json | jq -r '.[0].results[0].count')
 
+          echo "📊 Database state check:"
+          echo "  Links with short_code 'smoke-test': $LINK_COUNT"
+
+          # Show all links for debugging
+          echo "  All links in database:"
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "SELECT id, short_code, destination_url, is_active FROM links LIMIT 10" --json | jq '.[0].results[] | {id, short_code, destination_url, is_active}' || echo "Failed to query links"
+
           if [ "$LINK_COUNT" = "1" ]; then
             echo "✅ Test link 'smoke-test' created successfully"
+            # Show the specific link details
+            echo "📋 Link details:"
+            wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --json | jq '.[0].results[]' || echo "Failed to get link details"
           else
             echo "❌ Test link creation failed. Found $LINK_COUNT links with short_code = 'smoke-test'"
             echo "🔍 Debugging database state..."
