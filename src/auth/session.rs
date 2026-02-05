@@ -111,9 +111,15 @@ pub fn validate_jwt(token: &str, secret: &str) -> Result<JwtClaims> {
 
 /// Creates a session cookie with the JWT token
 pub fn create_session_cookie(jwt: &str) -> String {
+    create_session_cookie_with_scheme(jwt, "https")
+}
+
+/// Creates a session cookie with the JWT token and specified scheme
+pub fn create_session_cookie_with_scheme(jwt: &str, scheme: &str) -> String {
+    let secure_part = if scheme == "https" { " Secure;" } else { "" };
     format!(
-        "rushomon_session={}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={}",
-        jwt, SESSION_TTL_SECONDS
+        "rushomon_session={}; HttpOnly;{} SameSite=Lax; Path=/; Max-Age={}",
+        jwt, secure_part, SESSION_TTL_SECONDS
     )
 }
 

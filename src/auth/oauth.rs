@@ -124,7 +124,14 @@ pub async fn handle_oauth_callback(
     let client_id = env.var("GITHUB_CLIENT_ID")?.to_string();
     let client_secret = env.secret("GITHUB_CLIENT_SECRET")?.to_string();
     let domain = env.var("DOMAIN")?.to_string();
-    let redirect_uri = format!("https://{}/api/auth/callback", domain);
+
+    // Use http for localhost, https for production (consistent with login handling)
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+    let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
 
     // Exchange code for access token
     let github_token_url = get_github_token_url(env);

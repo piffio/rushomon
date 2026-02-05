@@ -301,7 +301,14 @@ pub async fn handle_github_login(_req: Request, ctx: RouteContext<()>) -> Result
     let kv = ctx.kv("URL_MAPPINGS")?;
     let client_id = ctx.env.var("GITHUB_CLIENT_ID")?.to_string();
     let domain = ctx.env.var("DOMAIN")?.to_string();
-    let redirect_uri = format!("https://{}/api/auth/callback", domain);
+
+    // Use http for localhost, https for production (consistent with callback handling)
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+    let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
 
     auth::oauth::initiate_github_oauth(&kv, &client_id, &redirect_uri, &ctx.env).await
 }
@@ -332,7 +339,6 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     auth::session::store_session(&kv, &claims.session_id, &user.id, &user.org_id).await?;
 
     // Set cookie and redirect
-    let cookie = auth::session::create_session_cookie(&jwt);
     let domain = ctx
         .env
         .var("DOMAIN")
@@ -345,6 +351,8 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     } else {
         "https"
     };
+
+    let cookie = auth::session::create_session_cookie_with_scheme(&jwt, scheme);
     let redirect_url = format!("{}://{}/dashboard", scheme, domain);
 
     // Build redirect response with cookie

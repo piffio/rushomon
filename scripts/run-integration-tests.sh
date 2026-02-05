@@ -69,6 +69,13 @@ cleanup() {
     echo "🧹 Cleaning up..."
     pkill -f "wrangler dev" 2>/dev/null || true
     pkill -f "mock_oauth_server" 2>/dev/null || true
+    
+    # Restore .dev.vars if backup exists
+    if [ -f .dev.vars.backup ]; then
+        echo "🔄 Restoring original .dev.vars..."
+        mv .dev.vars.backup .dev.vars
+        echo "✅ .dev.vars restored"
+    fi
 }
 
 # Always clean up on exit
@@ -91,8 +98,14 @@ fi
 echo "🔨 Building mock OAuth server..."
 cargo build --features test-utils --bin mock_oauth_server --quiet
 
-# Step 3: Create .dev.vars file with mock OAuth URLs
-echo "🔐 Creating .dev.vars file..."
+# Step 3: Backup existing .dev.vars and create mock OAuth config
+echo "🔐 Setting up mock OAuth configuration..."
+if [ -f .dev.vars ]; then
+    echo "� Backing up existing .dev.vars..."
+    cp .dev.vars .dev.vars.backup
+    echo "✅ Backup saved to .dev.vars.backup"
+fi
+
 cat > .dev.vars << EOF
 JWT_SECRET=${JWT_SECRET}
 GITHUB_CLIENT_ID=test-client-id
@@ -229,6 +242,10 @@ if [ "$RUN_TESTS" = true ]; then
         echo "❌ Some tests failed (exit code: $TEST_EXIT_CODE)"
     fi
     
+    # Don't exit here - let the cleanup trap handle restoration
+    # Then exit with the test code
+    trap - EXIT  # Remove the trap temporarily
+    cleanup      # Run cleanup manually
     exit $TEST_EXIT_CODE
 else
     echo "ℹ️  Skipping tests (--no-test flag)"
