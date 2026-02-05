@@ -20,10 +20,10 @@ npm run preview
 
 ## Environment Variables
 
-Create a `.env` file:
+Create a `.env` file (see `.env.example` for reference):
 
 ```
-VITE_API_BASE_URL=http://localhost:8787
+PUBLIC_VITE_API_BASE_URL=http://localhost:8787
 ```
 
 For production, set this to your deployed Worker URL.
@@ -45,12 +45,12 @@ The frontend expects the backend API at the URL specified in `VITE_API_BASE_URL`
 npm run build
 ```
 
-The build output will be in `.svelte-kit/cloudflare/`.
+The build output will be in `build/`.
 
 Deploy with:
 
 ```bash
-wrangler pages deploy .svelte-kit/cloudflare
+npx wrangler pages deploy build --project-name=rushomon-ui
 ```
 
 ## Project Structure

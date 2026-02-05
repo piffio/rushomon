@@ -11,6 +11,7 @@ on:
       - 'Cargo.lock'
       - 'wrangler.toml'
       - 'migrations/**'
+      - 'frontend/**'
       - '.github/workflows/deploy-ephemeral.yml'
 
 permissions:
@@ -200,6 +201,9 @@ jobs:
           GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
           JWT_SECRET = "${{ secrets.JWT_SECRET }}"
           DOMAIN = "${{ env.WORKERS_DOMAIN }}"
+          FRONTEND_URL = "https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
+          ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
+          EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
           EOF
 
       - name: Apply D1 Migrations
@@ -221,6 +225,28 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           wrangler deploy -c wrangler.ephemeral.toml
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: frontend
+        env:
+          PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
+        run: npm run build
+
+      - name: Deploy Frontend to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          cd frontend
+          npx wrangler pages deploy build \
+            --project-name="rushomon-ui" \
+            --branch="pr-$PR_NUMBER" \
+            --commit-dirty=true
 
       - name: Setup Test Data
         env:
@@ -488,8 +514,10 @@ jobs:
             "pr_number": "$PR_NUMBER",
             "database_id": "$DB_ID",
             "kv_id": "$KV_ID",
+            "pages_branch": "pr-$PR_NUMBER",
             "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "deployment_url": "https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
+            "frontend_url": "https://pr-$PR_NUMBER.rushomon-ui.pages.dev",
+            "backend_url": "https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
           }
           EOF
 
@@ -501,12 +529,15 @@ jobs:
           message: |
             🚀 **Ephemeral Environment Deployed**
 
-            **URL**: [https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}](https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }})
+            **Frontend**: [https://pr-${{ steps.pr_number.outputs.pr_number }}.rushomon-ui.pages.dev](https://pr-${{ steps.pr_number.outputs.pr_number }}.rushomon-ui.pages.dev)
+            **Backend**: [https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}](https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }})
 
             This environment will be automatically cleaned up when the PR is closed.
 
-            **Database ID**: `${{ steps.create_d1.outputs.database_id }}`
-            **KV Namespace ID**: `${{ steps.create_kv.outputs.kv_id }}`
+            **Resources**:
+            - Database ID: `${{ steps.create_d1.outputs.database_id }}`
+            - KV Namespace ID: `${{ steps.create_kv.outputs.kv_id }}`
+            - Pages Branch: `pr-${{ steps.pr_number.outputs.pr_number }}`
 
             ---
 

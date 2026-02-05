@@ -80,6 +80,8 @@ wrangler d1 migrations apply rushomon --remote
    - Replace `your-preview-kv-id-here` with preview KV namespace ID
    - Replace `your-database-id-here` with D1 database ID
    - Set your domain in `DOMAIN` variable
+   - Update `ALLOWED_ORIGINS` with your frontend URLs (comma-separated)
+   - Update `EPHEMERAL_ORIGIN_PATTERN` if using different domain for ephemeral environments
 
 2. Set up GitHub OAuth App:
    - Go to GitHub Settings → Developer settings → OAuth Apps → New OAuth App
@@ -162,12 +164,12 @@ cd frontend
 npm run build
 
 # Deploy to Cloudflare Pages
-npx wrangler pages deploy .svelte-kit/cloudflare
+npx wrangler pages deploy build --project-name=rushomon-ui
 
 # Or connect your GitHub repo to Cloudflare Pages for automatic deployments
 # Build command: npm run build
-# Build output directory: .svelte-kit/cloudflare
-# Environment variable: VITE_API_URL=https://yourdomain.com
+# Build output directory: build
+# Environment variable: PUBLIC_VITE_API_BASE_URL=https://yourdomain.com
 ```
 
 ## API Endpoints
@@ -191,6 +193,36 @@ npx wrangler pages deploy .svelte-kit/cloudflare
 - `POST /api/auth/logout` - Logout and invalidate session
 
 ## Development
+
+### Ephemeral Environments
+
+The project automatically deploys isolated preview environments for each pull request:
+
+**What gets deployed:**
+- Frontend to Cloudflare Pages: `https://pr-{PR_NUMBER}.rushomon-ui.pages.dev`
+- Backend to Cloudflare Workers: `https://rushomon-pr-{PR_NUMBER}.workers.dev`
+- Isolated D1 database: `rushomon-pr-{PR_NUMBER}`
+- Isolated KV namespace: `URL_MAPPINGS_pr_{PR_NUMBER}`
+
+**Features:**
+- Full integration between frontend and backend with CORS support
+- Automatic deployment on PR updates
+- Automatic cleanup when PR closes
+- OAuth flow works end-to-end
+- Complete testing environment for reviewers
+
+**How to use:**
+1. Create a pull request with your changes
+2. Wait for the deployment workflow to complete (~10 minutes)
+3. Check the PR comment for deployment URLs
+4. Test your changes in the ephemeral environment
+5. Close the PR to automatically clean up all resources
+
+**Skipping deployment:**
+- Add `skip-preview` label to the PR
+- Keep PR in draft state
+
+See `.github/workflows/README.md` for complete workflow documentation.
 
 ### Repository Configuration
 
