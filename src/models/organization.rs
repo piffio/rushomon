@@ -19,6 +19,8 @@ impl Organization {
     }
 }
 
+// Reserved for future organization creation API
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateOrganizationData {
     pub name: String,

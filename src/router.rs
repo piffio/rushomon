@@ -1,3 +1,4 @@
+use crate::auth;
 use crate::db;
 use crate::kv;
 use crate::models::{Link, link::CreateLinkRequest};
@@ -38,8 +39,8 @@ pub async fn handle_redirect(
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let link_id = mapping.link_id.clone();
 
-    // Get the full link to extract org_id
-    let link = match db::get_link_by_id(&db, &link_id, "test-org-id").await {
+    // Get the full link to extract org_id (no auth check for public redirects)
+    let link = match db::get_link_by_id_no_auth(&db, &link_id).await {
         Ok(Some(link)) => link,
         Ok(None) => {
             // If we can't get the link, we'll skip analytics but still redirect
@@ -89,10 +90,13 @@ pub async fn handle_redirect(
 
 /// Handle link creation: POST /api/links
 pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // TODO: Extract user from session
-    // For now, using test values
-    let user_id = "test-user-id";
-    let org_id = "test-org-id";
+    // Authenticate request
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let user_id = &user_ctx.user_id;
+    let org_id = &user_ctx.org_id;
 
     // Parse request body with proper error handling
     let raw_body: serde_json::Value = match req.json().await {
@@ -201,8 +205,12 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
 /// Handle listing links: GET /api/links
 pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // TODO: Extract user from session
-    let org_id = "test-org-id";
+    // Authenticate request
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
 
     // Parse pagination params
     let url = req.url()?;
@@ -235,9 +243,13 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
 }
 
 /// Handle getting a single link: GET /api/links/{id}
-pub async fn handle_get_link(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // TODO: Extract user from session
-    let org_id = "test-org-id";
+pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Authenticate request
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
 
     let link_id = ctx
         .param("id")
@@ -253,9 +265,13 @@ pub async fn handle_get_link(_req: Request, ctx: RouteContext<()>) -> Result<Res
 }
 
 /// Handle link deletion: DELETE /api/links/{id}
-pub async fn handle_delete_link(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // TODO: Extract user from session
-    let org_id = "test-org-id";
+pub async fn handle_delete_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Authenticate request
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
 
     let link_id = ctx
         .param("id")
@@ -278,4 +294,119 @@ pub async fn handle_delete_link(_req: Request, ctx: RouteContext<()>) -> Result<
     kv::delete_link_mapping(&kv, org_id, &link.short_code).await?;
 
     Response::empty()
+}
+
+/// Handle GitHub OAuth initiation: GET /api/auth/github
+pub async fn handle_github_login(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let client_id = ctx.env.var("GITHUB_CLIENT_ID")?.to_string();
+    let domain = ctx.env.var("DOMAIN")?.to_string();
+
+    // Use http for localhost, https for production (consistent with callback handling)
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+    let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
+
+    auth::oauth::initiate_github_oauth(&kv, &client_id, &redirect_uri, &ctx.env).await
+}
+
+/// Handle OAuth callback: GET /api/auth/callback
+pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Extract code and state from query params
+    let url = req.url()?;
+    let query = url
+        .query()
+        .ok_or_else(|| Error::RustError("Missing query parameters".to_string()))?;
+
+    let code = extract_query_param(query, "code")?;
+    let state = extract_query_param(query, "state")?;
+
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Handle OAuth callback
+    let (user, _org, jwt) =
+        auth::oauth::handle_oauth_callback(code, state, &kv, &db, &ctx.env).await?;
+
+    // Extract session ID from JWT claims
+    let jwt_secret = ctx.env.secret("JWT_SECRET")?.to_string();
+    let claims = auth::session::validate_jwt(&jwt, &jwt_secret)?;
+
+    // Store session in KV
+    auth::session::store_session(&kv, &claims.session_id, &user.id, &user.org_id).await?;
+
+    // Set cookie and redirect
+    let domain = ctx
+        .env
+        .var("DOMAIN")
+        .map(|d| d.to_string())
+        .unwrap_or_else(|_| "localhost".to_string());
+
+    // Use http for localhost, https for production
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+
+    let cookie = auth::session::create_session_cookie_with_scheme(&jwt, scheme);
+    let redirect_url = format!("{}://{}/dashboard", scheme, domain);
+
+    // Build redirect response with cookie
+    // Note: Response::redirect returns immutable headers, so we build manually
+    let headers = Headers::new();
+    headers.set("Location", &redirect_url)?;
+    headers.set("Set-Cookie", &cookie)?;
+
+    Ok(Response::empty()?.with_status(302).with_headers(headers))
+}
+
+/// Handle get current user: GET /api/auth/me
+pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let user = db::get_user_by_id(&db, &user_ctx.user_id).await?;
+
+    match user {
+        Some(user) => Response::from_json(&user),
+        None => Response::error("User not found", 404),
+    }
+}
+
+/// Handle logout: POST /api/auth/logout
+pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
+    auth::session::delete_session(&kv, &user_ctx.session_id).await?;
+
+    let cookie = auth::session::create_logout_cookie();
+    let mut response = Response::ok("Logged out")?;
+    response.headers_mut().set("Set-Cookie", &cookie)?;
+
+    Ok(response)
+}
+
+/// Helper function to extract query parameters
+fn extract_query_param(query: &str, name: &str) -> Result<String> {
+    query
+        .split('&')
+        .find_map(|pair| {
+            let parts: Vec<&str> = pair.splitn(2, '=').collect();
+            if parts.len() == 2 && parts[0] == name {
+                Some(parts[1].to_string())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| Error::RustError(format!("Missing {} parameter", name)))
 }

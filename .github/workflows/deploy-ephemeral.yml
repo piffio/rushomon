@@ -94,15 +94,15 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           DB_NAME="rushomon-pr-$PR_NUMBER"
-          
+
           # Check if database already exists
           echo "Checking if database '$DB_NAME' already exists..."
           LIST_RESPONSE=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
-          
+
           DB_ID=$(echo "$LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$DB_NAME\") | .uuid // .id" | head -1)
-          
+
           if [ -n "$DB_ID" ]; then
             echo "✅ Database already exists: $DB_NAME (ID: $DB_ID)"
           else
@@ -125,7 +125,7 @@ jobs:
 
             echo "✅ Created database: $DB_NAME (ID: $DB_ID)"
           fi
-          
+
           echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
           echo "database_name=$DB_NAME" >> $GITHUB_OUTPUT
 
@@ -197,6 +197,8 @@ jobs:
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
+          GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
+          JWT_SECRET = "${{ secrets.JWT_SECRET }}"
           DOMAIN = "${{ env.WORKERS_DOMAIN }}"
           EOF
 
@@ -208,7 +210,7 @@ jobs:
         run: |
           # Wait for database to be ready
           sleep 2
-          
+
           # Apply migrations using environment variables
           wrangler d1 migrations apply rushomon --remote -c wrangler.ephemeral.toml
 
@@ -220,18 +222,144 @@ jobs:
         run: |
           wrangler deploy -c wrangler.ephemeral.toml
 
+      - name: Setup Test Data
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          # Insert test link for redirect testing
+          NOW=$(date +%s)
+          echo "🔧 Setting up test data for smoke tests..."
+
+          # Clean up any existing test data first
+          echo "🧹 Cleaning up existing test data..."
+          echo "🔍 Database configuration check:"
+          echo "  Using config: wrangler.ephemeral.toml"
+          echo "  Database name: rushomon"
+
+          # Verify database connection
+          DB_CHECK=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command "SELECT 'database_connected' as status" --json)
+          echo "  Database test: $(echo "$DB_CHECK" | jq -r '.[0].results[0].status')"
+
+          # Clean up in reverse dependency order to respect foreign key constraints
+          echo "🗑️  Cleaning up analytics events first..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM analytics_events WHERE link_id IN (SELECT id FROM links WHERE short_code = 'smoke-test')" || true
+
+          echo "🗑️  Cleaning up links..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM links WHERE short_code = 'smoke-test'" || true
+
+          echo "🗑️  Cleaning up users..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM users WHERE id = 'test-user-smoke'" || true
+
+          echo "🗑️  Cleaning up organizations..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM organizations WHERE id = 'test-org-smoke'" || true
+
+          # Create test organization and user first
+          echo "📝 Creating test organization..."
+          ORG_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO organizations (id, name, slug, created_at, created_by) 
+             VALUES ('test-org-smoke', 'Smoke Test Org', 'smoke-test', $NOW, 'test-user-smoke')" --json)
+          echo "Organization insert result: $(echo "$ORG_RESULT" | jq '.[0].meta.changes // 0') changes"
+
+          echo "📝 Creating test user..."
+          USER_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO users (id, email, name, oauth_provider, oauth_id, org_id, role, created_at) 
+             VALUES ('test-user-smoke', 'smoke-test@example.com', 'Smoke Test User', 'github', '12345', 'test-org-smoke', 'admin', $NOW)" --json)
+          echo "User insert result: $(echo "$USER_RESULT" | jq '.[0].meta.changes // 0') changes"
+
+          # Create test link for redirect testing
+          echo "📝 Creating test link in D1..."
+          LINK_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO links (id, org_id, short_code, destination_url, created_at, created_by, is_active) 
+             VALUES ('test-link-smoke', 'test-org-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 1)" --json)
+          echo "Link insert result: $(echo "$LINK_RESULT" | jq '.[0].meta.changes // 0') changes"
+
+          # Create KV mapping for redirect lookup
+          echo "📝 Creating KV mapping for redirect..."
+          wrangler kv key put smoke-test --binding URL_MAPPINGS --remote -c wrangler.ephemeral.toml --preview false '{"destination_url":"https://example.com","link_id":"test-link-smoke","expires_at":null,"is_active":true}'
+          echo "KV mapping result: Created"
+
+          # Verify test data was created
+          echo "🔍 Verifying test data..."
+          LINK_COUNT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "SELECT COUNT(*) as count FROM links WHERE short_code = 'smoke-test'" --json | jq -r '.[0].results[0].count')
+
+          echo "📊 Database state check:"
+          echo "  Links with short_code 'smoke-test': $LINK_COUNT"
+
+          # Verify KV mapping was created
+          echo "🔍 KV state check:"
+          KV_CHECK=$(wrangler kv key get smoke-test --binding URL_MAPPINGS --remote -c wrangler.ephemeral.toml --preview false 2>/dev/null || echo "KV_NOT_FOUND")
+
+          if [ "$KV_CHECK" = "KV_NOT_FOUND" ]; then
+            echo "  KV mapping: ❌ Not found"
+          elif [ -z "$KV_CHECK" ]; then
+            echo "  KV mapping: ❌ Found but empty (possible command error)"
+            echo "  This indicates a wrangler command syntax issue"
+            exit 1
+          else
+            # Validate JSON structure and content
+            DEST_URL=$(echo "$KV_CHECK" | jq -r '.destination_url // empty' 2>/dev/null)
+            LINK_ID=$(echo "$KV_CHECK" | jq -r '.link_id // empty' 2>/dev/null)
+            IS_ACTIVE=$(echo "$KV_CHECK" | jq -r '.is_active // empty' 2>/dev/null)
+
+            if [ "$DEST_URL" = "https://example.com" ] && [ "$LINK_ID" = "test-link-smoke" ] && [ "$IS_ACTIVE" = "true" ]; then
+              echo "  KV mapping: ✅ Found and validated"
+              echo "  Destination: $DEST_URL"
+              echo "  Link ID: $LINK_ID"
+              echo "  Active: $IS_ACTIVE"
+            else
+              echo "  KV mapping: ❌ Found but invalid content"
+              echo "  Expected: destination_url=https://example.com, link_id=test-link-smoke, is_active=true"
+              echo "  Got: destination_url=$DEST_URL, link_id=$LINK_ID, is_active=$IS_ACTIVE"
+              echo "  Raw KV value: $KV_CHECK"
+              exit 1
+            fi
+          fi
+
+          # Show all links for debugging
+          echo "  All links in database:"
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "SELECT id, short_code, destination_url, is_active FROM links LIMIT 10" --json | jq '.[0].results[] | {id, short_code, destination_url, is_active}' || echo "Failed to query links"
+
+          if [ "$LINK_COUNT" = "1" ] && [ "$KV_CHECK" != "KV_NOT_FOUND" ] && [ -n "$KV_CHECK" ] && \
+             [ "$(echo "$KV_CHECK" | jq -r '.destination_url // empty' 2>/dev/null)" = "https://example.com" ] && \
+             [ "$(echo "$KV_CHECK" | jq -r '.link_id // empty' 2>/dev/null)" = "test-link-smoke" ] && \
+             [ "$(echo "$KV_CHECK" | jq -r '.is_active // empty' 2>/dev/null)" = "true" ]; then
+            echo "✅ Test link 'smoke-test' created successfully (D1 + KV)"
+            # Show the specific link details
+            echo "📋 Link details:"
+            wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --json | jq '.[0].results[]' || echo "Failed to get link details"
+          else
+            echo "❌ Test link creation failed:"
+            echo "  D1 links: $LINK_COUNT (expected: 1)"
+            echo "  KV mapping: $([ "$KV_CHECK" = "KV_NOT_FOUND" ] && echo "❌ Missing" || echo "✅ Found")"
+            echo "🔍 Debugging database state..."
+            wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --json | jq '.' || true
+            exit 1
+          fi
+
+          echo "✅ Test data setup complete"
+
       - name: Run Smoke Tests
         env:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
           WORKERS_DOMAIN: ${{ secrets.WORKERS_DOMAIN }}
         run: |
           DEPLOYMENT_URL="https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
-          
+
           echo "🧪 Testing deployment at: $DEPLOYMENT_URL"
-          
+
           # Wait for deployment to be ready
           sleep 3
-          
+
           # Test 1: Root endpoint health check
           echo ""
           echo "🏥 Test 1: Root Endpoint (Health Check)"
@@ -254,79 +382,60 @@ jobs:
             echo "📝 Worker is responding with the expected banner"
           fi
 
-          # Test 2: Create link
+          # Test 2: Public Redirect
           echo ""
-          echo "🔗 Test 2: Create Link"
-          echo "----------------------"
-
-          # Generate unique short code (4-10 characters)
-          TEST_CODE="test${RANDOM:0:3}"
-          PAYLOAD="{\"destination_url\": \"https://example.com\", \"short_code\": \"$TEST_CODE\"}"
-
-          echo "Payload: $PAYLOAD"
-          echo "Sending POST to $DEPLOYMENT_URL/api/links..."
-
-          CREATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -X POST "$DEPLOYMENT_URL/api/links" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
-
-          CREATE_HTTP_CODE=$(echo "$CREATE_RESPONSE" | tail -n1 | cut -d: -f2)
-          CREATE_BODY=$(echo "$CREATE_RESPONSE" | sed '$d')
-
-          echo "Create response HTTP: $CREATE_HTTP_CODE"
-          echo "Create response body: $CREATE_BODY"
-
-          if [ "$CREATE_HTTP_CODE" != "200" ] && [ "$CREATE_HTTP_CODE" != "201" ]; then
-            echo "❌ Link creation failed with HTTP $CREATE_HTTP_CODE"
-            echo "Response body: $CREATE_BODY"
-            echo ""
-            echo "🔍 Debugging failed request..."
-            echo "Headers that were sent:"
-            echo "  Content-Type: application/json"
-            echo "  Method: POST"
-            echo "  URL: $DEPLOYMENT_URL/api/links"
-            echo "  Payload: $PAYLOAD"
-            exit 1
-          fi
-
-          # Check if response is valid JSON
-          if ! echo "$CREATE_BODY" | jq . >/dev/null 2>&1; then
-            echo "❌ Response is not valid JSON"
-            echo "Raw response: $CREATE_BODY"
-            exit 1
-          fi
-
-          echo "✅ Link creation successful"
-          echo "✅ Response is valid JSON"
-
-          # Extract short code
-          SHORT_CODE=$(echo "$CREATE_BODY" | jq -r '.short_code // empty')
-
-          if [ -z "$SHORT_CODE" ] || [ "$SHORT_CODE" = "null" ]; then
-            echo "❌ Could not extract short code from response"
-            echo "Response: $CREATE_BODY"
-            exit 1
-          fi
-
-          echo "✅ Extracted short code: $SHORT_CODE"
-
-          # Test 3: Redirect
-          echo ""
-          echo "🔄 Test 3: Redirect"
-          echo "-------------------"
-          echo "Testing redirect to $DEPLOYMENT_URL/$SHORT_CODE..."
+          echo "🔄 Test 2: Public Redirect"
+          echo "--------------------------"
+          echo "Testing /smoke-test redirect (public endpoint)..."
 
           REDIRECT_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -I "$DEPLOYMENT_URL/$SHORT_CODE" || echo "FAILED")
+            -I "$DEPLOYMENT_URL/smoke-test" || echo "FAILED")
           REDIRECT_HTTP_CODE=$(echo "$REDIRECT_RESPONSE" | tail -n1 | cut -d: -f2)
 
+          echo "Redirect HTTP: $REDIRECT_HTTP_CODE"
+
           if [ "$REDIRECT_HTTP_CODE" = "301" ] || [ "$REDIRECT_HTTP_CODE" = "302" ]; then
-            echo "✅ Redirect working (HTTP $REDIRECT_HTTP_CODE)"
+            echo "✅ Public redirect working (HTTP $REDIRECT_HTTP_CODE)"
+            # Extract redirect location for verification
+            LOCATION=$(echo "$REDIRECT_RESPONSE" | grep -i location | cut -d' ' -f2- | tr -d '\r')
+            echo "📍 Redirects to: $LOCATION"
           else
-            echo "⚠️  Redirect test failed (HTTP $REDIRECT_HTTP_CODE)"
+            echo "❌ Redirect test failed (HTTP $REDIRECT_HTTP_CODE)"
             echo "Response: $REDIRECT_RESPONSE"
+            echo ""
+            echo "🔍 Debugging redirect test failure..."
+            echo "Expected: 301 or 302 redirect"
+            echo "Got: $REDIRECT_HTTP_CODE"
+            echo "Test URL: $DEPLOYMENT_URL/smoke-test"
+            echo "This suggests the test link 'smoke-test' was not created properly in the database."
+            exit 1
           fi
+
+          # Test 3: Authentication Validation
+          echo ""
+          echo "🔐 Test 3: Authentication Validation"
+          echo "---------------------------------"
+          echo "Testing that protected endpoints reject unauthenticated requests..."
+
+          # Test key protected endpoints
+          for endpoint in "/api/links" "/api/auth/me"; do
+            echo -n "  $endpoint: "
+
+            AUTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              "$DEPLOYMENT_URL$endpoint" || echo "FAILED")
+            AUTH_HTTP_CODE=$(echo "$AUTH_RESPONSE" | tail -n1 | cut -d: -f2)
+
+            if [ "$AUTH_HTTP_CODE" = "401" ]; then
+              echo "✅ Correctly requires authentication"
+            else
+              echo "❌ Expected 401, got $AUTH_HTTP_CODE"
+              AUTH_BODY=$(echo "$AUTH_RESPONSE" | sed '$d')
+              echo "  Response: $AUTH_BODY"
+              exit 1
+            fi
+          done
+
+          echo "✅ Authentication properly enforced"
 
           # Test 4: Check available endpoints
           echo ""
@@ -336,7 +445,7 @@ jobs:
           echo "Testing common endpoints..."
 
           # Test common endpoints
-          for endpoint in "/" "/api/links" "/favicon.ico"; do
+          for endpoint in "/" "/favicon.ico"; do
             echo -n "  $endpoint: "
 
             if curl -s -f "$DEPLOYMENT_URL$endpoint" >/dev/null 2>&1; then
@@ -346,13 +455,24 @@ jobs:
             fi
           done
 
+          # Test that protected endpoint returns 401
+          echo -n "  /api/links (protected): "
+          PROTECTED_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$DEPLOYMENT_URL/api/links" || echo "FAILED")
+          PROTECTED_HTTP_CODE=$(echo "$PROTECTED_RESPONSE" | tail -n1 | cut -d: -f2)
+          if [ "$PROTECTED_HTTP_CODE" = "401" ]; then
+            echo "✅ Correctly protected"
+          else
+            echo "❌ Expected 401, got $PROTECTED_HTTP_CODE"
+            exit 1
+          fi
+
           echo ""
           echo "🎯 Smoke Tests Summary"
           echo "====================="
-          echo "✅ All core functionality tested"
-          echo "✅ Worker deployment verified"
-          echo "✅ API endpoints responding"
+          echo "✅ Public endpoints working"
+          echo "✅ Authentication properly enforced"
           echo "✅ Redirect logic working"
+          echo "✅ Worker deployment verified"
 
       - name: Store Deployment Info
         if: always()

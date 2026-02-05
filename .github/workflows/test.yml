@@ -69,19 +69,5 @@ jobs:
       - name: Build Worker
         run: worker-build --release
 
-      - name: Apply D1 migrations (local)
-        run: wrangler d1 migrations apply rushomon --local
-
-      - name: Start wrangler dev server
-        run: |
-          wrangler dev --local --port 8787 &
-          sleep 5
-          # Verify server is running
-          curl -f http://localhost:8787/ || exit 1
-
       - name: Run integration tests
-        run: cargo test --test '*' -- --test-threads=1 --nocapture
-
-      - name: Stop wrangler dev server
-        if: always()
-        run: pkill -f "wrangler dev" || true
+        run: ./scripts/run-integration-tests.sh --ci

@@ -75,6 +75,8 @@ pub struct CreateLinkRequest {
     pub expires_at: Option<i64>,
 }
 
+// Reserved for future link update feature
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateLinkRequest {
     pub destination_url: Option<String>,
@@ -84,6 +86,7 @@ pub struct UpdateLinkRequest {
 }
 
 impl Link {
+    #[allow(dead_code)] // Used in tests and reserved for future expiration checks
     pub fn is_expired(&self) -> bool {
         if let Some(expires_at) = self.expires_at {
             let now = now_timestamp();

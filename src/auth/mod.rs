@@ -1,4 +1,6 @@
+pub mod middleware;
 pub mod oauth;
 pub mod session;
 
-// Placeholder - will implement in Phase 3
+pub use middleware::{AuthError, authenticate_request};
+pub use session::create_jwt;

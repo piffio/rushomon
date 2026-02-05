@@ -228,7 +228,19 @@ pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Res
         .await
 }
 
-/// Update a link
+/// Get a link by ID without org_id check (used for public redirects)
+pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
+         FROM links
+         WHERE id = ?1"
+    );
+
+    stmt.bind(&[link_id.into()])?.first::<Link>(None).await
+}
+
+/// Update a link - reserved for future link update feature
+#[allow(dead_code)]
 pub async fn update_link(
     db: &D1Database,
     link_id: &str,

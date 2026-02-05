@@ -12,6 +12,8 @@ pub struct AnalyticsEvent {
     pub city: Option<String>,
 }
 
+// Analytics summary types - reserved for future analytics dashboard feature
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AnalyticsSummary {
     pub total_clicks: i64,
@@ -20,18 +22,21 @@ pub struct AnalyticsSummary {
     pub countries: Vec<CountryCount>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DailyClicks {
     pub date: String,
     pub count: i64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReferrerCount {
     pub referrer: String,
     pub count: i64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CountryCount {
     pub country: String,

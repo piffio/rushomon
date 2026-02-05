@@ -36,9 +36,10 @@ async fn test_nonexistent_short_code_returns_404() {
 
 #[tokio::test]
 async fn test_redirect_increments_click_count() {
-    let client = test_client();
+    let auth_client = authenticated_client();
+    let public_client = test_client();
 
-    // Create link
+    // Create link (authenticated)
     let create_response = create_test_link("https://example.com", None).await;
     let link: serde_json::Value = create_response.json().await.unwrap();
     let link_id = link["id"].as_str().unwrap();
@@ -47,8 +48,8 @@ async fn test_redirect_increments_click_count() {
     // Initial click count should be 0
     assert_eq!(link["click_count"], 0);
 
-    // Access the short link (analytics are now awaited, so should complete before redirect)
-    let redirect_response = client
+    // Access the short link (public, unauthenticated)
+    let redirect_response = public_client
         .get(&format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
@@ -60,8 +61,8 @@ async fn test_redirect_increments_click_count() {
         reqwest::StatusCode::MOVED_PERMANENTLY
     );
 
-    // Get link and check click count (should be incremented immediately now)
-    let get_response = client
+    // Get link and check click count (authenticated)
+    let get_response = auth_client
         .get(&format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
@@ -79,7 +80,8 @@ async fn test_redirect_increments_click_count() {
 
 #[tokio::test]
 async fn test_inactive_link_returns_404() {
-    let client = test_client();
+    let auth_client = authenticated_client();
+    let public_client = test_client();
 
     // Create and then delete (soft delete) a link
     let create_response = create_test_link("https://example.com", None).await;
@@ -87,15 +89,15 @@ async fn test_inactive_link_returns_404() {
     let link_id = link["id"].as_str().unwrap();
     let short_code = link["short_code"].as_str().unwrap();
 
-    // Delete the link (soft delete)
-    let _ = client
+    // Delete the link (soft delete, authenticated)
+    let _ = auth_client
         .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
 
-    // Try to access the short link
-    let response = client
+    // Try to access the short link (public)
+    let response = public_client
         .get(&format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
