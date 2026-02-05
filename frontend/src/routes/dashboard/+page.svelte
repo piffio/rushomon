@@ -57,9 +57,10 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50">
-	<Header user={data.user} />
+	{#if data.user}
+		<Header user={data.user} />
 
-	<main class="container mx-auto px-4 py-8">
+		<main class="container mx-auto px-4 py-8">
 		<div class="max-w-6xl mx-auto">
 			<h1 class="text-3xl font-bold text-gray-900 mb-8">Your Short Links</h1>
 
@@ -83,5 +84,14 @@
 				{hasMore}
 			/>
 		</div>
-	</main>
+		</main>
+	{:else}
+		<!-- User data not available, this should not happen with proper auth -->
+		<div class="min-h-screen bg-gray-50 flex items-center justify-center">
+			<div class="text-center">
+				<p class="text-gray-600 mb-4">Authentication required</p>
+				<a href="/" class="text-orange-600 hover:text-orange-700">Return to homepage</a>
+			</div>
+		</div>
+	{/if}
 </div>

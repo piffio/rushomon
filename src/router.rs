@@ -381,7 +381,7 @@ pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Respon
     auth::session::delete_session(&kv, &user_ctx.session_id).await?;
 
     let cookie = auth::session::create_logout_cookie();
-    let mut response = Response::ok("Logged out")?;
+    let mut response = Response::ok("Logged out successfully")?;
     response.headers_mut().set("Set-Cookie", &cookie)?;
 
     Ok(response)

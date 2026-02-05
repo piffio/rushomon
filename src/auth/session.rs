@@ -5,7 +5,7 @@ use jwt_compact::{
     prelude::*,
 };
 use serde::{Deserialize, Serialize};
-use worker::{Error, Result, console_log, kv::KvStore};
+use worker::{Error, Result, kv::KvStore};
 
 const SESSION_TTL_SECONDS: u64 = 604800; // 7 days
 
@@ -53,34 +53,18 @@ pub fn create_jwt(user_id: &str, org_id: &str, session_id: &str, secret: &str) -
 
 /// Validates a JWT token and returns the claims
 pub fn validate_jwt(token: &str, secret: &str) -> Result<JwtClaims> {
-    console_log!("[JWT DEBUG] validate_jwt called");
-    console_log!("[JWT DEBUG] Token length: {}", token.len());
-    console_log!("[JWT DEBUG] Secret length: {}", secret.len());
-    console_log!(
-        "[JWT DEBUG] Secret first 10 chars: {}",
-        &secret[..std::cmp::min(10, secret.len())]
-    );
-
     let key = Hs256Key::new(secret.as_bytes());
 
     let untrusted_token = match UntrustedToken::new(token) {
-        Ok(t) => {
-            console_log!("[JWT DEBUG] Token parsed successfully");
-            t
-        }
+        Ok(t) => t,
         Err(e) => {
-            console_log!("[JWT DEBUG] Token parse FAILED: {}", e);
             return Err(Error::RustError(format!("Invalid JWT format: {}", e)));
         }
     };
 
     let token: Token<JwtClaims> = match Hs256.validator(&key).validate(&untrusted_token) {
-        Ok(t) => {
-            console_log!("[JWT DEBUG] Signature validation PASSED");
-            t
-        }
+        Ok(t) => t,
         Err(e) => {
-            console_log!("[JWT DEBUG] Signature validation FAILED: {}", e);
             return Err(Error::RustError(format!("Invalid JWT: {}", e)));
         }
     };
@@ -89,23 +73,10 @@ pub fn validate_jwt(token: &str, secret: &str) -> Result<JwtClaims> {
     let time_options = TimeOptions::default();
     let claims = token.claims();
 
-    console_log!(
-        "[JWT DEBUG] Token expiration: {:?}, current time: {}",
-        claims.expiration,
-        chrono::Utc::now().timestamp()
-    );
-
-    if let Err(e) = claims.validate_expiration(&time_options) {
-        console_log!("[JWT DEBUG] Token EXPIRED: {}", e);
+    if let Err(_e) = claims.validate_expiration(&time_options) {
         return Err(Error::RustError("Token expired".to_string()));
     }
 
-    console_log!(
-        "[JWT DEBUG] Token valid, claims: sub={}, org_id={}, session_id={}",
-        claims.custom.sub,
-        claims.custom.org_id,
-        claims.custom.session_id
-    );
     Ok(claims.custom.clone())
 }
 

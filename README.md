@@ -37,6 +37,8 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 3. **worker-build**: `cargo install worker-build`
 4. **Cloudflare account**: Sign up at [cloudflare.com](https://cloudflare.com)
 5. **Wrangler CLI**: `npm install -g wrangler` or `cargo install wrangler`
+6. **Node.js**: For frontend development (v20+ recommended)
+7. **expect** (macOS only): For colored output in development script - `brew install expect`
 
 ### Step 1: Clone and Install
 
@@ -98,7 +100,20 @@ wrangler secret put JWT_SECRET
 
 ### Step 4: Local Development
 
-#### Backend (Rust Worker)
+#### Quick Start (Recommended)
+
+```bash
+# Start both backend and frontend with colored output
+./scripts/start-local-environment.sh
+
+# Backend: http://localhost:8787
+# Frontend: http://localhost:5173
+# Press Ctrl+C to stop both services
+```
+
+#### Manual Setup
+
+**Backend (Rust Worker)**
 
 ```bash
 # Start the Worker locally
@@ -107,7 +122,7 @@ wrangler dev
 # The Worker will be available at http://localhost:8787
 ```
 
-#### Frontend (SvelteKit)
+**Frontend (SvelteKit)**
 
 ```bash
 # Navigate to frontend directory
@@ -123,7 +138,7 @@ npm run dev
 # Configure .env for local backend: VITE_API_URL=http://localhost:8787
 ```
 
-**Note**: For local development, run both the backend (wrangler dev) and frontend (npm run dev) simultaneously. The frontend proxies API requests to the backend.
+**Note**: For local development, run both the backend (wrangler dev) and frontend (npm run dev) simultaneously. The convenience script handles both services with proper color output and logging.
 
 ### Step 5: Deploy to Production
 

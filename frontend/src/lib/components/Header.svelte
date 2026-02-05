@@ -8,10 +8,16 @@
 
 	async function handleLogout() {
 		try {
+			// Close the dropdown menu immediately
+			showMenu = false;
+
 			await authApi.logout();
-			goto('/');
+			// Successfully logged out, redirect to homepage
+			window.location.href = '/';
 		} catch (error) {
 			console.error('Logout failed:', error);
+			// Even if logout fails, try to redirect to homepage
+			window.location.href = '/';
 		}
 	}
 </script>

@@ -1,12 +1,21 @@
 <script lang="ts">
 	import { authApi } from '$lib/api/auth';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	const loginUrl = authApi.getLoginUrl();
 
-	let mounted = false;
+	let mounted = $state(false);
 	onMount(() => {
 		mounted = true;
+
+		// If user is already authenticated, redirect to dashboard
+		if (data.user) {
+			goto('/dashboard');
+		}
 	});
 </script>
 
@@ -26,7 +35,7 @@
 					<h1 class="text-2xl font-bold text-gray-900">Rushomon</h1>
 				</div>
 				<a
-					href="https://github.com/yourusername/rushomon"
+					href="https://github.com/piffio/rushomon"
 					class="text-gray-600 hover:text-orange-600 transition-colors"
 					target="_blank"
 					rel="noopener noreferrer"
@@ -222,7 +231,7 @@
 					<a href="https://workers.cloudflare.com" class="text-orange-600 hover:text-orange-700 font-medium transition-colors" target="_blank" rel="noopener noreferrer">Cloudflare Workers</a>
 				</p>
 				<p class="text-sm text-gray-500">
-					<a href="https://github.com/yourusername/rushomon" class="hover:text-orange-600 transition-colors" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+					<a href="https://github.com/piffio/rushomon" class="hover:text-orange-600 transition-colors" target="_blank" rel="noopener noreferrer">View on GitHub</a>
 					<span class="mx-2">·</span>
 					Licensed under AGPL-3.0
 				</p>
