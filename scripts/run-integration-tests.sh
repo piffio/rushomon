@@ -196,14 +196,16 @@ CALLBACK_URL="${BASE_URL}/api/auth/callback?code=${MOCK_CODE}&state=${STATE}"
 
 echo "  → Calling callback with mock code..."
 
-# Call the callback endpoint - this should create the user and return a session cookie
+# Call the callback endpoint - this redirects to the frontend with the JWT in the URL
 CALLBACK_RESPONSE=$(curl -s -i "${CALLBACK_URL}" 2>&1)
 
-# Extract the JWT from the Set-Cookie header
-JWT=$(echo "$CALLBACK_RESPONSE" | grep -i "^set-cookie:" | grep -oE 'rushomon_session=[^;]+' | cut -d= -f2)
+# Extract the JWT from the Location header redirect URL
+# The backend now redirects to: {FRONTEND_URL}/auth/callback?token={jwt}
+REDIRECT_LOCATION=$(echo "$CALLBACK_RESPONSE" | grep -i "^location:" | sed 's/location: //i' | tr -d '\r')
+JWT=$(echo "$REDIRECT_LOCATION" | grep -oE 'token=[^&]+' | cut -d= -f2)
 
 if [ -z "$JWT" ]; then
-    echo "❌ Failed to get JWT from callback response"
+    echo "❌ Failed to extract JWT from redirect Location header"
     echo "Response headers:"
     echo "$CALLBACK_RESPONSE" | head -20
     echo ""
