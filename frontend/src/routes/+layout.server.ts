@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/public';
 import type { LayoutServerData } from './$types';
 
 export const load = async ({ cookies, url }: { cookies: any, url: any; }) => {
@@ -13,7 +14,8 @@ export const load = async ({ cookies, url }: { cookies: any, url: any; }) => {
 	// For dashboard, validate the token and get user info
 	if (url.pathname.startsWith('/dashboard') && sessionToken) {
 		try {
-			const response = await fetch('http://localhost:8787/api/auth/me', {
+			const apiBaseUrl = env.PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
+			const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
 				headers: {
 					'Cookie': `rushomon_session=${sessionToken}`
 				}

@@ -10,7 +10,7 @@
 		onDelete: (id: string) => void;
 	} = $props();
 
-	const API_BASE_URL = env.VITE_API_BASE_URL || 'http://localhost:8787';
+	const API_BASE_URL = env.PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
 	const shortUrl = `${API_BASE_URL}/${link.short_code}`;
 
 	let showDeleteConfirm = $state(false);
