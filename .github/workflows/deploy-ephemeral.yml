@@ -284,13 +284,32 @@ jobs:
 
           # Verify KV mapping was created
           echo "🔍 KV state check:"
-          KV_CHECK=$(wrangler kv key get smoke-test --binding URL_MAPPINGS --remote -c wrangler.ephemeral.toml --preview false --json || echo "KV_NOT_FOUND")
+          KV_CHECK=$(wrangler kv key get smoke-test --binding URL_MAPPINGS --remote -c wrangler.ephemeral.toml --preview false 2>/dev/null || echo "KV_NOT_FOUND")
 
-          if [ "$KV_CHECK" != "KV_NOT_FOUND" ]; then
-            echo "  KV mapping: ✅ Found"
-            echo "  KV value: $KV_CHECK"
-          else
+          if [ "$KV_CHECK" = "KV_NOT_FOUND" ]; then
             echo "  KV mapping: ❌ Not found"
+          elif [ -z "$KV_CHECK" ]; then
+            echo "  KV mapping: ❌ Found but empty (possible command error)"
+            echo "  This indicates a wrangler command syntax issue"
+            exit 1
+          else
+            # Validate JSON structure and content
+            DEST_URL=$(echo "$KV_CHECK" | jq -r '.destination_url // empty' 2>/dev/null)
+            LINK_ID=$(echo "$KV_CHECK" | jq -r '.link_id // empty' 2>/dev/null)
+            IS_ACTIVE=$(echo "$KV_CHECK" | jq -r '.is_active // empty' 2>/dev/null)
+
+            if [ "$DEST_URL" = "https://example.com" ] && [ "$LINK_ID" = "test-link-smoke" ] && [ "$IS_ACTIVE" = "true" ]; then
+              echo "  KV mapping: ✅ Found and validated"
+              echo "  Destination: $DEST_URL"
+              echo "  Link ID: $LINK_ID"
+              echo "  Active: $IS_ACTIVE"
+            else
+              echo "  KV mapping: ❌ Found but invalid content"
+              echo "  Expected: destination_url=https://example.com, link_id=test-link-smoke, is_active=true"
+              echo "  Got: destination_url=$DEST_URL, link_id=$LINK_ID, is_active=$IS_ACTIVE"
+              echo "  Raw KV value: $KV_CHECK"
+              exit 1
+            fi
           fi
 
           # Show all links for debugging
@@ -298,7 +317,10 @@ jobs:
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "SELECT id, short_code, destination_url, is_active FROM links LIMIT 10" --json | jq '.[0].results[] | {id, short_code, destination_url, is_active}' || echo "Failed to query links"
 
-          if [ "$LINK_COUNT" = "1" ] && [ "$KV_CHECK" != "KV_NOT_FOUND" ]; then
+          if [ "$LINK_COUNT" = "1" ] && [ "$KV_CHECK" != "KV_NOT_FOUND" ] && [ -n "$KV_CHECK" ] && \
+             [ "$(echo "$KV_CHECK" | jq -r '.destination_url // empty' 2>/dev/null)" = "https://example.com" ] && \
+             [ "$(echo "$KV_CHECK" | jq -r '.link_id // empty' 2>/dev/null)" = "test-link-smoke" ] && \
+             [ "$(echo "$KV_CHECK" | jq -r '.is_active // empty' 2>/dev/null)" = "true" ]; then
             echo "✅ Test link 'smoke-test' created successfully (D1 + KV)"
             # Show the specific link details
             echo "📋 Link details:"
