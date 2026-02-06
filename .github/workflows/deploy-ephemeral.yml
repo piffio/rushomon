@@ -201,7 +201,7 @@ jobs:
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
           GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
           JWT_SECRET = "${{ secrets.JWT_SECRET }}"
-          DOMAIN = "${{ env.WORKERS_DOMAIN }}"
+          DOMAIN = "rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           FRONTEND_URL = "https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
           ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
           EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
