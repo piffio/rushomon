@@ -28,6 +28,7 @@ jobs:
     name: Deploy to Ephemeral Environment
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: ephemeral
     # Deploy only if:
     # 1. PR is from the same repo (not a fork) OR it's a push event
     # 2. PR is not in draft state
