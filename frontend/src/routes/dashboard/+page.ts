@@ -1,39 +1,27 @@
-import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
 import type { PageLoad } from './$types';
+import { apiClient } from '$lib/api/client';
 
-export const load: PageLoad = async ({ parent, fetch }) => {
-	// Get user data from layout server
+export const load: PageLoad = async ({ parent }) => {
+	// Get user data from layout (now client-side)
 	const parentData = await parent() as { user?: any; };
 	const user = parentData.user;
 
 	if (!user) {
-		// This shouldn't happen if layout server is working, but just in case
+		// This shouldn't happen if layout is working, but just in case
 		return { user: null, links: [] };
 	}
 
 	try {
-		// Fetch links using the same pattern as layout server
-		// We need to get the session cookie and pass it explicitly
-		const apiBaseUrl = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
-		const response = await fetch(`${apiBaseUrl}/api/links?page=1&limit=20`, {
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			credentials: 'include'
-		});
-
-		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`);
-		}
-
-		const links = await response.json();
+		// Fetch links using apiClient (which adds Authorization header)
+		const response = await apiClient.get<{ links: any[]; total: number; page: number; limit: number; }>('/api/links?page=1&limit=20');
 
 		return {
 			user,
-			links
+			links: response.links || []
 		};
 	} catch (error) {
 		// If links fetch fails, still return user data
+		console.error('Failed to fetch links:', error);
 		return {
 			user,
 			links: []

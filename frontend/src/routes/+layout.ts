@@ -1,8 +1,11 @@
 import { redirect } from '@sveltejs/kit';
-import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
 import type { LayoutLoad } from './$types';
+import { browser } from '$app/environment';
 
-export const load: LayoutLoad = async ({ fetch, url }) => {
+// Mark this as client-side only to avoid SSR issues with localStorage
+export const ssr = false;
+
+export const load: LayoutLoad = async ({ url }) => {
 	// Define public routes that don't require authentication
 	const publicPaths = ['/auth/github', '/auth/callback'];
 	const isPublicRoute = url.pathname === '/' || publicPaths.some((route: string) =>
@@ -15,26 +18,24 @@ export const load: LayoutLoad = async ({ fetch, url }) => {
 	}
 
 	// For authenticated routes, validate the token and get user info
-	try {
-		const apiBaseUrl = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
-		const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
-			credentials: 'include' // Send cookies automatically
-		});
-
-		if (!response.ok) {
+	// This now runs client-side only, so localStorage is available
+	if (browser) {
+		try {
+			// Import apiClient dynamically to ensure it runs client-side
+			const { authApi } = await import('$lib/api/auth');
+			const user = await authApi.me();
+			return { user };
+		} catch (error: any) {
 			// Auth failed, redirect to home
+			if (error?.status === 401) {
+				throw redirect(302, '/');
+			}
+
+			// For other errors, also redirect to home
 			throw redirect(302, '/');
 		}
-
-		const user = await response.json();
-		return { user };
-	} catch (error) {
-		// If it's already a redirect, re-throw it
-		if (error instanceof Response || (error && typeof error === 'object' && 'status' in error && 'location' in error)) {
-			throw error;
-		}
-
-		// For other errors (network, etc), redirect to home
-		throw redirect(302, '/');
 	}
+
+	// If somehow we're not in browser (shouldn't happen with ssr=false), return empty
+	return {};
 };
