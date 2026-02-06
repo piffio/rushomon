@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, clearAccessToken } from './client';
 import type { User } from '$lib/types/api';
 
 export const authApi = {
@@ -13,9 +13,13 @@ export const authApi = {
 
 	/**
 	 * Logout the current user
-	 * Clears session from backend and expires cookie
+	 * Clears access token from localStorage and session from backend
 	 */
 	async logout(): Promise<void> {
+		// Clear access token from localStorage
+		clearAccessToken();
+
+		// Call backend to invalidate session and clear refresh cookie
 		await apiClient.post<void>('/api/auth/logout');
 	},
 

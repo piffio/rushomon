@@ -327,30 +327,50 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     let kv = ctx.kv("URL_MAPPINGS")?;
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    // Handle OAuth callback
-    let (user, _org, jwt) =
+    // Handle OAuth callback - returns both access and refresh tokens
+    let (user, _org, tokens) =
         auth::oauth::handle_oauth_callback(code, state, &kv, &db, &ctx.env).await?;
 
-    // Extract session ID from JWT claims
+    // Extract session ID from access token claims
     let jwt_secret = ctx.env.secret("JWT_SECRET")?.to_string();
-    let claims = auth::session::validate_jwt(&jwt, &jwt_secret)?;
+    let claims = auth::session::validate_jwt(&tokens.access_token, &jwt_secret)?;
 
     // Store session in KV
     auth::session::store_session(&kv, &claims.session_id, &user.id, &user.org_id).await?;
 
-    // Redirect to frontend with token in URL
-    // Frontend will set the cookie on its own domain
+    // Get frontend URL and determine scheme
     let frontend_url = ctx
         .env
         .var("FRONTEND_URL")
         .map(|v| v.to_string())
         .unwrap_or_else(|_| "http://localhost:5173".to_string());
 
-    let redirect_url = format!("{}/auth/callback?token={}", frontend_url, jwt);
+    let domain = ctx
+        .env
+        .var("DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "localhost:8787".to_string());
 
-    // Build redirect response (no cookie - frontend will set it)
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+
+    // Redirect to frontend with access token in URL (frontend stores in localStorage)
+    let redirect_url = format!(
+        "{}/auth/callback?token={}",
+        frontend_url, tokens.access_token
+    );
+
+    // Set refresh token as httpOnly cookie
+    let refresh_cookie =
+        auth::session::create_refresh_cookie_with_scheme(&tokens.refresh_token, scheme);
+
+    // Build redirect response with refresh cookie
     let headers = Headers::new();
     headers.set("Location", &redirect_url)?;
+    headers.set("Set-Cookie", &refresh_cookie)?;
 
     Ok(Response::empty()?.with_status(302).with_headers(headers))
 }
@@ -370,6 +390,72 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
     }
 }
 
+/// Handle token refresh: POST /api/auth/refresh
+/// Validates refresh token from cookie and returns new access token
+pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Extract refresh token from cookie
+    let cookie_header = match req.headers().get("Cookie") {
+        Ok(Some(header)) => header,
+        Ok(None) => {
+            return Response::error("Missing refresh token", 401);
+        }
+        Err(_) => {
+            return Response::error("Failed to read cookies", 500);
+        }
+    };
+
+    let refresh_token = match auth::session::parse_refresh_cookie_header(&cookie_header) {
+        Some(token) => token,
+        None => {
+            return Response::error("Missing refresh token", 401);
+        }
+    };
+
+    // Validate refresh token JWT
+    let jwt_secret = ctx.env.secret("JWT_SECRET")?.to_string();
+    let claims = match auth::session::validate_jwt(&refresh_token, &jwt_secret) {
+        Ok(claims) => claims,
+        Err(_) => {
+            return Response::error("Invalid or expired refresh token", 401);
+        }
+    };
+
+    // Verify it's a refresh token
+    if claims.token_type != "refresh" {
+        return Response::error("Invalid token type", 401);
+    }
+
+    // Verify session still exists in KV
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let session = match auth::session::get_session(&kv, &claims.session_id).await {
+        Ok(Some(session)) => session,
+        Ok(None) => {
+            return Response::error("Session expired or invalid", 401);
+        }
+        Err(_) => {
+            return Response::error("Failed to validate session", 500);
+        }
+    };
+
+    // Verify user_id matches
+    if session.user_id != claims.sub {
+        return Response::error("Session mismatch", 401);
+    }
+
+    // Generate new access token (1 hour)
+    let new_access_token = auth::session::create_access_token(
+        &claims.sub,
+        &claims.org_id,
+        &claims.session_id,
+        &jwt_secret,
+    )?;
+
+    // Return new access token as JSON
+    Response::from_json(&serde_json::json!({
+        "access_token": new_access_token
+    }))
+}
+
 /// Handle logout: POST /api/auth/logout
 pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -380,9 +466,20 @@ pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Respon
 
     auth::session::delete_session(&kv, &user_ctx.session_id).await?;
 
-    let cookie = auth::session::create_logout_cookie();
+    // Clear both session cookie and refresh token cookie
+    let session_cookie = auth::session::create_logout_cookie();
+    let refresh_cookie = auth::session::create_refresh_logout_cookie();
+
     let mut response = Response::ok("Logged out successfully")?;
-    response.headers_mut().set("Set-Cookie", &cookie)?;
+
+    // Set both logout cookies
+    // Note: We can only set one Set-Cookie header, so we combine them
+    // However, the worker crate may handle multiple Set-Cookie headers differently
+    // For now, we'll set the refresh cookie (more important for security)
+    response.headers_mut().set("Set-Cookie", &session_cookie)?;
+    response
+        .headers_mut()
+        .append("Set-Cookie", &refresh_cookie)?;
 
     Ok(response)
 }

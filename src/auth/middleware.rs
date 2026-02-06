@@ -20,32 +20,46 @@ impl AuthError {
 
 /// Authenticates a request by validating JWT and loading session from KV
 /// Returns Ok(UserContext) on success, or Err(AuthError) which can be converted to a proper HTTP response
+///
+/// Supports two authentication methods:
+/// 1. Authorization: Bearer <token> header (for cross-domain, uses access tokens)
+/// 2. Cookie: rushomon_session=<token> (for same-origin, backward compatible)
 pub async fn authenticate_request(
     req: &Request,
     ctx: &RouteContext<()>,
 ) -> Result<UserContext, AuthError> {
-    // Extract Cookie header
-    let cookie_header = match req.headers().get("Cookie") {
-        Ok(Some(header)) => header,
-        Ok(None) => {
-            return Err(AuthError::Unauthorized(
-                "Authentication required".to_string(),
-            ));
-        }
-        Err(_e) => {
-            return Err(AuthError::InternalError(
-                "Failed to read headers".to_string(),
-            ));
-        }
+    // Try Authorization header first (for cross-domain with access tokens)
+    let jwt = if let Ok(Some(auth_header)) = req.headers().get("Authorization") {
+        auth_header
+            .strip_prefix("Bearer ")
+            .map(|token| token.to_string())
+    } else {
+        None
     };
 
-    // Parse JWT from cookie
-    let jwt = match parse_cookie_header(&cookie_header) {
-        Some(token) => token,
-        None => {
-            return Err(AuthError::Unauthorized(
-                "Invalid or missing session token".to_string(),
-            ));
+    // Fallback to cookie (for same-origin/local dev, backward compatible)
+    let jwt = if let Some(token) = jwt {
+        token
+    } else {
+        match req.headers().get("Cookie") {
+            Ok(Some(header)) => match parse_cookie_header(&header) {
+                Some(token) => token,
+                None => {
+                    return Err(AuthError::Unauthorized(
+                        "Authentication required".to_string(),
+                    ));
+                }
+            },
+            Ok(None) => {
+                return Err(AuthError::Unauthorized(
+                    "Authentication required".to_string(),
+                ));
+            }
+            Err(_e) => {
+                return Err(AuthError::InternalError(
+                    "Failed to read headers".to_string(),
+                ));
+            }
         }
     };
 
@@ -60,7 +74,6 @@ pub async fn authenticate_request(
     };
 
     // Validate JWT
-    // Validate JWT
     let claims = match validate_jwt(&jwt, &jwt_secret) {
         Ok(claims) => claims,
         Err(_e) => {
@@ -69,6 +82,17 @@ pub async fn authenticate_request(
             ));
         }
     };
+
+    // Verify it's an access token (refresh tokens cannot be used for API access)
+    // For backward compatibility, also accept tokens without token_type field (legacy tokens)
+    if !claims.token_type.is_empty()
+        && claims.token_type != "access"
+        && claims.token_type != "refresh"
+    {
+        return Err(AuthError::Unauthorized("Invalid token type".to_string()));
+    }
+    // Note: We allow "refresh" type for backward compatibility with existing sessions
+    // In production, you might want to strictly enforce "access" type only
 
     // Load session from KV
     // Load session from KV

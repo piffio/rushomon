@@ -8,12 +8,38 @@ use serde::{Deserialize, Serialize};
 use worker::{Error, Result, kv::KvStore};
 
 const SESSION_TTL_SECONDS: u64 = 604800; // 7 days
+const ACCESS_TOKEN_TTL_SECONDS: u64 = 3600; // 1 hour
+const REFRESH_TOKEN_TTL_SECONDS: u64 = 604800; // 7 days
+
+/// Token type for distinguishing between access and refresh tokens
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenType {
+    Access,
+    Refresh,
+}
+
+impl TokenType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TokenType::Access => "access",
+            TokenType::Refresh => "refresh",
+        }
+    }
+
+    pub fn ttl_seconds(&self) -> u64 {
+        match self {
+            TokenType::Access => ACCESS_TOKEN_TTL_SECONDS,
+            TokenType::Refresh => REFRESH_TOKEN_TTL_SECONDS,
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JwtClaims {
     pub sub: String, // user_id
     pub org_id: String,
     pub session_id: String,
+    pub token_type: String, // "access" or "refresh"
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,7 +57,20 @@ pub struct UserContext {
 }
 
 /// Creates a JWT token with user and organization information
+/// This is the legacy function that creates a token with default (refresh) TTL
+/// For new code, use create_jwt_with_type() to explicitly specify the token type
 pub fn create_jwt(user_id: &str, org_id: &str, session_id: &str, secret: &str) -> Result<String> {
+    create_jwt_with_type(user_id, org_id, session_id, secret, TokenType::Refresh)
+}
+
+/// Creates a JWT token with a specific token type (access or refresh)
+pub fn create_jwt_with_type(
+    user_id: &str,
+    org_id: &str,
+    session_id: &str,
+    secret: &str,
+    token_type: TokenType,
+) -> Result<String> {
     let key = Hs256Key::new(secret.as_bytes());
     let header = Header::empty();
     let time_options = TimeOptions::default();
@@ -40,15 +79,36 @@ pub fn create_jwt(user_id: &str, org_id: &str, session_id: &str, secret: &str) -
         sub: user_id.to_string(),
         org_id: org_id.to_string(),
         session_id: session_id.to_string(),
+        token_type: token_type.as_str().to_string(),
     })
     .set_duration_and_issuance(
         &time_options,
-        TimeDelta::seconds(SESSION_TTL_SECONDS as i64),
+        TimeDelta::seconds(token_type.ttl_seconds() as i64),
     );
 
     Hs256
         .token(&header, &claims, &key)
         .map_err(|e| Error::RustError(format!("Failed to create JWT: {}", e)))
+}
+
+/// Creates an access token (1 hour expiry)
+pub fn create_access_token(
+    user_id: &str,
+    org_id: &str,
+    session_id: &str,
+    secret: &str,
+) -> Result<String> {
+    create_jwt_with_type(user_id, org_id, session_id, secret, TokenType::Access)
+}
+
+/// Creates a refresh token (7 days expiry)
+pub fn create_refresh_token(
+    user_id: &str,
+    org_id: &str,
+    session_id: &str,
+    secret: &str,
+) -> Result<String> {
+    create_jwt_with_type(user_id, org_id, session_id, secret, TokenType::Refresh)
 }
 
 /// Validates a JWT token and returns the claims
@@ -107,6 +167,35 @@ pub fn parse_cookie_header(cookie_header: &str) -> Option<String> {
 /// Creates a logout cookie that expires immediately
 pub fn create_logout_cookie() -> String {
     "rushomon_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0".to_string()
+}
+
+/// Creates a refresh token cookie (httpOnly for security)
+pub fn create_refresh_cookie(jwt: &str) -> String {
+    create_refresh_cookie_with_scheme(jwt, "https")
+}
+
+/// Creates a refresh token cookie with specified scheme
+pub fn create_refresh_cookie_with_scheme(jwt: &str, scheme: &str) -> String {
+    let secure_part = if scheme == "https" { " Secure;" } else { "" };
+    format!(
+        "rushomon_refresh={}; HttpOnly;{} SameSite=Lax; Path=/; Max-Age={}",
+        jwt, secure_part, REFRESH_TOKEN_TTL_SECONDS
+    )
+}
+
+/// Creates a logout cookie for refresh token that expires immediately
+pub fn create_refresh_logout_cookie() -> String {
+    "rushomon_refresh=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0".to_string()
+}
+
+/// Parses the Cookie header and extracts the refresh token
+pub fn parse_refresh_cookie_header(cookie_header: &str) -> Option<String> {
+    cookie_header.split(';').find_map(|cookie| {
+        let cookie = cookie.trim();
+        cookie
+            .strip_prefix("rushomon_refresh=")
+            .map(|value| value.to_string())
+    })
 }
 
 /// Stores session data in KV with TTL

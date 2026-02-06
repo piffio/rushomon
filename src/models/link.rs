@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(mapping.destination_url, "https://example.com/path");
         assert_eq!(mapping.link_id, "link-123");
         assert_eq!(mapping.expires_at, Some(2000000));
-        assert_eq!(mapping.is_active, true);
+        assert!(mapping.is_active);
     }
 
     #[test]

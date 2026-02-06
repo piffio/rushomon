@@ -116,6 +116,7 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .options_async("/api/auth/github", handle_cors_preflight)
         .options_async("/api/auth/callback", handle_cors_preflight)
         .options_async("/api/auth/me", handle_cors_preflight)
+        .options_async("/api/auth/refresh", handle_cors_preflight)
         .options_async("/api/auth/logout", handle_cors_preflight)
         .options_async("/api/links", handle_cors_preflight)
         .options_async("/api/links/:id", handle_cors_preflight)
@@ -124,6 +125,7 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/api/auth/callback", router::handle_oauth_callback)
         // API routes - authentication required
         .get_async("/api/auth/me", router::handle_get_current_user)
+        .post_async("/api/auth/refresh", router::handle_token_refresh)
         .post_async("/api/auth/logout", router::handle_logout)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
