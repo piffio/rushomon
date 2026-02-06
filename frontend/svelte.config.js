@@ -4,10 +4,10 @@ import adapter from '@sveltejs/adapter-static';
 const config = {
 	kit: {
 		adapter: adapter({
-			pages: 'build',      // Output directory
-			assets: 'build',     // Assets directory
-			fallback: 'index.html',  // SPA fallback
-			precompress: true    // Gzip/brotli compression
+			pages: 'build',
+			assets: 'build',
+			fallback: 'index.html',
+			precompress: true
 		})
 	}
 };
