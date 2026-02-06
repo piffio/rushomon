@@ -13,6 +13,7 @@ on:
       - 'migrations/**'
       - 'frontend/**'
       - '.github/workflows/deploy-ephemeral.yml'
+      - '.github/workflows/cleanup-ephemeral.yml'
 
 permissions:
   contents: read
