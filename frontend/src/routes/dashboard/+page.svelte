@@ -8,10 +8,15 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let links = $state<Link[]>([...data.links]);
+	let links = $state<Link[]>([]);
 	let loading = $state(false);
 	let currentPage = $state(1);
 	let error = $state('');
+
+	// Initialize links from data (runs on mount and when data changes)
+	$effect(() => {
+		links = [...data.links];
+	});
 
 	async function handleLinkCreated(newLink: Link) {
 		// Add new link to the beginning of the list
