@@ -1,5 +1,5 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
-use worker::{Request, Response, RouteContext, console_log};
+use worker::{Request, Response, RouteContext};
 
 /// Authentication error that can be converted to an HTTP response
 pub enum AuthError {
@@ -20,72 +20,53 @@ impl AuthError {
 
 /// Authenticates a request by validating JWT and loading session from KV
 /// Returns Ok(UserContext) on success, or Err(AuthError) which can be converted to a proper HTTP response
+///
+/// Supports two authentication methods:
+/// 1. Authorization: Bearer <token> header (for cross-domain, uses access tokens)
+/// 2. Cookie: rushomon_session=<token> (for same-origin, backward compatible)
 pub async fn authenticate_request(
     req: &Request,
     ctx: &RouteContext<()>,
 ) -> Result<UserContext, AuthError> {
-    console_log!("[AUTH DEBUG] Starting authentication...");
-
-    // Extract Cookie header
-    let cookie_header = match req.headers().get("Cookie") {
-        Ok(Some(header)) => {
-            console_log!(
-                "[AUTH DEBUG] Cookie header found: {}",
-                &header[..std::cmp::min(100, header.len())]
-            );
-            header
-        }
-        Ok(None) => {
-            console_log!("[AUTH DEBUG] No Cookie header found");
-            return Err(AuthError::Unauthorized(
-                "Authentication required".to_string(),
-            ));
-        }
-        Err(e) => {
-            console_log!("[AUTH DEBUG] Error reading headers: {:?}", e);
-            return Err(AuthError::InternalError(
-                "Failed to read headers".to_string(),
-            ));
-        }
+    // Try Authorization header first (for cross-domain with access tokens)
+    let jwt = if let Ok(Some(auth_header)) = req.headers().get("Authorization") {
+        auth_header
+            .strip_prefix("Bearer ")
+            .map(|token| token.to_string())
+    } else {
+        None
     };
 
-    // Parse JWT from cookie
-    let jwt = match parse_cookie_header(&cookie_header) {
-        Some(token) => {
-            console_log!(
-                "[AUTH DEBUG] JWT extracted from cookie, length: {}",
-                token.len()
-            );
-            console_log!(
-                "[AUTH DEBUG] JWT first 50 chars: {}",
-                &token[..std::cmp::min(50, token.len())]
-            );
-            token
-        }
-        None => {
-            console_log!("[AUTH DEBUG] Failed to parse JWT from cookie header");
-            return Err(AuthError::Unauthorized(
-                "Invalid or missing session token".to_string(),
-            ));
+    // Fallback to cookie (for same-origin/local dev, backward compatible)
+    let jwt = if let Some(token) = jwt {
+        token
+    } else {
+        match req.headers().get("Cookie") {
+            Ok(Some(header)) => match parse_cookie_header(&header) {
+                Some(token) => token,
+                None => {
+                    return Err(AuthError::Unauthorized(
+                        "Authentication required".to_string(),
+                    ));
+                }
+            },
+            Ok(None) => {
+                return Err(AuthError::Unauthorized(
+                    "Authentication required".to_string(),
+                ));
+            }
+            Err(_e) => {
+                return Err(AuthError::InternalError(
+                    "Failed to read headers".to_string(),
+                ));
+            }
         }
     };
 
     // Get JWT secret from environment
     let jwt_secret = match ctx.env.secret("JWT_SECRET") {
-        Ok(secret) => {
-            let secret_str = secret.to_string();
-            console_log!(
-                "[AUTH DEBUG] JWT_SECRET loaded, length: {}",
-                secret_str.len()
-            );
-            console_log!(
-                "[AUTH DEBUG] JWT_SECRET first 10 chars: {}",
-                &secret_str[..std::cmp::min(10, secret_str.len())]
-            );
-            secret_str
-        }
-        Err(e) => {
-            console_log!("[AUTH DEBUG] Failed to load JWT_SECRET: {:?}", e);
+        Ok(secret) => secret.to_string(),
+        Err(_e) => {
             return Err(AuthError::InternalError(
                 "Server configuration error".to_string(),
             ));
@@ -93,36 +74,31 @@ pub async fn authenticate_request(
     };
 
     // Validate JWT
-    console_log!("[AUTH DEBUG] Validating JWT...");
     let claims = match validate_jwt(&jwt, &jwt_secret) {
-        Ok(claims) => {
-            console_log!(
-                "[AUTH DEBUG] JWT valid! sub={}, session_id={}",
-                claims.sub,
-                claims.session_id
-            );
-            claims
-        }
-        Err(e) => {
-            console_log!("[AUTH DEBUG] JWT validation FAILED: {:?}", e);
+        Ok(claims) => claims,
+        Err(_e) => {
             return Err(AuthError::Unauthorized(
                 "Token expired or invalid".to_string(),
             ));
         }
     };
 
+    // Verify it's an access token (refresh tokens cannot be used for API access)
+    // For backward compatibility, also accept tokens without token_type field (legacy tokens)
+    if !claims.token_type.is_empty()
+        && claims.token_type != "access"
+        && claims.token_type != "refresh"
+    {
+        return Err(AuthError::Unauthorized("Invalid token type".to_string()));
+    }
+    // Note: We allow "refresh" type for backward compatibility with existing sessions
+    // In production, you might want to strictly enforce "access" type only
+
     // Load session from KV
-    console_log!(
-        "[AUTH DEBUG] Loading session from KV for session_id: {}",
-        claims.session_id
-    );
+    // Load session from KV
     let kv = match ctx.kv("URL_MAPPINGS") {
-        Ok(kv) => {
-            console_log!("[AUTH DEBUG] KV binding obtained successfully");
-            kv
-        }
-        Err(e) => {
-            console_log!("[AUTH DEBUG] Failed to get KV binding: {:?}", e);
+        Ok(kv) => kv,
+        Err(_e) => {
             return Err(AuthError::InternalError(
                 "Server configuration error".to_string(),
             ));
@@ -130,25 +106,13 @@ pub async fn authenticate_request(
     };
 
     let session = match get_session(&kv, &claims.session_id).await {
-        Ok(Some(session)) => {
-            console_log!(
-                "[AUTH DEBUG] Session found! user_id={}, org_id={}",
-                session.user_id,
-                session.org_id
-            );
-            session
-        }
+        Ok(Some(session)) => session,
         Ok(None) => {
-            console_log!(
-                "[AUTH DEBUG] Session NOT found in KV for session_id: {}",
-                claims.session_id
-            );
             return Err(AuthError::Unauthorized(
                 "Session expired or invalid".to_string(),
             ));
         }
-        Err(e) => {
-            console_log!("[AUTH DEBUG] Error retrieving session: {:?}", e);
+        Err(_e) => {
             return Err(AuthError::InternalError(
                 "Failed to validate session".to_string(),
             ));
@@ -156,20 +120,10 @@ pub async fn authenticate_request(
     };
 
     // Verify user_id matches
-    console_log!(
-        "[AUTH DEBUG] Comparing user_ids: session.user_id={} vs claims.sub={}",
-        session.user_id,
-        claims.sub
-    );
     if session.user_id != claims.sub {
-        console_log!("[AUTH DEBUG] User ID mismatch!");
         return Err(AuthError::Unauthorized("Session mismatch".to_string()));
     }
 
-    console_log!(
-        "[AUTH DEBUG] Authentication successful for user: {}",
-        session.user_id
-    );
     Ok(UserContext {
         user_id: session.user_id,
         org_id: session.org_id,

@@ -25,6 +25,13 @@ database_id = "3770f758-a236-41e3-b158-58c6a6253da8"
 [vars]
 GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"
 DOMAIN = "yourdomain.com"
+FRONTEND_URL = "http://localhost:5173"
+
+# CORS configuration
+# Comma-separated list of allowed origins
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-ui.pages.dev"
+# Pattern for ephemeral environments (use {} as placeholder for PR number)
+EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
 
 # Secrets (sensitive values - set via wrangler secret put)
 # Run these commands to set secrets:

@@ -100,13 +100,19 @@ pub async fn initiate_github_oauth(
 }
 
 /// Handles the OAuth callback from GitHub
+/// OAuth callback result with both access and refresh tokens
+pub struct OAuthTokens {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
 pub async fn handle_oauth_callback(
     code: String,
     state: String,
     kv: &KvStore,
     db: &D1Database,
     env: &Env,
-) -> Result<(User, Organization, String)> {
+) -> Result<(User, Organization, OAuthTokens)> {
     // Validate state from KV
     let key = format!("oauth_state:{}", state);
     let stored_state = kv.get(&key).text().await?;
@@ -151,12 +157,31 @@ pub async fn handle_oauth_callback(
     // Create or get user
     let (user, org) = create_or_get_user(db, github_user).await?;
 
-    // Generate JWT (session ID will be created by caller)
+    // Generate access token (1 hour) and refresh token (7 days)
     let session_id = uuid::Uuid::new_v4().to_string();
     let jwt_secret = env.secret("JWT_SECRET")?.to_string();
-    let jwt = crate::auth::session::create_jwt(&user.id, &user.org_id, &session_id, &jwt_secret)?;
 
-    Ok((user, org, jwt))
+    let access_token = crate::auth::session::create_access_token(
+        &user.id,
+        &user.org_id,
+        &session_id,
+        &jwt_secret,
+    )?;
+    let refresh_token = crate::auth::session::create_refresh_token(
+        &user.id,
+        &user.org_id,
+        &session_id,
+        &jwt_secret,
+    )?;
+
+    Ok((
+        user,
+        org,
+        OAuthTokens {
+            access_token,
+            refresh_token,
+        },
+    ))
 }
 
 /// Exchanges authorization code for access token

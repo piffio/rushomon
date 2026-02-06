@@ -14,17 +14,19 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 ## Tech Stack
 
 - **Backend**: Rust + Cloudflare Workers (WebAssembly)
-- **Frontend**: SvelteKit + Cloudflare Pages (coming soon)
+- **Frontend**: SvelteKit + Tailwind CSS v4 + Cloudflare Pages
 - **Storage**: Cloudflare KV (URL mappings) + D1 (metadata & analytics)
 - **Authentication**: OAuth 2.0 with JWT sessions
 
 ## Project Status
 
 ✅ **Phase 1-2 Complete**: Core infrastructure, data models, KV operations
+✅ **Phase 3 Complete**: Authentication system (GitHub OAuth + JWT)
 ✅ **Phase 4-5 Complete**: Link management API, URL redirection
-🚧 **Phase 3 In Progress**: Authentication system
-⏳ **Phase 6-7 Pending**: Analytics, Frontend
-⏳ **Phase 8 Pending**: Testing & Deployment
+✅ **Phase 6 Complete**: Analytics collection (on redirects)
+✅ **Phase 7 Complete**: Minimal frontend with dashboard
+⏳ **Phase 8 Pending**: Analytics aggregation queries and UI
+⏳ **Phase 9 Pending**: Production deployment
 
 ## Setup Instructions
 
@@ -35,6 +37,8 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 3. **worker-build**: `cargo install worker-build`
 4. **Cloudflare account**: Sign up at [cloudflare.com](https://cloudflare.com)
 5. **Wrangler CLI**: `npm install -g wrangler` or `cargo install wrangler`
+6. **Node.js**: For frontend development (v20+ recommended)
+7. **expect** (macOS only): For colored output in development script - `brew install expect`
 
 ### Step 1: Clone and Install
 
@@ -76,6 +80,8 @@ wrangler d1 migrations apply rushomon --remote
    - Replace `your-preview-kv-id-here` with preview KV namespace ID
    - Replace `your-database-id-here` with D1 database ID
    - Set your domain in `DOMAIN` variable
+   - Update `ALLOWED_ORIGINS` with your frontend URLs (comma-separated)
+   - Update `EPHEMERAL_ORIGIN_PATTERN` if using different domain for ephemeral environments
 
 2. Set up GitHub OAuth App:
    - Go to GitHub Settings → Developer settings → OAuth Apps → New OAuth App
@@ -96,6 +102,21 @@ wrangler secret put JWT_SECRET
 
 ### Step 4: Local Development
 
+#### Quick Start (Recommended)
+
+```bash
+# Start both backend and frontend with colored output
+./scripts/start-local-environment.sh
+
+# Backend: http://localhost:8787
+# Frontend: http://localhost:5173
+# Press Ctrl+C to stop both services
+```
+
+#### Manual Setup
+
+**Backend (Rust Worker)**
+
 ```bash
 # Start the Worker locally
 wrangler dev
@@ -103,7 +124,27 @@ wrangler dev
 # The Worker will be available at http://localhost:8787
 ```
 
+**Frontend (SvelteKit)**
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Frontend will be available at http://localhost:5173
+# Configure .env for local backend: VITE_API_URL=http://localhost:8787
+```
+
+**Note**: For local development, run both the backend (wrangler dev) and frontend (npm run dev) simultaneously. The convenience script handles both services with proper color output and logging.
+
 ### Step 5: Deploy to Production
+
+#### Backend (Rust Worker)
 
 ```bash
 # Deploy the Worker
@@ -113,26 +154,75 @@ wrangler deploy
 # Configure a custom domain in the Cloudflare dashboard
 ```
 
+#### Frontend (SvelteKit to Cloudflare Pages)
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Build the static site
+npm run build
+
+# Deploy to Cloudflare Pages
+npx wrangler pages deploy build --project-name=rushomon-ui
+
+# Or connect your GitHub repo to Cloudflare Pages for automatic deployments
+# Build command: npm run build
+# Build output directory: build
+# Environment variable: PUBLIC_VITE_API_BASE_URL=https://yourdomain.com
+```
+
 ## API Endpoints
 
 ### Public Routes
 
 - `GET /{short_code}` - Redirect to destination URL
 
-### API Routes (Authentication Required - Coming Soon)
+### API Routes (Authentication Required)
 
 - `POST /api/links` - Create a new short link
 - `GET /api/links` - List all links (paginated)
 - `GET /api/links/{id}` - Get link details
 - `DELETE /api/links/{id}` - Delete a link
 
-### Authentication (Coming Soon)
+### Authentication Routes
 
 - `GET /api/auth/github` - Initiate GitHub OAuth
-- `GET /api/auth/callback` - OAuth callback
-- `POST /api/auth/logout` - Logout
+- `GET /api/auth/callback` - OAuth callback handler
+- `GET /api/auth/me` - Get current authenticated user
+- `POST /api/auth/logout` - Logout and invalidate session
 
 ## Development
+
+### Ephemeral Environments
+
+The project automatically deploys isolated preview environments for each pull request:
+
+**What gets deployed:**
+- Frontend to Cloudflare Pages: `https://pr-{PR_NUMBER}.rushomon-ui.pages.dev`
+- Backend to Cloudflare Workers: `https://rushomon-pr-{PR_NUMBER}.workers.dev`
+- Isolated D1 database: `rushomon-pr-{PR_NUMBER}`
+- Isolated KV namespace: `URL_MAPPINGS_pr_{PR_NUMBER}`
+
+**Features:**
+- Full integration between frontend and backend with CORS support
+- Automatic deployment on PR updates
+- Automatic cleanup when PR closes
+- OAuth flow works end-to-end
+- Complete testing environment for reviewers
+
+**How to use:**
+1. Create a pull request with your changes
+2. Wait for the deployment workflow to complete (~10 minutes)
+3. Check the PR comment for deployment URLs
+4. Test your changes in the ephemeral environment
+5. Close the PR to automatically clean up all resources
+
+**Skipping deployment:**
+- Add `skip-preview` label to the PR
+- Keep PR in draft state
+
+See `.github/workflows/README.md` for complete workflow documentation.
 
 ### Repository Configuration
 
@@ -152,15 +242,27 @@ This installs:
 
 ```
 rushomon/
-├── src/
+├── src/                    # Backend (Rust Worker)
 │   ├── lib.rs              # Wasm entry point
 │   ├── router.rs           # Route handlers
 │   ├── models/             # Data models
-│   ├── auth/               # OAuth & session (WIP)
+│   ├── auth/               # OAuth & session management
 │   ├── api/                # API endpoints
 │   ├── db/                 # D1 queries
 │   ├── kv/                 # KV operations
 │   └── utils/              # Utilities (short codes, validation)
+├── frontend/               # Frontend (SvelteKit)
+│   ├── src/
+│   │   ├── routes/         # SvelteKit routes
+│   │   │   ├── +page.svelte          # Landing page
+│   │   │   └── dashboard/            # Dashboard routes
+│   │   ├── lib/            # Shared components and utilities
+│   │   │   ├── api/        # API client
+│   │   │   └── components/ # Reusable components
+│   │   └── app.css         # Tailwind CSS v4 styles
+│   ├── package.json        # Frontend dependencies
+│   ├── tailwind.config.js  # Tailwind configuration
+│   └── svelte.config.js    # SvelteKit configuration
 ├── repo-config/            # Repository configuration system
 │   ├── hooks/              # Git hooks
 │   ├── scripts/            # Setup and management scripts
@@ -173,8 +275,29 @@ rushomon/
 
 ### Running Tests
 
+#### Backend Tests
+
 ```bash
+# Run unit tests
 cargo test
+
+# Run integration tests (includes mock OAuth server)
+./scripts/run-integration-tests.sh
+```
+
+**Integration Tests**: The project includes a mock OAuth server for testing the complete authentication flow without requiring real GitHub OAuth credentials. The integration test script automatically starts the mock server, runs all tests, and cleans up afterward.
+
+#### Frontend Tests
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Run type checking
+npm run check
+
+# Run build test
+npm run build
 ```
 
 ## Data Model
@@ -217,23 +340,38 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 
 ## Roadmap
 
+### Completed
 - [x] Core Worker infrastructure
 - [x] Data models and validation
 - [x] KV operations
 - [x] Link management API
 - [x] URL redirection handler
-- [ ] GitHub OAuth authentication
-- [ ] Session management (JWT)
-- [ ] Analytics collection
-- [ ] Analytics query API
-- [ ] SvelteKit frontend
-- [ ] Dashboard UI
-- [ ] E2E tests
-- [ ] Production deployment
+- [x] GitHub OAuth authentication
+- [x] Session management (JWT with `jwt-compact`)
+- [x] Authentication middleware
+- [x] Integration tests with mock OAuth server
+- [x] Analytics collection (on redirects)
+- [x] SvelteKit frontend with Tailwind CSS v4
+- [x] Landing page with modern design
+- [x] Dashboard with link creation
+- [x] Link management UI (list, create, delete)
+
+### In Progress
+- [ ] Analytics aggregation queries
+- [ ] Analytics dashboard UI
+- [ ] Link editing functionality
+
+### Planned
+- [ ] Production deployment guide
+- [ ] Link analytics detail view
+- [ ] Custom short code validation UI
+- [ ] Link expiration management
 - [ ] Google OAuth support
 - [ ] Multi-domain support
 - [ ] API keys for programmatic access
 - [ ] Webhooks
+- [ ] Bulk link operations
+- [ ] Export functionality
 
 ## License
 
