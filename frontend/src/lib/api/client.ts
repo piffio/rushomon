@@ -1,7 +1,7 @@
-import { env } from '$env/dynamic/public';
+import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
 import type { ApiError } from '$lib/types/api';
 
-const API_BASE_URL = env.PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
+const API_BASE_URL = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
 
 export class ApiClient {
 	private baseUrl: string;
