@@ -50,18 +50,18 @@ fn is_allowed_origin(origin: &str, env: &Env) -> bool {
 
 /// Add CORS headers to a response based on the request origin
 fn add_cors_headers(mut response: Response, origin: Option<String>, env: &Env) -> Response {
-    if let Some(origin_value) = origin {
-        if is_allowed_origin(&origin_value, env) {
-            let headers = response.headers_mut();
-            let _ = headers.set("Access-Control-Allow-Origin", &origin_value);
-            let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-            let _ = headers.set(
-                "Access-Control-Allow-Headers",
-                "Content-Type, Authorization, Cookie",
-            );
-            let _ = headers.set("Access-Control-Allow-Credentials", "true");
-            let _ = headers.set("Access-Control-Max-Age", "86400"); // 24 hours
-        }
+    if let Some(origin_value) = origin
+        && is_allowed_origin(&origin_value, env)
+    {
+        let headers = response.headers_mut();
+        let _ = headers.set("Access-Control-Allow-Origin", &origin_value);
+        let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+        let _ = headers.set(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization, Cookie",
+        );
+        let _ = headers.set("Access-Control-Allow-Credentials", "true");
+        let _ = headers.set("Access-Control-Max-Age", "86400"); // 24 hours
     }
     response
 }
