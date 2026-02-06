@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/public';
+import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, fetch }) => {
@@ -14,7 +14,7 @@ export const load: PageLoad = async ({ parent, fetch }) => {
 	try {
 		// Fetch links using the same pattern as layout server
 		// We need to get the session cookie and pass it explicitly
-		const apiBaseUrl = env.PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
+		const apiBaseUrl = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
 		const response = await fetch(`${apiBaseUrl}/api/links?page=1&limit=20`, {
 			headers: {
 				'Content-Type': 'application/json'
