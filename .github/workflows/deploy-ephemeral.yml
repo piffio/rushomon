@@ -350,13 +350,13 @@ jobs:
           # Create test link for redirect testing
           echo "📝 Creating test link in D1..."
           LINK_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT INTO links (id, org_id, short_code, destination_url, created_at, created_by, is_active) 
-             VALUES ('test-link-smoke', 'test-org-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 1)" --json)
+            "INSERT INTO links (id, org_id, short_code, destination_url, created_at, created_by, status, click_count)
+             VALUES ('test-link-smoke', 'test-org-smoke', 'smoke-test', 'https://example.com', $NOW, 'test-user-smoke', 'active', 0)" --json)
           echo "Link insert result: $(echo "$LINK_RESULT" | jq '.[0].meta.changes // 0') changes"
 
           # Create KV mapping for redirect lookup
           echo "📝 Creating KV mapping for redirect..."
-          wrangler kv key put smoke-test --binding URL_MAPPINGS --remote -c wrangler.ephemeral.toml --preview false '{"destination_url":"https://example.com","link_id":"test-link-smoke","expires_at":null,"is_active":true}'
+          wrangler kv key put smoke-test --binding URL_MAPPINGS --remote -c wrangler.ephemeral.toml --preview false '{"destination_url":"https://example.com","link_id":"test-link-smoke","expires_at":null,"status":"active"}'
           echo "KV mapping result: Created"
 
           # Verify test data was created
@@ -381,17 +381,17 @@ jobs:
             # Validate JSON structure and content
             DEST_URL=$(echo "$KV_CHECK" | jq -r '.destination_url // empty' 2>/dev/null)
             LINK_ID=$(echo "$KV_CHECK" | jq -r '.link_id // empty' 2>/dev/null)
-            IS_ACTIVE=$(echo "$KV_CHECK" | jq -r '.is_active // empty' 2>/dev/null)
+            STATUS=$(echo "$KV_CHECK" | jq -r '.status // empty' 2>/dev/null)
 
-            if [ "$DEST_URL" = "https://example.com" ] && [ "$LINK_ID" = "test-link-smoke" ] && [ "$IS_ACTIVE" = "true" ]; then
+            if [ "$DEST_URL" = "https://example.com" ] && [ "$LINK_ID" = "test-link-smoke" ] && [ "$STATUS" = "active" ]; then
               echo "  KV mapping: ✅ Found and validated"
               echo "  Destination: $DEST_URL"
               echo "  Link ID: $LINK_ID"
-              echo "  Active: $IS_ACTIVE"
+              echo "  Status: $STATUS"
             else
               echo "  KV mapping: ❌ Found but invalid content"
-              echo "  Expected: destination_url=https://example.com, link_id=test-link-smoke, is_active=true"
-              echo "  Got: destination_url=$DEST_URL, link_id=$LINK_ID, is_active=$IS_ACTIVE"
+              echo "  Expected: destination_url=https://example.com, link_id=test-link-smoke, status=active"
+              echo "  Got: destination_url=$DEST_URL, link_id=$LINK_ID, status=$STATUS"
               echo "  Raw KV value: $KV_CHECK"
               exit 1
             fi
@@ -400,24 +400,24 @@ jobs:
           # Show all links for debugging
           echo "  All links in database:"
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "SELECT id, short_code, destination_url, is_active FROM links LIMIT 10" --json | jq '.[0].results[] | {id, short_code, destination_url, is_active}' || echo "Failed to query links"
+            "SELECT id, short_code, destination_url, status FROM links LIMIT 10" --json | jq '.[0].results[] | {id, short_code, destination_url, status}' || echo "Failed to query links"
 
           if [ "$LINK_COUNT" = "1" ] && [ "$KV_CHECK" != "KV_NOT_FOUND" ] && [ -n "$KV_CHECK" ] && \
              [ "$(echo "$KV_CHECK" | jq -r '.destination_url // empty' 2>/dev/null)" = "https://example.com" ] && \
              [ "$(echo "$KV_CHECK" | jq -r '.link_id // empty' 2>/dev/null)" = "test-link-smoke" ] && \
-             [ "$(echo "$KV_CHECK" | jq -r '.is_active // empty' 2>/dev/null)" = "true" ]; then
+             [ "$(echo "$KV_CHECK" | jq -r '.status // empty' 2>/dev/null)" = "active" ]; then
             echo "✅ Test link 'smoke-test' created successfully (D1 + KV)"
             # Show the specific link details
             echo "📋 Link details:"
             wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --json | jq '.[0].results[]' || echo "Failed to get link details"
+              "SELECT id, short_code, destination_url, status FROM links WHERE short_code = 'smoke-test'" --json | jq '.[0].results[]' || echo "Failed to get link details"
           else
             echo "❌ Test link creation failed:"
             echo "  D1 links: $LINK_COUNT (expected: 1)"
             echo "  KV mapping: $([ "$KV_CHECK" = "KV_NOT_FOUND" ] && echo "❌ Missing" || echo "✅ Found")"
             echo "🔍 Debugging database state..."
             wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-              "SELECT id, short_code, destination_url, is_active FROM links WHERE short_code = 'smoke-test'" --json | jq '.' || true
+              "SELECT id, short_code, destination_url, status FROM links WHERE short_code = 'smoke-test'" --json | jq '.' || true
             exit 1
           fi
 
