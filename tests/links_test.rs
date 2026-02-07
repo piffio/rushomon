@@ -37,7 +37,7 @@ async fn test_create_link_with_random_short_code() {
     assert_eq!(link["short_code"].as_str().unwrap().len(), 6);
     assert_eq!(link["destination_url"], "https://example.com/test-page");
     assert_eq!(link["title"], "Test Link");
-    assert_eq!(link["is_active"], true);
+    assert_eq!(link["status"], "active");
     assert_eq!(link["click_count"], 0);
 }
 
