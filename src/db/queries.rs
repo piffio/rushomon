@@ -198,6 +198,7 @@ pub async fn get_links_by_org(
         "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
          FROM links
          WHERE org_id = ?1
+         AND is_active = 1
          ORDER BY created_at DESC
          LIMIT ?2 OFFSET ?3"
     );
@@ -220,7 +221,9 @@ pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Res
     let stmt = db.prepare(
         "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
          FROM links
-         WHERE id = ?1 AND org_id = ?2"
+         WHERE id = ?1
+         AND org_id = ?2
+         AND is_active = 1"
     );
 
     stmt.bind(&[link_id.into(), org_id.into()])?
@@ -233,7 +236,8 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
     let stmt = db.prepare(
         "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
          FROM links
-         WHERE id = ?1"
+         WHERE id = ?1
+         AND is_active = 1"
     );
 
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
