@@ -12,26 +12,28 @@ export const load: LayoutLoad = async ({ url }) => {
 		url.pathname.startsWith(route)
 	);
 
-	// For public routes, don't check auth
-	if (isPublicRoute) {
-		return {};
-	}
-
-	// For authenticated routes, validate the token and get user info
 	// This now runs client-side only, so localStorage is available
 	if (browser) {
 		try {
 			// Import apiClient dynamically to ensure it runs client-side
 			const { authApi } = await import('$lib/api/auth');
 			const user = await authApi.me();
+
+			// For public routes, return user if authenticated but don't redirect
+			// For protected routes, return user (already authenticated)
 			return { user };
 		} catch (error: any) {
-			// Auth failed, redirect to home
+			// For public routes, auth failure is okay - just don't include user
+			if (isPublicRoute) {
+				return {};
+			}
+
+			// For protected routes, auth failed - redirect to home
 			if (error?.status === 401) {
 				throw redirect(302, '/');
 			}
 
-			// For other errors, also redirect to home
+			// For other errors on protected routes, also redirect to home
 			throw redirect(302, '/');
 		}
 	}

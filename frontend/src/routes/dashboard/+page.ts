@@ -13,11 +13,12 @@ export const load: PageLoad = async ({ parent }) => {
 
 	try {
 		// Fetch links using apiClient (which adds Authorization header)
-		const response = await apiClient.get<{ links: any[]; total: number; page: number; limit: number; }>('/api/links?page=1&limit=20');
+		// Backend returns array directly, not wrapped in object
+		const links = await apiClient.get<any[]>('/api/links?page=1&limit=20');
 
 		return {
 			user,
-			links: response.links || []
+			links: links || []
 		};
 	} catch (error) {
 		// If links fetch fails, still return user data

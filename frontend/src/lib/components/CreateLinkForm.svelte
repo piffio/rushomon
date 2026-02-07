@@ -11,6 +11,7 @@
 	let destinationUrl = $state('');
 	let shortCode = $state('');
 	let title = $state('');
+	let expiresAt = $state('');
 	let isSubmitting = $state(false);
 	let error = $state('');
 	let success = $state(false);
@@ -34,23 +35,28 @@
 			return;
 		}
 
-		if (shortCode && (shortCode.length < 4 || shortCode.length > 10)) {
-			error = 'Custom code must be 4-10 characters';
-			isSubmitting = false;
-			return;
-		}
+		// Trim and validate short code
+		const trimmedShortCode = shortCode.trim();
+		if (trimmedShortCode) {
+			if (trimmedShortCode.length < 4 || trimmedShortCode.length > 10) {
+				error = 'Custom code must be 4-10 characters';
+				isSubmitting = false;
+				return;
+			}
 
-		if (shortCode && !/^[a-zA-Z0-9]+$/.test(shortCode)) {
-			error = 'Custom code can only contain letters and numbers';
-			isSubmitting = false;
-			return;
+			if (!/^[a-zA-Z0-9]+$/.test(trimmedShortCode)) {
+				error = 'Custom code can only contain letters and numbers';
+				isSubmitting = false;
+				return;
+			}
 		}
 
 		try {
 			const link = await linksApi.create({
 				destination_url: destinationUrl.trim(),
 				short_code: shortCode.trim() || undefined,
-				title: title.trim() || undefined
+				title: title.trim() || undefined,
+				expires_at: expiresAt ? Math.floor(new Date(expiresAt).getTime() / 1000) : undefined
 			});
 
 			// Success!
@@ -62,6 +68,7 @@
 				destinationUrl = '';
 				shortCode = '';
 				title = '';
+				expiresAt = '';
 				success = false;
 			}, 2000);
 		} catch (err) {
@@ -103,7 +110,6 @@
 				id="short-code"
 				bind:value={shortCode}
 				placeholder="my-link"
-				pattern="[a-zA-Z0-9]{4,10}"
 				class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
 			/>
 		</div>
@@ -121,6 +127,20 @@
 				maxlength="200"
 				class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
 			/>
+		</div>
+
+		<!-- Expiration Date -->
+		<div>
+			<label for="expires-at" class="block text-sm font-medium text-gray-700 mb-1">
+				Expiration Date <span class="text-gray-500 text-xs font-normal">(Optional)</span>
+			</label>
+			<input
+				type="datetime-local"
+				id="expires-at"
+				bind:value={expiresAt}
+				class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+			/>
+			<p class="text-xs text-gray-500 mt-1">Leave empty for links that never expire</p>
 		</div>
 
 		<!-- Error Message -->

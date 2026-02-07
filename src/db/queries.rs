@@ -239,16 +239,16 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
 }
 
-/// Update a link - reserved for future link update feature
-#[allow(dead_code)]
+/// Update a link
 pub async fn update_link(
     db: &D1Database,
     link_id: &str,
+    org_id: &str,
     destination_url: Option<&str>,
     title: Option<&str>,
     is_active: Option<bool>,
     expires_at: Option<i64>,
-) -> Result<()> {
+) -> Result<Link> {
     let now = now_timestamp();
 
     // Build dynamic update query
@@ -280,13 +280,21 @@ pub async fn update_link(
         param_count += 1;
     }
 
-    query.push_str(&format!(" WHERE id = ?{}", param_count));
+    query.push_str(&format!(
+        " WHERE id = ?{} AND org_id = ?{}",
+        param_count,
+        param_count + 1
+    ));
     params.push(link_id.into());
+    params.push(org_id.into());
 
     let stmt = db.prepare(&query);
     stmt.bind(&params)?.run().await?;
 
-    Ok(())
+    // Fetch and return the updated link
+    get_link_by_id(db, link_id, org_id)
+        .await?
+        .ok_or_else(|| worker::Error::RustError("Link not found after update".to_string()))
 }
 
 /// Soft delete a link (set is_active = false)

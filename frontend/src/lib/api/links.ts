@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Link, CreateLinkRequest } from '$lib/types/api';
+import type { Link, CreateLinkRequest, UpdateLinkRequest } from '$lib/types/api';
 
 export const linksApi = {
 	/**
@@ -30,6 +30,20 @@ export const linksApi = {
 	 */
 	async create(data: CreateLinkRequest): Promise<Link> {
 		return apiClient.post<Link>('/api/links', data);
+	},
+
+	/**
+	 * Update a link
+	 * @param id - Link UUID
+	 * @param data - Update data (only provided fields will be updated)
+	 * @returns Updated Link object
+	 * @throws ApiError if link not found (404) or validation fails (400)
+	 */
+	async update(id: string, data: UpdateLinkRequest): Promise<Link> {
+		return apiClient.request<Link>(`/api/links/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
 	},
 
 	/**

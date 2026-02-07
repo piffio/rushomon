@@ -1,7 +1,10 @@
 use crate::auth;
 use crate::db;
 use crate::kv;
-use crate::models::{Link, link::CreateLinkRequest};
+use crate::models::{
+    Link,
+    link::{CreateLinkRequest, UpdateLinkRequest},
+};
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use worker::d1::D1Database;
 use worker::*;
@@ -294,6 +297,71 @@ pub async fn handle_delete_link(req: Request, ctx: RouteContext<()>) -> Result<R
     kv::delete_link_mapping(&kv, org_id, &link.short_code).await?;
 
     Response::empty()
+}
+
+/// Handle link update: PUT /api/links/:id
+pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Authenticate
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    // Extract link ID from route
+    let link_id = match ctx.param("id") {
+        Some(id) => id.to_string(),
+        None => return Response::error("Missing link ID", 400),
+    };
+
+    // Parse request body
+    let update_req: UpdateLinkRequest = match req.json().await {
+        Ok(req) => req,
+        Err(_) => return Response::error("Invalid request body", 400),
+    };
+
+    // Validate destination URL if provided
+    if let Some(url) = &update_req.destination_url
+        && let Err(e) = validate_url(url)
+    {
+        return Response::error(format!("Invalid URL: {}", e), 400);
+    }
+
+    // Validate expiration date if provided
+    if let Some(expires_at) = update_req.expires_at {
+        let now = now_timestamp();
+        if expires_at <= now {
+            return Response::error("Expiration date must be in the future", 400);
+        }
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
+    // Get existing link to verify ownership
+    let existing_link = match db::get_link_by_id(&db, &link_id, &user_ctx.org_id).await? {
+        Some(link) => link,
+        None => return Response::error("Link not found", 404),
+    };
+
+    // Update in D1
+    let updated_link = db::update_link(
+        &db,
+        &link_id,
+        &user_ctx.org_id,
+        update_req.destination_url.as_deref(),
+        update_req.title.as_deref(),
+        update_req.is_active,
+        update_req.expires_at,
+    )
+    .await?;
+
+    // If destination URL changed, update KV mapping
+    if update_req.destination_url.is_some() {
+        let mapping = updated_link.to_mapping();
+        kv::update_link_mapping(&kv, &existing_link.short_code, &mapping).await?;
+    }
+
+    Response::from_json(&updated_link)
 }
 
 /// Handle GitHub OAuth initiation: GET /api/auth/github

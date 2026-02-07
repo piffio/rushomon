@@ -31,6 +31,13 @@ export interface CreateLinkRequest {
 	expires_at?: number;
 }
 
+export interface UpdateLinkRequest {
+	destination_url?: string;
+	title?: string;
+	expires_at?: number;
+	is_active?: boolean;
+}
+
 export interface ApiError {
 	message: string;
 	status: number;

@@ -42,3 +42,25 @@ pub async fn delete_link_mapping(kv: &KvStore, org_id: &str, short_code: &str) -
 pub async fn short_code_exists(kv: &KvStore, short_code: &str) -> Result<bool> {
     Ok(kv.get(short_code).text().await?.is_some())
 }
+
+/// Update an existing link mapping in KV
+pub async fn update_link_mapping(
+    kv: &KvStore,
+    short_code: &str,
+    mapping: &LinkMapping,
+) -> Result<()> {
+    let value = serde_json::to_string(mapping)
+        .map_err(|e| worker::Error::RustError(format!("Failed to serialize mapping: {}", e)))?;
+
+    // Use same TTL as original (optional expires_at)
+    let mut put = kv.put(short_code, value)?;
+
+    if let Some(expires_at) = mapping.expires_at {
+        let now = chrono::Utc::now().timestamp();
+        let ttl = (expires_at - now).max(0) as u64;
+        put = put.expiration_ttl(ttl);
+    }
+
+    put.execute().await?;
+    Ok(())
+}
