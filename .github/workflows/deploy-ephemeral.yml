@@ -214,6 +214,10 @@ jobs:
         run: |
           echo "🔐 Setting Worker secrets..."
 
+          # Delete existing secrets first (ignore errors if they don't exist)
+          wrangler secret delete GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml 2>/dev/null || true
+          wrangler secret delete JWT_SECRET -c wrangler.ephemeral.toml 2>/dev/null || true
+
           # Set secrets for the ephemeral worker
           echo "${{ secrets.GH_CLIENT_SECRET }}" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml
           echo "${{ secrets.JWT_SECRET }}" | wrangler secret put JWT_SECRET -c wrangler.ephemeral.toml
