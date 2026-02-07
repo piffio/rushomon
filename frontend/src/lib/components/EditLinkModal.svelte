@@ -18,6 +18,7 @@
 	let expiresAt = $state(
 		link.expires_at ? new Date(link.expires_at * 1000).toISOString().slice(0, 16) : ''
 	);
+	let status = $state(link.status);
 
 	let isSubmitting = $state(false);
 	let error = $state('');
@@ -36,6 +37,9 @@
 			}
 			if (title !== (link.title || '')) {
 				updateData.title = title || undefined;
+			}
+			if (status !== link.status) {
+				updateData.status = status;
 			}
 			if (expiresAt) {
 				updateData.expires_at = Math.floor(new Date(expiresAt).getTime() / 1000);
@@ -112,6 +116,24 @@
 							maxlength="200"
 							class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
 						/>
+					</div>
+
+					<!-- Status -->
+					<div class="mb-4">
+						<label for="status-edit" class="block text-sm font-medium text-gray-700 mb-1">
+							Status
+						</label>
+						<select
+							id="status-edit"
+							bind:value={status}
+							class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+						>
+							<option value="active">Active - Link redirects normally</option>
+							<option value="disabled">Disabled - Link returns 404</option>
+						</select>
+						<p class="text-xs text-gray-500 mt-1">
+							Disabled links don't redirect but keep the short code reserved
+						</p>
 					</div>
 
 					<!-- Expiration Date -->

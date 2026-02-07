@@ -50,6 +50,11 @@
 			>
 				{link.short_code}
 			</a>
+			{#if link.status === 'disabled'}
+				<span class="flex-shrink-0 px-2 py-0.5 text-xs bg-gray-200 text-gray-700 rounded">
+					Disabled
+				</span>
+			{/if}
 			<button
 				onclick={copyToClipboard}
 				class="flex-shrink-0 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors"

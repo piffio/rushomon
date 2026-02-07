@@ -3,7 +3,7 @@ use crate::db;
 use crate::kv;
 use crate::models::{
     Link,
-    link::{CreateLinkRequest, UpdateLinkRequest},
+    link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use worker::d1::D1Database;
@@ -25,7 +25,7 @@ pub async fn handle_redirect(
     };
 
     // Check if link is active
-    if !mapping.is_active {
+    if !matches!(mapping.status, LinkStatus::Active) {
         return Response::error("Link not found", 404);
     }
 
@@ -190,7 +190,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         created_at: now,
         updated_at: None,
         expires_at: body.expires_at,
-        is_active: true,
+        status: LinkStatus::Active,
         click_count: 0,
     };
 
@@ -289,8 +289,8 @@ pub async fn handle_delete_link(req: Request, ctx: RouteContext<()>) -> Result<R
         return Response::error("Link not found", 404);
     };
 
-    // Soft delete in D1
-    db::soft_delete_link(&db, link_id, org_id).await?;
+    // Hard delete from D1 (frees up short code)
+    db::hard_delete_link(&db, link_id, org_id).await?;
 
     // Hard delete from KV
     let kv = ctx.kv("URL_MAPPINGS")?;
@@ -350,13 +350,13 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         &user_ctx.org_id,
         update_req.destination_url.as_deref(),
         update_req.title.as_deref(),
-        update_req.is_active,
+        update_req.status.as_ref().map(|s| s.as_str()),
         update_req.expires_at,
     )
     .await?;
 
-    // If destination URL changed, update KV mapping
-    if update_req.destination_url.is_some() {
+    // If destination URL or status changed, update KV mapping
+    if update_req.destination_url.is_some() || update_req.status.is_some() {
         let mapping = updated_link.to_mapping();
         kv::update_link_mapping(&kv, &existing_link.short_code, &mapping).await?;
     }

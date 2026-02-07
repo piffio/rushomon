@@ -160,7 +160,7 @@ pub async fn get_org_by_id(db: &D1Database, org_id: &str) -> Result<Option<Organ
 /// Create a new link
 pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
     let stmt = db.prepare(
-        "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, is_active, click_count)
+        "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
     );
 
@@ -178,7 +178,7 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
         link.expires_at
             .map(|t| (t as f64).into())
             .unwrap_or(JsValue::NULL),
-        if link.is_active { 1 } else { 0 }.into(),
+        link.status.as_str().into(),
         (link.click_count as f64).into(),
     ])?
     .run()
@@ -195,10 +195,10 @@ pub async fn get_links_by_org(
     offset: i64,
 ) -> Result<Vec<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
          FROM links
          WHERE org_id = ?1
-         AND is_active = 1
+         AND status IN ('active', 'disabled')
          ORDER BY created_at DESC
          LIMIT ?2 OFFSET ?3"
     );
@@ -219,11 +219,11 @@ pub async fn get_links_by_org(
 /// Get a link by ID
 pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
          FROM links
          WHERE id = ?1
          AND org_id = ?2
-         AND is_active = 1"
+         AND status IN ('active', 'disabled')"
     );
 
     stmt.bind(&[link_id.into(), org_id.into()])?
@@ -234,10 +234,10 @@ pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Res
 /// Get a link by ID without org_id check (used for public redirects)
 pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, is_active, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
          FROM links
          WHERE id = ?1
-         AND is_active = 1"
+         AND status = 'active'"
     );
 
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
@@ -250,7 +250,7 @@ pub async fn update_link(
     org_id: &str,
     destination_url: Option<&str>,
     title: Option<&str>,
-    is_active: Option<bool>,
+    status: Option<&str>,
     expires_at: Option<i64>,
 ) -> Result<Link> {
     let now = now_timestamp();
@@ -272,9 +272,9 @@ pub async fn update_link(
         param_count += 1;
     }
 
-    if let Some(active) = is_active {
-        query.push_str(&format!(", is_active = ?{}", param_count));
-        params.push(if active { 1 } else { 0 }.into());
+    if let Some(s) = status {
+        query.push_str(&format!(", status = ?{}", param_count));
+        params.push(s.into());
         param_count += 1;
     }
 
@@ -301,9 +301,9 @@ pub async fn update_link(
         .ok_or_else(|| worker::Error::RustError("Link not found after update".to_string()))
 }
 
-/// Soft delete a link (set is_active = false)
-pub async fn soft_delete_link(db: &D1Database, link_id: &str, org_id: &str) -> Result<()> {
-    let stmt = db.prepare("UPDATE links SET is_active = 0 WHERE id = ?1 AND org_id = ?2");
+/// Hard delete a link (removes from database permanently, frees up short code)
+pub async fn hard_delete_link(db: &D1Database, link_id: &str, org_id: &str) -> Result<()> {
+    let stmt = db.prepare("DELETE FROM links WHERE id = ?1 AND org_id = ?2");
 
     stmt.bind(&[link_id.into(), org_id.into()])?.run().await?;
 
