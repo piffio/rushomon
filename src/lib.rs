@@ -123,6 +123,8 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .options_async("/api/auth/logout", handle_cors_preflight)
         .options_async("/api/links", handle_cors_preflight)
         .options_async("/api/links/:id", handle_cors_preflight)
+        .options_async("/api/admin/users", handle_cors_preflight)
+        .options_async("/api/admin/users/:id", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
@@ -135,6 +137,10 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/api/links/:id", router::handle_get_link)
         .put_async("/api/links/:id", router::handle_update_link)
         .delete_async("/api/links/:id", router::handle_delete_link)
+        // Admin routes - admin authentication required
+        .get_async("/api/admin/users", router::handle_admin_list_users)
+        .get_async("/api/admin/users/:id", router::handle_admin_get_user)
+        .put_async("/api/admin/users/:id", router::handle_admin_update_user)
         // Health check
         .get("/", |_, _| Response::ok("Rushomon URL Shortener API"))
         .run(req, env.clone())

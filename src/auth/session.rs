@@ -40,6 +40,8 @@ pub struct JwtClaims {
     pub org_id: String,
     pub session_id: String,
     pub token_type: String, // "access" or "refresh"
+    #[serde(default)]
+    pub role: String, // "admin" or "member" (instance-level)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -54,13 +56,27 @@ pub struct UserContext {
     pub user_id: String,
     pub org_id: String,
     pub session_id: String,
+    pub role: String, // "admin" or "member" (instance-level)
 }
 
 /// Creates a JWT token with user and organization information
 /// This is the legacy function that creates a token with default (refresh) TTL
 /// For new code, use create_jwt_with_type() to explicitly specify the token type
-pub fn create_jwt(user_id: &str, org_id: &str, session_id: &str, secret: &str) -> Result<String> {
-    create_jwt_with_type(user_id, org_id, session_id, secret, TokenType::Refresh)
+pub fn create_jwt(
+    user_id: &str,
+    org_id: &str,
+    session_id: &str,
+    role: &str,
+    secret: &str,
+) -> Result<String> {
+    create_jwt_with_type(
+        user_id,
+        org_id,
+        session_id,
+        role,
+        secret,
+        TokenType::Refresh,
+    )
 }
 
 /// Creates a JWT token with a specific token type (access or refresh)
@@ -68,6 +84,7 @@ pub fn create_jwt_with_type(
     user_id: &str,
     org_id: &str,
     session_id: &str,
+    role: &str,
     secret: &str,
     token_type: TokenType,
 ) -> Result<String> {
@@ -80,6 +97,7 @@ pub fn create_jwt_with_type(
         org_id: org_id.to_string(),
         session_id: session_id.to_string(),
         token_type: token_type.as_str().to_string(),
+        role: role.to_string(),
     })
     .set_duration_and_issuance(
         &time_options,
@@ -96,9 +114,10 @@ pub fn create_access_token(
     user_id: &str,
     org_id: &str,
     session_id: &str,
+    role: &str,
     secret: &str,
 ) -> Result<String> {
-    create_jwt_with_type(user_id, org_id, session_id, secret, TokenType::Access)
+    create_jwt_with_type(user_id, org_id, session_id, role, secret, TokenType::Access)
 }
 
 /// Creates a refresh token (7 days expiry)
@@ -106,9 +125,17 @@ pub fn create_refresh_token(
     user_id: &str,
     org_id: &str,
     session_id: &str,
+    role: &str,
     secret: &str,
 ) -> Result<String> {
-    create_jwt_with_type(user_id, org_id, session_id, secret, TokenType::Refresh)
+    create_jwt_with_type(
+        user_id,
+        org_id,
+        session_id,
+        role,
+        secret,
+        TokenType::Refresh,
+    )
 }
 
 /// Validates a JWT token and returns the claims
@@ -274,12 +301,13 @@ mod tests {
     #[cfg(target_arch = "wasm32")]
     fn test_jwt_roundtrip() {
         let secret = "test-secret-32-chars-minimum!!";
-        let jwt = create_jwt("user1", "org1", "sess1", secret).unwrap();
+        let jwt = create_jwt("user1", "org1", "sess1", "admin", secret).unwrap();
         let claims = validate_jwt(&jwt, secret).unwrap();
 
         assert_eq!(claims.sub, "user1");
         assert_eq!(claims.org_id, "org1");
         assert_eq!(claims.session_id, "sess1");
+        assert_eq!(claims.role, "admin");
     }
 
     #[test]
@@ -287,7 +315,7 @@ mod tests {
     fn test_jwt_invalid_secret() {
         let secret1 = "test-secret-32-chars-minimum!!";
         let secret2 = "different-secret-32-chars-min!";
-        let jwt = create_jwt("user1", "org1", "sess1", secret1).unwrap();
+        let jwt = create_jwt("user1", "org1", "sess1", "member", secret1).unwrap();
 
         let result = validate_jwt(&jwt, secret2);
         assert!(result.is_err());

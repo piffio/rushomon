@@ -515,6 +515,7 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         &claims.sub,
         &claims.org_id,
         &claims.session_id,
+        &claims.role,
         &jwt_secret,
     )?;
 
@@ -550,6 +551,140 @@ pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Respon
         .append("Set-Cookie", &refresh_cookie)?;
 
     Ok(response)
+}
+
+/// Handle listing all users: GET /api/admin/users (admin only)
+pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    // Parse pagination params
+    let url = req.url()?;
+    let page: i64 = url
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find(|s| s.starts_with("page="))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or(1);
+
+    let limit: i64 = url
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find(|s| s.starts_with("limit="))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or(50);
+
+    let offset = (page - 1) * limit;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let users = db::get_all_users(&db, limit, offset).await?;
+    let total = db::get_user_count(&db).await?;
+
+    Response::from_json(&serde_json::json!({
+        "users": users,
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }))
+}
+
+/// Handle getting a single user: GET /api/admin/users/:id (admin only)
+pub async fn handle_admin_get_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let user = db::get_user_by_id(&db, user_id).await?;
+
+    match user {
+        Some(user) => Response::from_json(&user),
+        None => Response::error("User not found", 404),
+    }
+}
+
+/// Handle updating a user's role: PUT /api/admin/users/:id (admin only)
+pub async fn handle_admin_update_user(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let target_user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?
+        .to_string();
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let new_role = match body.get("role").and_then(|r| r.as_str()) {
+        Some(role) if role == "admin" || role == "member" => role.to_string(),
+        Some(_) => return Response::error("Invalid role. Must be 'admin' or 'member'", 400),
+        None => return Response::error("Missing 'role' field", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Verify target user exists
+    let target_user = match db::get_user_by_id(&db, &target_user_id).await? {
+        Some(user) => user,
+        None => return Response::error("User not found", 404),
+    };
+
+    // Prevent self-demotion
+    if target_user_id == user_ctx.user_id && new_role == "member" {
+        return Response::error("Cannot demote yourself", 400);
+    }
+
+    // Prevent demoting the last admin
+    if target_user.role == "admin" && new_role == "member" {
+        let admin_count = db::get_admin_count(&db).await?;
+        if admin_count <= 1 {
+            return Response::error(
+                "Cannot demote the last admin. Promote another user first.",
+                400,
+            );
+        }
+    }
+
+    // Update role
+    db::update_user_role(&db, &target_user_id, &new_role).await?;
+
+    // Return updated user
+    let updated_user = db::get_user_by_id(&db, &target_user_id)
+        .await?
+        .ok_or_else(|| Error::RustError("User not found after update".to_string()))?;
+
+    Response::from_json(&updated_user)
 }
 
 /// Helper function to extract query parameters

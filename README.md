@@ -8,6 +8,7 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 - **Custom Short URLs**: User-chosen slugs with random fallback
 - **Analytics**: Detailed click tracking with referrer, geo, and user-agent data
 - **OAuth Authentication**: GitHub OAuth (Google coming soon)
+- **Instance Admin**: First user becomes admin; admin dashboard for user management
 - **Multi-tenant Ready**: Organization/team model from day one
 - **Self-hostable**: Run on your own custom domain
 
@@ -183,6 +184,7 @@ npx wrangler pages deploy build --project-name=rushomon-ui
 - `POST /api/links` - Create a new short link
 - `GET /api/links` - List all links (paginated)
 - `GET /api/links/{id}` - Get link details
+- `PUT /api/links/{id}` - Update a link
 - `DELETE /api/links/{id}` - Delete a link
 
 ### Authentication Routes
@@ -190,7 +192,14 @@ npx wrangler pages deploy build --project-name=rushomon-ui
 - `GET /api/auth/github` - Initiate GitHub OAuth
 - `GET /api/auth/callback` - OAuth callback handler
 - `GET /api/auth/me` - Get current authenticated user
+- `POST /api/auth/refresh` - Refresh access token
 - `POST /api/auth/logout` - Logout and invalidate session
+
+### Admin Routes (Instance Admin Required)
+
+- `GET /api/admin/users` - List all users (paginated)
+- `GET /api/admin/users/{id}` - Get user details
+- `PUT /api/admin/users/{id}` - Update user role
 
 ## Development
 
@@ -255,7 +264,8 @@ rushomon/
 │   ├── src/
 │   │   ├── routes/         # SvelteKit routes
 │   │   │   ├── +page.svelte          # Landing page
-│   │   │   └── dashboard/            # Dashboard routes
+│   │   │   ├── dashboard/            # Dashboard routes
+│   │   │   └── admin/                # Admin dashboard
 │   │   ├── lib/            # Shared components and utilities
 │   │   │   ├── api/        # API client
 │   │   │   └── components/ # Reusable components
@@ -359,10 +369,16 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 ### In Progress
 - [ ] Analytics aggregation queries
 - [ ] Analytics dashboard UI
-- [ ] Link editing functionality
+
+### Completed (Recent)
+- [x] Instance-level admin role (first user = admin)
+- [x] Admin dashboard with user management
+- [x] Role-based access control (admin/member)
+- [x] Link editing functionality
 
 ### Planned
 - [ ] Production deployment guide
+- [ ] Organization-level roles
 - [ ] Link analytics detail view
 - [ ] Custom short code validation UI
 - [ ] Link expiration management

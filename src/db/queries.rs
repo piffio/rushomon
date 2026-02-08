@@ -4,6 +4,17 @@ use wasm_bindgen::JsValue;
 use worker::d1::D1Database;
 use worker::*;
 
+/// Get the total number of users on the instance
+pub async fn get_user_count(db: &D1Database) -> Result<i64> {
+    let stmt = db.prepare("SELECT COUNT(*) as count FROM users");
+    let result = stmt.first::<serde_json::Value>(None).await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
 /// Create or update a user from OAuth data
 pub async fn create_or_update_user(
     db: &D1Database,
@@ -58,6 +69,10 @@ pub async fn create_or_update_user(
             created_at: user.created_at,
         })
     } else {
+        // Determine role: first user on the instance gets admin, all others get member
+        let user_count = get_user_count(db).await?;
+        let role = if user_count == 0 { "admin" } else { "member" };
+
         // Create new user
         let insert_stmt = db.prepare(
             "INSERT INTO users (id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at)
@@ -73,7 +88,7 @@ pub async fn create_or_update_user(
                 data.oauth_provider.clone().into(),
                 data.oauth_id.clone().into(),
                 org_id.into(),
-                "admin".into(), // First user in org is admin
+                role.into(),
                 (now as f64).into(),
             ])?
             .run()
@@ -87,7 +102,7 @@ pub async fn create_or_update_user(
             oauth_provider: data.oauth_provider,
             oauth_id: data.oauth_id,
             org_id: org_id.to_string(),
-            role: "admin".to_string(),
+            role: role.to_string(),
             created_at: now,
         })
     }
@@ -353,6 +368,44 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
     ])?
     .run()
     .await?;
+
+    Ok(())
+}
+
+/// Get all users on the instance (paginated) - for admin dashboard
+pub async fn get_all_users(db: &D1Database, limit: i64, offset: i64) -> Result<Vec<User>> {
+    let stmt = db.prepare(
+        "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at
+         FROM users
+         ORDER BY created_at ASC
+         LIMIT ?1 OFFSET ?2",
+    );
+
+    let results = stmt
+        .bind(&[(limit as f64).into(), (offset as f64).into()])?
+        .all()
+        .await?;
+
+    let users = results.results::<User>()?;
+    Ok(users)
+}
+
+/// Get the count of users with admin role on the instance
+pub async fn get_admin_count(db: &D1Database) -> Result<i64> {
+    let stmt = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'");
+    let result = stmt.first::<serde_json::Value>(None).await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Update a user's instance-level role
+pub async fn update_user_role(db: &D1Database, user_id: &str, new_role: &str) -> Result<()> {
+    let stmt = db.prepare("UPDATE users SET role = ?1 WHERE id = ?2");
+
+    stmt.bind(&[new_role.into(), user_id.into()])?.run().await?;
 
     Ok(())
 }
