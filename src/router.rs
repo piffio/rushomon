@@ -397,7 +397,25 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
 
     // Handle OAuth callback - returns both access and refresh tokens
     let (user, _org, tokens) =
-        auth::oauth::handle_oauth_callback(code, state, &kv, &db, &ctx.env).await?;
+        match auth::oauth::handle_oauth_callback(code, state, &kv, &db, &ctx.env).await {
+            Ok(result) => result,
+            Err(e) => {
+                // Check if signups are disabled
+                let error_msg = format!("{:?}", e);
+                if error_msg.contains("SIGNUPS_DISABLED") {
+                    let frontend_url = ctx
+                        .env
+                        .var("FRONTEND_URL")
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+                    let redirect_url = format!("{}/?error=signups_disabled", frontend_url);
+                    let headers = Headers::new();
+                    headers.set("Location", &redirect_url)?;
+                    return Ok(Response::empty()?.with_status(302).with_headers(headers));
+                }
+                return Err(e);
+            }
+        };
 
     // Extract session ID from access token claims
     let jwt_secret = ctx.env.secret("JWT_SECRET")?.to_string();
@@ -685,6 +703,84 @@ pub async fn handle_admin_update_user(mut req: Request, ctx: RouteContext<()>) -
         .ok_or_else(|| Error::RustError("User not found after update".to_string()))?;
 
     Response::from_json(&updated_user)
+}
+
+/// Handle getting all settings: GET /api/admin/settings (admin only)
+pub async fn handle_admin_get_settings(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let settings = db::get_all_settings(&db).await?;
+
+    let settings_map: serde_json::Map<String, serde_json::Value> = settings
+        .into_iter()
+        .map(|(k, v)| (k, serde_json::Value::String(v)))
+        .collect();
+
+    Response::from_json(&serde_json::Value::Object(settings_map))
+}
+
+/// Handle updating a setting: PUT /api/admin/settings (admin only)
+pub async fn handle_admin_update_setting(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let key = match body.get("key").and_then(|k| k.as_str()) {
+        Some(k) => k.to_string(),
+        None => return Response::error("Missing 'key' field", 400),
+    };
+
+    let value = match body.get("value").and_then(|v| v.as_str()) {
+        Some(v) => v.to_string(),
+        None => return Response::error("Missing 'value' field", 400),
+    };
+
+    // Validate known settings
+    match key.as_str() {
+        "signups_enabled" => {
+            if value != "true" && value != "false" {
+                return Response::error(
+                    "Invalid value for 'signups_enabled'. Must be 'true' or 'false'",
+                    400,
+                );
+            }
+        }
+        _ => return Response::error(format!("Unknown setting: {}", key), 400),
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    db::set_setting(&db, &key, &value).await?;
+
+    // Return updated settings
+    let settings = db::get_all_settings(&db).await?;
+    let settings_map: serde_json::Map<String, serde_json::Value> = settings
+        .into_iter()
+        .map(|(k, v)| (k, serde_json::Value::String(v)))
+        .collect();
+
+    Response::from_json(&serde_json::Value::Object(settings_map))
 }
 
 /// Helper function to extract query parameters

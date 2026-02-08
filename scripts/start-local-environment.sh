@@ -17,6 +17,10 @@ fi
 echo "🔨 Building worker..."
 worker-build --release --quiet
 
+# Apply migrations
+echo "🔨 Applying migrations..."
+wrangler d1 migrations apply rushomon --local -c wrangler.toml
+
 # Start wrangler dev with local environment
 echo "⚡ Starting backend..."
 # Use unbuffer to preserve colors while maintaining background process

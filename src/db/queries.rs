@@ -409,3 +409,50 @@ pub async fn update_user_role(db: &D1Database, user_id: &str, new_role: &str) ->
 
     Ok(())
 }
+
+/// Get a setting value by key
+pub async fn get_setting(db: &D1Database, key: &str) -> Result<Option<String>> {
+    let stmt = db.prepare("SELECT value FROM settings WHERE key = ?1");
+    let result = stmt
+        .bind(&[key.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["value"].as_str().map(|s| s.to_string())),
+        None => Ok(None),
+    }
+}
+
+/// Set a setting value (upsert)
+pub async fn set_setting(db: &D1Database, key: &str, value: &str) -> Result<()> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3",
+    );
+
+    stmt.bind(&[key.into(), value.into(), (now as f64).into()])?
+        .run()
+        .await?;
+
+    Ok(())
+}
+
+/// Get all settings as a list of (key, value) pairs
+pub async fn get_all_settings(db: &D1Database) -> Result<Vec<(String, String)>> {
+    let stmt = db.prepare("SELECT key, value FROM settings ORDER BY key");
+    let results = stmt.all().await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let settings = rows
+        .iter()
+        .filter_map(|row| {
+            let key = row["key"].as_str()?.to_string();
+            let value = row["value"].as_str()?.to_string();
+            Some((key, value))
+        })
+        .collect();
+
+    Ok(settings)
+}
