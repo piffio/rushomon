@@ -6,6 +6,7 @@
 		links,
 		loading = false,
 		onDelete,
+		onEdit,
 		onPageChange,
 		currentPage = 1,
 		hasMore = false
@@ -13,6 +14,7 @@
 		links: Link[];
 		loading?: boolean;
 		onDelete: (id: string) => void;
+		onEdit: (link: Link) => void;
 		onPageChange: (page: number) => void;
 		currentPage?: number;
 		hasMore?: boolean;
@@ -42,7 +44,7 @@
 		<!-- Links Grid -->
 		<div class="space-y-4 mb-6">
 			{#each links as link (link.id)}
-				<LinkCard {link} {onDelete} />
+				<LinkCard {link} {onDelete} {onEdit} />
 			{/each}
 		</div>
 

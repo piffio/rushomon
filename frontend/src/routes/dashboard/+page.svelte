@@ -2,6 +2,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import CreateLinkForm from '$lib/components/CreateLinkForm.svelte';
 	import LinkList from '$lib/components/LinkList.svelte';
+	import EditLinkModal from '$lib/components/EditLinkModal.svelte';
 	import { linksApi } from '$lib/api/links';
 	import type { PageData } from './$types';
 	import type { Link, ApiError } from '$lib/types/api';
@@ -12,6 +13,8 @@
 	let loading = $state(false);
 	let currentPage = $state(1);
 	let error = $state('');
+	let editingLink = $state<Link | null>(null);
+	let isEditModalOpen = $state(false);
 
 	// Initialize links from data (runs on mount and when data changes)
 	$effect(() => {
@@ -21,6 +24,21 @@
 	async function handleLinkCreated(newLink: Link) {
 		// Add new link to the beginning of the list
 		links = [newLink, ...links];
+	}
+
+	function handleEdit(link: Link) {
+		editingLink = link;
+		isEditModalOpen = true;
+	}
+
+	function handleEditClose() {
+		isEditModalOpen = false;
+		editingLink = null;
+	}
+
+	function handleLinkUpdated(updatedLink: Link) {
+		// Update in local state
+		links = links.map((l) => (l.id === updatedLink.id ? updatedLink : l));
 	}
 
 	async function handleDelete(id: string) {
@@ -84,10 +102,21 @@
 				{links}
 				{loading}
 				onDelete={handleDelete}
+				onEdit={handleEdit}
 				onPageChange={handlePageChange}
 				{currentPage}
 				{hasMore}
 			/>
+
+			<!-- Edit Modal -->
+			{#if editingLink}
+				<EditLinkModal
+					link={editingLink}
+					bind:isOpen={isEditModalOpen}
+					on:close={handleEditClose}
+					on:updated={(e) => handleLinkUpdated(e.detail)}
+				/>
+			{/if}
 		</div>
 		</main>
 	{:else}

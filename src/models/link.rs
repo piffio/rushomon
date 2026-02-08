@@ -1,6 +1,23 @@
 use crate::utils::now_timestamp;
 use serde::{Deserialize, Deserializer, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LinkStatus {
+    #[serde(rename = "active")]
+    Active,
+    #[serde(rename = "disabled")]
+    Disabled,
+}
+
+impl LinkStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            LinkStatus::Active => "active",
+            LinkStatus::Disabled => "disabled",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Link {
     pub id: String,
@@ -12,7 +29,7 @@ pub struct Link {
     pub created_at: i64,
     pub updated_at: Option<i64>,
     pub expires_at: Option<i64>,
-    pub is_active: bool,
+    pub status: LinkStatus,
     pub click_count: i64,
 }
 
@@ -32,14 +49,18 @@ impl<'de> Deserialize<'de> for Link {
             created_at: i64,
             updated_at: Option<i64>,
             expires_at: Option<i64>,
-            is_active: i64, // D1 returns numbers, so use i64 directly
+            status: String, // D1 returns TEXT
             click_count: i64,
         }
 
         let helper = LinkHelper::deserialize(deserializer)?;
 
-        // Convert integer to boolean (0 → false, non-zero → true)
-        let is_active = helper.is_active != 0;
+        // Parse status string
+        let status = match helper.status.as_str() {
+            "active" => LinkStatus::Active,
+            "disabled" => LinkStatus::Disabled,
+            _ => LinkStatus::Disabled, // Default to disabled for unknown values
+        };
 
         Ok(Link {
             id: helper.id,
@@ -51,7 +72,7 @@ impl<'de> Deserialize<'de> for Link {
             created_at: helper.created_at,
             updated_at: helper.updated_at,
             expires_at: helper.expires_at,
-            is_active,
+            status,
             click_count: helper.click_count,
         })
     }
@@ -63,7 +84,7 @@ pub struct LinkMapping {
     pub destination_url: String,
     pub link_id: String,
     pub expires_at: Option<i64>,
-    pub is_active: bool,
+    pub status: LinkStatus,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,13 +96,11 @@ pub struct CreateLinkRequest {
     pub expires_at: Option<i64>,
 }
 
-// Reserved for future link update feature
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateLinkRequest {
     pub destination_url: Option<String>,
     pub title: Option<String>,
-    pub is_active: Option<bool>,
+    pub status: Option<LinkStatus>,
     pub expires_at: Option<i64>,
 }
 
@@ -100,7 +119,7 @@ impl Link {
             destination_url: self.destination_url.clone(),
             link_id: self.id.clone(),
             expires_at: self.expires_at,
-            is_active: self.is_active,
+            status: self.status.clone(),
         }
     }
 }
@@ -121,7 +140,7 @@ mod tests {
             created_at: 1000000,
             updated_at: None,
             expires_at: None, // No expiration
-            is_active: true,
+            status: LinkStatus::Active,
             click_count: 0,
         };
         assert!(!link.is_expired());
@@ -145,7 +164,7 @@ mod tests {
             created_at: 1000000,
             updated_at: None,
             expires_at: Some(future_timestamp),
-            is_active: true,
+            status: LinkStatus::Active,
             click_count: 0,
         };
         assert!(!link.is_expired());
@@ -165,7 +184,7 @@ mod tests {
             created_at: 1000000,
             updated_at: None,
             expires_at: Some(past_timestamp),
-            is_active: true,
+            status: LinkStatus::Active,
             click_count: 0,
         };
         assert!(link.is_expired());
@@ -183,7 +202,7 @@ mod tests {
             created_at: 1000000,
             updated_at: None,
             expires_at: Some(2000000),
-            is_active: true,
+            status: LinkStatus::Active,
             click_count: 42,
         };
 
@@ -192,7 +211,7 @@ mod tests {
         assert_eq!(mapping.destination_url, "https://example.com/path");
         assert_eq!(mapping.link_id, "link-123");
         assert_eq!(mapping.expires_at, Some(2000000));
-        assert!(mapping.is_active);
+        assert!(matches!(mapping.status, LinkStatus::Active));
     }
 
     #[test]
@@ -207,7 +226,7 @@ mod tests {
             created_at: 123456,
             updated_at: Some(789012),
             expires_at: None,
-            is_active: false,
+            status: LinkStatus::Disabled,
             click_count: 100,
         };
 
@@ -216,6 +235,6 @@ mod tests {
         assert_eq!(mapping.destination_url, link.destination_url);
         assert_eq!(mapping.link_id, link.id);
         assert_eq!(mapping.expires_at, link.expires_at);
-        assert_eq!(mapping.is_active, link.is_active);
+        assert!(matches!(mapping.status, LinkStatus::Disabled));
     }
 }

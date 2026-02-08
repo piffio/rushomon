@@ -10,6 +10,8 @@ export interface User {
 	created_at: number;
 }
 
+export type LinkStatus = 'active' | 'disabled';
+
 export interface Link {
 	id: string;
 	org_id: string;
@@ -20,7 +22,7 @@ export interface Link {
 	created_at: number;
 	updated_at: number | null;
 	expires_at: number | null;
-	is_active: boolean;
+	status: LinkStatus;
 	click_count: number;
 }
 
@@ -29,6 +31,13 @@ export interface CreateLinkRequest {
 	short_code?: string;
 	title?: string;
 	expires_at?: number;
+}
+
+export interface UpdateLinkRequest {
+	destination_url?: string;
+	title?: string;
+	expires_at?: number;
+	status?: LinkStatus;
 }
 
 export interface ApiError {

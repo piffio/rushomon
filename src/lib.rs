@@ -55,7 +55,10 @@ fn add_cors_headers(mut response: Response, origin: Option<String>, env: &Env) -
     {
         let headers = response.headers_mut();
         let _ = headers.set("Access-Control-Allow-Origin", &origin_value);
-        let _ = headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+        let _ = headers.set(
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, DELETE, OPTIONS",
+        );
         let _ = headers.set(
             "Access-Control-Allow-Headers",
             "Content-Type, Authorization, Cookie",
@@ -130,6 +133,7 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
         .get_async("/api/links/:id", router::handle_get_link)
+        .put_async("/api/links/:id", router::handle_update_link)
         .delete_async("/api/links/:id", router::handle_delete_link)
         // Health check
         .get("/", |_, _| Response::ok("Rushomon URL Shortener API"))
