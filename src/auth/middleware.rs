@@ -4,6 +4,7 @@ use worker::{Request, Response, RouteContext};
 /// Authentication error that can be converted to an HTTP response
 pub enum AuthError {
     Unauthorized(String),
+    Forbidden(String),
     InternalError(String),
 }
 
@@ -12,9 +13,21 @@ impl AuthError {
         match self {
             AuthError::Unauthorized(msg) => Response::error(msg, 401)
                 .unwrap_or_else(|_| Response::error("Unauthorized", 401).unwrap()),
+            AuthError::Forbidden(msg) => Response::error(msg, 403)
+                .unwrap_or_else(|_| Response::error("Forbidden", 403).unwrap()),
             AuthError::InternalError(msg) => Response::error(msg, 500)
                 .unwrap_or_else(|_| Response::error("Internal Server Error", 500).unwrap()),
         }
+    }
+}
+
+/// Checks that the authenticated user has instance-level admin role.
+/// Returns Err(AuthError::Forbidden) if the user is not an admin.
+pub fn require_admin(user_ctx: &UserContext) -> Result<(), AuthError> {
+    if user_ctx.role == "admin" {
+        Ok(())
+    } else {
+        Err(AuthError::Forbidden("Admin access required".to_string()))
     }
 }
 
@@ -128,5 +141,6 @@ pub async fn authenticate_request(
         user_id: session.user_id,
         org_id: session.org_id,
         session_id: claims.session_id,
+        role: claims.role,
     })
 }

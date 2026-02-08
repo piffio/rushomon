@@ -165,12 +165,14 @@ pub async fn handle_oauth_callback(
         &user.id,
         &user.org_id,
         &session_id,
+        &user.role,
         &jwt_secret,
     )?;
     let refresh_token = crate::auth::session::create_refresh_token(
         &user.id,
         &user.org_id,
         &session_id,
+        &user.role,
         &jwt_secret,
     )?;
 
