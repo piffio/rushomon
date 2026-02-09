@@ -86,6 +86,7 @@ jobs:
           [[routes]]
           pattern = "${DOMAIN}"
           custom_domain = true
+          override_existing_dns_record = true
 
           [[d1_databases]]
           binding = "rushomon"
