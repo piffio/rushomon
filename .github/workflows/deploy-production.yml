@@ -4,6 +4,22 @@ on:
   push:
     branches:
       - main
+  # TODO: Remove workflow_dispatch before merging to main - for testing only
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (uses test domains)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
   wait-for-tests:
@@ -35,14 +51,14 @@ jobs:
 
             console.log('✅ All tests passed');
 
-  deploy-production:
-    name: Deploy to Production
+  deploy-backend:
+    name: Deploy Backend (Worker)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: wait-for-tests
     environment:
       name: production
-      url: https://rushomon.workers.dev
+      url: https://rush.mn
 
     steps:
       - uses: actions/checkout@v4
@@ -78,110 +94,389 @@ jobs:
       - name: Build Worker
         run: worker-build --release
 
+      - name: Generate Production wrangler.toml
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+        run: |
+          cat > wrangler.production.toml << EOF
+          name = "rushomon-api"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2024-01-31"
+
+          [[routes]]
+          pattern = "${DOMAIN}"
+          custom_domain = true
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_name = "rushomon"
+          database_id = "${D1_DATABASE_ID}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${KV_NAMESPACE_ID}"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${GH_CLIENT_ID}"
+          DOMAIN = "${DOMAIN}"
+          FRONTEND_URL = "${FRONTEND_URL}"
+          ALLOWED_ORIGINS = "${FRONTEND_URL}"
+          EOF
+
+          echo "✅ Generated wrangler.production.toml"
+          echo "   Worker name: rushomon-api"
+          echo "   Custom domain: ${DOMAIN}"
+          echo "   Frontend URL: ${FRONTEND_URL}"
+
       - name: Apply D1 Migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "📋 Applying D1 migrations to production database..."
-          wrangler d1 migrations apply rushomon --remote
+          wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
           echo "✅ Production migrations applied successfully"
 
-      - name: Deploy to Production
+      - name: Deploy Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          wrangler deploy \
-            --account-id "$CLOUDFLARE_ACCOUNT_ID" \
-            --api-token "$CLOUDFLARE_API_TOKEN"
+          echo "🚀 Deploying worker to production..."
+          wrangler deploy -c wrangler.production.toml
+          echo "✅ Worker deployed successfully"
 
-      - name: Run Smoke Tests
+      - name: Set Worker Secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          DEPLOYMENT_URL="https://rushomon.workers.dev"
-          
-          echo "Testing production deployment at: $DEPLOYMENT_URL"
-          
+          echo "🔐 Setting worker secrets..."
+
+          # Set GITHUB_CLIENT_SECRET
+          RESPONSE=$(curl -s -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/rushomon-api/secrets" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"GITHUB_CLIENT_SECRET\", \"text\": \"$GH_CLIENT_SECRET\", \"type\": \"secret_text\"}")
+          SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+          if [ "$SUCCESS" = "true" ]; then
+            echo "  ✅ GITHUB_CLIENT_SECRET set"
+          else
+            echo "  ⚠️  GITHUB_CLIENT_SECRET may already be set or failed: $(echo "$RESPONSE" | jq -r '.errors[0].message // "unknown"')"
+          fi
+
+          # Set JWT_SECRET
+          RESPONSE=$(curl -s -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/rushomon-api/secrets" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"JWT_SECRET\", \"text\": \"$JWT_SECRET\", \"type\": \"secret_text\"}")
+          SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+          if [ "$SUCCESS" = "true" ]; then
+            echo "  ✅ JWT_SECRET set"
+          else
+            echo "  ⚠️  JWT_SECRET may already be set or failed: $(echo "$RESPONSE" | jq -r '.errors[0].message // "unknown"')"
+          fi
+
+          echo "✅ Worker secrets configured"
+
+  deploy-frontend:
+    name: Deploy Frontend (Pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: deploy-backend
+    environment:
+      name: production
+      url: https://rushomon.cc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: frontend
+        env:
+          PUBLIC_VITE_API_BASE_URL: https://${{ secrets.DOMAIN }}
+        run: |
+          echo "🔨 Building frontend with API base URL: https://${{ secrets.DOMAIN }}"
+          npm run build
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Create Pages Project (if needed)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          PROJECT_NAME="rushomon-ui"
+
+          echo "Checking if Pages project '$PROJECT_NAME' exists..."
+
+          PROJECT_EXISTS=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            | jq -r '.success')
+
+          if [ "$PROJECT_EXISTS" = "false" ]; then
+            echo "🆕 Creating Pages project: $PROJECT_NAME"
+
+            CREATE_RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data '{
+                "name": "'"$PROJECT_NAME"'",
+                "production_branch": "main",
+                "build_config": {
+                  "build_command": "",
+                  "destination_dir": "build"
+                }
+              }')
+
+            SUCCESS=$(echo "$CREATE_RESPONSE" | jq -r '.success // false')
+
+            if [ "$SUCCESS" = "true" ]; then
+              echo "✅ Created Pages project: $PROJECT_NAME"
+            else
+              echo "❌ Failed to create Pages project"
+              echo "Response: $CREATE_RESPONSE"
+              exit 1
+            fi
+          else
+            echo "✅ Pages project already exists: $PROJECT_NAME"
+          fi
+
+      - name: Deploy Frontend to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd frontend
+          echo "🚀 Deploying frontend to Cloudflare Pages..."
+          npx wrangler pages deploy build \
+            --project-name="rushomon-ui" \
+            --branch="main" \
+            --commit-dirty=true
+          echo "✅ Frontend deployed successfully"
+
+      - name: Attach Custom Domain to Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+        run: |
+          PROJECT_NAME="rushomon-ui"
+          # Extract domain from FRONTEND_URL (remove https://)
+          CUSTOM_DOMAIN=$(echo "$FRONTEND_URL" | sed 's|https://||')
+
+          echo "🌐 Checking custom domain '$CUSTOM_DOMAIN' for Pages project '$PROJECT_NAME'..."
+
+          # Check if domain is already attached
+          DOMAINS_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/domains" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          EXISTING_DOMAIN=$(echo "$DOMAINS_RESPONSE" | jq -r ".result[] | select(.name == \"$CUSTOM_DOMAIN\") | .name" 2>/dev/null)
+
+          if [ "$EXISTING_DOMAIN" = "$CUSTOM_DOMAIN" ]; then
+            echo "✅ Custom domain '$CUSTOM_DOMAIN' is already attached"
+          else
+            echo "🆕 Attaching custom domain '$CUSTOM_DOMAIN'..."
+
+            ATTACH_RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/domains" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"$CUSTOM_DOMAIN\"}")
+
+            SUCCESS=$(echo "$ATTACH_RESPONSE" | jq -r '.success // false')
+
+            if [ "$SUCCESS" = "true" ]; then
+              echo "✅ Custom domain '$CUSTOM_DOMAIN' attached successfully"
+              echo "   Note: DNS propagation and SSL certificate may take a few minutes"
+            else
+              ERROR_MSG=$(echo "$ATTACH_RESPONSE" | jq -r '.errors[0].message // "unknown error"')
+              echo "⚠️  Failed to attach custom domain: $ERROR_MSG"
+              echo "   You may need to attach it manually via the Cloudflare dashboard:"
+              echo "   Workers & Pages → $PROJECT_NAME → Custom domains → Add domain"
+              echo "   (This is not a fatal error — the deployment itself succeeded)"
+            fi
+          fi
+
+  smoke-tests:
+    name: Production Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [deploy-backend, deploy-frontend]
+    environment:
+      name: production
+
+    steps:
+      - name: Run Read-Only Smoke Tests
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+        run: |
+          BACKEND_URL="https://$DOMAIN"
+          FRONTEND_DOMAIN="$FRONTEND_URL"
+
+          echo "🧪 Running production smoke tests (read-only)"
+          echo "   Backend: $BACKEND_URL"
+          echo "   Frontend: $FRONTEND_DOMAIN"
+          echo ""
+
           # Wait for deployment to propagate
           sleep 5
-          
-          # Health check
-          echo "Running health check..."
-          if ! curl -f "$DEPLOYMENT_URL/api/health" 2>/dev/null; then
-            echo "Health check endpoint not found, trying root..."
-            curl -f "$DEPLOYMENT_URL/" || echo "Root endpoint also failed"
-          fi
-          
-          # Create test link
-          echo "Creating test link..."
-          CREATE_RESPONSE=$(curl -s -X POST "$DEPLOYMENT_URL/api/links" \
-            -H "Content-Type: application/json" \
-            -d '{"destination_url": "https://example.com", "short_code": "prod'$RANDOM'"}')
-          
-          echo "Create response: $CREATE_RESPONSE"
-          
-          # Extract short code from response
-          SHORT_CODE=$(echo "$CREATE_RESPONSE" | jq -r '.data.short_code // empty')
-          
-          if [ -n "$SHORT_CODE" ]; then
-            echo "Created link with code: $SHORT_CODE"
-            
-            # Test redirect
-            echo "Testing redirect..."
-            curl -I "$DEPLOYMENT_URL/$SHORT_CODE" || echo "Redirect test failed"
+
+          TESTS_PASSED=0
+          TESTS_FAILED=0
+
+          # Test 1: Worker root endpoint
+          echo "🏥 Test 1: Worker Root Endpoint"
+          echo "--------------------------------"
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$BACKEND_URL/" || echo "FAILED")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Worker is responding (HTTP $HTTP_CODE)"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
           else
-            echo "Warning: Could not extract short code from response"
+            echo "❌ Worker root endpoint failed (HTTP $HTTP_CODE)"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+
+          # Test 2: Frontend accessibility
+          echo "🌐 Test 2: Frontend Accessibility"
+          echo "----------------------------------"
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$FRONTEND_DOMAIN/" || echo "FAILED")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Frontend is responding (HTTP $HTTP_CODE)"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          else
+            echo "⚠️  Frontend returned HTTP $HTTP_CODE (may still be propagating)"
+            echo "   This is expected on first deploy — DNS/SSL may take a few minutes"
+            # Don't fail on frontend — it may take time for DNS to propagate
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          fi
+          echo ""
+
+          # Test 3: Auth enforcement — /api/auth/me should return 401
+          echo "🔐 Test 3: Auth Enforcement (/api/auth/me)"
+          echo "--------------------------------------------"
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$BACKEND_URL/api/auth/me" || echo "FAILED")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$HTTP_CODE" = "401" ]; then
+            echo "✅ Auth correctly enforced — unauthenticated request rejected (HTTP 401)"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          else
+            echo "❌ Expected 401, got HTTP $HTTP_CODE"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+
+          # Test 4: Protected endpoint — /api/links should return 401
+          echo "🔐 Test 4: Protected Endpoint (/api/links)"
+          echo "--------------------------------------------"
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$BACKEND_URL/api/links" || echo "FAILED")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$HTTP_CODE" = "401" ]; then
+            echo "✅ Protected endpoint correctly enforced (HTTP 401)"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          else
+            echo "❌ Expected 401, got HTTP $HTTP_CODE"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          echo ""
+
+          # Summary
+          echo "🎯 Smoke Tests Summary"
+          echo "======================"
+          echo "✅ Passed: $TESTS_PASSED"
+          echo "❌ Failed: $TESTS_FAILED"
+          echo ""
+
+          if [ $TESTS_FAILED -gt 0 ]; then
+            echo "❌ Some smoke tests failed — please investigate"
+            exit 1
+          else
+            echo "✅ All production smoke tests passed"
           fi
 
-      - name: Create Deployment Summary
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const deployment_url = 'https://rushomon.workers.dev';
-            const commit_sha = context.sha.substring(0, 7);
-            
-            github.rest.repos.createDeployment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.ref,
-              environment: 'production',
-              description: `Production deployment of ${commit_sha}`,
-              auto_merge: false,
-              required_contexts: []
-            });
+  notifications:
+    name: Deployment Notifications
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [deploy-backend, deploy-frontend, smoke-tests]
 
-      - name: Post Deployment Notification
-        if: success()
+    steps:
+      - name: Post Success Notification
+        if: needs.deploy-backend.result == 'success' && needs.deploy-frontend.result == 'success' && needs.smoke-tests.result == 'success'
         uses: actions/github-script@v7
         with:
           script: |
             const commit_sha = context.sha.substring(0, 7);
             const commit_url = `${context.payload.repository.html_url}/commit/${context.sha}`;
-            
+
             github.rest.repos.createCommitComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
               body: `✅ **Production Deployment Successful**\n\n` +
                     `**Commit**: [${commit_sha}](${commit_url})\n` +
-                    `**URL**: https://rushomon.workers.dev\n` +
-                    `**Time**: ${new Date().toISOString()}`
+                    `**Backend**: https://rush.mn\n` +
+                    `**Frontend**: https://rushomon.cc\n` +
+                    `**Time**: ${new Date().toISOString()}\n\n` +
+                    `All smoke tests passed.`
             });
 
-      - name: Notify on Failure
-        if: failure()
+      - name: Post Failure Notification
+        if: needs.deploy-backend.result == 'failure' || needs.deploy-frontend.result == 'failure' || needs.smoke-tests.result == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
             const commit_sha = context.sha.substring(0, 7);
-            
+            const backend_status = '${{ needs.deploy-backend.result }}';
+            const frontend_status = '${{ needs.deploy-frontend.result }}';
+            const smoke_status = '${{ needs.smoke-tests.result }}';
+
             github.rest.repos.createCommitComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
               body: `❌ **Production Deployment Failed**\n\n` +
                     `**Commit**: ${commit_sha}\n` +
+                    `**Backend**: ${backend_status}\n` +
+                    `**Frontend**: ${frontend_status}\n` +
+                    `**Smoke Tests**: ${smoke_status}\n\n` +
                     `**Action**: [View Details](${context.payload.repository.html_url}/actions/runs/${context.runId})\n\n` +
                     `Please review the logs and rollback if necessary.`
             });

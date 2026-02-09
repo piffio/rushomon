@@ -85,29 +85,33 @@ This directory contains all CI/CD workflows for the Rushomon project.
 - Add code changes if only docs were modified
 
 ### 3. deploy-production.yml
-**Purpose**: Deploy main branch to production
+**Purpose**: Deploy main branch to production with custom domains
 
 **Trigger**:
 - Push to main branch
 
 **Jobs**:
-- Waits for test workflow to pass
-- Requires manual approval (if environment configured)
-- Applies D1 migrations
-- Deploys to production
-- Runs smoke tests
-- Posts deployment notification
+1. `wait-for-tests`: Waits for test workflow to pass
+2. `deploy-backend`: Builds Worker, generates `wrangler.production.toml`, applies D1 migrations to `rushomon`, deploys to `rush.mn`, sets worker secrets
+3. `deploy-frontend`: Builds SvelteKit frontend, deploys to Cloudflare Pages, attaches custom domain `rushomon.cc`
+4. `smoke-tests`: Read-only health checks (no DB/KV mutations)
+5. `notifications`: Commit comments with success/failure status
 
 **Duration**: ~15 minutes
 
-**Status**: Gated by environment protection rules
+**Status**: Gated by `production` environment protection rules
 
 **Key Features**:
 - Waits for tests to pass before deploying
-- Manual approval required (configurable)
-- Automatic D1 migrations
-- Smoke tests verify production
+- Separate backend and frontend deployment jobs
+- Generates `wrangler.production.toml` at deploy time from environment-scoped secrets
+- Custom domain `rush.mn` auto-attached to Worker via `[[routes]]` config
+- Custom domain `rushomon.cc` auto-attached to Pages via Cloudflare API (idempotent)
+- Read-only smoke tests (worker health, frontend accessibility, auth enforcement)
+- No database mutations in production smoke tests
+- Worker secrets set via Cloudflare API
 - Deployment notifications via commit comments
+- Concurrency control prevents overlapping deploys
 
 ### 4. cleanup-ephemeral.yml
 **Purpose**: Clean up ephemeral resources when PR closes
@@ -135,18 +139,34 @@ This directory contains all CI/CD workflows for the Rushomon project.
 
 ## Secrets Required
 
-All workflows require these GitHub Secrets:
+Secrets are scoped to GitHub Environments. Each environment has its own set of secrets with the **same variable names** but different values.
+
+### Ephemeral Environment (`ephemeral`)
 
 | Secret | Purpose |
-|--------|---------|
-| `CLOUDFLARE_API_TOKEN` | Authenticate with Cloudflare API |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
-| `CLOUDFLARE_ZONE_ID` | Cloudflare zone ID (for custom domain) |
-| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app secret |
+|--------|--------|
+| `CLOUDFLARE_API_TOKEN` | Authenticate with Cloudflare API (ephemeral account) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID (ephemeral account) |
+| `WORKERS_DOMAIN` | Workers subdomain for ephemeral deployments |
+| `GH_CLIENT_ID` | GitHub OAuth app client ID |
+| `GH_CLIENT_SECRET` | GitHub OAuth app client secret |
 | `JWT_SECRET` | JWT signing secret (32+ chars) |
 
-See `.github/SETUP_CICD.md` for detailed setup instructions.
+### Production Environment (`production`)
+
+| Secret | Purpose |
+|--------|--------|
+| `CLOUDFLARE_API_TOKEN` | Authenticate with Cloudflare API (production account) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID (production account) |
+| `D1_DATABASE_ID` | Pre-created D1 database ID (`rushomon`) |
+| `KV_NAMESPACE_ID` | Pre-created KV namespace ID |
+| `GH_CLIENT_ID` | GitHub OAuth app client ID (production) |
+| `GH_CLIENT_SECRET` | GitHub OAuth app client secret (production) |
+| `JWT_SECRET` | JWT signing secret (32+ chars) |
+| `DOMAIN` | API/short domain (e.g., `rush.mn`) |
+| `FRONTEND_URL` | Frontend URL (e.g., `https://rushomon.cc`) |
+
+See `docs/SELF_HOSTING.md` for detailed setup instructions.
 
 ## Workflow Execution Flow
 
@@ -210,6 +230,8 @@ See `.github/SETUP_CICD.md` for detailed setup instructions.
   - Frontend: `https://pr-{PR_NUMBER}.rushomon-ui.pages.dev`
   - Backend: `https://rushomon-pr-{PR_NUMBER}.workers.dev`
 - **Production Deployments**: Check commit comments for status
+  - Backend: `https://rush.mn`
+  - Frontend: `https://rushomon.cc`
 
 ## Troubleshooting
 
@@ -220,15 +242,17 @@ See `.github/TROUBLESHOOTING.md` for common issues and solutions.
 Workflows use these environment variables:
 
 | Variable | Source | Used By |
-|----------|--------|---------|
-| `CLOUDFLARE_API_TOKEN` | GitHub Secret | All workflows |
-| `CLOUDFLARE_ACCOUNT_ID` | GitHub Secret | All workflows |
-| `CLOUDFLARE_ZONE_ID` | GitHub Secret | Production deploy |
-| `GITHUB_CLIENT_ID` | GitHub Secret | All deployments |
-| `GITHUB_CLIENT_SECRET` | GitHub Secret | All deployments |
-| `JWT_SECRET` | GitHub Secret | All deployments |
+|----------|--------|--------|
+| `CLOUDFLARE_API_TOKEN` | GitHub Secret (env-scoped) | All workflows |
+| `CLOUDFLARE_ACCOUNT_ID` | GitHub Secret (env-scoped) | All workflows |
+| `D1_DATABASE_ID` | GitHub Secret (production) | Production deploy |
+| `KV_NAMESPACE_ID` | GitHub Secret (production) | Production deploy |
+| `DOMAIN` | GitHub Secret (production) | Production deploy |
+| `FRONTEND_URL` | GitHub Secret (production) | Production deploy |
+| `GH_CLIENT_ID` | GitHub Secret (env-scoped) | All deployments |
+| `GH_CLIENT_SECRET` | GitHub Secret (env-scoped) | All deployments |
+| `JWT_SECRET` | GitHub Secret (env-scoped) | All deployments |
 | `PR_NUMBER` | Computed | Ephemeral/cleanup |
-| `DEPLOYMENT_URL` | Computed | Ephemeral/production |
 
 ## Customization
 
@@ -258,11 +282,11 @@ Add to any workflow:
 ```
 
 ### Disable Production Approval
-Remove from `.github/workflows/deploy-production.yml`:
+Remove the `environment` block from each production job in `.github/workflows/deploy-production.yml`:
 ```yaml
 environment:
   name: production
-  url: https://rushomon.workers.dev
+  url: https://rush.mn
 ```
 
 ## Best Practices
@@ -343,5 +367,6 @@ environment:
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Cloudflare API Documentation](https://developers.cloudflare.com/api/)
 - [Wrangler Documentation](https://developers.cloudflare.com/workers/wrangler/)
+- [Self-Hosting Guide](docs/SELF_HOSTING.md)
 - [Setup Guide](.github/SETUP_CICD.md)
 - [Troubleshooting Guide](.github/TROUBLESHOOTING.md)

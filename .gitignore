@@ -7,6 +7,7 @@ Cargo.lock
 /worker-build
 .wrangler
 wrangler.ephemeral.toml
+wrangler.production.toml
 
 # D1 local database
 .mf

@@ -28,7 +28,7 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 ✅ **Phase 6 Complete**: Analytics collection (on redirects)
 ✅ **Phase 7 Complete**: Minimal frontend with dashboard
 ⏳ **Phase 8 Pending**: Analytics aggregation queries and UI
-⏳ **Phase 9 Pending**: Production deployment
+✅ **Phase 9 Complete**: Production deployment with custom domains
 
 ## Setup Instructions
 
@@ -146,32 +146,23 @@ npm run dev
 
 ### Step 5: Deploy to Production
 
-#### Backend (Rust Worker)
+For a complete self-hosting guide with custom domains, see **[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)**.
+
+For automated CI/CD deployments from the `main` branch, see **[.github/workflows/deploy-production.yml](.github/workflows/deploy-production.yml)**.
+
+#### Quick Manual Deploy
 
 ```bash
-# Deploy the Worker
-wrangler deploy
+# Backend: Build and deploy the Worker
+worker-build --release
+wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
+wrangler deploy -c wrangler.production.toml
 
-# Your Worker will be live at https://rushomon.<your-subdomain>.workers.dev
-# Configure a custom domain in the Cloudflare dashboard
-```
-
-#### Frontend (SvelteKit to Cloudflare Pages)
-
-```bash
-# Navigate to frontend directory
+# Frontend: Build and deploy to Cloudflare Pages
 cd frontend
-
-# Build the static site
-npm run build
-
-# Deploy to Cloudflare Pages
-npx wrangler pages deploy build --project-name=rushomon-ui
-
-# Or connect your GitHub repo to Cloudflare Pages for automatic deployments
-# Build command: npm run build
-# Build output directory: build
-# Environment variable: PUBLIC_VITE_API_BASE_URL=https://yourdomain.com
+npm ci
+PUBLIC_VITE_API_BASE_URL=https://your-api-domain.com npm run build
+npx wrangler pages deploy build --project-name=rushomon-ui --branch=main
 ```
 
 ## API Endpoints
@@ -378,11 +369,12 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 - [x] Admin dashboard with user management
 - [x] Role-based access control (admin/member)
 - [x] Link editing functionality
+- [x] Production deployment with custom domains
+- [x] Self-hosting documentation
 - [x] Admin signup control (disable new signups)
 - [x] Instance settings API and admin UI
 
 ### Planned
-- [ ] Production deployment guide
 - [ ] Organization-level roles
 - [ ] Link analytics detail view
 - [ ] Custom short code validation UI
