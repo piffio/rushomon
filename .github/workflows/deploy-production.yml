@@ -26,31 +26,24 @@ jobs:
   wait-for-tests:
     name: Wait for Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
 
     steps:
-      - name: Check test workflow status
-        uses: actions/github-script@v7
+      - name: Wait for test workflow
+        uses: lewagon/wait-on-check-action@v1.3.4
         with:
-          script: |
-            const { data: runs } = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'test.yml',
-              head_sha: context.sha,
-              status: 'completed'
-            });
+          ref: ${{ github.sha }}
+          check-name: 'unit-tests'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 30
 
-            if (runs.workflow_runs.length === 0) {
-              throw new Error('Test workflow has not completed yet');
-            }
-
-            const testRun = runs.workflow_runs[0];
-            if (testRun.conclusion !== 'success') {
-              throw new Error(`Test workflow failed with conclusion: ${testRun.conclusion}`);
-            }
-
-            console.log('✅ All tests passed');
+      - name: Wait for integration tests
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: 'integration-tests'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 30
 
   deploy-backend:
     name: Deploy Backend (Worker)
