@@ -83,11 +83,6 @@ jobs:
           main = "build/worker/shim.mjs"
           compatibility_date = "2024-01-31"
 
-          [[routes]]
-          pattern = "${DOMAIN}"
-          custom_domain = true
-          override_existing_dns_record = true
-
           [[d1_databases]]
           binding = "rushomon"
           database_name = "rushomon"
@@ -126,6 +121,45 @@ jobs:
           echo "🚀 Deploying worker to production..."
           wrangler deploy -c wrangler.production.toml
           echo "✅ Worker deployed successfully"
+
+      - name: Attach Custom Domain to Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "🌐 Attaching custom domain '$DOMAIN' to worker..."
+
+          # Get the zone ID for the domain
+          ZONE_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/zones?name=$DOMAIN&account.id=$CLOUDFLARE_ACCOUNT_ID" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          ZONE_ID=$(echo "$ZONE_RESPONSE" | jq -r '.result[0].id // empty')
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "⚠️  Could not find zone for '$DOMAIN' — custom domain not attached"
+            echo "   You may need to attach it manually via the Cloudflare dashboard"
+          else
+            echo "   Found zone ID: $ZONE_ID"
+
+            # Attach custom domain via Workers Domains API with override flag
+            RESPONSE=$(curl -s -X PUT \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"hostname\": \"$DOMAIN\", \"service\": \"rushomon-api\", \"zone_id\": \"$ZONE_ID\", \"environment\": \"production\", \"override_existing_dns_record\": true}")
+
+            SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+            if [ "$SUCCESS" = "true" ]; then
+              echo "✅ Custom domain '$DOMAIN' attached successfully"
+            else
+              ERROR_MSG=$(echo "$RESPONSE" | jq -r '.errors[0].message // "unknown error"')
+              echo "⚠️  Failed to attach custom domain: $ERROR_MSG"
+              echo "   You may need to attach it manually via the Cloudflare dashboard:"
+              echo "   Workers & Pages → rushomon-api → Settings → Domains & Routes → Add Custom Domain"
+              echo "   (This is not a fatal error — the deployment itself succeeded)"
+            fi
+          fi
 
       - name: Set Worker Secrets
         env:
