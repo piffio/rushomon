@@ -300,7 +300,18 @@ async fn create_or_get_user(
 
         Ok((updated_user, org))
     } else {
-        // New user - create organization first, then user
+        // New user - check if signups are enabled (first user is always allowed for bootstrapping)
+        let user_count = queries::get_user_count(db).await?;
+        if user_count > 0 {
+            let signups_enabled = queries::get_setting(db, "signups_enabled")
+                .await?
+                .unwrap_or_else(|| "true".to_string());
+            if signups_enabled != "true" {
+                return Err(Error::RustError("SIGNUPS_DISABLED".to_string()));
+            }
+        }
+
+        // Create organization first, then user
         let org_name = format!("{}'s Organization", github_user.login);
         let temp_user_id = uuid::Uuid::new_v4().to_string();
         let org = queries::create_default_org(db, &temp_user_id, &org_name).await?;

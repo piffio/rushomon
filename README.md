@@ -8,7 +8,8 @@ A self-hostable URL shortener built for Cloudflare Workers with Rust (WebAssembl
 - **Custom Short URLs**: User-chosen slugs with random fallback
 - **Analytics**: Detailed click tracking with referrer, geo, and user-agent data
 - **OAuth Authentication**: GitHub OAuth (Google coming soon)
-- **Instance Admin**: First user becomes admin; admin dashboard for user management
+- **Instance Admin**: First user becomes admin; admin dashboard for user management and settings
+- **Signup Control**: Admins can disable new signups to lock down the instance
 - **Multi-tenant Ready**: Organization/team model from day one
 - **Self-hostable**: Run on your own custom domain
 
@@ -200,6 +201,8 @@ npx wrangler pages deploy build --project-name=rushomon-ui
 - `GET /api/admin/users` - List all users (paginated)
 - `GET /api/admin/users/{id}` - Get user details
 - `PUT /api/admin/users/{id}` - Update user role
+- `GET /api/admin/settings` - Get instance settings
+- `PUT /api/admin/settings` - Update an instance setting
 
 ## Development
 
@@ -375,6 +378,8 @@ Future enhancement: Add per-org custom domains with org-prefixed keys.
 - [x] Admin dashboard with user management
 - [x] Role-based access control (admin/member)
 - [x] Link editing functionality
+- [x] Admin signup control (disable new signups)
+- [x] Instance settings API and admin UI
 
 ### Planned
 - [ ] Production deployment guide

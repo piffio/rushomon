@@ -3,7 +3,7 @@ import type { PageLoad } from './$types';
 import { adminApi } from '$lib/api/admin';
 
 export const load: PageLoad = async ({ parent }) => {
-	const parentData = (await parent()) as { user?: any };
+	const parentData = (await parent()) as { user?: any; };
 	const user = parentData.user;
 
 	if (!user) {
@@ -16,19 +16,24 @@ export const load: PageLoad = async ({ parent }) => {
 	}
 
 	try {
-		const usersResponse = await adminApi.listUsers(1, 50);
+		const [usersResponse, settings] = await Promise.all([
+			adminApi.listUsers(1, 50),
+			adminApi.getSettings()
+		]);
 
 		return {
 			user,
 			users: usersResponse.users || [],
-			total: usersResponse.total || 0
+			total: usersResponse.total || 0,
+			settings: settings || {}
 		};
 	} catch (error) {
-		console.error('Failed to fetch users:', error);
+		console.error('Failed to fetch admin data:', error);
 		return {
 			user,
 			users: [],
-			total: 0
+			total: 0,
+			settings: {}
 		};
 	}
 };
