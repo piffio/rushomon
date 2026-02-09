@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feat/13-setup-e-to-e-production-environment-and-cicd-with-dedicated-domains
   # TODO: Remove workflow_dispatch before merging to main - for testing only
   workflow_dispatch:
     inputs:
