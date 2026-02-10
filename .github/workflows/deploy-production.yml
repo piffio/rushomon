@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -350,20 +350,18 @@ jobs:
           fi
           echo ""
 
-          # Test 2: Frontend accessibility
-          echo "🌐 Test 2: Frontend Accessibility"
+          # Test 2: Frontend homepage
+          echo "🌐 Test 2: Frontend Homepage"
           echo "----------------------------------"
           RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$FRONTEND_DOMAIN/" || echo "FAILED")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1 | cut -d: -f2)
 
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Frontend is responding (HTTP $HTTP_CODE)"
+            echo "✅ Frontend homepage is responding (HTTP $HTTP_CODE)"
             TESTS_PASSED=$((TESTS_PASSED + 1))
           else
-            echo "⚠️  Frontend returned HTTP $HTTP_CODE (may still be propagating)"
-            echo "   This is expected on first deploy — DNS/SSL may take a few minutes"
-            # Don't fail on frontend — it may take time for DNS to propagate
-            TESTS_PASSED=$((TESTS_PASSED + 1))
+            echo "❌ Frontend homepage failed (HTTP $HTTP_CODE)"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
           fi
           echo ""
 
@@ -410,55 +408,3 @@ jobs:
           else
             echo "✅ All production smoke tests passed"
           fi
-
-  notifications:
-    name: Deployment Notifications
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [deploy-backend, deploy-frontend, smoke-tests]
-
-    steps:
-      - name: Post Success Notification
-        if: needs.deploy-backend.result == 'success' && needs.deploy-frontend.result == 'success' && needs.smoke-tests.result == 'success'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.workflow_run?.head_sha || context.sha;
-            const commit_sha = sha.substring(0, 7);
-            const commit_url = `${context.payload.repository.html_url}/commit/${sha}`;
-
-            github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: sha,
-              body: `✅ **Production Deployment Successful**\n\n` +
-                    `**Commit**: [${commit_sha}](${commit_url})\n` +
-                    `**Backend**: https://rush.mn\n` +
-                    `**Frontend**: https://rushomon.cc\n` +
-                    `**Time**: ${new Date().toISOString()}\n\n` +
-                    `All smoke tests passed.`
-            });
-
-      - name: Post Failure Notification
-        if: needs.deploy-backend.result == 'failure' || needs.deploy-frontend.result == 'failure' || needs.smoke-tests.result == 'failure'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.workflow_run?.head_sha || context.sha;
-            const commit_sha = sha.substring(0, 7);
-            const backend_status = '${{ needs.deploy-backend.result }}';
-            const frontend_status = '${{ needs.deploy-frontend.result }}';
-            const smoke_status = '${{ needs.smoke-tests.result }}';
-
-            github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: sha,
-              body: `❌ **Production Deployment Failed**\n\n` +
-                    `**Commit**: ${commit_sha}\n` +
-                    `**Backend**: ${backend_status}\n` +
-                    `**Frontend**: ${frontend_status}\n` +
-                    `**Smoke Tests**: ${smoke_status}\n\n` +
-                    `**Action**: [View Details](${context.payload.repository.html_url}/actions/runs/${context.runId})\n\n` +
-                    `Please review the logs and rollback if necessary.`
-            });
