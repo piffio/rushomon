@@ -7,10 +7,6 @@ on:
       - completed
     branches:
       - main
-  # TODO: Remove push trigger and workflow_dispatch before merging to main - for testing only
-  push:
-    branches:
-      - feat/13-setup-e-to-e-production-environment-and-cicd-with-dedicated-domains
   workflow_dispatch:
 
 permissions:

@@ -91,11 +91,9 @@ This directory contains all CI/CD workflows for the Rushomon project.
 - Push to main branch
 
 **Jobs**:
-1. `wait-for-tests`: Waits for test workflow to pass
-2. `deploy-backend`: Builds Worker, generates `wrangler.production.toml`, applies D1 migrations to `rushomon`, deploys to `rush.mn`, sets worker secrets
-3. `deploy-frontend`: Builds SvelteKit frontend, deploys to Cloudflare Pages, attaches custom domain `rushomon.cc`
-4. `smoke-tests`: Read-only health checks (no DB/KV mutations)
-5. `notifications`: Commit comments with success/failure status
+1. `deploy-backend`: Builds Worker, generates `wrangler.production.toml`, applies D1 migrations to `rushomon`, deploys to `rush.mn`, sets worker secrets
+2. `deploy-frontend`: Builds SvelteKit frontend, deploys to Cloudflare Pages, attaches custom domain `rushomon.cc`
+3. `smoke-tests`: Read-only health checks — worker root, frontend homepage, auth enforcement (no DB/KV mutations)
 
 **Duration**: ~15 minutes
 
@@ -107,10 +105,9 @@ This directory contains all CI/CD workflows for the Rushomon project.
 - Generates `wrangler.production.toml` at deploy time from environment-scoped secrets
 - Custom domain `rush.mn` auto-attached to Worker via `[[routes]]` config
 - Custom domain `rushomon.cc` auto-attached to Pages via Cloudflare API (idempotent)
-- Read-only smoke tests (worker health, frontend accessibility, auth enforcement)
+- Read-only smoke tests (worker health, frontend homepage, auth enforcement)
 - No database mutations in production smoke tests
 - Worker secrets set via Cloudflare API
-- Deployment notifications via commit comments
 - Concurrency control prevents overlapping deploys
 
 ### 4. cleanup-ephemeral.yml
@@ -229,7 +226,7 @@ See `docs/SELF_HOSTING.md` for detailed setup instructions.
 - **PR Deployments**: Check PR comments for:
   - Frontend: `https://pr-{PR_NUMBER}.rushomon-ui.pages.dev`
   - Backend: `https://rushomon-pr-{PR_NUMBER}.workers.dev`
-- **Production Deployments**: Check commit comments for status
+- **Production Deployments**:
   - Backend: `https://rush.mn`
   - Frontend: `https://rushomon.cc`
 

@@ -102,6 +102,8 @@ If you want to have the configuration versioned, then you'll want to add the rel
 name = "rushomon-api"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-01-31"
+workers_dev = false
+preview_urls = false
 
 # Custom domain — routes all traffic on your short domain to this Worker
 [[routes]]
@@ -164,6 +166,12 @@ worker-build --release
 ```bash
 wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
 ```
+
+### Clear Conflicting DNS Records
+
+Before deploying, delete any existing A, AAAA, or CNAME records on your short domain's apex in the Cloudflare DNS dashboard. The Worker custom domain needs to create its own DNS record and will fail if conflicting records exist.
+
+> **Note**: This is only needed on the first deploy. Subsequent deploys will reuse the existing Worker custom domain record.
 
 ### Deploy
 
