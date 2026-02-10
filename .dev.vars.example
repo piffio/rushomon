@@ -1,0 +1,29 @@
+# Development Environment Variables Template
+# ==========================================
+#
+# This file serves as a template for local development configuration.
+#
+# IMPORTANT SECURITY WARNINGS:
+# - NEVER commit your actual .dev.vars file to version control
+# - .dev.vars is in .gitignore for security reasons
+# - These are DEVELOPMENT credentials only - use different values for production
+# - Production secrets should be set via: wrangler secret put SECRET_NAME
+#
+# Setup Instructions:
+# 1. Copy this file to .dev.vars: cp .dev.vars.example .dev.vars
+# 2. Replace all placeholder values with your actual development credentials
+# 3. Never share your .dev.vars file or commit it to git
+#
+
+# GitHub OAuth Configuration
+# Create a separate OAuth app for development at: https://github.com/settings/developers
+# Use callback URL: http://localhost:8787/api/auth/callback
+GITHUB_CLIENT_ID=your-dev-github-client-id-here
+GITHUB_CLIENT_SECRET=your-dev-github-client-secret-here
+
+# JWT Secret for Token Signing
+# Generate a secure random string (minimum 32 characters):
+#   openssl rand -base64 32
+# OR:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+JWT_SECRET=your-dev-jwt-secret-minimum-32-characters-here

@@ -1,0 +1,20 @@
+Contact: mailto:security@rushomon.cc
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: en
+Canonical: https://rushomon.cc/.well-known/security.txt
+Policy: https://github.com/piffio/rushomon/blob/main/SECURITY.md
+Acknowledgments: https://github.com/piffio/rushomon/blob/main/SECURITY.md#responsible-disclosure
+
+# Rushomon URL Shortener Security Contact
+#
+# If you discover a security vulnerability, please report it via:
+# - Email: security@rushomon.cc
+# - GitHub Security Advisory (preferred for detailed reports)
+#
+# Please do NOT open public issues for security vulnerabilities.
+#
+# We aim to respond within 48 hours and will work with you to
+# understand and address the issue promptly.
+#
+# For more information, see our security policy:
+# https://github.com/piffio/rushomon/blob/main/SECURITY.md

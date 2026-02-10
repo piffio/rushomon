@@ -34,15 +34,26 @@ pub fn require_admin(user_ctx: &UserContext) -> Result<(), AuthError> {
 /// Authenticates a request by validating JWT and loading session from KV
 /// Returns Ok(UserContext) on success, or Err(AuthError) which can be converted to a proper HTTP response
 ///
-/// Supports two authentication methods:
-/// 1. Authorization: Bearer <token> header (for cross-domain, uses access tokens)
-/// 2. Cookie: rushomon_session=<token> (for same-origin, backward compatible)
+/// Supports three authentication methods (in priority order):
+/// 1. Cookie: rushomon_access=<token> (NEW - httpOnly access token cookie)
+/// 2. Authorization: Bearer <token> header (backward compatible for cross-domain)
+/// 3. Cookie: rushomon_session=<token> (legacy - backward compatible)
 pub async fn authenticate_request(
     req: &Request,
     ctx: &RouteContext<()>,
 ) -> Result<UserContext, AuthError> {
-    // Try Authorization header first (for cross-domain with access tokens)
-    let jwt = if let Ok(Some(auth_header)) = req.headers().get("Authorization") {
+    // Try access token cookie first (NEW secure method)
+    let jwt = if let Ok(Some(cookie_header)) = req.headers().get("Cookie") {
+        use crate::auth::session::parse_access_cookie_header;
+        parse_access_cookie_header(&cookie_header)
+    } else {
+        None
+    };
+
+    // Fallback to Authorization header (backward compatible)
+    let jwt = if let Some(token) = jwt {
+        Some(token)
+    } else if let Ok(Some(auth_header)) = req.headers().get("Authorization") {
         auth_header
             .strip_prefix("Bearer ")
             .map(|token| token.to_string())
@@ -50,7 +61,7 @@ pub async fn authenticate_request(
         None
     };
 
-    // Fallback to cookie (for same-origin/local dev, backward compatible)
+    // Fallback to legacy session cookie (backward compatible)
     let jwt = if let Some(token) = jwt {
         token
     } else {
@@ -96,16 +107,13 @@ pub async fn authenticate_request(
         }
     };
 
-    // Verify it's an access token (refresh tokens cannot be used for API access)
-    // For backward compatibility, also accept tokens without token_type field (legacy tokens)
-    if !claims.token_type.is_empty()
-        && claims.token_type != "access"
-        && claims.token_type != "refresh"
-    {
-        return Err(AuthError::Unauthorized("Invalid token type".to_string()));
+    // STRICT: Only access tokens allowed for general API access
+    // Refresh tokens are long-lived (7 days) and should ONLY be used for token refresh endpoint
+    if claims.token_type != "access" {
+        return Err(AuthError::Unauthorized(
+            "Invalid token type - use access token".to_string(),
+        ));
     }
-    // Note: We allow "refresh" type for backward compatibility with existing sessions
-    // In production, you might want to strictly enforce "access" type only
 
     // Load session from KV
     // Load session from KV
@@ -132,8 +140,8 @@ pub async fn authenticate_request(
         }
     };
 
-    // Verify user_id matches
-    if session.user_id != claims.sub {
+    // Verify user_id matches (constant-time comparison to prevent timing attacks)
+    if !crate::utils::secure_compare(&session.user_id, &claims.sub) {
         return Err(AuthError::Unauthorized("Session mismatch".to_string()));
     }
 

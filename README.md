@@ -77,7 +77,18 @@ wrangler d1 migrations apply rushomon --remote
 
 ### Step 3: Configure Environment
 
-1. Update `wrangler.toml`:
+⚠️ **SECURITY WARNING**: Never commit secrets to version control. This repository includes `.dev.vars` in `.gitignore` to prevent accidental exposure.
+
+1. **Set up local development environment**:
+   ```bash
+   # Copy the example file
+   cp .dev.vars.example .dev.vars
+
+   # Edit .dev.vars and replace placeholder values with your development credentials
+   # Use DIFFERENT credentials than production!
+   ```
+
+2. Update `wrangler.toml`:
    - Replace `your-kv-namespace-id-here` with KV namespace ID
    - Replace `your-preview-kv-id-here` with preview KV namespace ID
    - Replace `your-database-id-here` with D1 database ID
@@ -85,22 +96,36 @@ wrangler d1 migrations apply rushomon --remote
    - Update `ALLOWED_ORIGINS` with your frontend URLs (comma-separated)
    - Update `EPHEMERAL_ORIGIN_PATTERN` if using different domain for ephemeral environments
 
-2. Set up GitHub OAuth App:
+3. **Set up GitHub OAuth App** (create separate apps for dev and production):
+
+   **For Development:**
    - Go to GitHub Settings → Developer settings → OAuth Apps → New OAuth App
+   - Application name: "Rushomon URL Shortener (Dev)"
+   - Homepage URL: `http://localhost:5173`
+   - Authorization callback URL: `http://localhost:8787/api/auth/callback`
+   - Save Client ID and Client Secret to `.dev.vars`
+
+   **For Production:**
+   - Create a NEW OAuth App (do not reuse development app)
    - Application name: "Rushomon URL Shortener"
    - Homepage URL: `https://yourdomain.com`
    - Authorization callback URL: `https://yourdomain.com/api/auth/callback`
-   - Save Client ID and generate Client Secret
-   - Update `GITHUB_CLIENT_ID` in `wrangler.toml`
+   - Store secrets via Wrangler (see below)
 
-3. Store secrets:
-```bash
-# Store GitHub OAuth client secret
-wrangler secret put GITHUB_CLIENT_SECRET
+4. **Store production secrets** (NEVER in wrangler.toml):
+   ```bash
+   # Store GitHub OAuth client secret
+   wrangler secret put GITHUB_CLIENT_SECRET
 
-# Generate and store JWT secret (use a random 32+ character string)
-wrangler secret put JWT_SECRET
-```
+   # Generate and store JWT secret (minimum 32 characters required)
+   # Generate secure random string:
+   openssl rand -base64 32
+
+   # Store it:
+   wrangler secret put JWT_SECRET
+   ```
+
+   🔒 **Important**: Production secrets are stored via Cloudflare Workers Secrets API and are never visible in your codebase or dashboard.
 
 ### Step 4: Local Development
 

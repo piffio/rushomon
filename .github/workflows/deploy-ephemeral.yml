@@ -200,8 +200,6 @@ jobs:
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
-          GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
-          JWT_SECRET = "${{ secrets.JWT_SECRET }}"
           DOMAIN = "rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           FRONTEND_URL = "https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
           ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
@@ -227,6 +225,23 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           wrangler deploy -c wrangler.ephemeral.toml
+
+      - name: Set Ephemeral Worker Secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          # Set secrets using wrangler (more reliable than direct API calls)
+          echo "Setting GITHUB_CLIENT_SECRET..."
+          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml
+
+          echo "Setting JWT_SECRET..."
+          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.ephemeral.toml
+
+          echo "Secrets set successfully for ephemeral worker"
 
       - name: Install Frontend Dependencies
         working-directory: frontend

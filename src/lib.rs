@@ -4,6 +4,7 @@ mod api;
 pub mod auth;
 mod db;
 mod kv;
+mod middleware;
 mod models;
 mod router;
 mod utils;
@@ -21,7 +22,9 @@ fn is_allowed_origin(origin: &str, env: &Env) -> bool {
         }
     }
 
-    // Fallback: Allow local development if no env var set
+    // Fallback: Allow local development ONLY in debug builds
+    // In production (release builds), localhost is NOT allowed for security
+    #[cfg(debug_assertions)]
     if origin == "http://localhost:5173" || origin == "http://localhost:5174" {
         return true;
     }
@@ -46,6 +49,47 @@ fn is_allowed_origin(origin: &str, env: &Env) -> bool {
     }
 
     false
+}
+
+/// Add security headers to all responses
+///
+/// Security headers applied:
+/// - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
+/// - X-Frame-Options: DENY - Prevents clickjacking attacks
+/// - X-XSS-Protection: 0 - Disables legacy XSS filter (modern CSP preferred)
+/// - Strict-Transport-Security: Forces HTTPS (production only)
+/// - Referrer-Policy: Controls referrer information leakage
+/// - Permissions-Policy: Restricts access to browser features
+fn add_security_headers(mut response: Response, is_https: bool) -> Response {
+    let headers = response.headers_mut();
+
+    // Prevent MIME type sniffing
+    let _ = headers.set("X-Content-Type-Options", "nosniff");
+
+    // Prevent clickjacking
+    let _ = headers.set("X-Frame-Options", "DENY");
+
+    // Disable legacy XSS filter (CSP is better)
+    let _ = headers.set("X-XSS-Protection", "0");
+
+    // Force HTTPS for all future requests (only in production)
+    if is_https {
+        let _ = headers.set(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        );
+    }
+
+    // Control referrer information
+    let _ = headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+
+    // Restrict dangerous browser features
+    let _ = headers.set(
+        "Permissions-Policy",
+        "geolocation=(), microphone=(), camera=()",
+    );
+
+    response
 }
 
 /// Add CORS headers to a response based on the request origin
@@ -81,8 +125,9 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     // Set up panic hook for better error messages
     console_error_panic_hook::set_once();
 
-    // Extract origin for CORS (before router consumes request)
+    // Extract origin and URL scheme for CORS and security headers (before router consumes request)
     let origin = req.headers().get("Origin").ok().flatten();
+    let is_https = req.url().map(|u| u.scheme() == "https").unwrap_or(false);
 
     // Create router
     let router = Router::new();
@@ -149,6 +194,7 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .run(req, env.clone())
         .await?;
 
-    // Add CORS headers to all responses
+    // Add security headers and CORS headers to all responses
+    let response = add_security_headers(response, is_https);
     Ok(add_cors_headers(response, origin, &env))
 }

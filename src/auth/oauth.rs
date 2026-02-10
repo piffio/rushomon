@@ -117,7 +117,22 @@ pub async fn handle_oauth_callback(
     let key = format!("oauth_state:{}", state);
     let stored_state = kv.get(&key).text().await?;
 
-    if stored_state.is_none() {
+    // Verify state exists and parse it
+    let stored_state_value = match stored_state {
+        Some(value) => value,
+        None => {
+            return Err(Error::RustError(
+                "Invalid or expired OAuth state".to_string(),
+            ));
+        }
+    };
+
+    // Parse stored state data
+    let state_data: OAuthState = serde_json::from_str(&stored_state_value)
+        .map_err(|e| Error::RustError(format!("Failed to parse OAuth state: {}", e)))?;
+
+    // Constant-time comparison to prevent timing attacks on OAuth state
+    if !crate::utils::secure_compare(&state_data.state, &state) {
         return Err(Error::RustError(
             "Invalid or expired OAuth state".to_string(),
         ));
@@ -157,7 +172,10 @@ pub async fn handle_oauth_callback(
     // Create or get user
     let (user, org) = create_or_get_user(db, github_user).await?;
 
-    // Generate access token (1 hour) and refresh token (7 days)
+    // SECURITY: Generate session ID AFTER all validation completes successfully
+    // This prevents session fixation attacks where an attacker could predict
+    // or influence the session ID before authentication is confirmed.
+    // Session ID generation must be the last step before token creation.
     let session_id = uuid::Uuid::new_v4().to_string();
     let jwt_secret = env.secret("JWT_SECRET")?.to_string();
 

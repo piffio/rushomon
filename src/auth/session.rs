@@ -10,6 +10,7 @@ use worker::{Error, Result, kv::KvStore};
 const SESSION_TTL_SECONDS: u64 = 604800; // 7 days
 const ACCESS_TOKEN_TTL_SECONDS: u64 = 3600; // 1 hour
 const REFRESH_TOKEN_TTL_SECONDS: u64 = 604800; // 7 days
+const MIN_JWT_SECRET_LENGTH: usize = 32; // Minimum 32 characters for security
 
 /// Token type for distinguishing between access and refresh tokens
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +80,27 @@ pub fn create_jwt(
     )
 }
 
+/// Validates that the JWT secret meets minimum security requirements
+///
+/// # Security Requirements
+///
+/// - Minimum length: 32 characters (256 bits of entropy recommended)
+/// - This is enforced to prevent brute-force attacks on JWT signatures
+///
+/// # Errors
+///
+/// Returns an error if the secret is too short, with instructions for generating a secure secret
+pub fn validate_jwt_secret(secret: &str) -> Result<()> {
+    if secret.len() < MIN_JWT_SECRET_LENGTH {
+        return Err(Error::RustError(format!(
+            "JWT_SECRET must be at least {} characters (got {}). Generate a secure secret with: openssl rand -base64 32",
+            MIN_JWT_SECRET_LENGTH,
+            secret.len()
+        )));
+    }
+    Ok(())
+}
+
 /// Creates a JWT token with a specific token type (access or refresh)
 pub fn create_jwt_with_type(
     user_id: &str,
@@ -88,6 +110,9 @@ pub fn create_jwt_with_type(
     secret: &str,
     token_type: TokenType,
 ) -> Result<String> {
+    // Validate secret length on first use
+    validate_jwt_secret(secret)?;
+
     let key = Hs256Key::new(secret.as_bytes());
     let header = Header::empty();
     let time_options = TimeOptions::default();
@@ -194,6 +219,35 @@ pub fn parse_cookie_header(cookie_header: &str) -> Option<String> {
 /// Creates a logout cookie that expires immediately
 pub fn create_logout_cookie() -> String {
     "rushomon_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0".to_string()
+}
+
+/// Creates an access token cookie (httpOnly for security)
+pub fn create_access_cookie(jwt: &str) -> String {
+    create_access_cookie_with_scheme(jwt, "https")
+}
+
+/// Creates an access token cookie with specified scheme
+pub fn create_access_cookie_with_scheme(jwt: &str, scheme: &str) -> String {
+    let secure_part = if scheme == "https" { " Secure;" } else { "" };
+    format!(
+        "rushomon_access={}; HttpOnly;{} SameSite=Lax; Path=/; Max-Age={}",
+        jwt, secure_part, ACCESS_TOKEN_TTL_SECONDS
+    )
+}
+
+/// Parses the Cookie header and extracts the access token
+pub fn parse_access_cookie_header(cookie_header: &str) -> Option<String> {
+    cookie_header.split(';').find_map(|cookie| {
+        let cookie = cookie.trim();
+        cookie
+            .strip_prefix("rushomon_access=")
+            .map(|value| value.to_string())
+    })
+}
+
+/// Creates a logout cookie for access token that expires immediately
+pub fn create_access_logout_cookie() -> String {
+    "rushomon_access=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0".to_string()
 }
 
 /// Creates a refresh token cookie (httpOnly for security)
