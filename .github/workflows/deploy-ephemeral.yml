@@ -204,6 +204,9 @@ jobs:
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
           DOMAIN = "rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           FRONTEND_URL = "https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
