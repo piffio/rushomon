@@ -154,7 +154,8 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     // Short codes (like /abc123) should continue to router for redirect handling
 
                     // If path has multiple segments or looks like a frontend route, serve index.html
-                    let path_segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+                    let path_segments: Vec<&str> =
+                        path.trim_start_matches('/').split('/').collect();
                     let is_likely_frontend_route = path_segments.len() > 1
                         || path.starts_with("/dashboard")
                         || path.starts_with("/auth")
@@ -162,10 +163,15 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
                     if is_likely_frontend_route {
                         // Serve index.html as SPA fallback
-                        let fallback_url = format!("{}://{}/index.html", url.scheme(), url.host_str().unwrap_or(""));
+                        let fallback_url = format!(
+                            "{}://{}/index.html",
+                            url.scheme(),
+                            url.host_str().unwrap_or("")
+                        );
                         match assets.fetch(fallback_url, None).await {
                             Ok(fallback_response) => {
-                                let response_with_headers = add_security_headers(fallback_response, is_https);
+                                let response_with_headers =
+                                    add_security_headers(fallback_response, is_https);
                                 return Ok(add_cors_headers(response_with_headers, origin, &env));
                             }
                             Err(_) => {
