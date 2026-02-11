@@ -107,7 +107,7 @@ Create a file called `wrangler.production.toml` in the project root. This file c
 ```toml
 name = "rushomon-api"
 main = "build/worker/shim.mjs"
-compatibility_date = "2024-01-31"
+compatibility_date = "2026-02-11"
 workers_dev = false
 preview_urls = false
 
