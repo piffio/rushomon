@@ -222,6 +222,16 @@ jobs:
           # Apply migrations using environment variables
           wrangler d1 migrations apply rushomon --remote -c wrangler.ephemeral.toml
 
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Frontend for Unified Worker
+        working-directory: frontend
+        env:
+          PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
+        run: npm run build
+
       - name: Deploy to Ephemeral Environment
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -246,16 +256,6 @@ jobs:
           echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.ephemeral.toml
 
           echo "Secrets set successfully for ephemeral worker"
-
-      - name: Install Frontend Dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build Frontend for Unified Worker
-        working-directory: frontend
-        env:
-          PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
-        run: npm run build
 
       - name: Setup Test Data
         env:
