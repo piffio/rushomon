@@ -129,6 +129,31 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let origin = req.headers().get("Origin").ok().flatten();
     let is_https = req.url().map(|u| u.scheme() == "https").unwrap_or(false);
 
+    // Try to serve static assets first (for ephemeral unified Worker deployment)
+    // This only works when ASSETS binding is present (ephemeral environment)
+    let url = req.url()?;
+    let path = url.path();
+
+    // If not an API route and ASSETS binding exists, try to serve static file
+    if !path.starts_with("/api/") {
+        // Check if ASSETS binding exists (only in ephemeral unified deployments)
+        if let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS") {
+            // Try to serve the request from static assets
+            // Fetch expects a URL string, not a Request object
+            let asset_url = url.to_string();
+            match assets.fetch(asset_url, None).await {
+                Ok(asset_response) => {
+                    // Static asset found, return it with security headers
+                    let response_with_headers = add_security_headers(asset_response, is_https);
+                    return Ok(add_cors_headers(response_with_headers, origin, &env));
+                }
+                Err(_) => {
+                    // Asset not found, continue to router (might be a short code redirect)
+                }
+            }
+        }
+    }
+
     // Create router
     let router = Router::new();
 
