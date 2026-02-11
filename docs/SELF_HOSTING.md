@@ -76,6 +76,8 @@ Find your Account ID in the Cloudflare dashboard: click on any zone → **Overvi
 
 ## Step 3: Create GitHub OAuth App
 
+🔒 **SECURITY NOTE**: Create separate OAuth apps for development and production environments. Never reuse development credentials in production.
+
 Rushomon uses GitHub OAuth for authentication. You need to create an OAuth App:
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
@@ -88,20 +90,24 @@ Rushomon uses GitHub OAuth for authentication. You need to create an OAuth App:
 5. Save the **Client ID**
 6. Click **Generate a new client secret** and save the **Client Secret**
 
-> **Important**: The callback URL must use your API/short domain, not the frontend domain.
+> **Important**:
+> - The callback URL must use your API/short domain, not the frontend domain
+> - Never commit OAuth secrets to version control
+> - Use different OAuth apps for development (`http://localhost:8787/api/auth/callback`) and production
+> - Store production secrets via `wrangler secret put` (see Step 5)
 
 ---
 
 ## Step 4: Create Production Wrangler Configuration
 
-Create a file called `wrangler.production.toml` in the project root.
-Important: this file will include sensitive data, do not commit it to version control.
-If you want to have the configuration versioned, then you'll want to add the relevant secrets to your CI/CD pipeline.
+⚠️ **SECURITY WARNING**: This file contains configuration data but should NOT contain secrets. Secrets are stored separately via `wrangler secret put` (see Step 5).
+
+Create a file called `wrangler.production.toml` in the project root. This file can be committed to version control as long as you follow Step 5 correctly.
 
 ```toml
 name = "rushomon-api"
 main = "build/worker/shim.mjs"
-compatibility_date = "2024-01-31"
+compatibility_date = "2026-02-11"
 workers_dev = false
 preview_urls = false
 
@@ -140,16 +146,30 @@ Replace the placeholder values:
 
 ## Step 5: Set Worker Secrets
 
-Set these secrets in your Cloudflare account. In case you're setting up automated deployment, you can add them to your CI/CD pipeline.
+🔒 **CRITICAL SECURITY STEP**: Secrets must be stored via Cloudflare Workers Secrets API, NOT in wrangler.toml files.
+
+Set these secrets in your Cloudflare account:
 
 ```bash
 # GitHub OAuth client secret (from Step 3)
 wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.production.toml
 
-# JWT signing secret (generate a random 32+ character string)
-# Example: openssl rand -hex 32
+# JWT signing secret (MUST be at least 32 characters)
+# Generate a secure random string:
+openssl rand -base64 32
+
+# Then store it:
 wrangler secret put JWT_SECRET -c wrangler.production.toml
 ```
+
+**Security Requirements**:
+- JWT_SECRET must be at least 32 characters (enforced by application)
+- Never commit secrets to version control
+- Never embed secrets in environment variables (use Workers Secrets API)
+- Use different secrets for development and production
+- Store secrets securely (password manager recommended)
+
+**For CI/CD**: Add secrets as GitHub Secrets and use `wrangler secret put` in your deployment workflow.
 
 ---
 

@@ -1,6 +1,7 @@
 use crate::auth;
 use crate::db;
 use crate::kv;
+use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
     Link,
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
@@ -9,6 +10,30 @@ use crate::utils::{generate_short_code, now_timestamp, validate_short_code, vali
 use worker::d1::D1Database;
 use worker::*;
 
+/// Extract client IP from Cloudflare headers
+fn get_client_ip(req: &Request) -> String {
+    // Try CF-Connecting-IP first (most reliable with Cloudflare)
+    if let Ok(Some(ip)) = req.headers().get("CF-Connecting-IP") {
+        return ip;
+    }
+
+    // Fallback to X-Forwarded-For
+    if let Ok(Some(forwarded)) = req.headers().get("X-Forwarded-For") {
+        // Take first IP in the list
+        if let Some(ip) = forwarded.split(',').next() {
+            return ip.trim().to_string();
+        }
+    }
+
+    // Fallback to X-Real-IP
+    if let Ok(Some(ip)) = req.headers().get("X-Real-IP") {
+        return ip;
+    }
+
+    // Last resort: use a placeholder (should never happen with Cloudflare)
+    "unknown".to_string()
+}
+
 /// Handle public short code redirects: GET /{short_code}
 pub async fn handle_redirect(
     req: Request,
@@ -16,6 +41,21 @@ pub async fn handle_redirect(
     short_code: String,
 ) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
+
+    // Rate limiting: 100 requests per minute per IP
+    let client_ip = get_client_ip(&req);
+    let rate_limit_key = RateLimiter::ip_key("redirect", &client_ip);
+    let rate_limit_config = RateLimitConfig::redirect();
+
+    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        return Ok(response);
+    }
 
     // Look up the link mapping in KV
     let mapping = kv::get_link_mapping(&kv, &short_code).await?;
@@ -100,6 +140,25 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
     let user_id = &user_ctx.user_id;
     let org_id = &user_ctx.org_id;
+
+    // Rate limiting: 20 link creations per hour per user
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let rate_limit_key = RateLimiter::user_key("create_link", user_id);
+    let rate_limit_config = RateLimitConfig::link_creation();
+
+    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        response.headers_mut().set(
+            "X-RateLimit-Limit",
+            &rate_limit_config.max_requests.to_string(),
+        )?;
+        return Ok(response);
+    }
 
     // Parse request body with proper error handling
     let raw_body: serde_json::Value = match req.json().await {
@@ -235,7 +294,8 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
                 .and_then(|s| s.split('=').nth(1))
                 .and_then(|s| s.parse().ok())
         })
-        .unwrap_or(20);
+        .unwrap_or(20)
+        .min(100); // Cap at 100 items per page to prevent DoS via unbounded queries
 
     let offset = (page - 1) * limit;
 
@@ -443,20 +503,21 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
         "https"
     };
 
-    // Redirect to frontend with access token in URL (frontend stores in localStorage)
-    let redirect_url = format!(
-        "{}/auth/callback?token={}",
-        frontend_url, tokens.access_token
-    );
-
-    // Set refresh token as httpOnly cookie
+    // Set both access and refresh tokens as httpOnly cookies (no token in URL)
+    let access_cookie =
+        auth::session::create_access_cookie_with_scheme(&tokens.access_token, scheme);
     let refresh_cookie =
         auth::session::create_refresh_cookie_with_scheme(&tokens.refresh_token, scheme);
 
-    // Build redirect response with refresh cookie
+    // Redirect to frontend WITHOUT token in URL (cookies set automatically)
+    let redirect_url = format!("{}/auth/callback", frontend_url);
+
+    // Build redirect response with both cookies
     let headers = Headers::new();
     headers.set("Location", &redirect_url)?;
-    headers.set("Set-Cookie", &refresh_cookie)?;
+    // Note: Multiple Set-Cookie headers need to be appended separately
+    headers.append("Set-Cookie", &access_cookie)?;
+    headers.append("Set-Cookie", &refresh_cookie)?;
 
     Ok(Response::empty()?.with_status(302).with_headers(headers))
 }
@@ -537,10 +598,26 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         &jwt_secret,
     )?;
 
-    // Return new access token as JSON
-    Response::from_json(&serde_json::json!({
-        "access_token": new_access_token
-    }))
+    // Determine scheme for cookie (secure flag)
+    let domain = ctx
+        .env
+        .var("DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "localhost:8787".to_string());
+
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+
+    // Set new access token as httpOnly cookie
+    let access_cookie = auth::session::create_access_cookie_with_scheme(&new_access_token, scheme);
+
+    let mut response = Response::ok("Token refreshed successfully")?;
+    response.headers_mut().set("Set-Cookie", &access_cookie)?;
+
+    Ok(response)
 }
 
 /// Handle logout: POST /api/auth/logout
@@ -553,20 +630,21 @@ pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Respon
 
     auth::session::delete_session(&kv, &user_ctx.session_id).await?;
 
-    // Clear both session cookie and refresh token cookie
-    let session_cookie = auth::session::create_logout_cookie();
+    // Clear all three cookies: access token, refresh token, and legacy session
+    let access_cookie = auth::session::create_access_logout_cookie();
     let refresh_cookie = auth::session::create_refresh_logout_cookie();
+    let session_cookie = auth::session::create_logout_cookie();
 
     let mut response = Response::ok("Logged out successfully")?;
 
-    // Set both logout cookies
-    // Note: We can only set one Set-Cookie header, so we combine them
-    // However, the worker crate may handle multiple Set-Cookie headers differently
-    // For now, we'll set the refresh cookie (more important for security)
-    response.headers_mut().set("Set-Cookie", &session_cookie)?;
+    // Set all three logout cookies
+    response.headers_mut().set("Set-Cookie", &access_cookie)?;
     response
         .headers_mut()
         .append("Set-Cookie", &refresh_cookie)?;
+    response
+        .headers_mut()
+        .append("Set-Cookie", &session_cookie)?;
 
     Ok(response)
 }
@@ -602,7 +680,8 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
                 .and_then(|s| s.split('=').nth(1))
                 .and_then(|s| s.parse().ok())
         })
-        .unwrap_or(50);
+        .unwrap_or(50)
+        .min(100); // Cap at 100 items per page to prevent DoS via unbounded queries
 
     let offset = (page - 1) * limit;
 

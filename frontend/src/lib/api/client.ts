@@ -31,15 +31,13 @@ async function refreshAccessToken(baseUrl: string): Promise<boolean> {
 	try {
 		const response = await fetch(`${baseUrl}/api/auth/refresh`, {
 			method: 'POST',
-			credentials: 'include', // Send refresh token cookie
+			credentials: 'include',
 		});
 
 		if (!response.ok) {
 			return false;
 		}
 
-		const data = await response.json();
-		setAccessToken(data.access_token);
 		return true;
 	} catch {
 		return false;
@@ -58,14 +56,12 @@ export class ApiClient {
 		options: RequestInit = {}
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
-		const token = getAccessToken();
 
 		const config: RequestInit = {
 			...options,
-			credentials: 'include', // Include cookies (for refresh token and backward compatibility)
+			credentials: 'include',
 			headers: {
 				'Content-Type': 'application/json',
-				...(token ? { 'Authorization': `Bearer ${token}` } : {}),
 				...options.headers
 			}
 		};
@@ -73,24 +69,12 @@ export class ApiClient {
 		try {
 			const response = await fetch(url, config);
 
-			// Handle non-JSON error responses (plain text)
 			if (!response.ok) {
-				// If 401 and we have a token, try to refresh
-				if (response.status === 401 && token) {
+				if (response.status === 401) {
 					const refreshed = await refreshAccessToken(this.baseUrl);
 
 					if (refreshed) {
-						// Retry request with new token
-						const newToken = getAccessToken();
-						const retryConfig = {
-							...config,
-							headers: {
-								...config.headers,
-								'Authorization': `Bearer ${newToken}`
-							}
-						};
-
-						const retryResponse = await fetch(url, retryConfig);
+						const retryResponse = await fetch(url, config);
 						if (retryResponse.ok) {
 							const contentType = retryResponse.headers.get('content-type');
 							if (contentType?.includes('application/json')) {
@@ -99,9 +83,6 @@ export class ApiClient {
 							return {} as T;
 						}
 					}
-
-					// Refresh failed - clear token and throw
-					clearAccessToken();
 				}
 
 				const contentType = response.headers.get('content-type');
@@ -121,21 +102,17 @@ export class ApiClient {
 				throw error;
 			}
 
-			// Handle empty responses
 			const contentType = response.headers.get('content-type');
 			if (contentType?.includes('application/json')) {
 				return await response.json();
 			}
 
-			// For empty responses (like DELETE), return empty object
 			return {} as T;
 		} catch (error) {
-			// Re-throw ApiError as-is
 			if (error && typeof error === 'object' && 'status' in error) {
 				throw error;
 			}
 
-			// Network or other errors
 			throw {
 				message: error instanceof Error ? error.message : 'Network error',
 				status: 0
@@ -161,5 +138,4 @@ export class ApiClient {
 
 export const apiClient = new ApiClient();
 
-// Export token management helpers for use in other modules
 export { getAccessToken, setAccessToken, clearAccessToken };

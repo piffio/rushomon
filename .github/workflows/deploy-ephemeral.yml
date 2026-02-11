@@ -185,7 +185,7 @@ jobs:
           cat > wrangler.ephemeral.toml << 'EOF'
           name = "rushomon-pr-${{ env.PR_NUMBER }}"
           main = "build/worker/shim.mjs"
-          compatibility_date = "2024-01-31"
+          compatibility_date = "2026-02-11"
 
           [build]
           command = "cargo install -q worker-build && worker-build --release"
@@ -198,14 +198,21 @@ jobs:
           binding = "URL_MAPPINGS"
           id = "${{ env.KV_ID }}"
 
+          [assets]
+          directory = "./frontend/build"
+          binding = "ASSETS"
+
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
           GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
           JWT_SECRET = "${{ secrets.JWT_SECRET }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
           DOMAIN = "rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
-          FRONTEND_URL = "https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
-          ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://pr-${{ env.PR_NUMBER }}.rushomon-ui.pages.dev"
-          EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
+          FRONTEND_URL = "https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
+          ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
+          EPHEMERAL_ORIGIN_PATTERN = "https://rushomon-pr-{}.${{ env.WORKERS_DOMAIN }}"
           EOF
 
       - name: Apply D1 Migrations
@@ -220,6 +227,21 @@ jobs:
           # Apply migrations using environment variables
           wrangler d1 migrations apply rushomon --remote -c wrangler.ephemeral.toml
 
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Frontend for Unified Worker
+        working-directory: frontend
+        env:
+          PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
+          PUBLIC_VITE_SHORT_LINK_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
+        run: |
+          echo "🔨 Building frontend for unified Worker (ephemeral)"
+          echo "   API Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
+          echo "   Short Link Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
+          npm run build
+
       - name: Deploy to Ephemeral Environment
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -227,75 +249,6 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           wrangler deploy -c wrangler.ephemeral.toml
-
-      - name: Install Frontend Dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build Frontend
-        working-directory: frontend
-        env:
-          PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
-        run: npm run build
-
-      - name: Create Cloudflare Pages Project (if needed)
-        id: create_pages_project
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          PROJECT_NAME="rushomon-ui"
-
-          echo "Checking if Pages project exists..."
-
-          # Check if project exists
-          PROJECT_EXISTS=$(curl -s -X GET \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            | jq -r '.success')
-
-          if [ "$PROJECT_EXISTS" = "false" ]; then
-            echo "Project doesn't exist. Creating..."
-
-            CREATE_RESPONSE=$(curl -s -X POST \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data '{
-                "name": "'"$PROJECT_NAME"'",
-                "production_branch": "main",
-                "build_config": {
-                  "build_command": "",
-                  "destination_dir": "build"
-                }
-              }')
-
-            SUCCESS=$(echo "$CREATE_RESPONSE" | jq -r '.success // false')
-
-            if [ "$SUCCESS" = "true" ]; then
-              echo "✅ Successfully created Pages project: $PROJECT_NAME"
-              echo "project_created=true" >> $GITHUB_OUTPUT
-            else
-              echo "⚠️ Failed to create Pages project"
-              echo "Response: $CREATE_RESPONSE"
-              echo "project_created=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "✅ Pages project already exists: $PROJECT_NAME"
-            echo "project_created=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Deploy Frontend to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
-        run: |
-          cd frontend
-          npx wrangler pages deploy build \
-            --project-name="rushomon-ui" \
-            --branch="pr-$PR_NUMBER" \
-            --commit-dirty=true
 
       - name: Setup Test Data
         env:
@@ -549,6 +502,19 @@ jobs:
           echo "✅ Redirect logic working"
           echo "✅ Worker deployment verified"
 
+      - name: Capture Worker Logs on Failure
+        if: failure()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          echo "🔍 Worker logs are not available in GitHub Actions"
+          echo "📋 To debug this failure, run locally:"
+          echo ""
+          echo "  wrangler tail rushomon-pr-$PR_NUMBER"
+          echo ""
+          echo "Then trigger the failing request manually to see the error logs."
+
       - name: Store Deployment Info
         if: always()
         env:
@@ -576,17 +542,18 @@ jobs:
         with:
           pr-number: ${{ steps.pr_number.outputs.pr_number }}
           message: |
-            🚀 **Ephemeral Environment Deployed**
+            🚀 **Ephemeral Environment Deployed (Unified Worker)**
 
-            **Frontend**: [https://pr-${{ steps.pr_number.outputs.pr_number }}.rushomon-ui.pages.dev](https://pr-${{ steps.pr_number.outputs.pr_number }}.rushomon-ui.pages.dev)
-            **Backend**: [https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}](https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }})
+            **Application**: [https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}](https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }})
+
+            This unified Worker deployment serves both frontend and backend from the same domain for better security (httpOnly cookies work correctly).
 
             This environment will be automatically cleaned up when the PR is closed.
 
             **Resources**:
+            - Worker: `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}`
             - Database ID: `${{ steps.create_d1.outputs.database_id }}`
             - KV Namespace ID: `${{ steps.create_kv.outputs.kv_id }}`
-            - Pages Branch: `pr-${{ steps.pr_number.outputs.pr_number }}`
 
             ---
 
