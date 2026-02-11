@@ -4,6 +4,9 @@ use serde_json::json;
 mod common;
 use common::*;
 
+// Import test_client for analytics test
+use common::test_client;
+
 #[tokio::test]
 async fn test_create_link_with_random_short_code() {
     let client = authenticated_client();
@@ -209,4 +212,87 @@ async fn test_delete_link() {
         .unwrap();
 
     assert_eq!(redirect_response.status(), StatusCode::NOT_FOUND); // 404
+}
+
+#[tokio::test]
+async fn test_delete_link_with_analytics_events() {
+    let client = authenticated_client();
+    let test_client = test_client(); // Unauthenticated client for redirects
+
+    // Create a link
+    let create_response = client
+        .post(&format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/analytics-test"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let created_link: serde_json::Value = create_response.json().await.unwrap();
+    let link_id = created_link["id"].as_str().unwrap();
+    let short_code = created_link["short_code"].as_str().unwrap();
+
+    // Generate some analytics events by accessing the short URL multiple times
+    for i in 0..5 {
+        let redirect_response = test_client
+            .get(&format!("{}/{}", BASE_URL, short_code))
+            .header("User-Agent", format!("TestBot/{}", i))
+            .header("Referer", format!("https://example.com/referrer{}", i))
+            .send()
+            .await
+            .unwrap();
+
+        // Accept both 301 (moved permanently) and 308 (permanent redirect)
+        let status = redirect_response.status();
+        assert!(
+            status == StatusCode::MOVED_PERMANENTLY || status == StatusCode::from_u16(308).unwrap(),
+            "Expected redirect status (301 or 308), got {}",
+            status
+        );
+    }
+
+    // Verify the link has analytics data (click count should be > 0)
+    let get_response = client
+        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(get_response.status(), StatusCode::OK);
+
+    let link_before_delete: serde_json::Value = get_response.json().await.unwrap();
+    let click_count_before = link_before_delete["click_count"].as_i64().unwrap();
+    assert!(
+        click_count_before >= 5,
+        "Expected at least 5 clicks, got {}",
+        click_count_before
+    );
+
+    // Delete link - this should not fail with FK constraint error
+    let delete_response = client
+        .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    // Verify redirect no longer works
+    let redirect_response = test_client
+        .get(&format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(redirect_response.status(), StatusCode::NOT_FOUND);
+
+    // Verify link is no longer accessible via API
+    let get_after_delete = client
+        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(get_after_delete.status(), StatusCode::NOT_FOUND);
 }
