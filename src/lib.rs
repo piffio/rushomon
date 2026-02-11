@@ -149,10 +149,34 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                         let response_with_headers = add_security_headers(asset_response, is_https);
                         return Ok(add_cors_headers(response_with_headers, origin, &env));
                     }
-                    // Asset not found (404) or error (5xx), continue to router
+                    // Asset not found (404) - check if it's a frontend route or a short code
+                    // Frontend routes (like /dashboard, /auth/callback) should serve index.html (SPA fallback)
+                    // Short codes (like /abc123) should continue to router for redirect handling
+
+                    // If path has multiple segments or looks like a frontend route, serve index.html
+                    let path_segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+                    let is_likely_frontend_route = path_segments.len() > 1
+                        || path.starts_with("/dashboard")
+                        || path.starts_with("/auth")
+                        || path.starts_with("/admin");
+
+                    if is_likely_frontend_route {
+                        // Serve index.html as SPA fallback
+                        let fallback_url = format!("{}://{}/index.html", url.scheme(), url.host_str().unwrap_or(""));
+                        match assets.fetch(fallback_url, None).await {
+                            Ok(fallback_response) => {
+                                let response_with_headers = add_security_headers(fallback_response, is_https);
+                                return Ok(add_cors_headers(response_with_headers, origin, &env));
+                            }
+                            Err(_) => {
+                                // Fallback failed, continue to router
+                            }
+                        }
+                    }
+                    // Otherwise continue to router (might be a short code redirect)
                 }
                 Err(_) => {
-                    // Asset fetch failed, continue to router (might be a short code redirect)
+                    // Asset fetch failed, continue to router
                 }
             }
         }
