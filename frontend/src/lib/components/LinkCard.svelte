@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Link } from '$lib/types/api';
-	import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
+	import { PUBLIC_VITE_SHORT_LINK_BASE_URL } from '$env/static/public';
 
 	let {
 		link,
@@ -12,8 +12,8 @@
 		onEdit: (link: Link) => void;
 	} = $props();
 
-	const API_BASE_URL = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
-	const shortUrl = $derived(`${API_BASE_URL}/${link.short_code}`);
+	const SHORT_LINK_BASE = PUBLIC_VITE_SHORT_LINK_BASE_URL || 'http://localhost:8787';
+	const shortUrl = $derived(`${SHORT_LINK_BASE}/${link.short_code}`);
 
 	let showDeleteConfirm = $state(false);
 	let copySuccess = $state(false);

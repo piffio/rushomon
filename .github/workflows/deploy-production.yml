@@ -73,10 +73,12 @@ jobs:
       - name: Build Frontend for Unified Worker
         working-directory: frontend
         env:
-          PUBLIC_VITE_API_BASE_URL: https://rushomon.cc
+          PUBLIC_VITE_API_BASE_URL: https://${{ secrets.API_DOMAIN }}
+          PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
         run: |
           echo "🔨 Building frontend for unified Worker deployment"
-          echo "   API Base URL: https://rushomon.cc"
+          echo "   API Base URL: https://${{ secrets.API_DOMAIN }}"
+          echo "   Short Link Base URL: https://${{ secrets.REDIRECT_DOMAIN }}"
           npm run build
 
       - name: Generate Production wrangler.toml
@@ -118,9 +120,9 @@ jobs:
           GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
           GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
           GITHUB_USER_URL = "https://api.github.com/user"
-          DOMAIN = "rushomon.cc"
-          FRONTEND_URL = "https://rushomon.cc"
-          ALLOWED_ORIGINS = "https://rushomon.cc,https://api.rushomon.cc"
+          DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
+          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
           EOF
 
           echo "✅ Generated wrangler.production.toml"

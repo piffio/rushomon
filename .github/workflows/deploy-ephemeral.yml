@@ -235,7 +235,12 @@ jobs:
         working-directory: frontend
         env:
           PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
-        run: npm run build
+          PUBLIC_VITE_SHORT_LINK_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
+        run: |
+          echo "🔨 Building frontend for unified Worker (ephemeral)"
+          echo "   API Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
+          echo "   Short Link Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
+          npm run build
 
       - name: Deploy to Ephemeral Environment
         env:
