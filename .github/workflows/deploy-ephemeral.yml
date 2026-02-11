@@ -204,6 +204,8 @@ jobs:
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
+          GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
+          JWT_SECRET = "${{ secrets.JWT_SECRET }}"
           GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
           GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
           GITHUB_USER_URL = "https://api.github.com/user"
@@ -242,23 +244,6 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           wrangler deploy -c wrangler.ephemeral.toml
-
-      - name: Set Ephemeral Worker Secrets
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
-          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: |
-          # Set secrets using wrangler (more reliable than direct API calls)
-          echo "Setting GITHUB_CLIENT_SECRET..."
-          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml
-
-          echo "Setting JWT_SECRET..."
-          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.ephemeral.toml
-
-          echo "Secrets set successfully for ephemeral worker"
 
       - name: Setup Test Data
         env:
@@ -511,6 +496,19 @@ jobs:
           echo "✅ Authentication properly enforced"
           echo "✅ Redirect logic working"
           echo "✅ Worker deployment verified"
+
+      - name: Capture Worker Logs on Failure
+        if: failure()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          echo "🔍 Worker logs are not available in GitHub Actions"
+          echo "📋 To debug this failure, run locally:"
+          echo ""
+          echo "  wrangler tail rushomon-pr-$PR_NUMBER"
+          echo ""
+          echo "Then trigger the failing request manually to see the error logs."
 
       - name: Store Deployment Info
         if: always()
