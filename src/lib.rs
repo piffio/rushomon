@@ -143,12 +143,16 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let asset_url = url.to_string();
             match assets.fetch(asset_url, None).await {
                 Ok(asset_response) => {
-                    // Static asset found, return it with security headers
-                    let response_with_headers = add_security_headers(asset_response, is_https);
-                    return Ok(add_cors_headers(response_with_headers, origin, &env));
+                    // Check if asset was found (status 200-299)
+                    if asset_response.status_code() >= 200 && asset_response.status_code() < 300 {
+                        // Static asset found, return it with security headers
+                        let response_with_headers = add_security_headers(asset_response, is_https);
+                        return Ok(add_cors_headers(response_with_headers, origin, &env));
+                    }
+                    // Asset not found (404) or error (5xx), continue to router
                 }
                 Err(_) => {
-                    // Asset not found, continue to router (might be a short code redirect)
+                    // Asset fetch failed, continue to router (might be a short code redirect)
                 }
             }
         }
