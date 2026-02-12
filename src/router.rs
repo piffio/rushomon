@@ -584,8 +584,21 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         }
     };
 
-    // Verify user_id matches
-    if session.user_id != claims.sub {
+    // Verify user_id matches (constant-time comparison to prevent timing attacks)
+    use subtle::ConstantTimeEq;
+    let session_user_id_bytes = session.user_id.as_bytes();
+    let claims_user_id_bytes = claims.sub.as_bytes();
+
+    // Pad to same length to prevent length-based timing leaks
+    let max_len = session_user_id_bytes.len().max(claims_user_id_bytes.len());
+    let mut session_padded = vec![0u8; max_len];
+    let mut claims_padded = vec![0u8; max_len];
+
+    session_padded[..session_user_id_bytes.len()].copy_from_slice(session_user_id_bytes);
+    claims_padded[..claims_user_id_bytes.len()].copy_from_slice(claims_user_id_bytes);
+
+    let is_equal: bool = session_padded.ct_eq(&claims_padded).into();
+    if !is_equal {
         return Response::error("Session mismatch", 401);
     }
 
