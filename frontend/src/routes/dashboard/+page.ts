@@ -1,31 +1,34 @@
 import type { PageLoad } from './$types';
-import { apiClient } from '$lib/api/client';
+import { linksApi } from '$lib/api/links';
+import type { PaginatedResponse, Link } from '$lib/types/api';
 
-export const load: PageLoad = async ({ parent }) => {
+export const load: PageLoad = async ({ parent, url }) => {
 	// Get user data from layout (now client-side)
 	const parentData = await parent() as { user?: any; };
 	const user = parentData.user;
 
 	if (!user) {
 		// This shouldn't happen if layout is working, but just in case
-		return { user: null, links: [] };
+		return { user: null, paginatedLinks: null };
 	}
 
 	try {
-		// Fetch links using apiClient (which adds Authorization header)
-		// Backend returns array directly, not wrapped in object
-		const links = await apiClient.get<any[]>('/api/links?page=1&limit=20');
+		// Get page from URL query params, default to 1
+		const page = parseInt(url.searchParams.get('page') || '1', 10);
+
+		// Fetch links with pagination using linksApi
+		const paginatedLinks = await linksApi.list(page, 10);
 
 		return {
 			user,
-			links: links || []
+			paginatedLinks
 		};
 	} catch (error) {
 		// If links fetch fails, still return user data
 		console.error('Failed to fetch links:', error);
 		return {
 			user,
-			links: []
+			paginatedLinks: null
 		};
 	}
 };

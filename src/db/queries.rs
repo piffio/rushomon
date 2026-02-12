@@ -202,6 +202,64 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
     Ok(())
 }
 
+/// Get total count of non-deleted links for an organization
+pub async fn get_links_count_by_org(db: &D1Database, org_id: &str) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(*) as count FROM links
+         WHERE org_id = ?1
+         AND status IN ('active', 'disabled')",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Dashboard statistics for an organization
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct DashboardStats {
+    pub total_links: i64,
+    pub active_links: i64,
+    pub total_clicks: i64,
+}
+
+/// Get dashboard statistics for an organization
+pub async fn get_dashboard_stats(db: &D1Database, org_id: &str) -> Result<DashboardStats> {
+    let stmt = db.prepare(
+        "SELECT
+            COUNT(*) as total_links,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_links,
+            SUM(click_count) as total_clicks
+         FROM links
+         WHERE org_id = ?1
+         AND status IN ('active', 'disabled')",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(DashboardStats {
+            total_links: val["total_links"].as_f64().unwrap_or(0.0) as i64,
+            active_links: val["active_links"].as_f64().unwrap_or(0.0) as i64,
+            total_clicks: val["total_clicks"].as_f64().unwrap_or(0.0) as i64,
+        }),
+        None => Ok(DashboardStats {
+            total_links: 0,
+            active_links: 0,
+            total_clicks: 0,
+        }),
+    }
+}
+
 /// Get links for an organization (paginated)
 pub async fn get_links_by_org(
     db: &D1Database,

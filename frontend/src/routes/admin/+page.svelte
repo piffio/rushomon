@@ -128,7 +128,7 @@
 
 <div class="min-h-screen bg-gray-50">
 	{#if data.user}
-		<Header user={data.user} />
+		<Header user={data.user} currentPage="admin" />
 
 		<main class="container mx-auto px-4 py-8">
 			<div class="max-w-6xl mx-auto">
