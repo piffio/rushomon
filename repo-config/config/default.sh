@@ -20,13 +20,13 @@ AUTO_FORMAT_AND_STAGE=false
 # Clippy linting - optional but recommended
 CLIPPY_ENABLED=true
 CLIPPY_COMMAND="cargo clippy -- -D warnings"
-CLIPPY_REQUIRED=false
+CLIPPY_REQUIRED=true
 CLIPPY_ERROR_MSG="Clippy found issues! Address warnings before committing."
 
 # Tool requirements
 CARGO_REQUIRED=true
 RUSTFMT_REQUIRED=false
-CLIPPY_REQUIRED=false
+CLIPPY_REQUIRED=true
 
 # Tool installation instructions
 CARGO_INSTALL_MSG="Install Rust: https://rustup.rs/"

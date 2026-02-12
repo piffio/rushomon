@@ -187,7 +187,7 @@ main() {
     fi
     
     if [ "$CLIPPY_ENABLED" = true ] && [ "$CLIPPY_REQUIRED" = true ]; then
-        check_tool "clippy" true "$CLIPPY_INSTALL_MSG"
+        check_tool "cargo-clippy" true "$CLIPPY_INSTALL_MSG"
     fi
     
     echo ""
