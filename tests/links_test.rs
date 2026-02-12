@@ -216,14 +216,26 @@ async fn test_delete_link() {
 
     assert_eq!(delete_response.status(), StatusCode::OK);
 
-    // Verify redirect no longer works
-    let redirect_response = client
+    // Verify redirect no longer works (now redirects to /404 page)
+    let redirect_client = test_client();
+    let redirect_response = redirect_client
         .get(&format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
 
-    assert_eq!(redirect_response.status(), StatusCode::NOT_FOUND); // 404
+    assert_eq!(redirect_response.status(), StatusCode::FOUND); // 302
+    let location = redirect_response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.ends_with("/404"),
+        "Expected redirect to /404, got: {}",
+        location
+    );
 }
 
 #[tokio::test]
@@ -290,14 +302,25 @@ async fn test_delete_link_with_analytics_events() {
 
     assert_eq!(delete_response.status(), StatusCode::OK);
 
-    // Verify redirect no longer works
+    // Verify redirect no longer works (now redirects to /404 page)
     let redirect_response = test_client
         .get(&format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
 
-    assert_eq!(redirect_response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(redirect_response.status(), StatusCode::FOUND); // 302
+    let location = redirect_response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.ends_with("/404"),
+        "Expected redirect to /404, got: {}",
+        location
+    );
 
     // Verify link is no longer accessible via API
     let get_after_delete = client

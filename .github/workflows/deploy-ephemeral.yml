@@ -475,21 +475,49 @@ jobs:
 
           echo "✅ Authentication properly enforced"
 
-          # Test 4: Check available endpoints
+          # Test 4: 404 Page for Nonexistent Short Code
           echo ""
-          echo "📋 Test 4: Check Available Endpoints"
+          echo "🔗 Test 4: Nonexistent Short Code Redirect"
+          echo "--------------------------------------------"
+          echo "Testing that nonexistent short codes redirect to /404..."
+
+          NOT_FOUND_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -I "$DEPLOYMENT_URL/doesnotexist999" || echo "FAILED")
+          NOT_FOUND_HTTP_CODE=$(echo "$NOT_FOUND_RESPONSE" | tail -n1 | cut -d: -f2)
+
+          echo "HTTP Status: $NOT_FOUND_HTTP_CODE"
+
+          if [ "$NOT_FOUND_HTTP_CODE" = "302" ]; then
+            NOT_FOUND_LOCATION=$(echo "$NOT_FOUND_RESPONSE" | grep -i location | cut -d' ' -f2- | tr -d '\r')
+            echo "📍 Redirects to: $NOT_FOUND_LOCATION"
+            if echo "$NOT_FOUND_LOCATION" | grep -q "/404"; then
+              echo "✅ Nonexistent short code correctly redirects to /404"
+            else
+              echo "❌ Redirect location doesn't contain /404: $NOT_FOUND_LOCATION"
+              exit 1
+            fi
+          else
+            echo "❌ Expected 302 redirect, got HTTP $NOT_FOUND_HTTP_CODE"
+            exit 1
+          fi
+
+          # Test 5: Check available endpoints
+          echo ""
+          echo "📋 Test 5: Check Available Endpoints"
           echo "------------------------------------"
 
           echo "Testing common endpoints..."
 
-          # Test common endpoints
-          for endpoint in "/" "/favicon.ico"; do
+          # Test common endpoints (follow redirects for / since ASSETS serves it)
+          for endpoint in "/" "/favicon.ico" "/404"; do
             echo -n "  $endpoint: "
 
-            if curl -s -f "$DEPLOYMENT_URL$endpoint" >/dev/null 2>&1; then
+            ENDPOINT_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" "$DEPLOYMENT_URL$endpoint" || echo "FAILED")
+            ENDPOINT_HTTP_CODE=$(echo "$ENDPOINT_RESPONSE" | tail -n1 | cut -d: -f2)
+            if [ "$ENDPOINT_HTTP_CODE" = "200" ]; then
               echo "✅ Accessible"
             else
-              echo "❌ Not accessible"
+              echo "⚠️  HTTP $ENDPOINT_HTTP_CODE"
             fi
           done
 

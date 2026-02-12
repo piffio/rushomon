@@ -22,7 +22,7 @@ async fn test_redirect_with_301() {
 }
 
 #[tokio::test]
-async fn test_nonexistent_short_code_returns_404() {
+async fn test_nonexistent_short_code_redirects_to_404_page() {
     let client = test_client();
 
     let response = client
@@ -31,7 +31,18 @@ async fn test_nonexistent_short_code_returns_404() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::FOUND); // 302
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.ends_with("/404"),
+        "Expected redirect to /404, got: {}",
+        location
+    );
 }
 
 #[tokio::test]
@@ -79,7 +90,7 @@ async fn test_redirect_increments_click_count() {
 }
 
 #[tokio::test]
-async fn test_inactive_link_returns_404() {
+async fn test_inactive_link_redirects_to_404_page() {
     let auth_client = authenticated_client();
     let public_client = test_client();
 
@@ -103,5 +114,35 @@ async fn test_inactive_link_returns_404() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::FOUND); // 302
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.ends_with("/404"),
+        "Expected redirect to /404, got: {}",
+        location
+    );
+}
+
+#[tokio::test]
+async fn test_root_redirects_to_frontend() {
+    let client = test_client();
+
+    let response = client.get(&format!("{}/", BASE_URL)).send().await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY); // 301
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        !location.is_empty(),
+        "Expected Location header to contain frontend URL"
+    );
 }

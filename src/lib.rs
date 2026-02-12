@@ -196,7 +196,9 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     let is_likely_frontend_route = path_segments.len() > 1
                         || path.starts_with("/dashboard")
                         || path.starts_with("/auth")
-                        || path.starts_with("/admin");
+                        || path.starts_with("/admin")
+                        || path.starts_with("/settings")
+                        || path.starts_with("/404");
 
                     if is_likely_frontend_route {
                         // Serve index.html as SPA fallback
@@ -285,8 +287,11 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .put_async("/api/admin/users/:id", router::handle_admin_update_user)
         .get_async("/api/admin/settings", router::handle_admin_get_settings)
         .put_async("/api/admin/settings", router::handle_admin_update_setting)
-        // Health check
-        .get("/", |_, _| Response::ok("Rushomon URL Shortener API"))
+        // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
+        .get_async("/", |_req, ctx| async move {
+            let url = Url::parse(&router::get_frontend_url(&ctx.env))?;
+            Response::redirect_with_status(url, 301)
+        })
         .run(req, env.clone())
         .await?;
 
