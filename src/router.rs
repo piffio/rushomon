@@ -202,6 +202,13 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         }
     };
 
+    // Validate title length (max 200 characters)
+    if let Some(ref title) = body.title
+        && title.len() > 200
+    {
+        return Response::error("Title must be 200 characters or less", 400);
+    }
+
     // Generate or validate short code
     let short_code = if let Some(custom_code) = body.short_code {
         match validate_short_code(&custom_code) {
@@ -386,6 +393,13 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         return Response::error(format!("Invalid URL: {}", e), 400);
     }
 
+    // Validate title length if provided (max 200 characters)
+    if let Some(ref title) = update_req.title
+        && title.len() > 200
+    {
+        return Response::error("Title must be 200 characters or less", 400);
+    }
+
     // Validate expiration date if provided
     if let Some(expires_at) = update_req.expires_at {
         let now = now_timestamp();
@@ -425,8 +439,24 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 }
 
 /// Handle GitHub OAuth initiation: GET /api/auth/github
-pub async fn handle_github_login(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
+
+    // Rate limiting: 5 requests per 15 minutes per IP
+    let client_ip = get_client_ip(&req);
+    let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
+    let rate_limit_config = RateLimitConfig::oauth();
+
+    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        return Ok(response);
+    }
+
     let client_id = ctx.env.var("GITHUB_CLIENT_ID")?.to_string();
     let domain = ctx.env.var("DOMAIN")?.to_string();
 
@@ -443,6 +473,23 @@ pub async fn handle_github_login(_req: Request, ctx: RouteContext<()>) -> Result
 
 /// Handle OAuth callback: GET /api/auth/callback
 pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
+    // Rate limiting: 5 requests per 15 minutes per IP (same as OAuth initiation)
+    let client_ip = get_client_ip(&req);
+    let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
+    let rate_limit_config = RateLimitConfig::oauth();
+
+    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        return Ok(response);
+    }
+
     // Extract code and state from query params
     let url = req.url()?;
     let query = url
@@ -452,7 +499,6 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     let code = extract_query_param(query, "code")?;
     let state = extract_query_param(query, "state")?;
 
-    let kv = ctx.kv("URL_MAPPINGS")?;
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Handle OAuth callback - returns both access and refresh tokens
@@ -528,6 +574,22 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
         Ok(ctx) => ctx,
         Err(e) => return Ok(e.into_response()),
     };
+
+    // Rate limiting: 30 requests per minute per session
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let rate_limit_key = RateLimiter::session_key("auth_check", &user_ctx.session_id);
+    let rate_limit_config = RateLimitConfig::auth_check();
+
+    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        return Ok(response);
+    }
+
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let user = db::get_user_by_id(&db, &user_ctx.user_id).await?;
 
@@ -540,6 +602,8 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
 /// Handle token refresh: POST /api/auth/refresh
 /// Validates refresh token from cookie and returns new access token
 pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
     // Extract refresh token from cookie
     let cookie_header = match req.headers().get("Cookie") {
         Ok(Some(header)) => header,
@@ -572,8 +636,21 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         return Response::error("Invalid token type", 401);
     }
 
+    // Rate limiting: 10 requests per hour per session
+    let rate_limit_key = RateLimiter::session_key("token_refresh", &claims.session_id);
+    let rate_limit_config = RateLimitConfig::token_refresh();
+
+    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        return Ok(response);
+    }
+
     // Verify session still exists in KV
-    let kv = ctx.kv("URL_MAPPINGS")?;
     let session = match auth::session::get_session(&kv, &claims.session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
@@ -584,8 +661,21 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         }
     };
 
-    // Verify user_id matches
-    if session.user_id != claims.sub {
+    // Verify user_id matches (constant-time comparison to prevent timing attacks)
+    use subtle::ConstantTimeEq;
+    let session_user_id_bytes = session.user_id.as_bytes();
+    let claims_user_id_bytes = claims.sub.as_bytes();
+
+    // Pad to same length to prevent length-based timing leaks
+    let max_len = session_user_id_bytes.len().max(claims_user_id_bytes.len());
+    let mut session_padded = vec![0u8; max_len];
+    let mut claims_padded = vec![0u8; max_len];
+
+    session_padded[..session_user_id_bytes.len()].copy_from_slice(session_user_id_bytes);
+    claims_padded[..claims_user_id_bytes.len()].copy_from_slice(claims_user_id_bytes);
+
+    let is_equal: bool = session_padded.ct_eq(&claims_padded).into();
+    if !is_equal {
         return Response::error("Session mismatch", 401);
     }
 

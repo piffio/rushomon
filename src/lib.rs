@@ -54,6 +54,7 @@ fn is_allowed_origin(origin: &str, env: &Env) -> bool {
 /// Add security headers to all responses
 ///
 /// Security headers applied:
+/// - Content-Security-Policy: Comprehensive XSS protection
 /// - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
 /// - X-Frame-Options: DENY - Prevents clickjacking attacks
 /// - X-XSS-Protection: 0 - Disables legacy XSS filter (modern CSP preferred)
@@ -62,6 +63,42 @@ fn is_allowed_origin(origin: &str, env: &Env) -> bool {
 /// - Permissions-Policy: Restricts access to browser features
 fn add_security_headers(mut response: Response, is_https: bool) -> Response {
     let headers = response.headers_mut();
+
+    // Content Security Policy - Defense in depth against XSS
+    // - default-src 'self': Only load resources from same origin by default
+    // - script-src 'self': Only execute scripts from same origin (no inline scripts)
+    // - style-src 'self' 'unsafe-inline': Allow same-origin styles + inline (needed for SvelteKit)
+    // - img-src 'self' data: https:: Allow images from same origin, data URIs, and HTTPS
+    // - font-src 'self': Only load fonts from same origin
+    // - connect-src 'self': Only allow API calls to same origin
+    // - frame-ancestors 'none': Prevent embedding in iframes (redundant with X-Frame-Options)
+    // - base-uri 'self': Prevent base tag injection
+    // - form-action 'self': Restrict form submissions to same origin
+    // - upgrade-insecure-requests: Automatically upgrade HTTP to HTTPS
+    let csp = if is_https {
+        "default-src 'self'; \
+         script-src 'self'; \
+         style-src 'self' 'unsafe-inline'; \
+         img-src 'self' data: https:; \
+         font-src 'self'; \
+         connect-src 'self'; \
+         frame-ancestors 'none'; \
+         base-uri 'self'; \
+         form-action 'self'; \
+         upgrade-insecure-requests"
+    } else {
+        // Development mode (no upgrade-insecure-requests for localhost)
+        "default-src 'self'; \
+         script-src 'self'; \
+         style-src 'self' 'unsafe-inline'; \
+         img-src 'self' data: https:; \
+         font-src 'self'; \
+         connect-src 'self'; \
+         frame-ancestors 'none'; \
+         base-uri 'self'; \
+         form-action 'self'"
+    };
+    let _ = headers.set("Content-Security-Policy", csp);
 
     // Prevent MIME type sniffing
     let _ = headers.set("X-Content-Type-Options", "nosniff");

@@ -165,6 +165,9 @@ pub fn create_refresh_token(
 
 /// Validates a JWT token and returns the claims
 pub fn validate_jwt(token: &str, secret: &str) -> Result<JwtClaims> {
+    // Validate secret meets minimum requirements before attempting validation
+    validate_jwt_secret(secret)?;
+
     let key = Hs256Key::new(secret.as_bytes());
 
     let untrusted_token = match UntrustedToken::new(token) {

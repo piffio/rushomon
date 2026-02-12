@@ -204,8 +204,6 @@ jobs:
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"
-          GITHUB_CLIENT_SECRET = "${{ secrets.GH_CLIENT_SECRET }}"
-          JWT_SECRET = "${{ secrets.JWT_SECRET }}"
           GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
           GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
           GITHUB_USER_URL = "https://api.github.com/user"
@@ -241,6 +239,18 @@ jobs:
           echo "   API Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
           echo "   Short Link Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
           npm run build
+
+      - name: Set Worker Secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          # Set secrets using wrangler secrets API (not visible in Worker dashboard)
+          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml
+          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.ephemeral.toml
 
       - name: Deploy to Ephemeral Environment
         env:
@@ -550,10 +560,7 @@ jobs:
 
             This environment will be automatically cleaned up when the PR is closed.
 
-            **Resources**:
-            - Worker: `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}`
-            - Database ID: `${{ steps.create_d1.outputs.database_id }}`
-            - KV Namespace ID: `${{ steps.create_kv.outputs.kv_id }}`
+            **Worker**: `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}`
 
             ---
 
