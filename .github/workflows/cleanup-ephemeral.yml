@@ -149,7 +149,6 @@ jobs:
 
             | Resource | Status |
             |----------|--------|
-            | Pages Deployment `pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_pages.outputs.pages_result == 'success' && '✅ Deleted' || steps.delete_pages.outputs.pages_result == 'partial' && '⚠️ Partially deleted' || steps.delete_pages.outputs.pages_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
             | Worker `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_worker.outputs.worker_result == 'success' && '✅ Deleted' || steps.delete_worker.outputs.worker_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
             | KV Namespace `URL_MAPPINGS_pr_${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_kv.outputs.kv_result == 'success' && '✅ Deleted' || steps.delete_kv.outputs.kv_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
             | D1 Database `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_d1.outputs.d1_result == 'success' && '✅ Deleted' || steps.delete_d1.outputs.d1_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
