@@ -38,21 +38,27 @@ pub struct RateLimitConfig {
 }
 
 impl RateLimitConfig {
-    /// OAuth endpoints: 5 attempts per 10 minutes
-    #[allow(dead_code)] // TODO: Apply to OAuth endpoints
+    /// OAuth endpoints: 5 attempts per 15 minutes per IP
     pub fn oauth() -> Self {
         Self {
             max_requests: 5,
-            window_seconds: 600, // 10 minutes
+            window_seconds: 900, // 15 minutes
         }
     }
 
-    /// Token refresh: 10 attempts per hour
-    #[allow(dead_code)] // TODO: Apply to token refresh endpoint
+    /// Token refresh: 10 attempts per hour per session
     pub fn token_refresh() -> Self {
         Self {
             max_requests: 10,
             window_seconds: 3600, // 1 hour
+        }
+    }
+
+    /// Auth check endpoint (/api/auth/me): 30 per minute per session
+    pub fn auth_check() -> Self {
+        Self {
+            max_requests: 30,
+            window_seconds: 60, // 1 minute
         }
     }
 
@@ -213,7 +219,6 @@ impl RateLimiter {
     }
 
     /// Generate rate limit key for session-based limiting
-    #[allow(dead_code)] // TODO: Apply to session-based rate limiting
     pub fn session_key(prefix: &str, session_id: &str) -> String {
         format!("ratelimit:{}:session:{}", prefix, session_id)
     }
@@ -227,7 +232,7 @@ mod tests {
     fn test_rate_limit_config() {
         let oauth = RateLimitConfig::oauth();
         assert_eq!(oauth.max_requests, 5);
-        assert_eq!(oauth.window_seconds, 600);
+        assert_eq!(oauth.window_seconds, 900); // 15 minutes
 
         let refresh = RateLimitConfig::token_refresh();
         assert_eq!(refresh.max_requests, 10);
