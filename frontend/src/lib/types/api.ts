@@ -44,3 +44,24 @@ export interface ApiError {
 	message: string;
 	status: number;
 }
+
+export interface PaginationMeta {
+	page: number;
+	limit: number;
+	total: number;
+	total_pages: number;
+	has_next: boolean;
+	has_prev: boolean;
+}
+
+export interface DashboardStats {
+	total_links: number;
+	active_links: number;
+	total_clicks: number;
+}
+
+export interface PaginatedResponse<T> {
+	data: T[];
+	pagination: PaginationMeta;
+	stats?: DashboardStats;
+}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Link } from '$lib/types/api';
-	import { PUBLIC_VITE_SHORT_LINK_BASE_URL } from '$env/static/public';
+	import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
 
 	let {
 		link,
@@ -12,7 +12,7 @@
 		onEdit: (link: Link) => void;
 	} = $props();
 
-	const SHORT_LINK_BASE = PUBLIC_VITE_SHORT_LINK_BASE_URL || 'http://localhost:8787';
+	const SHORT_LINK_BASE = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
 	const shortUrl = $derived(`${SHORT_LINK_BASE}/${link.short_code}`);
 
 	let showDeleteConfirm = $state(false);
@@ -32,107 +32,97 @@
 		return new Date(timestamp * 1000).toLocaleDateString();
 	}
 
-	function truncateUrl(url: string, maxLength: number = 50): string {
-		if (url.length <= maxLength) return url;
-		return url.substring(0, maxLength) + '...';
+	// Extract domain from URL for cleaner display
+	function getDomain(url: string): string {
+		try {
+			const urlObj = new URL(url);
+			return urlObj.hostname.replace('www.', '');
+		} catch {
+			return url;
+		}
 	}
 </script>
 
-<div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-	<!-- Short URL with Copy Button -->
-	<div class="flex items-center justify-between mb-3">
-		<div class="flex items-center gap-2 flex-1 min-w-0">
-			<a
-				href={shortUrl}
-				target="_blank"
-				rel="noopener noreferrer"
-				class="text-lg font-semibold text-gray-900 hover:text-gray-700 truncate"
-			>
-				{link.short_code}
-			</a>
+<div
+	class="border-2 border-gray-200 hover:border-orange-500 rounded-xl p-5 transition-all duration-300 hover:shadow-lg bg-white"
+>
+	<!-- Header: Title + Actions -->
+	<div class="flex items-start justify-between gap-4 mb-2">
+		<div class="flex-1 min-w-0">
+			<!-- Title as Main Element (or short code if no title) -->
+			<h3 class="text-lg font-semibold text-gray-900 truncate mb-1">
+				{link.title || link.short_code}
+			</h3>
+
+			<!-- Short Link → Destination URL -->
+			<div class="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+				<a
+					href={shortUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="font-medium text-orange-600 hover:text-orange-700 hover:underline"
+				>
+					{link.short_code}
+				</a>
+				<span class="text-gray-400">→</span>
+				<a
+					href={link.destination_url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="text-gray-600 hover:text-gray-900 hover:underline truncate"
+					title={link.destination_url}
+				>
+					{getDomain(link.destination_url)}
+				</a>
+			</div>
+		</div>
+
+		<!-- Action Buttons (Top Right) -->
+		<div class="flex items-center gap-1 flex-shrink-0">
+			<!-- Status Badge -->
 			{#if link.status === 'disabled'}
-				<span class="flex-shrink-0 px-2 py-0.5 text-xs bg-gray-200 text-gray-700 rounded">
+				<span class="px-2.5 py-1 text-xs font-medium bg-gray-200 text-gray-700 rounded-full mr-1">
 					Disabled
 				</span>
 			{/if}
-			<button
-				onclick={copyToClipboard}
-				class="flex-shrink-0 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-				title="Copy to clipboard"
-			>
-				{copySuccess ? '✓ Copied' : '📋 Copy'}
-			</button>
-		</div>
-	</div>
 
-	<!-- Title (if set) -->
-	{#if link.title}
-		<p class="text-sm font-medium text-gray-700 mb-2">{link.title}</p>
-	{/if}
-
-	<!-- Destination URL -->
-	<a
-		href={link.destination_url}
-		target="_blank"
-		rel="noopener noreferrer"
-		class="text-sm text-gray-600 hover:text-gray-900 block mb-3"
-		title={link.destination_url}
-	>
-		→ {truncateUrl(link.destination_url)}
-	</a>
-
-	<!-- Stats and Actions -->
-	<div class="flex items-center justify-between text-sm text-gray-500">
-		<div class="flex items-center gap-4 flex-wrap">
-			<!-- Click Count -->
-			<div class="flex items-center gap-1">
-				<span class="font-semibold text-gray-900">{link.click_count}</span>
-				<span>click{link.click_count !== 1 ? 's' : ''}</span>
-			</div>
-
-			<!-- Created Date -->
-			<div>Created {formatDate(link.created_at)}</div>
-
-			<!-- Expiration Date (if set) -->
-			{#if link.expires_at}
-				<div class="flex items-center gap-1">
-					<span>Expires {formatDate(link.expires_at)}</span>
-					{#if link.expires_at * 1000 < Date.now()}
-						<span class="text-red-600 font-medium">⚠ Expired</span>
-					{/if}
-				</div>
-			{/if}
-		</div>
-
-		<!-- Action Buttons -->
-		<div class="flex items-center gap-2">
 			<!-- Edit Button -->
 			<button
 				onclick={() => onEdit(link)}
-				class="px-3 py-1 text-gray-700 hover:bg-gray-100 rounded transition-colors"
+				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
 				title="Edit link"
 			>
-				Edit
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+					/>
+				</svg>
 			</button>
 
 			<!-- Delete Button -->
 			<div class="relative">
 				{#if showDeleteConfirm}
-					<div class="absolute right-0 bottom-full mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10 min-w-[200px]">
-						<p class="text-sm text-gray-700 mb-3">Delete this link?</p>
+					<div
+						class="absolute right-0 top-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl p-4 z-10 min-w-[220px]"
+					>
+						<p class="text-sm font-medium text-gray-900 mb-2">Delete this link?</p>
+						<p class="text-xs text-gray-600 mb-3">This action cannot be undone.</p>
 						<div class="flex gap-2">
 							<button
 								onclick={() => {
 									showDeleteConfirm = false;
 									onDelete(link.id);
 								}}
-								class="flex-1 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+								class="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
 							>
 								Delete
 							</button>
 							<button
 								onclick={() => (showDeleteConfirm = false)}
-								class="flex-1 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+								class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
 							>
 								Cancel
 							</button>
@@ -141,11 +131,104 @@
 				{/if}
 				<button
 					onclick={() => (showDeleteConfirm = !showDeleteConfirm)}
-					class="px-3 py-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+					class="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+					title="Delete link"
 				>
-					Delete
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+						/>
+					</svg>
 				</button>
 			</div>
 		</div>
+	</div>
+
+	<!-- Stats Row with Copy Button -->
+	<div class="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100">
+		<!-- Stats -->
+		<div class="flex items-center gap-4 flex-wrap">
+			<!-- Click Count -->
+			<div class="flex items-center gap-1.5">
+				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+					/>
+				</svg>
+				<span class="font-semibold text-gray-900">{link.click_count}</span>
+			</div>
+
+			<!-- Created Date -->
+			<div class="flex items-center gap-1.5">
+				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+					/>
+				</svg>
+				<span>{formatDate(link.created_at)}</span>
+			</div>
+
+			<!-- Expiration Date (if set) -->
+			{#if link.expires_at}
+				<div
+					class="flex items-center gap-1.5 {link.expires_at * 1000 < Date.now()
+						? 'text-red-600'
+						: ''}"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					<span>Expires {formatDate(link.expires_at)}</span>
+					{#if link.expires_at * 1000 < Date.now()}
+						<span class="font-medium">⚠</span>
+					{/if}
+				</div>
+			{/if}
+		</div>
+
+		<!-- Copy Button (Right side) -->
+		<button
+			onclick={copyToClipboard}
+			class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-300 {copySuccess
+				? 'bg-green-100 text-green-700'
+				: 'bg-gray-100 hover:bg-gray-200 text-gray-700'}"
+			title="Copy short link"
+		>
+			{#if copySuccess}
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M5 13l4 4L19 7"
+					/>
+				</svg>
+				<span>Copied</span>
+			{:else}
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+					/>
+				</svg>
+				<span>Copy</span>
+			{/if}
+		</button>
 	</div>
 </div>

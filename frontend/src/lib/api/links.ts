@@ -1,15 +1,15 @@
 import { apiClient } from './client';
-import type { Link, CreateLinkRequest, UpdateLinkRequest } from '$lib/types/api';
+import type { Link, CreateLinkRequest, UpdateLinkRequest, PaginatedResponse } from '$lib/types/api';
 
 export const linksApi = {
 	/**
 	 * List all links for the authenticated user's organization
 	 * @param page - Page number (default: 1)
 	 * @param limit - Number of links per page (default: 20)
-	 * @returns Array of Link objects
+	 * @returns Paginated response with links and pagination metadata
 	 */
-	async list(page: number = 1, limit: number = 20): Promise<Link[]> {
-		return apiClient.get<Link[]>(`/api/links?page=${page}&limit=${limit}`);
+	async list(page: number = 1, limit: number = 20): Promise<PaginatedResponse<Link>> {
+		return apiClient.get<PaginatedResponse<Link>>(`/api/links?page=${page}&limit=${limit}`);
 	},
 
 	/**

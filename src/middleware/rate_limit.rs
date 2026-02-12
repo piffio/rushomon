@@ -6,13 +6,14 @@
 /// # Current Implementation Status
 ///
 /// Rate limiting is currently applied to:
-/// - ✅ Public redirects (GET /{short_code}): 100/min per IP
-/// - ✅ Link creation (POST /api/links): 20/hour per user
+/// - ✅ Public redirects (GET /{short_code}): 300/min per IP
+/// - ✅ Link creation (POST /api/links): 100/hour per user
+/// - ✅ OAuth endpoints (GET /api/auth/github, GET /api/auth/callback): 20/15min per IP
+/// - ✅ Token refresh (POST /api/auth/refresh): 30/hour per session
+/// - ✅ Auth check (GET /api/auth/me): 100/min per session
 ///
 /// TODO: Apply rate limiting to remaining endpoints:
-/// - OAuth endpoints (GET /api/auth/github, GET /api/auth/callback): 5/10min per IP
-/// - Token refresh (POST /api/auth/refresh): 10/hour per session
-/// - Link listing (GET /api/links): 100/hour per user
+/// - Link listing (GET /api/links): 200/hour per user
 /// - Admin endpoints (GET /api/admin/users): 50/hour per admin
 ///
 /// See SECURITY.md for complete rate limiting roadmap.
@@ -38,51 +39,57 @@ pub struct RateLimitConfig {
 }
 
 impl RateLimitConfig {
-    /// OAuth endpoints: 5 attempts per 15 minutes per IP
+    /// OAuth endpoints: 20 attempts per 15 minutes per IP
+    /// Increased from 5 to allow for legitimate retries and testing
     pub fn oauth() -> Self {
         Self {
-            max_requests: 5,
+            max_requests: 20,
             window_seconds: 900, // 15 minutes
         }
     }
 
-    /// Token refresh: 10 attempts per hour per session
+    /// Token refresh: 30 attempts per hour per session
+    /// Increased from 10 to handle active sessions and multiple tabs
     pub fn token_refresh() -> Self {
         Self {
-            max_requests: 10,
+            max_requests: 30,
             window_seconds: 3600, // 1 hour
         }
     }
 
-    /// Auth check endpoint (/api/auth/me): 30 per minute per session
+    /// Auth check endpoint (/api/auth/me): 100 per minute per session
+    /// Increased from 30 to handle frequent polling from frontend
     pub fn auth_check() -> Self {
         Self {
-            max_requests: 30,
+            max_requests: 100,
             window_seconds: 60, // 1 minute
         }
     }
 
-    /// Link creation: 20 per hour
+    /// Link creation: 100 per hour
+    /// Increased from 20 to support power users and bulk operations
     pub fn link_creation() -> Self {
         Self {
-            max_requests: 20,
+            max_requests: 100,
             window_seconds: 3600, // 1 hour
         }
     }
 
-    /// Link listing: 100 per hour
+    /// Link listing: 200 per hour
+    /// Increased from 100 to handle frequent dashboard refreshes
     #[allow(dead_code)] // TODO: Apply to link listing endpoint
     pub fn link_listing() -> Self {
         Self {
-            max_requests: 100,
+            max_requests: 200,
             window_seconds: 3600, // 1 hour
         }
     }
 
-    /// Public redirects: 100 per minute per IP
+    /// Public redirects: 300 per minute per IP
+    /// Increased from 100 to handle legitimate high-traffic scenarios
     pub fn redirect() -> Self {
         Self {
-            max_requests: 100,
+            max_requests: 300,
             window_seconds: 60, // 1 minute
         }
     }
@@ -231,11 +238,11 @@ mod tests {
     #[test]
     fn test_rate_limit_config() {
         let oauth = RateLimitConfig::oauth();
-        assert_eq!(oauth.max_requests, 5);
+        assert_eq!(oauth.max_requests, 20);
         assert_eq!(oauth.window_seconds, 900); // 15 minutes
 
         let refresh = RateLimitConfig::token_refresh();
-        assert_eq!(refresh.max_requests, 10);
+        assert_eq!(refresh.max_requests, 30);
         assert_eq!(refresh.window_seconds, 3600);
     }
 

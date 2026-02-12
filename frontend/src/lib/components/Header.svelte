@@ -1,110 +1,155 @@
 <script lang="ts">
+	import Logo from "./Logo.svelte";
+	import UserMenu from "./UserMenu.svelte";
 	import { authApi } from "$lib/api/auth";
-	import { goto } from "$app/navigation";
 	import type { User } from "$lib/types/api";
 
-	let { user }: { user: User } = $props();
-	let showMenu = $state(false);
+	interface Props {
+		user?: User | null;
+		currentPage?: "landing" | "dashboard" | "admin" | "settings";
+	}
+
+	let { user, currentPage = "landing" }: Props = $props();
+	let mobileMenuOpen = $state(false);
+
+	// Logo always links to landing page
+	const logoHref = "/";
 
 	async function handleLogout() {
 		try {
-			// Close the dropdown menu immediately
-			showMenu = false;
-
 			await authApi.logout();
-			// Successfully logged out, redirect to homepage
 			window.location.href = "/";
 		} catch (error) {
 			console.error("Logout failed:", error);
-			// Even if logout fails, try to redirect to homepage
 			window.location.href = "/";
 		}
 	}
 </script>
 
-<header class="bg-white border-b border-gray-200">
+<header class="bg-white border-b border-gray-200 sticky top-0 z-40">
 	<div class="container mx-auto px-4 py-4">
 		<div class="flex justify-between items-center">
-			<!-- Logo -->
-			<a href="/dashboard" class="text-2xl font-bold text-gray-900">
-				Rushomon
-			</a>
+			<!-- Logo (Left) -->
+			<Logo href={logoHref} />
 
-			<!-- User Menu -->
-			<div class="relative">
-				<button
-					onclick={() => (showMenu = !showMenu)}
-					class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-				>
-					{#if user.avatar_url}
-						<img
-							src={user.avatar_url}
-							alt={user.name || user.email}
-							class="w-8 h-8 rounded-full"
-						/>
-					{:else}
-						<div
-							class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center"
+			<!-- Desktop Navigation (Center-Left) -->
+			<nav class="hidden md:flex items-center gap-6 ml-8">
+				{#if !user}
+					<!-- Unauthenticated Navigation: Features & Docs -->
+					<a
+						href="/#features"
+						class="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
+					>
+						Features
+					</a>
+					<a
+						href="https://github.com/piffio/rushomon/"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
+					>
+						Docs
+					</a>
+				{/if}
+			</nav>
+
+			<!-- Right Side Actions -->
+			<div class="flex items-center gap-4">
+				{#if user}
+					<!-- Authenticated: Show "Go to Dashboard" CTA only on landing page -->
+					{#if currentPage === "landing"}
+						<a
+							href="/dashboard"
+							class="hidden md:block px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm hover:shadow-md text-sm"
 						>
-							<span class="text-gray-600 font-medium">
-								{(user.name || user.email)
-									.charAt(0)
-									.toUpperCase()}
-							</span>
-						</div>
+							Go to Dashboard →
+						</a>
 					{/if}
-					<span class="text-sm font-medium text-gray-700">
-						{user.name || user.email}
-					</span>
+					<UserMenu {user} onLogout={handleLogout} />
+				{/if}
+
+				<!-- Mobile Menu Button -->
+				<button
+					onclick={() => (mobileMenuOpen = !mobileMenuOpen)}
+					class="md:hidden p-2 text-gray-700 hover:text-orange-600 transition-colors"
+					aria-label="Toggle menu"
+				>
 					<svg
-						class="w-4 h-4 text-gray-500 transition-transform"
-						class:rotate-180={showMenu}
+						class="w-6 h-6"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
 					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M19 9l-7 7-7-7"
-						/>
+						{#if mobileMenuOpen}
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						{:else}
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M4 6h16M4 12h16M4 18h16"
+							/>
+						{/if}
 					</svg>
 				</button>
+			</div>
+		</div>
 
-				{#if showMenu}
-					<div
-						class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
-					>
-						<div class="px-4 py-3 border-b border-gray-100">
-							<p class="text-sm font-medium text-gray-900">
-								{user.name || "User"}
-							</p>
-							<p class="text-sm text-gray-500">{user.email}</p>
-							<p class="text-xs text-gray-400 mt-1">
-								{user.role === "admin"
-									? "Administrator"
-									: "Member"}
-							</p>
-						</div>
+		<!-- Mobile Menu (Collapsible) -->
+		{#if mobileMenuOpen}
+			<nav class="md:hidden mt-4 pb-4 border-t border-gray-200 pt-4">
+				{#if user}
+					<!-- Authenticated Mobile Nav: Only settings and utility links -->
+					<div class="border-t border-gray-100 pt-2">
+						<a
+							href="/settings"
+							class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+							>⚙️ Settings</a
+						>
+						<a
+							href="https://github.com/piffio/rushomon/"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+							>📖 Docs</a
+						>
 						{#if user.role === "admin"}
 							<a
 								href="/admin"
-								onclick={() => (showMenu = false)}
-								class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+								class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+								>👥 Admin</a
 							>
-								Admin Dashboard
-							</a>
 						{/if}
+					</div>
+					<div class="border-t border-gray-100 mt-2 pt-2">
 						<button
 							onclick={handleLogout}
-							class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+							class="w-full text-left py-2 text-gray-700 hover:text-orange-600 transition-colors"
 						>
-							Sign out
+							🚪 Log out
 						</button>
 					</div>
+				{:else}
+					<!-- Unauthenticated Mobile Nav -->
+					<a
+						href="/#features"
+						class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+						>Features</a
+					>
+					<a
+						href="https://github.com/piffio/rushomon/"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+						>Docs</a
+					>
 				{/if}
-			</div>
-		</div>
+			</nav>
+		{/if}
 	</div>
 </header>

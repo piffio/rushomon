@@ -3,7 +3,7 @@ use crate::db;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
-    Link,
+    Link, PaginatedResponse, PaginationMeta,
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
@@ -42,7 +42,7 @@ pub async fn handle_redirect(
 ) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
-    // Rate limiting: 100 requests per minute per IP
+    // Rate limiting: 300 requests per minute per IP
     let client_ip = get_client_ip(&req);
     let rate_limit_key = RateLimiter::ip_key("redirect", &client_ip);
     let rate_limit_config = RateLimitConfig::redirect();
@@ -141,7 +141,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let user_id = &user_ctx.user_id;
     let org_id = &user_ctx.org_id;
 
-    // Rate limiting: 20 link creations per hour per user
+    // Rate limiting: 100 link creations per hour per user
     let kv = ctx.kv("URL_MAPPINGS")?;
     let rate_limit_key = RateLimiter::user_key("create_link", user_id);
     let rate_limit_config = RateLimitConfig::link_creation();
@@ -291,7 +291,8 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
                 .and_then(|s| s.split('=').nth(1))
                 .and_then(|s| s.parse().ok())
         })
-        .unwrap_or(1);
+        .unwrap_or(1)
+        .max(1); // Ensure page is at least 1
 
     let limit: i64 = url
         .query()
@@ -307,9 +308,22 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
     let offset = (page - 1) * limit;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let links = db::get_links_by_org(&db, org_id, limit, offset).await?;
 
-    Response::from_json(&links)
+    // Get total count, links, and stats
+    // D1 doesn't support parallel queries, so we run them sequentially
+    let total = db::get_links_count_by_org(&db, org_id).await?;
+    let links = db::get_links_by_org(&db, org_id, limit, offset).await?;
+    let stats = db::get_dashboard_stats(&db, org_id).await?;
+
+    // Build pagination metadata
+    let pagination = PaginationMeta::new(page, limit, total);
+
+    // Build paginated response with stats
+    let stats_json = serde_json::to_value(&stats)
+        .map_err(|e| Error::RustError(format!("Failed to serialize stats: {}", e)))?;
+    let response = PaginatedResponse::with_stats(links, pagination, stats_json);
+
+    Response::from_json(&response)
 }
 
 /// Handle getting a single link: GET /api/links/{id}
@@ -442,7 +456,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
-    // Rate limiting: 5 requests per 15 minutes per IP
+    // Rate limiting: 20 requests per 15 minutes per IP
     let client_ip = get_client_ip(&req);
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
@@ -475,7 +489,7 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
 pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
-    // Rate limiting: 5 requests per 15 minutes per IP (same as OAuth initiation)
+    // Rate limiting: 20 requests per 15 minutes per IP (same as OAuth initiation)
     let client_ip = get_client_ip(&req);
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
@@ -575,7 +589,7 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
         Err(e) => return Ok(e.into_response()),
     };
 
-    // Rate limiting: 30 requests per minute per session
+    // Rate limiting: 100 requests per minute per session
     let kv = ctx.kv("URL_MAPPINGS")?;
     let rate_limit_key = RateLimiter::session_key("auth_check", &user_ctx.session_id);
     let rate_limit_config = RateLimitConfig::auth_check();
@@ -636,7 +650,7 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         return Response::error("Invalid token type", 401);
     }
 
-    // Rate limiting: 10 requests per hour per session
+    // Rate limiting: 30 requests per hour per session
     let rate_limit_key = RateLimiter::session_key("token_refresh", &claims.session_id);
     let rate_limit_config = RateLimitConfig::token_refresh();
 
