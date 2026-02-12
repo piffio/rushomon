@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { Link } from "$lib/types/api";
-	import { PUBLIC_VITE_API_BASE_URL } from "$env/static/public";
+	import {
+		PUBLIC_VITE_API_BASE_URL,
+		PUBLIC_VITE_SHORT_LINK_BASE_URL,
+	} from "$env/static/public";
 
 	let {
 		link,
@@ -13,7 +16,7 @@
 	} = $props();
 
 	const SHORT_LINK_BASE =
-		(globalThis as any).PUBLIC_VITE_SHORT_LINK_BASE_URL ||
+		PUBLIC_VITE_SHORT_LINK_BASE_URL ||
 		PUBLIC_VITE_API_BASE_URL ||
 		"http://localhost:8787";
 	const shortUrl = $derived(`${SHORT_LINK_BASE}/${link.short_code}`);
