@@ -141,8 +141,20 @@ async fn test_list_links() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let links: Vec<serde_json::Value> = response.json().await.unwrap();
+    let body: serde_json::Value = response.json().await.unwrap();
+    let links = body["data"]
+        .as_array()
+        .expect("expected data array in paginated response");
     assert!(links.len() >= 2);
+
+    // Verify pagination metadata is present
+    assert!(
+        body["pagination"].is_object(),
+        "expected pagination metadata"
+    );
+    assert!(body["pagination"]["page"].is_number());
+    assert!(body["pagination"]["limit"].is_number());
+    assert!(body["pagination"]["total"].is_number());
 }
 
 #[tokio::test]
