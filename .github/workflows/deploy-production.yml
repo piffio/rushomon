@@ -115,8 +115,6 @@ jobs:
 
           [vars]
           GITHUB_CLIENT_ID = "${{ env.GH_CLIENT_ID }}"
-          GITHUB_CLIENT_SECRET = "${{ env.GH_CLIENT_SECRET }}"
-          JWT_SECRET = "${{ env.JWT_SECRET }}"
           GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
           GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
           GITHUB_USER_URL = "https://api.github.com/user"
@@ -138,6 +136,19 @@ jobs:
           echo "📋 Applying D1 migrations to production database..."
           wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
           echo "✅ Production migrations applied successfully"
+
+      - name: Set Worker Secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          # Set secrets using wrangler secrets API (not visible in Worker dashboard)
+          echo "🔐 Setting Worker secrets..."
+          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.production.toml
+          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.production.toml
+          echo "✅ Secrets configured securely"
 
       - name: Deploy Worker
         env:
