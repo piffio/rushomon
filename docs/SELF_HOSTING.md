@@ -150,6 +150,8 @@ id = "YOUR_KV_NAMESPACE_ID"
 [assets]
 directory = "./frontend/build"
 binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "none"
 
 # Environment variables
 [vars]

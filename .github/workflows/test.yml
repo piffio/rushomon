@@ -66,6 +66,11 @@ jobs:
           npm install -g wrangler
           cargo install -q worker-build
 
+      - name: Create frontend build stub
+        run: |
+          mkdir -p frontend/build
+          echo '<html><body>stub</body></html>' > frontend/build/index.html
+
       - name: Build Worker
         run: worker-build --release
 

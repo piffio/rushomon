@@ -33,6 +33,12 @@ ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-
 # Pattern for ephemeral environments (use {} as placeholder for PR number)
 EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
 
+[assets]
+directory = "./frontend/build"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "none"
+
 # Secrets (sensitive values - set via wrangler secret put)
 # Run these commands to set secrets:
 # wrangler secret put GITHUB_CLIENT_SECRET
