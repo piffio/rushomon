@@ -202,7 +202,7 @@ jobs:
           directory = "./frontend/build"
           binding = "ASSETS"
           run_worker_first = true
-          not_found_handling = "single-page-application"
+          not_found_handling = "none"
 
           [vars]
           GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID }}"

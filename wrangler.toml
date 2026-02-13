@@ -37,7 +37,7 @@ EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
 directory = "./frontend/build"
 binding = "ASSETS"
 run_worker_first = true
-not_found_handling = "single-page-application"
+not_found_handling = "none"
 
 # Secrets (sensitive values - set via wrangler secret put)
 # Run these commands to set secrets:

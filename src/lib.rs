@@ -196,20 +196,20 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
     let is_frontend_domain = request_authority == frontend_authority;
 
     // Serve static assets on the frontend domain for non-API routes.
-    // The ASSETS binding with not_found_handling = "single-page-application" handles SPA fallback
-    // automatically (serves index.html for navigation requests that don't match a static file).
+    // With not_found_handling = "none", ASSETS returns 404 for unknown paths, letting us
+    // fall through to the router for short code redirects before applying SPA fallback.
     if !path.starts_with("/api/")
         && is_frontend_domain
         && let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS")
     {
         let asset_url = url.to_string();
         match assets.fetch(asset_url, None).await {
-            Ok(asset_response) => {
+            Ok(asset_response) if asset_response.status_code() < 400 => {
                 let response_with_headers = add_security_headers(asset_response, is_https);
                 return Ok(add_cors_headers(response_with_headers, origin, &env));
             }
-            Err(_) => {
-                // Asset fetch failed, continue to router
+            _ => {
+                // Asset not found or fetch failed, continue to router
             }
         }
     }
@@ -297,6 +297,23 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
     let deferred = DEFERRED_ANALYTICS.with(|cell| cell.borrow_mut().take());
     if let Some(analytics_future) = deferred {
         worker_ctx.wait_until(analytics_future);
+    }
+
+    // SPA fallback: if router returned 404 on the frontend domain, serve index.html.
+    // This enables client-side routing for paths like /dashboard, /auth/callback, etc.
+    // Short code redirects are already handled by the router above (returning 301/302).
+    if response.status_code() == 404
+        && is_frontend_domain
+        && !path.starts_with("/api/")
+        && let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS")
+    {
+        let fallback_url = format!("{}://{}/index.html", url.scheme(), &request_authority);
+        if let Ok(fallback_response) = assets.fetch(fallback_url, None).await
+            && fallback_response.status_code() < 400
+        {
+            let response_with_headers = add_security_headers(fallback_response, is_https);
+            return Ok(add_cors_headers(response_with_headers, origin, &env));
+        }
     }
 
     // Add security headers and CORS headers to all responses
