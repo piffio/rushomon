@@ -6,7 +6,6 @@ CREATE TABLE monthly_counters (
   org_id TEXT NOT NULL,
   year_month TEXT NOT NULL,  -- Format: "2026-02"
   links_created INTEGER DEFAULT 0,
-  clicks_tracked INTEGER DEFAULT 0,
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (org_id, year_month),
   FOREIGN KEY (org_id) REFERENCES organizations(id)
