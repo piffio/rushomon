@@ -7,6 +7,8 @@ use crate::models::{
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
+use std::future::Future;
+use std::pin::Pin;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -41,12 +43,24 @@ fn get_client_ip(req: &Request) -> String {
     "unknown".to_string()
 }
 
+/// Result of a redirect operation, containing the response and optional deferred analytics work.
+pub struct RedirectResult {
+    pub response: Response,
+    /// Optional future for analytics logging, to be executed via `ctx.wait_until()`.
+    /// This allows the redirect response to be sent immediately without waiting for D1 writes.
+    pub analytics_future: Option<Pin<Box<dyn Future<Output = ()> + 'static>>>,
+}
+
 /// Handle public short code redirects: GET /{short_code}
+///
+/// Returns a RedirectResult containing the redirect response and an optional
+/// analytics future. The caller should use `Context::wait_until()` to execute
+/// the analytics future after sending the response, avoiding blocking the redirect.
 pub async fn handle_redirect(
     req: Request,
     ctx: RouteContext<()>,
     short_code: String,
-) -> Result<Response> {
+) -> Result<RedirectResult> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
     // Rate limiting: 300 requests per minute per IP
@@ -61,7 +75,10 @@ pub async fn handle_redirect(
                 .headers_mut()
                 .set("Retry-After", &retry_after.to_string())?;
         }
-        return Ok(response);
+        return Ok(RedirectResult {
+            response,
+            analytics_future: None,
+        });
     }
 
     // Look up the link mapping in KV
@@ -69,13 +86,19 @@ pub async fn handle_redirect(
 
     let Some(mapping) = mapping else {
         let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
-        return Response::redirect_with_status(url, 302);
+        return Ok(RedirectResult {
+            response: Response::redirect_with_status(url, 302)?,
+            analytics_future: None,
+        });
     };
 
     // Check if link is active
     if !matches!(mapping.status, LinkStatus::Active) {
         let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
-        return Response::redirect_with_status(url, 302);
+        return Ok(RedirectResult {
+            response: Response::redirect_with_status(url, 302)?,
+            analytics_future: None,
+        });
     }
 
     // Check if expired
@@ -84,61 +107,65 @@ pub async fn handle_redirect(
 
         if now > expires_at {
             let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
-            return Response::redirect_with_status(url, 302);
+            return Ok(RedirectResult {
+                response: Response::redirect_with_status(url, 302)?,
+                analytics_future: None,
+            });
         }
     }
 
-    // Log analytics asynchronously (non-blocking)
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let link_id = mapping.link_id.clone();
+    // Build the redirect response immediately (fast path)
+    let destination_url = Url::parse(&mapping.destination_url)?;
+    let response = Response::redirect_with_status(destination_url, 301)?;
 
-    // Get the full link to extract org_id (no auth check for public redirects)
-    let link = match db::get_link_by_id_no_auth(&db, &link_id).await {
-        Ok(Some(link)) => link,
-        Ok(None) => {
-            // If we can't get the link, we'll skip analytics but still redirect
-            return Response::redirect_with_status(Url::parse(&mapping.destination_url)?, 301);
-        }
-        Err(e) => {
-            console_log!("Error getting link: {}", e);
-            // If there's an error, we'll skip analytics but still redirect
-            return Response::redirect_with_status(Url::parse(&mapping.destination_url)?, 301);
-        }
-    };
-
+    // Collect analytics data from the request before it's consumed
     let referrer = req.headers().get("Referer").ok().flatten();
     let user_agent = req.headers().get("User-Agent").ok().flatten();
     let country = req.headers().get("CF-IPCountry").ok().flatten();
     let city = req.headers().get("CF-IPCity").ok().flatten();
 
-    // Create analytics event
+    // Prepare deferred analytics work (executed via wait_until after response is sent)
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let link_id = mapping.link_id.clone();
     let now = now_timestamp();
-    let event = crate::models::AnalyticsEvent {
-        id: None,
-        link_id: link_id.clone(),
-        org_id: link.org_id, // Use actual org_id from the link
-        timestamp: now,
-        referrer,
-        user_agent,
-        country,
-        city,
-    };
 
-    // Log analytics (awaited to ensure completion before Worker terminates)
-    // Note: spawn_local doesn't work reliably in Workers - background tasks can be
-    // cancelled when the response is sent. We await these operations instead.
-    // Performance impact is minimal (~10-50ms) and ensures analytics are captured.
-    if let Err(e) = db::log_analytics_event(&db, &event).await {
-        console_log!("Analytics event logging failed: {}", e);
-    }
-    if let Err(e) = db::increment_click_count(&db, &link_id).await {
-        console_log!("Click count increment failed: {}", e);
-    }
+    let analytics_future: Pin<Box<dyn Future<Output = ()> + 'static>> = Box::pin(async move {
+        // Get the full link to extract org_id (no auth check for public redirects)
+        let link = match db::get_link_by_id_no_auth(&db, &link_id).await {
+            Ok(Some(link)) => link,
+            Ok(None) => {
+                console_log!("Analytics: link not found for id {}", link_id);
+                return;
+            }
+            Err(e) => {
+                console_log!("Analytics: error getting link: {}", e);
+                return;
+            }
+        };
 
-    // Perform 301 permanent redirect
-    // Analytics are now guaranteed to complete
-    let destination_url = Url::parse(&mapping.destination_url)?;
-    Response::redirect_with_status(destination_url, 301)
+        let event = crate::models::AnalyticsEvent {
+            id: None,
+            link_id: link_id.clone(),
+            org_id: link.org_id,
+            timestamp: now,
+            referrer,
+            user_agent,
+            country,
+            city,
+        };
+
+        if let Err(e) = db::log_analytics_event(&db, &event).await {
+            console_log!("Analytics event logging failed: {}", e);
+        }
+        if let Err(e) = db::increment_click_count(&db, &link_id).await {
+            console_log!("Click count increment failed: {}", e);
+        }
+    });
+
+    Ok(RedirectResult {
+        response,
+        analytics_future: Some(analytics_future),
+    })
 }
 
 /// Handle link creation: POST /api/links
