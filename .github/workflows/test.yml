@@ -66,6 +66,12 @@ jobs:
           npm install -g wrangler
           cargo install -q worker-build
 
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
       - name: Build Worker
         run: worker-build --release
 
