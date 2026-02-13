@@ -1,3 +1,4 @@
+use crate::models::Link;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,33 +13,36 @@ pub struct AnalyticsEvent {
     pub city: Option<String>,
 }
 
-// Analytics summary types - reserved for future analytics dashboard feature
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AnalyticsSummary {
-    pub total_clicks: i64,
-    pub clicks_by_day: Vec<DailyClicks>,
-    pub top_referrers: Vec<ReferrerCount>,
-    pub countries: Vec<CountryCount>,
-}
-
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DailyClicks {
     pub date: String,
     pub count: i64,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReferrerCount {
     pub referrer: String,
     pub count: i64,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CountryCount {
     pub country: String,
     pub count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserAgentCount {
+    pub user_agent: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LinkAnalyticsResponse {
+    pub link: Link,
+    pub total_clicks_in_range: i64,
+    pub clicks_over_time: Vec<DailyClicks>,
+    pub top_referrers: Vec<ReferrerCount>,
+    pub top_countries: Vec<CountryCount>,
+    pub top_user_agents: Vec<UserAgentCount>,
 }

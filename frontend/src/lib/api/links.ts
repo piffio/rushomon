@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Link, CreateLinkRequest, UpdateLinkRequest, PaginatedResponse } from '$lib/types/api';
+import type { Link, CreateLinkRequest, UpdateLinkRequest, PaginatedResponse, LinkAnalyticsResponse } from '$lib/types/api';
 
 export const linksApi = {
 	/**
@@ -54,5 +54,30 @@ export const linksApi = {
 	 */
 	async delete(id: string): Promise<void> {
 		await apiClient.delete<void>(`/api/links/${id}`);
+	},
+
+	/**
+	 * Get a link by its short_code
+	 * @param shortCode - The short code of the link
+	 * @returns Link object
+	 * @throws ApiError if link not found (404)
+	 */
+	async getByCode(shortCode: string): Promise<Link> {
+		return apiClient.get<Link>(`/api/links/by-code/${shortCode}`);
+	},
+
+	/**
+	 * Get analytics data for a link
+	 * @param id - Link UUID
+	 * @param start - Start timestamp (unix seconds, optional)
+	 * @param end - End timestamp (unix seconds, optional)
+	 * @returns Analytics response with clicks over time, referrers, countries, user agents
+	 */
+	async getAnalytics(id: string, start?: number, end?: number): Promise<LinkAnalyticsResponse> {
+		const params = new URLSearchParams();
+		if (start !== undefined) params.set('start', start.toString());
+		if (end !== undefined) params.set('end', end.toString());
+		const query = params.toString();
+		return apiClient.get<LinkAnalyticsResponse>(`/api/links/${id}/analytics${query ? `?${query}` : ''}`);
 	}
 };

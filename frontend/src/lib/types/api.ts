@@ -65,3 +65,32 @@ export interface PaginatedResponse<T> {
 	pagination: PaginationMeta;
 	stats?: DashboardStats;
 }
+
+export interface ClicksOverTime {
+	date: string;
+	count: number;
+}
+
+export interface ReferrerCount {
+	referrer: string;
+	count: number;
+}
+
+export interface CountryCount {
+	country: string;
+	count: number;
+}
+
+export interface UserAgentCount {
+	user_agent: string;
+	count: number;
+}
+
+export interface LinkAnalyticsResponse {
+	link: Link;
+	total_clicks_in_range: number;
+	clicks_over_time: ClicksOverTime[];
+	top_referrers: ReferrerCount[];
+	top_countries: CountryCount[];
+	top_user_agents: UserAgentCount[];
+}
