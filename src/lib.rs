@@ -175,74 +175,41 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
     let origin = req.headers().get("Origin").ok().flatten();
     let is_https = req.url().map(|u| u.scheme() == "https").unwrap_or(false);
 
-    // Try to serve static assets first (for ephemeral unified Worker deployment)
-    // This only works when ASSETS binding is present (ephemeral environment)
+    // With run_worker_first = true in wrangler config, the Worker runs before static assets.
+    // Determine if this request is to the frontend domain (vs redirect domain like rush.mn).
+    // Only serve static assets on the frontend domain; redirect domain goes straight to router.
     let url = req.url()?;
     let path = url.path();
 
-    // Determine if this request is to the frontend domain (vs redirect domain like rush.mn)
-    // Only serve static assets on the frontend domain; redirect domain should go straight to router
-    let request_host = url.host_str().unwrap_or("");
+    let request_authority = match url.port() {
+        Some(port) => format!("{}:{}", url.host_str().unwrap_or(""), port),
+        None => url.host_str().unwrap_or("").to_string(),
+    };
     let frontend_url_str = router::get_frontend_url(&env);
-    let frontend_host = Url::parse(&frontend_url_str)
+    let frontend_authority = Url::parse(&frontend_url_str)
         .ok()
-        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .map(|u| match u.port() {
+            Some(port) => format!("{}:{}", u.host_str().unwrap_or(""), port),
+            None => u.host_str().unwrap_or("").to_string(),
+        })
         .unwrap_or_default();
-    let is_frontend_domain = request_host == frontend_host;
+    let is_frontend_domain = request_authority == frontend_authority;
 
-    // If not an API route and ASSETS binding exists, try to serve static file
-    // Skip static assets for non-frontend domains (e.g., rush.mn redirect domain)
-    if !path.starts_with("/api/") && is_frontend_domain {
-        // Check if ASSETS binding exists (only in ephemeral unified deployments)
-        if let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS") {
-            // Try to serve the request from static assets
-            // Fetch expects a URL string, not a Request object
-            let asset_url = url.to_string();
-            match assets.fetch(asset_url, None).await {
-                Ok(asset_response) => {
-                    // Check if asset was found (status 200-299)
-                    if asset_response.status_code() >= 200 && asset_response.status_code() < 300 {
-                        // Static asset found, return it with security headers
-                        let response_with_headers = add_security_headers(asset_response, is_https);
-                        return Ok(add_cors_headers(response_with_headers, origin, &env));
-                    }
-                    // Asset not found (404) - check if it's a frontend route or a short code
-                    // Frontend routes (like /dashboard, /auth/callback) should serve index.html (SPA fallback)
-                    // Short codes (like /abc123) should continue to router for redirect handling
-
-                    // If path has multiple segments or looks like a frontend route, serve index.html
-                    let path_segments: Vec<&str> =
-                        path.trim_start_matches('/').split('/').collect();
-                    let is_likely_frontend_route = path_segments.len() > 1
-                        || path.starts_with("/dashboard")
-                        || path.starts_with("/auth")
-                        || path.starts_with("/admin")
-                        || path.starts_with("/settings")
-                        || path.starts_with("/404");
-
-                    if is_likely_frontend_route {
-                        // Serve index.html as SPA fallback
-                        let fallback_url = format!(
-                            "{}://{}/index.html",
-                            url.scheme(),
-                            url.host_str().unwrap_or("")
-                        );
-                        match assets.fetch(fallback_url, None).await {
-                            Ok(fallback_response) => {
-                                let response_with_headers =
-                                    add_security_headers(fallback_response, is_https);
-                                return Ok(add_cors_headers(response_with_headers, origin, &env));
-                            }
-                            Err(_) => {
-                                // Fallback failed, continue to router
-                            }
-                        }
-                    }
-                    // Otherwise continue to router (might be a short code redirect)
-                }
-                Err(_) => {
-                    // Asset fetch failed, continue to router
-                }
+    // Serve static assets on the frontend domain for non-API routes.
+    // The ASSETS binding with not_found_handling = "single-page-application" handles SPA fallback
+    // automatically (serves index.html for navigation requests that don't match a static file).
+    if !path.starts_with("/api/")
+        && is_frontend_domain
+        && let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS")
+    {
+        let asset_url = url.to_string();
+        match assets.fetch(asset_url, None).await {
+            Ok(asset_response) => {
+                let response_with_headers = add_security_headers(asset_response, is_https);
+                return Ok(add_cors_headers(response_with_headers, origin, &env));
+            }
+            Err(_) => {
+                // Asset fetch failed, continue to router
             }
         }
     }

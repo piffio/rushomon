@@ -112,6 +112,8 @@ jobs:
           [assets]
           directory = "./frontend/build"
           binding = "ASSETS"
+          run_worker_first = true
+          not_found_handling = "single-page-application"
 
           [vars]
           GITHUB_CLIENT_ID = "${{ env.GH_CLIENT_ID }}"
