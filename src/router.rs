@@ -493,18 +493,6 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
     if let Some(tier) = Tier::from_str_value(&org.tier) {
         let limits = tier.limits();
 
-        // Check monthly click limit — if exceeded, gate the analytics UI
-        if let Some(max_clicks) = limits.max_tracked_clicks_per_month {
-            // Use the new monthly counter system for click tracking
-            let now = chrono::Utc::now();
-            let year_month = format!("{}-{:02}", now.year(), now.month());
-            let clicks_this_month = db::get_monthly_click_counter(&db, org_id, &year_month).await?;
-            if clicks_this_month > max_clicks {
-                analytics_gated = true;
-                gated_reason = Some("click_limit_exceeded".to_string());
-            }
-        }
-
         // Enforce analytics retention window — clamp start date
         if let Some(retention_days) = limits.analytics_retention_days {
             let retention_start = now - retention_days * 24 * 60 * 60;
@@ -848,7 +836,6 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
         "tier": tier.as_str(),
         "limits": {
             "max_links_per_month": limits.max_links_per_month,
-            "max_tracked_clicks_per_month": limits.max_tracked_clicks_per_month,
             "analytics_retention_days": limits.analytics_retention_days,
         },
         "usage": {

@@ -85,11 +85,6 @@
 							<strong>25 short links</strong> per calendar month
 						</li>
 						<li>
-							<strong>1,000 tracked clicks</strong> per calendar month
-							(links continue to redirect after the limit, but analytics
-							are paused)
-						</li>
-						<li>
 							<strong>7 days</strong> of analytics data retention
 						</li>
 					</ul>

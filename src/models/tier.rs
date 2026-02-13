@@ -28,12 +28,10 @@ impl Tier {
         match self {
             Tier::Free => TierLimits {
                 max_links_per_month: Some(25),
-                max_tracked_clicks_per_month: Some(1_000),
                 analytics_retention_days: Some(7),
             },
             Tier::Unlimited => TierLimits {
                 max_links_per_month: None,
-                max_tracked_clicks_per_month: None,
                 analytics_retention_days: None,
             },
         }
@@ -48,11 +46,9 @@ impl fmt::Display for Tier {
 
 #[derive(Debug, Clone)]
 pub struct TierLimits {
-    /// Maximum links that can be created per calendar month. None = unlimited.
+    /// Maximum links per calendar month. None = unlimited.
+    /// When exceeded, link creation is blocked with a clear error message.
     pub max_links_per_month: Option<i64>,
-    /// Maximum tracked clicks per calendar month. None = unlimited.
-    /// When exceeded, analytics are still recorded but the UI is gated.
-    pub max_tracked_clicks_per_month: Option<i64>,
     /// Analytics data retention in days. None = unlimited.
     /// Enforced at the API level (data is kept, but filtered by date window).
     pub analytics_retention_days: Option<i64>,
@@ -79,7 +75,6 @@ mod tests {
     fn test_free_tier_has_limits() {
         let limits = Tier::Free.limits();
         assert_eq!(limits.max_links_per_month, Some(25));
-        assert_eq!(limits.max_tracked_clicks_per_month, Some(1_000));
         assert_eq!(limits.analytics_retention_days, Some(7));
     }
 
@@ -87,7 +82,6 @@ mod tests {
     fn test_unlimited_tier_has_no_limits() {
         let limits = Tier::Unlimited.limits();
         assert!(limits.max_links_per_month.is_none());
-        assert!(limits.max_tracked_clicks_per_month.is_none());
         assert!(limits.analytics_retention_days.is_none());
     }
 
