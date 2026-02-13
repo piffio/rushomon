@@ -171,8 +171,19 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let url = req.url()?;
     let path = url.path();
 
+    // Determine if this request is to the frontend domain (vs redirect domain like rush.mn)
+    // Only serve static assets on the frontend domain; redirect domain should go straight to router
+    let request_host = url.host_str().unwrap_or("");
+    let frontend_url_str = router::get_frontend_url(&env);
+    let frontend_host = Url::parse(&frontend_url_str)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .unwrap_or_default();
+    let is_frontend_domain = request_host == frontend_host;
+
     // If not an API route and ASSETS binding exists, try to serve static file
-    if !path.starts_with("/api/") {
+    // Skip static assets for non-frontend domains (e.g., rush.mn redirect domain)
+    if !path.starts_with("/api/") && is_frontend_domain {
         // Check if ASSETS binding exists (only in ephemeral unified deployments)
         if let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS") {
             // Try to serve the request from static assets
