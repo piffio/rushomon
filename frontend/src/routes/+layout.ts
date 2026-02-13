@@ -7,7 +7,7 @@ export const ssr = false;
 
 export const load: LayoutLoad = async ({ url }) => {
 	// Define public routes that don't require authentication
-	const publicPaths = ['/auth/github', '/auth/callback'];
+	const publicPaths = ['/auth/github', '/auth/callback', '/pricing'];
 	const isPublicRoute = url.pathname === '/' || publicPaths.some((route: string) =>
 		url.pathname.startsWith(route)
 	);
