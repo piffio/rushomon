@@ -219,7 +219,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
 
     let response = router
         // Public redirect routes - must come first to catch short codes
-        .get_async("/:code", |req, route_ctx| async move {
+        .get_async("/:code", move |req, route_ctx| async move {
             let code = route_ctx
                 .param("code")
                 .ok_or_else(|| Error::RustError("Missing short code".to_string()))?
@@ -231,14 +231,23 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             }
 
             let result = router::handle_redirect(req, route_ctx, code).await?;
-            // Defer analytics to wait_until (handled by caller via ANALYTICS_FUTURE)
-            // Store the future in a thread-local for the caller to pick up
+
+            // On the frontend domain, convert "not found" redirects (302 → /404) into
+            // actual 404 responses so the SPA fallback can serve index.html instead.
+            // The 302 redirect to /404 is only useful on the dedicated redirect domain.
+            if is_frontend_domain
+                && result.analytics_future.is_none()
+                && result.response.status_code() == 302
+            {
+                return Response::error("Not found", 404);
+            }
+
             if let Some(future) = result.analytics_future {
                 DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
             }
             Ok(result.response)
         })
-        .head_async("/:code", |req, route_ctx| async move {
+        .head_async("/:code", move |req, route_ctx| async move {
             let code = route_ctx
                 .param("code")
                 .ok_or_else(|| Error::RustError("Missing short code".to_string()))?
@@ -250,6 +259,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             }
 
             let result = router::handle_redirect(req, route_ctx, code).await?;
+
+            if is_frontend_domain
+                && result.analytics_future.is_none()
+                && result.response.status_code() == 302
+            {
+                return Response::error("Not found", 404);
+            }
+
             if let Some(future) = result.analytics_future {
                 DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
             }
