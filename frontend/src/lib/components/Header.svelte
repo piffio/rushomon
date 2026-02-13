@@ -35,12 +35,18 @@
 			<!-- Desktop Navigation (Center-Left) -->
 			<nav class="hidden md:flex items-center gap-6 ml-8">
 				{#if !user}
-					<!-- Unauthenticated Navigation: Features & Docs -->
+					<!-- Unauthenticated Navigation: Features, Pricing & Docs -->
 					<a
 						href="/#features"
 						class="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
 					>
 						Features
+					</a>
+					<a
+						href="/pricing"
+						class="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
+					>
+						Pricing
 					</a>
 					<a
 						href="https://github.com/piffio/rushomon/"
@@ -50,6 +56,16 @@
 					>
 						Docs
 					</a>
+				{:else}
+					<!-- Authenticated Navigation: Show Pricing on public pages -->
+					{#if currentPage === "landing"}
+						<a
+							href="/pricing"
+							class="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
+						>
+							Pricing
+						</a>
+					{/if}
 				{/if}
 			</nav>
 
@@ -104,7 +120,15 @@
 		{#if mobileMenuOpen}
 			<nav class="md:hidden mt-4 pb-4 border-t border-gray-200 pt-4">
 				{#if user}
-					<!-- Authenticated Mobile Nav: Only settings and utility links -->
+					<!-- Authenticated Mobile Nav -->
+					{#if currentPage === "landing"}
+						<!-- Show Pricing on landing page -->
+						<a
+							href="/pricing"
+							class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+							>💰 Pricing</a
+						>
+					{/if}
 					<div class="border-t border-gray-100 pt-2">
 						<a
 							href="/settings"
@@ -140,6 +164,11 @@
 						href="/#features"
 						class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
 						>Features</a
+					>
+					<a
+						href="/pricing"
+						class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
+						>Pricing</a
 					>
 					<a
 						href="https://github.com/piffio/rushomon/"
