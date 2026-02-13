@@ -225,23 +225,23 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
                 .ok_or_else(|| Error::RustError("Missing short code".to_string()))?
                 .to_string();
 
-            // Skip if it looks like an API route
+            // Skip API routes and known frontend routes on the frontend domain.
+            // Frontend routes (dashboard, auth, settings, admin, 404) must not be
+            // treated as short codes — they should fall through to the SPA fallback.
+            // Without this, /404 would redirect to /404 in an infinite loop.
             if code.starts_with("api") {
                 return Response::error("Not found", 404);
             }
-
-            let result = router::handle_redirect(req, route_ctx, code).await?;
-
-            // On the frontend domain, convert "not found" redirects (302 → /404) into
-            // actual 404 responses so the SPA fallback can serve index.html instead.
-            // The 302 redirect to /404 is only useful on the dedicated redirect domain.
             if is_frontend_domain
-                && result.analytics_future.is_none()
-                && result.response.status_code() == 302
+                && matches!(
+                    code.as_str(),
+                    "dashboard" | "auth" | "settings" | "admin" | "404"
+                )
             {
                 return Response::error("Not found", 404);
             }
 
+            let result = router::handle_redirect(req, route_ctx, code).await?;
             if let Some(future) = result.analytics_future {
                 DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
             }
@@ -253,20 +253,19 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
                 .ok_or_else(|| Error::RustError("Missing short code".to_string()))?
                 .to_string();
 
-            // Skip if it looks like an API route
             if code.starts_with("api") {
                 return Response::error("Not found", 404);
             }
-
-            let result = router::handle_redirect(req, route_ctx, code).await?;
-
             if is_frontend_domain
-                && result.analytics_future.is_none()
-                && result.response.status_code() == 302
+                && matches!(
+                    code.as_str(),
+                    "dashboard" | "auth" | "settings" | "admin" | "404"
+                )
             {
                 return Response::error("Not found", 404);
             }
 
+            let result = router::handle_redirect(req, route_ctx, code).await?;
             if let Some(future) = result.analytics_future {
                 DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
             }
