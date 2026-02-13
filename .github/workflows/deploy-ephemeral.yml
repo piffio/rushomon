@@ -185,7 +185,7 @@ jobs:
           cat > wrangler.ephemeral.toml << 'EOF'
           name = "rushomon-pr-${{ env.PR_NUMBER }}"
           main = "build/worker/shim.mjs"
-          compatibility_date = "2026-02-11"
+          compatibility_date = "2026-02-10"
 
           [build]
           command = "cargo install -q worker-build && worker-build --release"

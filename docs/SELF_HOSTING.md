@@ -126,7 +126,7 @@ Create a file called `wrangler.production.toml` in the project root. This file c
 ```toml
 name = "rushomon-production"
 main = "build/worker/shim.mjs"
-compatibility_date = "2026-02-11"
+compatibility_date = "2026-02-10"
 workers_dev = false
 
 # Custom domains (configure these after first deployment via Cloudflare Dashboard)
