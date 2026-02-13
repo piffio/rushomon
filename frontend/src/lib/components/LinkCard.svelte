@@ -1,18 +1,24 @@
 <script lang="ts">
-	import type { Link } from '$lib/types/api';
-	import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
+	import type { Link } from "$lib/types/api";
+	import {
+		PUBLIC_VITE_API_BASE_URL,
+		PUBLIC_VITE_SHORT_LINK_BASE_URL,
+	} from "$env/static/public";
 
 	let {
 		link,
 		onDelete,
-		onEdit
+		onEdit,
 	}: {
 		link: Link;
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
 	} = $props();
 
-	const SHORT_LINK_BASE = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
+	const SHORT_LINK_BASE =
+		PUBLIC_VITE_SHORT_LINK_BASE_URL ||
+		PUBLIC_VITE_API_BASE_URL ||
+		"http://localhost:8787";
 	const shortUrl = $derived(`${SHORT_LINK_BASE}/${link.short_code}`);
 
 	let showDeleteConfirm = $state(false);
@@ -24,7 +30,7 @@
 			copySuccess = true;
 			setTimeout(() => (copySuccess = false), 2000);
 		} catch (err) {
-			console.error('Failed to copy:', err);
+			console.error("Failed to copy:", err);
 		}
 	}
 
@@ -36,7 +42,7 @@
 	function getDomain(url: string): string {
 		try {
 			const urlObj = new URL(url);
-			return urlObj.hostname.replace('www.', '');
+			return urlObj.hostname.replace("www.", "");
 		} catch {
 			return url;
 		}
@@ -55,7 +61,9 @@
 			</h3>
 
 			<!-- Short Link → Destination URL -->
-			<div class="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+			<div
+				class="flex items-center gap-2 text-sm text-gray-600 flex-wrap"
+			>
 				<a
 					href={shortUrl}
 					target="_blank"
@@ -80,8 +88,10 @@
 		<!-- Action Buttons (Top Right) -->
 		<div class="flex items-center gap-1 flex-shrink-0">
 			<!-- Status Badge -->
-			{#if link.status === 'disabled'}
-				<span class="px-2.5 py-1 text-xs font-medium bg-gray-200 text-gray-700 rounded-full mr-1">
+			{#if link.status === "disabled"}
+				<span
+					class="px-2.5 py-1 text-xs font-medium bg-gray-200 text-gray-700 rounded-full mr-1"
+				>
 					Disabled
 				</span>
 			{/if}
@@ -92,7 +102,12 @@
 				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
 				title="Edit link"
 			>
-				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg
+					class="w-4 h-4"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
 					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"
@@ -108,8 +123,12 @@
 					<div
 						class="absolute right-0 top-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl p-4 z-10 min-w-[220px]"
 					>
-						<p class="text-sm font-medium text-gray-900 mb-2">Delete this link?</p>
-						<p class="text-xs text-gray-600 mb-3">This action cannot be undone.</p>
+						<p class="text-sm font-medium text-gray-900 mb-2">
+							Delete this link?
+						</p>
+						<p class="text-xs text-gray-600 mb-3">
+							This action cannot be undone.
+						</p>
 						<div class="flex gap-2">
 							<button
 								onclick={() => {
@@ -134,7 +153,12 @@
 					class="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
 					title="Delete link"
 				>
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
 						<path
 							stroke-linecap="round"
 							stroke-linejoin="round"
@@ -148,12 +172,19 @@
 	</div>
 
 	<!-- Stats Row with Copy Button -->
-	<div class="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100">
+	<div
+		class="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100"
+	>
 		<!-- Stats -->
 		<div class="flex items-center gap-4 flex-wrap">
 			<!-- Click Count -->
 			<div class="flex items-center gap-1.5">
-				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg
+					class="w-4 h-4 text-gray-400"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
 					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"
@@ -161,12 +192,19 @@
 						d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
 					/>
 				</svg>
-				<span class="font-semibold text-gray-900">{link.click_count}</span>
+				<span class="font-semibold text-gray-900"
+					>{link.click_count}</span
+				>
 			</div>
 
 			<!-- Created Date -->
 			<div class="flex items-center gap-1.5">
-				<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg
+					class="w-4 h-4 text-gray-400"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
 					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"
@@ -180,11 +218,17 @@
 			<!-- Expiration Date (if set) -->
 			{#if link.expires_at}
 				<div
-					class="flex items-center gap-1.5 {link.expires_at * 1000 < Date.now()
+					class="flex items-center gap-1.5 {link.expires_at * 1000 <
+					Date.now()
 						? 'text-red-600'
 						: ''}"
 				>
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
 						<path
 							stroke-linecap="round"
 							stroke-linejoin="round"
@@ -209,7 +253,12 @@
 			title="Copy short link"
 		>
 			{#if copySuccess}
-				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg
+					class="w-4 h-4"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
 					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"
@@ -219,7 +268,12 @@
 				</svg>
 				<span>Copied</span>
 			{:else}
-				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg
+					class="w-4 h-4"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
 					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"

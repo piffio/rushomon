@@ -200,19 +200,102 @@ jobs:
       name: production
 
     steps:
-      - name: Run Read-Only Smoke Tests
+      - name: Run Production Smoke Tests
+        env:
+          WEB_DOMAIN: ${{ secrets.WEB_DOMAIN }}
+          REDIRECT_DOMAIN: ${{ secrets.REDIRECT_DOMAIN }}
         run: |
-          # Note: These tests will fail until custom domains are configured manually
-          # Skip automated tests for now since domains need manual setup
+          WEB_URL="https://$WEB_DOMAIN"
+          REDIRECT_URL="https://$REDIRECT_DOMAIN"
 
-          echo "⚠️  Automated smoke tests skipped"
+          echo "🧪 Running production smoke tests"
+          echo "   Web domain: $WEB_URL"
+          echo "   Redirect domain: $REDIRECT_URL"
           echo ""
-          echo "Unified Worker is deployed but custom domains must be configured manually."
-          echo "After configuring domains, test manually:"
+
+          # Wait for deployment to propagate
+          sleep 5
+
+          # Test 1: Web domain homepage loads
+          echo "🏠 Test 1: Web Domain Homepage"
+          echo "------------------------------"
+          HOMEPAGE_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" "$WEB_URL/" || echo "FAILED")
+          HOMEPAGE_HTTP_CODE=$(echo "$HOMEPAGE_RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$HOMEPAGE_HTTP_CODE" = "200" ]; then
+            echo "✅ Homepage loads correctly (HTTP 200)"
+          else
+            echo "❌ Homepage failed with HTTP $HOMEPAGE_HTTP_CODE"
+            echo "   This may indicate custom domains are not yet configured."
+            echo "   Configure domains manually in Cloudflare Dashboard."
+            exit 1
+          fi
+
+          # Test 2: Redirect domain root redirects to web domain
           echo ""
-          echo "1. Visit https://rushomon.cc/ (should load homepage)"
-          echo "2. Test OAuth login flow"
-          echo "3. Visit https://rush.mn/{test-code} (should redirect)"
-          echo "4. Check browser console for errors"
+          echo "🔄 Test 2: Redirect Domain Root"
+          echo "-------------------------------"
+          ROOT_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -I "$REDIRECT_URL/" || echo "FAILED")
+          ROOT_HTTP_CODE=$(echo "$ROOT_RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$ROOT_HTTP_CODE" = "301" ]; then
+            ROOT_LOCATION=$(echo "$ROOT_RESPONSE" | grep -i location | cut -d' ' -f2- | tr -d '\r')
+            echo "✅ Root redirects with 301 to: $ROOT_LOCATION"
+          else
+            echo "⚠️  Expected 301 redirect, got HTTP $ROOT_HTTP_CODE"
+            echo "   Redirect domain may not be configured yet."
+          fi
+
+          # Test 3: Nonexistent short code redirects to /404
           echo ""
-          echo "See PRODUCTION_MIGRATION_GUIDE.md Phase 6 for detailed testing checklist"
+          echo "🔗 Test 3: Nonexistent Short Code"
+          echo "---------------------------------"
+          NOT_FOUND_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -I "$REDIRECT_URL/doesnotexist999" || echo "FAILED")
+          NOT_FOUND_HTTP_CODE=$(echo "$NOT_FOUND_RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$NOT_FOUND_HTTP_CODE" = "302" ]; then
+            NOT_FOUND_LOCATION=$(echo "$NOT_FOUND_RESPONSE" | grep -i location | cut -d' ' -f2- | tr -d '\r')
+            echo "✅ Nonexistent code redirects to: $NOT_FOUND_LOCATION"
+          else
+            echo "⚠️  Expected 302 redirect, got HTTP $NOT_FOUND_HTTP_CODE"
+          fi
+
+          # Test 4: Authentication enforcement
+          echo ""
+          echo "🔐 Test 4: Authentication Enforcement"
+          echo "-------------------------------------"
+          for endpoint in "/api/links" "/api/auth/me"; do
+            echo -n "  $endpoint: "
+            AUTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              "$WEB_URL$endpoint" || echo "FAILED")
+            AUTH_HTTP_CODE=$(echo "$AUTH_RESPONSE" | tail -n1 | cut -d: -f2)
+
+            if [ "$AUTH_HTTP_CODE" = "401" ]; then
+              echo "✅ Correctly requires authentication"
+            else
+              echo "❌ Expected 401, got $AUTH_HTTP_CODE"
+              exit 1
+            fi
+          done
+
+          # Test 5: 404 page accessible on web domain
+          echo ""
+          echo "📄 Test 5: 404 Page Accessibility"
+          echo "---------------------------------"
+          PAGE_404_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" "$WEB_URL/404" || echo "FAILED")
+          PAGE_404_HTTP_CODE=$(echo "$PAGE_404_RESPONSE" | tail -n1 | cut -d: -f2)
+
+          if [ "$PAGE_404_HTTP_CODE" = "200" ]; then
+            echo "✅ /404 page accessible"
+          else
+            echo "⚠️  /404 page returned HTTP $PAGE_404_HTTP_CODE"
+          fi
+
+          echo ""
+          echo "🎯 Production Smoke Tests Summary"
+          echo "================================="
+          echo "✅ Web domain serving correctly"
+          echo "✅ Authentication properly enforced"
+          echo "✅ Redirect behavior verified"

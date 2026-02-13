@@ -171,8 +171,19 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let url = req.url()?;
     let path = url.path();
 
+    // Determine if this request is to the frontend domain (vs redirect domain like rush.mn)
+    // Only serve static assets on the frontend domain; redirect domain should go straight to router
+    let request_host = url.host_str().unwrap_or("");
+    let frontend_url_str = router::get_frontend_url(&env);
+    let frontend_host = Url::parse(&frontend_url_str)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .unwrap_or_default();
+    let is_frontend_domain = request_host == frontend_host;
+
     // If not an API route and ASSETS binding exists, try to serve static file
-    if !path.starts_with("/api/") {
+    // Skip static assets for non-frontend domains (e.g., rush.mn redirect domain)
+    if !path.starts_with("/api/") && is_frontend_domain {
         // Check if ASSETS binding exists (only in ephemeral unified deployments)
         if let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS") {
             // Try to serve the request from static assets
@@ -196,7 +207,9 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                     let is_likely_frontend_route = path_segments.len() > 1
                         || path.starts_with("/dashboard")
                         || path.starts_with("/auth")
-                        || path.starts_with("/admin");
+                        || path.starts_with("/admin")
+                        || path.starts_with("/settings")
+                        || path.starts_with("/404");
 
                     if is_likely_frontend_route {
                         // Serve index.html as SPA fallback
@@ -285,8 +298,11 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .put_async("/api/admin/users/:id", router::handle_admin_update_user)
         .get_async("/api/admin/settings", router::handle_admin_get_settings)
         .put_async("/api/admin/settings", router::handle_admin_update_setting)
-        // Health check
-        .get("/", |_, _| Response::ok("Rushomon URL Shortener API"))
+        // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
+        .get_async("/", |_req, ctx| async move {
+            let url = Url::parse(&router::get_frontend_url(&ctx.env))?;
+            Response::redirect_with_status(url, 301)
+        })
         .run(req, env.clone())
         .await?;
 

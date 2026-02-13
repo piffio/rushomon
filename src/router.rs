@@ -10,6 +10,13 @@ use crate::utils::{generate_short_code, now_timestamp, validate_short_code, vali
 use worker::d1::D1Database;
 use worker::*;
 
+/// Get the frontend URL from environment, with localhost fallback for local dev
+pub fn get_frontend_url(env: &Env) -> String {
+    env.var("FRONTEND_URL")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "http://localhost:5173".to_string())
+}
+
 /// Extract client IP from Cloudflare headers
 fn get_client_ip(req: &Request) -> String {
     // Try CF-Connecting-IP first (most reliable with Cloudflare)
@@ -61,12 +68,14 @@ pub async fn handle_redirect(
     let mapping = kv::get_link_mapping(&kv, &short_code).await?;
 
     let Some(mapping) = mapping else {
-        return Response::error("Link not found", 404);
+        let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
+        return Response::redirect_with_status(url, 302);
     };
 
     // Check if link is active
     if !matches!(mapping.status, LinkStatus::Active) {
-        return Response::error("Link not found", 404);
+        let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
+        return Response::redirect_with_status(url, 302);
     }
 
     // Check if expired
@@ -74,7 +83,8 @@ pub async fn handle_redirect(
         let now = now_timestamp();
 
         if now > expires_at {
-            return Response::error("Link expired", 410);
+            let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
+            return Response::redirect_with_status(url, 302);
         }
     }
 
