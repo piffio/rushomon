@@ -4,6 +4,7 @@ use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
     Link, PaginatedResponse, PaginationMeta,
+    analytics::LinkAnalyticsResponse,
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
@@ -383,6 +384,94 @@ pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Resp
         Some(link) => Response::from_json(&link),
         None => Response::error("Link not found", 404),
     }
+}
+
+/// Handle getting a link by short_code: GET /api/links/by-code/{code}
+pub async fn handle_get_link_by_code(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Authenticate request
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
+
+    let short_code = ctx
+        .param("code")
+        .ok_or_else(|| Error::RustError("Missing short code".to_string()))?;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let link = db::get_link_by_short_code(&db, short_code, org_id).await?;
+
+    match link {
+        Some(link) => Response::from_json(&link),
+        None => Response::error("Link not found", 404),
+    }
+}
+
+/// Handle getting analytics for a link: GET /api/links/{id}/analytics
+pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Authenticate request
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
+
+    let link_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Verify link exists and belongs to org
+    let link = match db::get_link_by_id(&db, link_id, org_id).await? {
+        Some(link) => link,
+        None => return Response::error("Link not found", 404),
+    };
+
+    // Parse time range from query params (unix timestamps)
+    let url = req.url()?;
+    let now = now_timestamp();
+
+    let start: i64 = url
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find(|s| s.starts_with("start="))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or_else(|| now - 30 * 24 * 60 * 60); // Default: 30 days ago
+
+    let end: i64 = url
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find(|s| s.starts_with("end="))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or(now);
+
+    // Run analytics queries sequentially (D1 limitation)
+    let total_clicks_in_range =
+        db::get_link_total_clicks_in_range(&db, link_id, org_id, start, end).await?;
+    let clicks_over_time = db::get_link_clicks_over_time(&db, link_id, org_id, start, end).await?;
+    let top_referrers = db::get_link_top_referrers(&db, link_id, org_id, start, end, 10).await?;
+    let top_countries = db::get_link_top_countries(&db, link_id, org_id, start, end, 10).await?;
+    let top_user_agents =
+        db::get_link_top_user_agents(&db, link_id, org_id, start, end, 20).await?;
+
+    let response = LinkAnalyticsResponse {
+        link,
+        total_clicks_in_range,
+        clicks_over_time,
+        top_referrers,
+        top_countries,
+        top_user_agents,
+    };
+
+    Response::from_json(&response)
 }
 
 /// Handle link deletion: DELETE /api/links/{id}

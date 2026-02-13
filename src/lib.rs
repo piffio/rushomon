@@ -278,7 +278,9 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/auth/refresh", handle_cors_preflight)
         .options_async("/api/auth/logout", handle_cors_preflight)
         .options_async("/api/links", handle_cors_preflight)
+        .options_async("/api/links/by-code/:code", handle_cors_preflight)
         .options_async("/api/links/:id", handle_cors_preflight)
+        .options_async("/api/links/:id/analytics", handle_cors_preflight)
         .options_async("/api/admin/users", handle_cors_preflight)
         .options_async("/api/admin/users/:id", handle_cors_preflight)
         .options_async("/api/admin/settings", handle_cors_preflight)
@@ -291,6 +293,11 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .post_async("/api/auth/logout", router::handle_logout)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
+        .get_async("/api/links/by-code/:code", router::handle_get_link_by_code)
+        .get_async(
+            "/api/links/:id/analytics",
+            router::handle_get_link_analytics,
+        )
         .get_async("/api/links/:id", router::handle_get_link)
         .put_async("/api/links/:id", router::handle_update_link)
         .delete_async("/api/links/:id", router::handle_delete_link)

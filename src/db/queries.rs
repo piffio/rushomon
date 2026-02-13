@@ -501,6 +501,220 @@ pub async fn set_setting(db: &D1Database, key: &str, value: &str) -> Result<()> 
     Ok(())
 }
 
+/// Get a link by short_code within an organization
+pub async fn get_link_by_short_code(
+    db: &D1Database,
+    short_code: &str,
+    org_id: &str,
+) -> Result<Option<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+         FROM links
+         WHERE short_code = ?1
+         AND org_id = ?2
+         AND status IN ('active', 'disabled')"
+    );
+
+    stmt.bind(&[short_code.into(), org_id.into()])?
+        .first::<Link>(None)
+        .await
+}
+
+/// Get clicks over time for a link, grouped by day
+pub async fn get_link_clicks_over_time(
+    db: &D1Database,
+    link_id: &str,
+    org_id: &str,
+    start: i64,
+    end: i64,
+) -> Result<Vec<crate::models::analytics::DailyClicks>> {
+    let stmt = db.prepare(
+        "SELECT date(timestamp, 'unixepoch') as date, COUNT(*) as count
+         FROM analytics_events
+         WHERE link_id = ?1 AND org_id = ?2 AND timestamp >= ?3 AND timestamp <= ?4
+         GROUP BY date
+         ORDER BY date ASC",
+    );
+
+    let results = stmt
+        .bind(&[
+            link_id.into(),
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let clicks = rows
+        .iter()
+        .filter_map(|row| {
+            let date = row["date"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::DailyClicks { date, count })
+        })
+        .collect();
+
+    Ok(clicks)
+}
+
+/// Get top referrers for a link
+pub async fn get_link_top_referrers(
+    db: &D1Database,
+    link_id: &str,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::ReferrerCount>> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(referrer, 'Direct / Unknown') as referrer, COUNT(*) as count
+         FROM analytics_events
+         WHERE link_id = ?1 AND org_id = ?2 AND timestamp >= ?3 AND timestamp <= ?4
+         GROUP BY referrer
+         ORDER BY count DESC
+         LIMIT ?5",
+    );
+
+    let results = stmt
+        .bind(&[
+            link_id.into(),
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let referrers = rows
+        .iter()
+        .filter_map(|row| {
+            let referrer = row["referrer"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::ReferrerCount { referrer, count })
+        })
+        .collect();
+
+    Ok(referrers)
+}
+
+/// Get top countries for a link
+pub async fn get_link_top_countries(
+    db: &D1Database,
+    link_id: &str,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::CountryCount>> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(country, 'Unknown') as country, COUNT(*) as count
+         FROM analytics_events
+         WHERE link_id = ?1 AND org_id = ?2 AND timestamp >= ?3 AND timestamp <= ?4
+         GROUP BY country
+         ORDER BY count DESC
+         LIMIT ?5",
+    );
+
+    let results = stmt
+        .bind(&[
+            link_id.into(),
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let countries = rows
+        .iter()
+        .filter_map(|row| {
+            let country = row["country"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::CountryCount { country, count })
+        })
+        .collect();
+
+    Ok(countries)
+}
+
+/// Get top user agents for a link (raw strings, parsed client-side)
+pub async fn get_link_top_user_agents(
+    db: &D1Database,
+    link_id: &str,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::UserAgentCount>> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(user_agent, 'Unknown') as user_agent, COUNT(*) as count
+         FROM analytics_events
+         WHERE link_id = ?1 AND org_id = ?2 AND timestamp >= ?3 AND timestamp <= ?4
+         GROUP BY user_agent
+         ORDER BY count DESC
+         LIMIT ?5",
+    );
+
+    let results = stmt
+        .bind(&[
+            link_id.into(),
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let agents = rows
+        .iter()
+        .filter_map(|row| {
+            let user_agent = row["user_agent"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::UserAgentCount { user_agent, count })
+        })
+        .collect();
+
+    Ok(agents)
+}
+
+/// Get total click count from analytics_events for a link within a time range
+pub async fn get_link_total_clicks_in_range(
+    db: &D1Database,
+    link_id: &str,
+    org_id: &str,
+    start: i64,
+    end: i64,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(*) as count
+         FROM analytics_events
+         WHERE link_id = ?1 AND org_id = ?2 AND timestamp >= ?3 AND timestamp <= ?4",
+    );
+
+    let result = stmt
+        .bind(&[
+            link_id.into(),
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+        ])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
 /// Get all settings as a list of (key, value) pairs
 pub async fn get_all_settings(db: &D1Database) -> Result<Vec<(String, String)>> {
     let stmt = db.prepare("SELECT key, value FROM settings ORDER BY key");
