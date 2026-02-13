@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::future::Future;
+use std::pin::Pin;
 use worker::*;
 
 mod api;
@@ -8,6 +11,12 @@ mod middleware;
 mod models;
 mod router;
 mod utils;
+
+// Thread-local storage for deferred analytics futures from redirect handlers.
+// Workers are single-threaded, so thread_local is safe and avoids passing Context through the Router.
+thread_local! {
+    static DEFERRED_ANALYTICS: RefCell<Option<Pin<Box<dyn Future<Output = ()> + 'static>>>> = RefCell::new(None);
+}
 
 /// Check if an origin is allowed for CORS
 fn is_allowed_origin(origin: &str, env: &Env) -> bool {
@@ -158,7 +167,7 @@ async fn handle_cors_preflight(req: Request, ctx: RouteContext<()>) -> Result<Re
 }
 
 #[event(fetch)]
-async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
     // Set up panic hook for better error messages
     console_error_panic_hook::set_once();
 
@@ -254,7 +263,13 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 return Response::error("Not found", 404);
             }
 
-            router::handle_redirect(req, route_ctx, code).await
+            let result = router::handle_redirect(req, route_ctx, code).await?;
+            // Defer analytics to wait_until (handled by caller via ANALYTICS_FUTURE)
+            // Store the future in a thread-local for the caller to pick up
+            if let Some(future) = result.analytics_future {
+                DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
+            }
+            Ok(result.response)
         })
         .head_async("/:code", |req, route_ctx| async move {
             let code = route_ctx
@@ -267,7 +282,11 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                 return Response::error("Not found", 404);
             }
 
-            router::handle_redirect(req, route_ctx, code).await
+            let result = router::handle_redirect(req, route_ctx, code).await?;
+            if let Some(future) = result.analytics_future {
+                DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
+            }
+            Ok(result.response)
         })
         // CORS preflight handlers for API routes
         .options_async("/api/auth/github", handle_cors_preflight)
@@ -305,6 +324,13 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         })
         .run(req, env.clone())
         .await?;
+
+    // Execute deferred analytics via wait_until (non-blocking, runs after response is sent)
+    // This avoids blocking the redirect response on D1 writes (~15-50ms savings)
+    let deferred = DEFERRED_ANALYTICS.with(|cell| cell.borrow_mut().take());
+    if let Some(analytics_future) = deferred {
+        worker_ctx.wait_until(analytics_future);
+    }
 
     // Add security headers and CORS headers to all responses
     let response = add_security_headers(response, is_https);
