@@ -93,4 +93,19 @@ export interface LinkAnalyticsResponse {
 	top_referrers: ReferrerCount[];
 	top_countries: CountryCount[];
 	top_user_agents: UserAgentCount[];
+	analytics_gated?: boolean;
+	gated_reason?: string;
+}
+
+export interface UsageResponse {
+	tier: string;
+	limits: {
+		max_links_per_month: number | null;
+		max_tracked_clicks_per_month: number | null;
+		analytics_retention_days: number | null;
+	};
+	usage: {
+		links_created_this_month: number;
+		tracked_clicks_this_month: number;
+	};
 }

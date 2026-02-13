@@ -1,5 +1,6 @@
 use crate::models::{AnalyticsEvent, Link, Organization, User, user::CreateUserData};
 use crate::utils::now_timestamp;
+use chrono::Datelike;
 use wasm_bindgen::JsValue;
 use worker::d1::D1Database;
 use worker::*;
@@ -124,9 +125,14 @@ pub async fn create_default_org(
 
     let now = now_timestamp();
 
+    // Read the default tier from settings
+    let tier = get_setting(db, "default_user_tier")
+        .await?
+        .unwrap_or_else(|| "free".to_string());
+
     let stmt = db.prepare(
-        "INSERT INTO organizations (id, name, slug, created_at, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     );
 
     stmt.bind(&[
@@ -135,6 +141,7 @@ pub async fn create_default_org(
         slug.clone().into(),
         (now as f64).into(),
         user_id.into(),
+        tier.clone().into(),
     ])?
     .run()
     .await?;
@@ -145,6 +152,7 @@ pub async fn create_default_org(
         slug,
         created_at: now,
         created_by: user_id.to_string(),
+        tier,
     })
 }
 
@@ -162,7 +170,7 @@ pub async fn get_user_by_id(db: &D1Database, user_id: &str) -> Result<Option<Use
 /// Get organization by ID
 pub async fn get_org_by_id(db: &D1Database, org_id: &str) -> Result<Option<Organization>> {
     let stmt = db.prepare(
-        "SELECT id, name, slug, created_at, created_by
+        "SELECT id, name, slug, created_at, created_by, tier
          FROM organizations
          WHERE id = ?1",
     );
@@ -430,6 +438,11 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
     ])?
     .run()
     .await?;
+
+    // Also increment the monthly click counter
+    let now = chrono::Utc::now();
+    let year_month = format!("{}-{:02}", now.year(), now.month());
+    increment_monthly_click_counter(db, &event.org_id, &year_month).await?;
 
     Ok(())
 }
@@ -731,4 +744,130 @@ pub async fn get_all_settings(db: &D1Database) -> Result<Vec<(String, String)>> 
         .collect();
 
     Ok(settings)
+}
+
+/// Get the monthly counter for an organization
+pub async fn get_monthly_counter(db: &D1Database, org_id: &str, year_month: &str) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT links_created FROM monthly_counters
+         WHERE org_id = ?1 AND year_month = ?2",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into(), year_month.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["links_created"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Get the monthly click counter for an organization
+pub async fn get_monthly_click_counter(
+    db: &D1Database,
+    org_id: &str,
+    year_month: &str,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT clicks_tracked FROM monthly_counters
+         WHERE org_id = ?1 AND year_month = ?2",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into(), year_month.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["clicks_tracked"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Increment monthly click counter
+pub async fn increment_monthly_click_counter(
+    db: &D1Database,
+    org_id: &str,
+    year_month: &str,
+) -> Result<()> {
+    let now = now_timestamp();
+
+    // Increment the click counter
+    let stmt = db.prepare(
+        "INSERT INTO monthly_counters (org_id, year_month, links_created, clicks_tracked, updated_at)
+         VALUES (?1, ?2, 0, 1, ?3)
+         ON CONFLICT(org_id, year_month) DO UPDATE SET
+           clicks_tracked = clicks_tracked + 1,
+           updated_at = ?3",
+    );
+
+    stmt.bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
+        .run()
+        .await?;
+
+    Ok(())
+}
+
+/// Increment monthly counter with limit check
+/// Returns true if increment succeeded, false if limit reached
+pub async fn increment_monthly_counter(
+    db: &D1Database,
+    org_id: &str,
+    year_month: &str,
+    max_links: i64,
+) -> Result<bool> {
+    let now = now_timestamp();
+
+    // First check current count
+    let current_count = get_monthly_counter(db, org_id, year_month).await?;
+    if current_count >= max_links {
+        return Ok(false);
+    }
+
+    // Increment the counter
+    let stmt = db.prepare(
+        "INSERT INTO monthly_counters (org_id, year_month, links_created, updated_at)
+         VALUES (?1, ?2, 1, ?3)
+         ON CONFLICT(org_id, year_month) DO UPDATE SET
+           links_created = links_created + 1,
+           updated_at = ?3",
+    );
+
+    stmt.bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
+        .run()
+        .await?;
+
+    Ok(true)
+}
+
+/// Backfill monthly counters for existing organizations for the current month
+#[allow(dead_code)]
+pub async fn backfill_monthly_counters(_db: &D1Database) -> Result<i64> {
+    // This function is reserved for future use to migrate existing data
+    // For now, we rely on lazy creation in increment_monthly_counter
+    Ok(0)
+}
+
+/// Get all organization tiers as a map of org_id -> tier (admin only)
+pub async fn get_all_org_tiers(db: &D1Database) -> Result<Vec<(String, String)>> {
+    let stmt = db.prepare("SELECT id, tier FROM organizations");
+    let results = stmt.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+
+    let mut tiers = Vec::new();
+    for row in rows {
+        if let (Some(id), Some(tier)) = (row["id"].as_str(), row["tier"].as_str()) {
+            tiers.push((id.to_string(), tier.to_string()));
+        }
+    }
+    Ok(tiers)
+}
+
+/// Update an organization's tier (admin only)
+pub async fn set_org_tier(db: &D1Database, org_id: &str, tier: &str) -> Result<()> {
+    let stmt = db.prepare("UPDATE organizations SET tier = ?1 WHERE id = ?2");
+    stmt.bind(&[tier.into(), org_id.into()])?.run().await?;
+    Ok(())
 }

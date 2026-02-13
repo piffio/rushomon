@@ -3,7 +3,7 @@ import { linksApi } from '$lib/api/links';
 import type { Link, LinkAnalyticsResponse } from '$lib/types/api';
 
 export const load: PageLoad = async ({ params, parent, url }) => {
-	const parentData = await parent() as { user?: any };
+	const parentData = await parent() as { user?: any; };
 	const user = parentData.user;
 
 	if (!user) {
@@ -16,8 +16,8 @@ export const load: PageLoad = async ({ params, parent, url }) => {
 
 		// Parse time range from URL query params (or use defaults)
 		const now = Math.floor(Date.now() / 1000);
-		const days = parseInt(url.searchParams.get('days') || '30', 10);
-		const start = now - days * 24 * 60 * 60;
+		const days = parseInt(url.searchParams.get('days') || '7', 10);
+		const start = days === 0 ? 0 : now - days * 24 * 60 * 60; // 0 = All time
 		const end = now;
 
 		// Fetch analytics
@@ -30,7 +30,7 @@ export const load: PageLoad = async ({ params, parent, url }) => {
 			user,
 			link: null,
 			analytics: null,
-			days: 30,
+			days: 7,
 			error: error?.message || 'Failed to load analytics'
 		};
 	}

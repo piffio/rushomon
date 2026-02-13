@@ -45,4 +45,10 @@ pub struct LinkAnalyticsResponse {
     pub top_referrers: Vec<ReferrerCount>,
     pub top_countries: Vec<CountryCount>,
     pub top_user_agents: Vec<UserAgentCount>,
+    /// Whether analytics data is gated due to tier limits
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analytics_gated: Option<bool>,
+    /// Reason analytics are gated (e.g., "click_limit_exceeded", "retention_limited")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gated_reason: Option<String>,
 }
