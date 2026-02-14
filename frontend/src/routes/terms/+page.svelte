@@ -82,7 +82,7 @@
 						class="list-disc list-inside text-gray-700 space-y-1.5 ml-2"
 					>
 						<li>
-							<strong>25 short links</strong> per calendar month
+							<strong>15 short links</strong> per calendar month
 						</li>
 						<li>
 							<strong>7 days</strong> of analytics data retention

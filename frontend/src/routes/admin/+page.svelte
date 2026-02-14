@@ -746,8 +746,8 @@
 						Are you sure you want to downgrade <strong
 							>{targetUser?.name || targetUser?.email}</strong
 						>'s organization to <strong>Free</strong>? They will be
-						subject to free tier limits (25 links/month, 1,000
-						clicks/month).
+						subject to free tier limits (15 links/month, unlimited
+						clicks).
 					{/if}
 				</p>
 				<div class="flex justify-end gap-3">

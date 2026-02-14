@@ -322,7 +322,7 @@ Rushomon includes a tier system with **Free** and **Unlimited** plans. As a self
 ### Understanding the Tier System
 
 **Free Tier (Default)**:
-- 25 links per month
+- 15 links per month
 - 7 days analytics retention
 - Links continue to work after limits are reached
 
@@ -487,7 +487,7 @@ wrangler deploy -c wrangler.production.toml
 - Check the default tier setting in the admin console
 - Verify individual user tiers in the admin console
 - For personal instances, consider setting default tier to "unlimited"
-- Remember: Free tier has 25 links/month and 7-day analytics retention
+- Remember: Free tier has 15 links/month and 7-day analytics retention
 
 ### Analytics showing "upgrade" messages
 - Free tier users only see 7 days of analytics data

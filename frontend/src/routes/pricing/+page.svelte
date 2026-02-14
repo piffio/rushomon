@@ -87,7 +87,7 @@
 									/>
 								</svg>
 								<span class="text-gray-700"
-									>25 links per month</span
+									>15 links per month</span
 								>
 							</li>
 							<li class="flex items-start">

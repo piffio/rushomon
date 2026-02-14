@@ -27,7 +27,7 @@ impl Tier {
     pub fn limits(&self) -> TierLimits {
         match self {
             Tier::Free => TierLimits {
-                max_links_per_month: Some(25),
+                max_links_per_month: Some(15),
                 analytics_retention_days: Some(7),
             },
             Tier::Unlimited => TierLimits {
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn test_free_tier_has_limits() {
         let limits = Tier::Free.limits();
-        assert_eq!(limits.max_links_per_month, Some(25));
+        assert_eq!(limits.max_links_per_month, Some(15));
         assert_eq!(limits.analytics_retention_days, Some(7));
     }
 
