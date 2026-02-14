@@ -216,6 +216,20 @@ fi
 echo "✅ OAuth flow complete!"
 echo "  JWT: ${JWT:0:50}..."
 
+# Clear KV store to reset rate limits for local testing
+echo "🔄 Clearing KV store rate limits..."
+wrangler kv key list --namespace-id "48136fe5129f406184e6956849b5280f" --local 2>/dev/null | jq -r '.[] | select(.name | startswith("ratelimit:")) | .name' | while read key_name; do
+    if [ -n "$key_name" ] && [ "$key_name" != "null" ]; then
+        wrangler kv key delete "$key_name" --namespace-id "48136fe5129f406184e6956849b5280f" --local 2>/dev/null || true
+    fi
+done
+echo "✅ KV rate limits cleared..."
+
+# Set ALL organizations to unlimited tier for reliable test execution
+echo "🔄 Setting up unlimited tier test environment..."
+wrangler d1 execute "${DB_NAME}" --local --command "UPDATE organizations SET tier = 'unlimited'" 2>/dev/null || true
+echo "✅ All organizations set to unlimited tier"
+
 # Export environment variables for tests
 export TEST_JWT="${JWT}"
 export TEST_JWT_SECRET="${JWT_SECRET}"
@@ -223,6 +237,13 @@ export TEST_JWT_SECRET="${JWT_SECRET}"
 echo ""
 echo "🚀 Environment ready!"
 echo "  TEST_JWT=${TEST_JWT:0:50}..."
+echo ""
+echo "💡 Free tier limits tested in dedicated test!"
+echo "   - Most tests run with unlimited tier for reliability"
+echo "   - test_free_tier_and_unlimited_tier_limits verifies:"
+echo "     1. Temporarily sets tier to free"
+echo "     2. Tests 15-link limit enforcement"
+echo "     3. Resets tier to unlimited for subsequent tests"
 echo ""
 
 if [ "$RUN_TESTS" = true ]; then

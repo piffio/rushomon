@@ -1273,6 +1273,50 @@ pub async fn handle_admin_update_org_tier(
     Response::from_json(&updated_org)
 }
 
+/// Handle resetting monthly counter: POST /api/admin/orgs/:id/reset-counter (admin only)
+pub async fn handle_admin_reset_monthly_counter(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    println!("Admin reset counter endpoint called");
+
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    // Check if user is admin
+    if user_ctx.role != "admin" {
+        return Response::error("Admin access required", 403);
+    }
+
+    // Extract organization ID from route
+    let org_id = match ctx.param("id") {
+        Some(id) => id.to_string(),
+        None => return Response::error("Missing organization ID", 400),
+    };
+
+    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+        Ok(db) => db,
+        Err(_) => return Response::error("Database not available", 500),
+    };
+
+    // Reset the monthly counter to 0
+    match db::reset_monthly_counter(&db, &org_id).await {
+        Ok(_) => {
+            println!("Monthly counter reset for org: {}", org_id);
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "Monthly counter reset successfully"
+            }))
+        }
+        Err(e) => {
+            println!("Failed to reset monthly counter for org {}: {}", org_id, e);
+            Response::error("Failed to reset monthly counter", 500)
+        }
+    }
+}
+
 /// Helper function to extract query parameters
 fn extract_query_param(query: &str, name: &str) -> Result<String> {
     query

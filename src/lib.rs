@@ -286,6 +286,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/users/:id", handle_cors_preflight)
         .options_async("/api/admin/settings", handle_cors_preflight)
         .options_async("/api/admin/orgs/:id/tier", handle_cors_preflight)
+        .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
@@ -313,6 +314,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .put_async(
             "/api/admin/orgs/:id/tier",
             router::handle_admin_update_org_tier,
+        )
+        .post_async(
+            "/api/admin/orgs/:id/reset-counter",
+            router::handle_admin_reset_monthly_counter,
         )
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
         .get_async("/", |_req, ctx| async move {

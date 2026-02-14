@@ -842,6 +842,29 @@ pub async fn increment_monthly_counter(
     Ok(true)
 }
 
+/// Reset monthly counter for an organization to 0
+pub async fn reset_monthly_counter(db: &D1Database, org_id: &str) -> Result<()> {
+    let now = now_timestamp();
+
+    // Get current year-month
+    let year_month = chrono::Utc::now().format("%Y-%m").to_string();
+
+    // Reset the counter to 0
+    let stmt = db.prepare(
+        "INSERT INTO monthly_counters (org_id, year_month, links_created, clicks_tracked, updated_at)
+         VALUES (?1, ?2, 0, 0, ?3)
+         ON CONFLICT(org_id, year_month) DO UPDATE SET
+           links_created = 0,
+           updated_at = ?3",
+    );
+
+    stmt.bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
+        .run()
+        .await?;
+
+    Ok(())
+}
+
 /// Backfill monthly counters for existing organizations for the current month
 #[allow(dead_code)]
 pub async fn backfill_monthly_counters(_db: &D1Database) -> Result<i64> {
