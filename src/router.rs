@@ -3,11 +3,12 @@ use crate::db;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
-    Link, PaginatedResponse, PaginationMeta,
+    Link, Organization, PaginatedResponse, PaginationMeta, Tier,
     analytics::LinkAnalyticsResponse,
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
+use chrono::Datelike;
 use std::future::Future;
 use std::pin::Pin;
 use worker::d1::D1Database;
@@ -198,6 +199,35 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         return Ok(response);
     }
 
+    // Tier-based link creation limit
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let org = db::get_org_by_id(&db, org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
+
+    if let Some(tier) = Tier::from_str_value(&org.tier) {
+        let limits = tier.limits();
+        if let Some(max_links) = limits.max_links_per_month {
+            let now = chrono::Utc::now();
+            let year_month = format!("{}-{:02}", now.year(), now.month());
+
+            // Try to increment the counter - this will fail if limit reached
+            let can_create =
+                db::increment_monthly_counter(&db, org_id, &year_month, max_links).await?;
+
+            if !can_create {
+                let current_count = db::get_monthly_counter(&db, org_id, &year_month).await?;
+                let remaining = max_links - current_count;
+                let message = if remaining > 0 {
+                    format!("You can create {} more short links this month.", remaining)
+                } else {
+                    "You have reached your monthly link limit. Upgrade your plan to create more links.".to_string()
+                };
+                return Response::error(message, 403);
+            }
+        }
+    }
+
     // Parse request body with proper error handling
     let raw_body: serde_json::Value = match req.json().await {
         Ok(body) => body,
@@ -299,7 +329,6 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
 
     // Store in D1
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     db::create_link(&db, &link).await?;
 
     // Store in KV
@@ -433,7 +462,7 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
     let url = req.url()?;
     let now = now_timestamp();
 
-    let start: i64 = url
+    let mut start: i64 = url
         .query()
         .and_then(|q| {
             q.split('&')
@@ -441,7 +470,7 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
                 .and_then(|s| s.split('=').nth(1))
                 .and_then(|s| s.parse().ok())
         })
-        .unwrap_or_else(|| now - 30 * 24 * 60 * 60); // Default: 30 days ago
+        .unwrap_or_else(|| now - 7 * 24 * 60 * 60); // Default: 7 days ago
 
     let end: i64 = url
         .query()
@@ -452,6 +481,45 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
                 .and_then(|s| s.parse().ok())
         })
         .unwrap_or(now);
+
+    // Check tier-based analytics limits
+    let org = db::get_org_by_id(&db, org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
+
+    let mut analytics_gated = false;
+    let mut gated_reason = None;
+
+    if let Some(tier) = Tier::from_str_value(&org.tier) {
+        let limits = tier.limits();
+
+        // Enforce analytics retention window — clamp start date
+        if let Some(retention_days) = limits.analytics_retention_days {
+            let retention_start = now - retention_days * 24 * 60 * 60;
+            if start < retention_start {
+                start = retention_start;
+                if !analytics_gated {
+                    analytics_gated = true;
+                    gated_reason = Some("retention_limited".to_string());
+                }
+            }
+        }
+    }
+
+    // If analytics are gated, return empty data with gating info
+    if analytics_gated {
+        let response = LinkAnalyticsResponse {
+            link,
+            total_clicks_in_range: 0,
+            clicks_over_time: vec![],
+            top_referrers: vec![],
+            top_countries: vec![],
+            top_user_agents: vec![],
+            analytics_gated: Some(true),
+            gated_reason,
+        };
+        return Response::from_json(&response);
+    }
 
     // Run analytics queries sequentially (D1 limitation)
     let total_clicks_in_range =
@@ -469,6 +537,8 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
         top_referrers,
         top_countries,
         top_user_agents,
+        analytics_gated: None,
+        gated_reason: None,
     };
 
     Response::from_json(&response)
@@ -739,6 +809,44 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
     }
 }
 
+/// Handle getting usage info: GET /api/usage
+/// Returns tier, limits, and current usage for the authenticated org
+pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let org = db::get_org_by_id(&db, org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
+
+    let tier = Tier::from_str_value(&org.tier).unwrap_or(Tier::Free);
+    let limits = tier.limits();
+
+    // Use the new monthly counter system for efficiency
+    let now = chrono::Utc::now();
+    let year_month = format!("{}-{:02}", now.year(), now.month());
+    let links_created_this_month = db::get_monthly_counter(&db, org_id, &year_month).await?;
+    let tracked_clicks_this_month = db::get_monthly_click_counter(&db, org_id, &year_month).await?;
+
+    let usage = serde_json::json!({
+        "tier": tier.as_str(),
+        "limits": {
+            "max_links_per_month": limits.max_links_per_month,
+            "analytics_retention_days": limits.analytics_retention_days,
+        },
+        "usage": {
+            "links_created_this_month": links_created_this_month,
+            "tracked_clicks_this_month": tracked_clicks_this_month,
+        }
+    });
+
+    Response::from_json(&usage)
+}
+
 /// Handle token refresh: POST /api/auth/refresh
 /// Validates refresh token from cookie and returns new access token
 pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result<Response> {
@@ -819,12 +927,19 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
         return Response::error("Session mismatch", 401);
     }
 
-    // Generate new access token (1 hour)
+    // Get fresh user data from database to get current role
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let user = match db::get_user_by_id(&db, &claims.sub).await? {
+        Some(user) => user,
+        None => return Response::error("User not found", 404),
+    };
+
+    // Generate new access token (1 hour) with fresh role from database
     let new_access_token = auth::session::create_access_token(
         &claims.sub,
         &claims.org_id,
         &claims.session_id,
-        &claims.role,
+        &user.role, // Use fresh role from database
         &jwt_secret,
     )?;
 
@@ -918,12 +1033,15 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let users = db::get_all_users(&db, limit, offset).await?;
     let total = db::get_user_count(&db).await?;
+    let org_tiers_vec = db::get_all_org_tiers(&db).await?;
+    let org_tiers: std::collections::HashMap<String, String> = org_tiers_vec.into_iter().collect();
 
     Response::from_json(&serde_json::json!({
         "users": users,
         "total": total,
         "page": page,
         "limit": limit,
+        "org_tiers": org_tiers,
     }))
 }
 
@@ -1076,6 +1194,14 @@ pub async fn handle_admin_update_setting(
                 );
             }
         }
+        "default_user_tier" => {
+            if Tier::from_str_value(&value).is_none() {
+                return Response::error(
+                    "Invalid value for 'default_user_tier'. Must be 'free' or 'unlimited'",
+                    400,
+                );
+            }
+        }
         _ => return Response::error(format!("Unknown setting: {}", key), 400),
     }
 
@@ -1090,6 +1216,105 @@ pub async fn handle_admin_update_setting(
         .collect();
 
     Response::from_json(&serde_json::Value::Object(settings_map))
+}
+
+/// Handle updating an organization's tier: PUT /api/admin/orgs/:id/tier (admin only)
+pub async fn handle_admin_update_org_tier(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let org_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing org ID".to_string()))?
+        .to_string();
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let tier_str = match body.get("tier").and_then(|t| t.as_str()) {
+        Some(t) => t.to_string(),
+        None => return Response::error("Missing 'tier' field", 400),
+    };
+
+    // Validate tier value
+    if Tier::from_str_value(&tier_str).is_none() {
+        return Response::error("Invalid tier. Must be 'free' or 'unlimited'", 400);
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Verify org exists
+    let org = match db::get_org_by_id(&db, &org_id).await? {
+        Some(org) => org,
+        None => return Response::error("Organization not found", 404),
+    };
+
+    // Update tier
+    db::set_org_tier(&db, &org_id, &tier_str).await?;
+
+    // Return updated org
+    let updated_org = Organization {
+        tier: tier_str,
+        ..org
+    };
+
+    Response::from_json(&updated_org)
+}
+
+/// Handle resetting monthly counter: POST /api/admin/orgs/:id/reset-counter (admin only)
+pub async fn handle_admin_reset_monthly_counter(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    println!("Admin reset counter endpoint called");
+
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    // Check if user is admin
+    if user_ctx.role != "admin" {
+        return Response::error("Admin access required", 403);
+    }
+
+    // Extract organization ID from route
+    let org_id = match ctx.param("id") {
+        Some(id) => id.to_string(),
+        None => return Response::error("Missing organization ID", 400),
+    };
+
+    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+        Ok(db) => db,
+        Err(_) => return Response::error("Database not available", 500),
+    };
+
+    // Reset the monthly counter to 0
+    match db::reset_monthly_counter(&db, &org_id).await {
+        Ok(_) => {
+            println!("Monthly counter reset for org: {}", org_id);
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "Monthly counter reset successfully"
+            }))
+        }
+        Err(e) => {
+            println!("Failed to reset monthly counter for org {}: {}", org_id, e);
+            Response::error("Failed to reset monthly counter", 500)
+        }
+    }
 }
 
 /// Helper function to extract query parameters

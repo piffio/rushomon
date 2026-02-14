@@ -73,5 +73,18 @@ export const adminApi = {
 			method: 'PUT',
 			body: JSON.stringify({ key, value })
 		});
+	},
+
+	/**
+	 * Update an organization's tier (admin only)
+	 * @param orgId - Organization UUID
+	 * @param tier - New tier ('free' or 'unlimited')
+	 * @returns Updated Organization object
+	 */
+	async updateOrgTier(orgId: string, tier: 'free' | 'unlimited'): Promise<{ id: string; tier: string; }> {
+		return apiClient.request<{ id: string; tier: string; }>(`/api/admin/orgs/${orgId}/tier`, {
+			method: 'PUT',
+			body: JSON.stringify({ tier })
+		});
 	}
 };

@@ -97,6 +97,20 @@
 				<ul class="space-y-2 text-sm">
 					<li>
 						<a
+							href="/terms"
+							class="text-gray-600 hover:text-orange-600 transition-colors"
+							>Terms of Service</a
+						>
+					</li>
+					<li>
+						<a
+							href="/terms#abuse-policy"
+							class="text-gray-600 hover:text-orange-600 transition-colors"
+							>Abuse Policy</a
+						>
+					</li>
+					<li>
+						<a
 							href="https://github.com/piffio/rushomon/blob/main/LICENSE.md"
 							target="_blank"
 							rel="noopener noreferrer"

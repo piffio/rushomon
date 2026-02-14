@@ -25,6 +25,7 @@ export const load: PageLoad = async ({ parent }) => {
 			user,
 			users: usersResponse.users || [],
 			total: usersResponse.total || 0,
+			orgTiers: (usersResponse as any).org_tiers || {},
 			settings: settings || {}
 		};
 	} catch (error) {
@@ -33,6 +34,7 @@ export const load: PageLoad = async ({ parent }) => {
 			user,
 			users: [],
 			total: 0,
+			orgTiers: {},
 			settings: {}
 		};
 	}

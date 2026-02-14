@@ -1,8 +1,10 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import { adminApi } from "$lib/api/admin";
+	import { apiClient } from "$lib/api/client";
+	import { goto } from "$app/navigation";
 	import type { PageData } from "./$types";
-	import type { User, ApiError } from "$lib/types/api";
+	import type { User, ApiError, PaginationMeta } from "$lib/types/api";
 
 	let { data }: { data: PageData } = $props();
 
@@ -14,8 +16,24 @@
 	let confirmingUserId = $state<string | null>(null);
 	let confirmingRole = $state<"admin" | "member" | null>(null);
 	let signupsEnabled = $state(true);
+	let defaultUserTier = $state("free");
 	let settingsLoading = $state(false);
 	let confirmingSignupToggle = $state(false);
+	let toast = $state<{
+		message: string;
+		type: "success" | "error";
+		visible: boolean;
+	}>({
+		message: "",
+		type: "success",
+		visible: false,
+	});
+	let confirmingTierChange = $state<{
+		userId: string;
+		orgId: string;
+		currentTier: string;
+	} | null>(null);
+	let tierLoading = $state(false);
 
 	$effect(() => {
 		users = [...(data.users as User[])];
@@ -23,6 +41,8 @@
 		const d = data as Record<string, any>;
 		const settings = (d.settings ?? {}) as Record<string, string>;
 		signupsEnabled = settings.signups_enabled !== "false";
+		defaultUserTier = settings.default_user_tier || "free";
+		orgTiers = { ...(d.orgTiers ?? {}) } as Record<string, string>;
 	});
 
 	async function handleRoleChange(
@@ -110,6 +130,136 @@
 		confirmingSignupToggle = false;
 	}
 
+	function showToast(
+		message: string,
+		type: "success" | "error",
+		refreshable: boolean = false,
+	) {
+		toast.message = message;
+		toast.type = type;
+		toast.visible = true;
+
+		// Auto-hide after 3 seconds
+		setTimeout(() => {
+			toast.visible = false;
+		}, 3000);
+
+		// Add click handler for refreshable errors
+		if (refreshable) {
+			setTimeout(() => {
+				const toastElement = document.querySelector(
+					'[data-toast-refresh="true"]',
+				);
+				if (toastElement) {
+					toastElement.addEventListener(
+						"click",
+						refreshSessionAndReload,
+					);
+					(toastElement as HTMLElement).style.cursor = "pointer";
+				}
+			}, 100);
+		}
+	}
+
+	async function refreshSessionAndReload() {
+		try {
+			await apiClient.post("/api/auth/refresh");
+			// Reload the page to get fresh user data
+			window.location.reload();
+		} catch (err) {
+			console.error("Failed to refresh session:", err);
+			showToast(
+				"Session refresh failed. Please log out and log back in.",
+				"error",
+			);
+		}
+	}
+
+	async function handleDefaultTierChange() {
+		settingsLoading = true;
+		error = "";
+
+		try {
+			const updatedSettings = await adminApi.updateSetting(
+				"default_user_tier",
+				defaultUserTier,
+			);
+			defaultUserTier = updatedSettings.default_user_tier || "free";
+			showToast(`Default tier updated to ${defaultUserTier}`, "success");
+		} catch (err) {
+			const apiError = err as ApiError;
+			const errorMessage = apiError.message || "Failed to update setting";
+			if (apiError.status === 403) {
+				error =
+					"Access denied. Your session may have stale permissions.";
+				showToast(
+					"Access denied. Click here to refresh your session.",
+					"error",
+					true,
+				);
+			} else {
+				error = errorMessage;
+				showToast(errorMessage, "error");
+			}
+		} finally {
+			settingsLoading = false;
+		}
+	}
+
+	function handleTierChange(
+		userId: string,
+		orgId: string,
+		currentTier: string,
+	) {
+		confirmingTierChange = { userId, orgId, currentTier };
+	}
+
+	async function confirmTierChange() {
+		if (!confirmingTierChange) return;
+
+		tierLoading = true;
+		error = "";
+
+		try {
+			const newTier =
+				confirmingTierChange.currentTier === "free"
+					? "unlimited"
+					: "free";
+			await adminApi.updateOrgTier(
+				confirmingTierChange.orgId,
+				newTier as "free" | "unlimited",
+			);
+			// Update the local user's tier display
+			// Since tier is on the org, update all users with the same org_id
+			const orgId = confirmingTierChange.orgId;
+			users = users.map((u) => {
+				if (u.org_id === orgId) {
+					return { ...u, _tier: newTier } as any;
+				}
+				return u;
+			});
+			// Store tier in a map for display
+			orgTiers[orgId] = newTier;
+		} catch (err) {
+			const apiError = err as ApiError;
+			error = apiError.message || "Failed to update tier";
+		} finally {
+			tierLoading = false;
+			confirmingTierChange = null;
+		}
+	}
+
+	function cancelTierChange() {
+		confirmingTierChange = null;
+	}
+
+	// Track org tiers locally (since User doesn't have tier field)
+	let orgTiers = $state<Record<string, string>>({});
+
+	function getOrgTier(orgId: string): string {
+		return orgTiers[orgId] || "free";
+	}
+
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleDateString("en-US", {
 			year: "numeric",
@@ -132,20 +282,13 @@
 
 		<main class="container mx-auto px-4 py-8">
 			<div class="max-w-6xl mx-auto">
-				<div class="flex items-center justify-between mb-8">
-					<div>
-						<h1 class="text-3xl font-bold text-gray-900">
-							Admin Dashboard
-						</h1>
-						<p class="text-gray-500 mt-1">
-							Manage instance users and roles
-						</p>
-					</div>
-					<span
-						class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800"
-					>
-						{total} user{total !== 1 ? "s" : ""}
-					</span>
+				<div class="mb-8">
+					<h1 class="text-3xl font-bold text-gray-900">
+						Admin Dashboard
+					</h1>
+					<p class="text-gray-500 mt-1">
+						Manage instance users and roles
+					</p>
 				</div>
 
 				<!-- Error Message -->
@@ -166,7 +309,7 @@
 							Instance Settings
 						</h2>
 					</div>
-					<div class="px-6 py-4">
+					<div class="px-6 py-4 space-y-6">
 						<div class="flex items-center justify-between">
 							<div>
 								<h3 class="text-sm font-medium text-gray-900">
@@ -195,6 +338,34 @@
 								></span>
 							</button>
 						</div>
+
+						<div class="border-t border-gray-100 pt-6">
+							<div class="flex items-center justify-between">
+								<div>
+									<h3
+										class="text-sm font-medium text-gray-900"
+									>
+										Default tier for new users
+									</h3>
+									<p class="text-sm text-gray-500 mt-0.5">
+										New signups will be assigned this tier.
+									</p>
+								</div>
+								<div class="flex items-center gap-3">
+									<select
+										bind:value={defaultUserTier}
+										onchange={handleDefaultTierChange}
+										disabled={settingsLoading}
+										class="block px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed appearance-none bg-white"
+									>
+										<option value="free">Free</option>
+										<option value="unlimited"
+											>Unlimited</option
+										>
+									</select>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 
@@ -203,9 +374,16 @@
 					class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden"
 				>
 					<div class="px-6 py-4 border-b border-gray-200">
-						<h2 class="text-lg font-semibold text-gray-900">
-							Users
-						</h2>
+						<div class="flex items-center justify-between">
+							<h2 class="text-lg font-semibold text-gray-900">
+								Users
+							</h2>
+							<span
+								class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800"
+							>
+								{total} user{total !== 1 ? "s" : ""}
+							</span>
+						</div>
 					</div>
 
 					{#if loading && users.length === 0}
@@ -236,6 +414,10 @@
 										<th
 											class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
 											>Role</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+											>Tier</th
 										>
 										<th
 											class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -327,6 +509,32 @@
 														Member
 													</span>
 												{/if}
+											</td>
+											<td
+												class="px-6 py-4 whitespace-nowrap"
+											>
+												<button
+													onclick={() =>
+														handleTierChange(
+															user.id,
+															user.org_id,
+															getOrgTier(
+																user.org_id,
+															),
+														)}
+													disabled={tierLoading}
+													class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed {getOrgTier(
+														user.org_id,
+													) === 'unlimited'
+														? 'bg-green-100 text-green-800 hover:bg-green-200'
+														: 'bg-blue-100 text-blue-800 hover:bg-blue-200'}"
+													title="Click to change tier"
+												>
+													{getOrgTier(user.org_id) ===
+													"unlimited"
+														? "Unlimited"
+														: "Free"}
+												</button>
 											</td>
 											<td
 												class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
@@ -509,6 +717,107 @@
 							Enable Signups
 						{/if}
 					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Org Tier Change Confirmation Modal -->
+	{#if confirmingTierChange}
+		{@const targetUser = users.find(
+			(u) => u.id === confirmingTierChange?.userId,
+		)}
+		{@const newTier =
+			confirmingTierChange.currentTier === "free" ? "unlimited" : "free"}
+		<div
+			class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+		>
+			<div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+				<h3 class="text-lg font-semibold text-gray-900 mb-2">
+					Change Organization Tier?
+				</h3>
+				<p class="text-gray-600 mb-6">
+					{#if newTier === "unlimited"}
+						Are you sure you want to upgrade <strong
+							>{targetUser?.name || targetUser?.email}</strong
+						>'s organization to <strong>Unlimited</strong>? They
+						will have no usage limits.
+					{:else}
+						Are you sure you want to downgrade <strong
+							>{targetUser?.name || targetUser?.email}</strong
+						>'s organization to <strong>Free</strong>? They will be
+						subject to free tier limits (15 links/month, unlimited
+						clicks).
+					{/if}
+				</p>
+				<div class="flex justify-end gap-3">
+					<button
+						onclick={cancelTierChange}
+						class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={confirmTierChange}
+						disabled={tierLoading}
+						class="px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50
+							{newTier === 'unlimited'
+							? 'bg-green-600 hover:bg-green-700'
+							: 'bg-orange-600 hover:bg-orange-700'}"
+					>
+						{#if tierLoading}
+							Updating...
+						{:else if newTier === "unlimited"}
+							Upgrade to Unlimited
+						{:else}
+							Downgrade to Free
+						{/if}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Toast Notification -->
+	{#if toast.visible}
+		<div
+			class="fixed top-4 right-4 z-50 transform transition-all duration-300 ease-in-out {toast.visible
+				? 'translate-x-0 opacity-100'
+				: 'translate-x-full opacity-0'}"
+		>
+			<div
+				class="px-4 py-3 rounded-lg shadow-lg border {toast.type ===
+				'success'
+					? 'bg-green-50 border-green-200 text-green-700'
+					: 'bg-red-50 border-red-200 text-red-700'}"
+			>
+				<div class="flex items-center gap-2">
+					{#if toast.type === "success"}
+						<svg
+							class="w-5 h-5"
+							fill="currentColor"
+							viewBox="0 0 20 20"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+					{:else}
+						<svg
+							class="w-5 h-5"
+							fill="currentColor"
+							viewBox="0 0 20 20"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+					{/if}
+					<span class="text-sm font-medium">{toast.message}</span>
 				</div>
 			</div>
 		</div>

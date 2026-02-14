@@ -295,6 +295,10 @@ jobs:
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "DELETE FROM users WHERE id = 'test-user-smoke'" || true
 
+          echo "🗑️  Cleaning up monthly counters..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM monthly_counters WHERE org_id = 'test-org-smoke'" || true
+
           echo "🗑️  Cleaning up organizations..."
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "DELETE FROM organizations WHERE id = 'test-org-smoke'" || true

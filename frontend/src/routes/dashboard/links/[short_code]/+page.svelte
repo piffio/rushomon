@@ -63,7 +63,7 @@
 
 	function selectTimeRange(value: number) {
 		const params = new URLSearchParams($page.url.searchParams);
-		if (value === 30) {
+		if (value === 7) {
 			params.delete("days");
 		} else {
 			params.set("days", value.toString());
@@ -501,9 +501,48 @@
 				</h2>
 				{#if analytics.clicks_over_time.length === 0}
 					<div
-						class="h-64 flex items-center justify-center text-gray-400"
+						class="h-64 flex flex-col items-center justify-center text-gray-400 px-4"
 					>
-						<p>No click data for this period</p>
+						{#if analytics.analytics_gated && analytics.gated_reason === "retention_limited"}
+							<svg
+								class="w-12 h-12 text-orange-500 mb-3"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+								/>
+							</svg>
+							<p class="text-center mb-3">
+								This time range exceeds your free tier analytics
+								retention.
+							</p>
+							<a
+								href="/pricing"
+								class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+							>
+								<svg
+									class="w-4 h-4"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M13 7l5 5m0 0l-5 5m5-5H6"
+									/>
+								</svg>
+								Upgrade to view full analytics
+							</a>
+						{:else}
+							<p>No click data for this period</p>
+						{/if}
 					</div>
 				{:else}
 					<div class="h-64">
@@ -520,7 +559,22 @@
 						Top Referrers
 					</h2>
 					{#if analytics.top_referrers.length === 0}
-						<p class="text-gray-400 text-sm">No referrer data</p>
+						{#if analytics.analytics_gated && analytics.gated_reason === "retention_limited"}
+							<div class="text-center py-4">
+								<p class="text-gray-400 text-sm mb-2">
+									Upgrade to view referrer data
+								</p>
+								<a
+									href="/pricing"
+									class="text-orange-600 hover:text-orange-700 text-sm font-medium"
+									>View pricing plans →</a
+								>
+							</div>
+						{:else}
+							<p class="text-gray-400 text-sm">
+								No referrer data
+							</p>
+						{/if}
 					{:else}
 						<div class="space-y-3">
 							{#each analytics.top_referrers as ref, i}
@@ -567,7 +621,20 @@
 						Top Countries
 					</h2>
 					{#if analytics.top_countries.length === 0}
-						<p class="text-gray-400 text-sm">No country data</p>
+						{#if analytics.analytics_gated && analytics.gated_reason === "retention_limited"}
+							<div class="text-center py-4">
+								<p class="text-gray-400 text-sm mb-2">
+									Upgrade to view country data
+								</p>
+								<a
+									href="/pricing"
+									class="text-orange-600 hover:text-orange-700 text-sm font-medium"
+									>View pricing plans →</a
+								>
+							</div>
+						{:else}
+							<p class="text-gray-400 text-sm">No country data</p>
+						{/if}
 					{:else}
 						<div class="space-y-3">
 							{#each analytics.top_countries as country, i}
@@ -612,7 +679,20 @@
 						Browsers
 					</h2>
 					{#if browserData.length === 0}
-						<p class="text-gray-400 text-sm">No browser data</p>
+						{#if analytics.analytics_gated && analytics.gated_reason === "retention_limited"}
+							<div class="text-center py-4">
+								<p class="text-gray-400 text-sm mb-2">
+									Upgrade to view browser data
+								</p>
+								<a
+									href="/pricing"
+									class="text-orange-600 hover:text-orange-700 text-sm font-medium"
+									>View pricing plans →</a
+								>
+							</div>
+						{:else}
+							<p class="text-gray-400 text-sm">No browser data</p>
+						{/if}
 					{:else}
 						<div class="h-56">
 							<canvas bind:this={browserChartCanvas}></canvas>
@@ -626,7 +706,20 @@
 						Operating Systems
 					</h2>
 					{#if osData.length === 0}
-						<p class="text-gray-400 text-sm">No OS data</p>
+						{#if analytics.analytics_gated && analytics.gated_reason === "retention_limited"}
+							<div class="text-center py-4">
+								<p class="text-gray-400 text-sm mb-2">
+									Upgrade to view OS data
+								</p>
+								<a
+									href="/pricing"
+									class="text-orange-600 hover:text-orange-700 text-sm font-medium"
+									>View pricing plans →</a
+								>
+							</div>
+						{:else}
+							<p class="text-gray-400 text-sm">No OS data</p>
+						{/if}
 					{:else}
 						<div class="h-56">
 							<canvas bind:this={osChartCanvas}></canvas>

@@ -295,6 +295,13 @@ curl -s -o /dev/null -w "%{http_code}" https://api.myapp.com/api/links
 3. You should be redirected back to the dashboard at `https://myapp.com/dashboard`
 4. The first user to sign in becomes the **instance admin**
 
+### Test Admin Console
+
+1. Navigate to `https://myapp.com/admin`
+2. You should see the admin console (only accessible to the first user)
+3. Verify you can see your user account with "free" tier
+4. **Important**: See Step 9 to upgrade your admin account and configure default tiers
+
 ### Test Short Link Redirects
 
 After creating a link in the dashboard:
@@ -305,6 +312,73 @@ curl -I https://short.io/abc123
 ```
 
 > **Note**: Short links will only work after you've created at least one link via the dashboard
+
+---
+
+## Step 9: Configure User Tiers (Important for Self-Hosting)
+
+Rushomon includes a tier system with **Free** and **Unlimited** plans. As a self-hosted instance administrator, you need to configure tiers appropriately for your use case.
+
+### Understanding the Tier System
+
+**Free Tier (Default)**:
+- 15 links per month
+- 7 days analytics retention
+- Links continue to work after limits are reached
+
+**Unlimited Tier**:
+- Unlimited links and tracked clicks
+- Full analytics retention (all time)
+- Complete feature access
+
+### First User Setup
+
+The first user to sign in to your instance automatically becomes the **instance admin**. However, they start on the **Free tier** by default. You should upgrade them:
+
+1. **Access the Admin Console**:
+   - Navigate to `https://myapp.com/admin`
+   - Only the first user (admin) can access this page
+
+2. **Upgrade Your Admin Account**:
+   - Find your user in the admin console
+   - Change your tier from "free" to "unlimited"
+   - Click **Update** to save changes
+
+### Setting Default Tier for New Users
+
+You can configure what tier new users receive by default:
+
+1. **In the Admin Console** (`/admin`):
+   - Look for the "Default New User Tier" setting
+   - Choose between "free" or "unlimited"
+   - Click **Update Default Tier**
+
+2. **Recommended Settings**:
+   - **Personal instance**: Set to "unlimited" (no restrictions)
+   - **Public service**: Set to "free" (with upgrade path)
+   - **Team/Company**: Set to "unlimited" (internal use)
+
+### Managing Existing Users
+
+As an admin, you can:
+- **View all users** and their current tiers
+- **Upgrade individual users** from free to unlimited
+- **Downgrade users** (if needed)
+- **See usage statistics** for each user
+
+### Tier Considerations for Self-Hosting
+
+**Why Configure Tiers?**
+- **Resource management**: Prevent abuse on public instances
+- **Usage monitoring**: Track link creation and click patterns
+- **Future monetization**: Prepare for paid tiers if desired
+
+**Self-Hosting Recommendations**:
+- **Personal use**: Set default to "unlimited" for maximum flexibility
+- **Team/Company**: Set default to "unlimited" and manage via organization
+- **Public service**: Keep "free" default to prevent abuse
+
+> **Important**: The admin console is only accessible to the first user who signed in. If you lose access to the admin account, you'll need to contact your database administrator to manually update user tiers in the `organizations` table.
 
 ---
 
@@ -403,3 +477,19 @@ wrangler deploy -c wrangler.production.toml
 - Check that `[assets]` binding is configured in wrangler.toml
 - Verify `directory = "./frontend/build"` points to the correct build output
 - Ensure frontend was built before deploying Worker
+
+### Admin console not accessible
+- Only the first user to sign in can access `/admin`
+- If you lost access to the admin account, you'll need database access to manually update the `organizations` table
+- Check that you're signed in as the correct user (the first one who registered)
+
+### Users hitting limits unexpectedly
+- Check the default tier setting in the admin console
+- Verify individual user tiers in the admin console
+- For personal instances, consider setting default tier to "unlimited"
+- Remember: Free tier has 15 links/month and 7-day analytics retention
+
+### Analytics showing "upgrade" messages
+- Free tier users only see 7 days of analytics data
+- Upgrade users to "unlimited" tier for full analytics access
+- Check retention limits in the tier system (Free: 7 days, Unlimited: unlimited)

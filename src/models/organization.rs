@@ -7,6 +7,7 @@ pub struct Organization {
     pub slug: String,
     pub created_at: i64,
     pub created_by: String,
+    pub tier: String,
 }
 
 impl Organization {

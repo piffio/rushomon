@@ -281,9 +281,12 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/links/by-code/:code", handle_cors_preflight)
         .options_async("/api/links/:id", handle_cors_preflight)
         .options_async("/api/links/:id/analytics", handle_cors_preflight)
+        .options_async("/api/usage", handle_cors_preflight)
         .options_async("/api/admin/users", handle_cors_preflight)
         .options_async("/api/admin/users/:id", handle_cors_preflight)
         .options_async("/api/admin/settings", handle_cors_preflight)
+        .options_async("/api/admin/orgs/:id/tier", handle_cors_preflight)
+        .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
@@ -291,6 +294,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .get_async("/api/auth/me", router::handle_get_current_user)
         .post_async("/api/auth/refresh", router::handle_token_refresh)
         .post_async("/api/auth/logout", router::handle_logout)
+        .get_async("/api/usage", router::handle_get_usage)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
         .get_async("/api/links/by-code/:code", router::handle_get_link_by_code)
@@ -307,6 +311,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .put_async("/api/admin/users/:id", router::handle_admin_update_user)
         .get_async("/api/admin/settings", router::handle_admin_get_settings)
         .put_async("/api/admin/settings", router::handle_admin_update_setting)
+        .put_async(
+            "/api/admin/orgs/:id/tier",
+            router::handle_admin_update_org_tier,
+        )
+        .post_async(
+            "/api/admin/orgs/:id/reset-counter",
+            router::handle_admin_reset_monthly_counter,
+        )
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
         .get_async("/", |_req, ctx| async move {
             let url = Url::parse(&router::get_frontend_url(&ctx.env))?;

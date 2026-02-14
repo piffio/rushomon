@@ -6,7 +6,12 @@
 	import { linksApi } from "$lib/api/links";
 	import { goto } from "$app/navigation";
 	import type { PageData } from "./$types";
-	import type { Link, ApiError, PaginationMeta } from "$lib/types/api";
+	import type {
+		Link,
+		ApiError,
+		PaginationMeta,
+		UsageResponse,
+	} from "$lib/types/api";
 
 	let { data }: { data: PageData } = $props();
 
@@ -21,6 +26,7 @@
 	let error = $state("");
 	let editingLink = $state<Link | null>(null);
 	let isModalOpen = $state(false);
+	let usage = $state<UsageResponse | null>(null);
 
 	// Initialize links, pagination, and stats from data (runs on mount and when data changes)
 	$effect(() => {
@@ -33,7 +39,46 @@
 			pagination = null;
 			stats = null;
 		}
+		const d = data as Record<string, any>;
+		usage = (d.usage as UsageResponse) || null;
 	});
+
+	let linksUsagePercent = $derived(
+		usage?.limits.max_links_per_month
+			? Math.min(
+					100,
+					Math.round(
+						(usage.usage.links_created_this_month /
+							usage.limits.max_links_per_month) *
+							100,
+					),
+				)
+			: 0,
+	);
+	let clicksUsagePercent = $derived(
+		usage?.limits.max_tracked_clicks_per_month
+			? Math.min(
+					100,
+					Math.round(
+						(usage.usage.tracked_clicks_this_month /
+							usage.limits.max_tracked_clicks_per_month) *
+							100,
+					),
+				)
+			: 0,
+	);
+	let linksAtLimit = $derived(
+		usage?.limits.max_links_per_month
+			? usage.usage.links_created_this_month >=
+					usage.limits.max_links_per_month
+			: false,
+	);
+	let clicksAtLimit = $derived(
+		usage?.limits.max_tracked_clicks_per_month
+			? usage.usage.tracked_clicks_this_month >=
+					usage.limits.max_tracked_clicks_per_month
+			: false,
+	);
 
 	function handleEdit(link: Link) {
 		editingLink = link;
@@ -135,7 +180,11 @@
 					</div>
 					<button
 						onclick={handleCreateNew}
-						class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 font-semibold"
+						disabled={linksAtLimit}
+						class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
+						title={linksAtLimit
+							? "Monthly link limit reached"
+							: "Create a new short link"}
 					>
 						+ New Link
 					</button>
@@ -240,6 +289,119 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Usage Indicators (free tier only) -->
+		{#if usage && usage.tier === "free" && (usage.limits.max_links_per_month || usage.limits.max_tracked_clicks_per_month)}
+			<div class="max-w-6xl mx-auto px-6">
+				<div
+					class="bg-white rounded-2xl border-2 p-6 {linksAtLimit ||
+					clicksAtLimit
+						? 'border-amber-300 bg-amber-50'
+						: 'border-gray-200'}"
+				>
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<h3
+								class="text-sm font-semibold text-gray-700 uppercase tracking-wider"
+							>
+								Free Tier Usage
+							</h3>
+							<span
+								class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+							>
+								Free
+							</span>
+						</div>
+						<a
+							href="/pricing"
+							class="text-sm text-orange-600 hover:text-orange-700 font-medium"
+						>
+							View plans &rarr;
+						</a>
+					</div>
+
+					<div class="space-y-4">
+						{#if usage.limits.max_links_per_month}
+							<div>
+								<div
+									class="flex items-center justify-between mb-1.5"
+								>
+									<span class="text-sm text-gray-600"
+										>Links created this month</span
+									>
+									<span
+										class="text-sm font-medium {linksAtLimit
+											? 'text-red-600'
+											: 'text-gray-900'}"
+									>
+										{usage.usage.links_created_this_month} /
+										{usage.limits.max_links_per_month}
+									</span>
+								</div>
+								<div
+									class="w-full bg-gray-200 rounded-full h-2"
+								>
+									<div
+										class="h-2 rounded-full transition-all duration-500 {linksAtLimit
+											? 'bg-red-500'
+											: linksUsagePercent >= 80
+												? 'bg-amber-500'
+												: 'bg-orange-500'}"
+										style="width: {linksUsagePercent}%"
+									></div>
+								</div>
+								{#if linksAtLimit}
+									<p class="text-xs text-red-600 mt-1">
+										Monthly link limit reached. Limits reset
+										on the 1st of each month.
+									</p>
+								{/if}
+							</div>
+						{/if}
+
+						{#if usage.limits.max_tracked_clicks_per_month}
+							<div>
+								<div
+									class="flex items-center justify-between mb-1.5"
+								>
+									<span class="text-sm text-gray-600"
+										>Tracked clicks this month</span
+									>
+									<span
+										class="text-sm font-medium {clicksAtLimit
+											? 'text-red-600'
+											: 'text-gray-900'}"
+									>
+										{usage.usage.tracked_clicks_this_month} /
+										{usage.limits
+											.max_tracked_clicks_per_month}
+									</span>
+								</div>
+								<div
+									class="w-full bg-gray-200 rounded-full h-2"
+								>
+									<div
+										class="h-2 rounded-full transition-all duration-500 {clicksAtLimit
+											? 'bg-red-500'
+											: clicksUsagePercent >= 80
+												? 'bg-amber-500'
+												: 'bg-blue-500'}"
+										style="width: {clicksUsagePercent}%"
+									></div>
+								</div>
+								{#if clicksAtLimit}
+									<p class="text-xs text-red-600 mt-1">
+										Monthly click tracking limit reached.
+										Links still redirect but analytics are
+										paused.
+									</p>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Main Content Area -->
 		<main class="max-w-6xl mx-auto px-6 py-6">
