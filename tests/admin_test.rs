@@ -163,14 +163,9 @@ async fn test_admin_cannot_demote_self() {
 
 #[tokio::test]
 async fn test_first_user_is_admin() {
-    // This test verifies that the first user on the instance has admin role
-    //
-    // NOTE: In local testing, users persist between runs. To properly test this:
-    // Run: ./scripts/clear-test-db.sh before running integration tests
-    // This clears the D1 database so the test user becomes the first user.
-
     let client = authenticated_client();
 
+    // Get current user info
     let response = client
         .get(&format!("{}/api/auth/me", BASE_URL))
         .send()
@@ -180,13 +175,56 @@ async fn test_first_user_is_admin() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let user: serde_json::Value = response.json().await.unwrap();
-
-    // In CI/ephemeral environments, this should pass automatically
-    // In local development, run ./scripts/clear-test-db.sh first
-    if user["role"] != "admin" {
-        println!("⚠️  Test user is not admin. Run './scripts/clear-test-db.sh' to fix.");
-        println!("   This clears the local D1 database so the test user becomes first user.");
-    }
-
     assert_eq!(user["role"], "admin");
+}
+
+#[tokio::test]
+async fn test_admin_reset_counter_requires_auth() {
+    let client = test_client(); // Unauthenticated client
+
+    let response = client
+        .post(&format!(
+            "{}/api/admin/orgs/test-org-id/reset-counter",
+            BASE_URL
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    // Should return 401 without authentication
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_admin_reset_counter_admin_access() {
+    let client = authenticated_client(); // First user is admin
+
+    // Get current user info to get org_id
+    let user_response = client
+        .get(&format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let user: serde_json::Value = user_response.json().await.unwrap();
+    let org_id = user["org_id"]
+        .as_str()
+        .expect("Failed to get organization ID");
+
+    // Reset counter as admin user
+    let response = client
+        .post(&format!(
+            "{}/api/admin/orgs/{}/reset-counter",
+            BASE_URL, org_id
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    // Should return 200 for admin user
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert!(body["success"].as_bool().unwrap_or(false));
+    assert_eq!(body["message"], "Monthly counter reset successfully");
 }

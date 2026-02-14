@@ -851,8 +851,8 @@ pub async fn reset_monthly_counter(db: &D1Database, org_id: &str) -> Result<()> 
 
     // Reset the counter to 0
     let stmt = db.prepare(
-        "INSERT INTO monthly_counters (org_id, year_month, links_created, clicks_tracked, updated_at)
-         VALUES (?1, ?2, 0, 0, ?3)
+        "INSERT INTO monthly_counters (org_id, year_month, links_created, updated_at)
+         VALUES (?1, ?2, 0, ?3)
          ON CONFLICT(org_id, year_month) DO UPDATE SET
            links_created = 0,
            updated_at = ?3",
