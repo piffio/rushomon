@@ -830,7 +830,6 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
     let now = chrono::Utc::now();
     let year_month = format!("{}-{:02}", now.year(), now.month());
     let links_created_this_month = db::get_monthly_counter(&db, org_id, &year_month).await?;
-    let tracked_clicks_this_month = db::get_monthly_click_counter(&db, org_id, &year_month).await?;
 
     let usage = serde_json::json!({
         "tier": tier.as_str(),
@@ -840,7 +839,6 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
         },
         "usage": {
             "links_created_this_month": links_created_this_month,
-            "tracked_clicks_this_month": tracked_clicks_this_month,
         }
     });
 

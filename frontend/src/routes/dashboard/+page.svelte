@@ -55,28 +55,10 @@
 				)
 			: 0,
 	);
-	let clicksUsagePercent = $derived(
-		usage?.limits.max_tracked_clicks_per_month
-			? Math.min(
-					100,
-					Math.round(
-						(usage.usage.tracked_clicks_this_month /
-							usage.limits.max_tracked_clicks_per_month) *
-							100,
-					),
-				)
-			: 0,
-	);
 	let linksAtLimit = $derived(
 		usage?.limits.max_links_per_month
 			? usage.usage.links_created_this_month >=
 					usage.limits.max_links_per_month
-			: false,
-	);
-	let clicksAtLimit = $derived(
-		usage?.limits.max_tracked_clicks_per_month
-			? usage.usage.tracked_clicks_this_month >=
-					usage.limits.max_tracked_clicks_per_month
 			: false,
 	);
 
@@ -291,11 +273,10 @@
 		</div>
 
 		<!-- Usage Indicators (free tier only) -->
-		{#if usage && usage.tier === "free" && (usage.limits.max_links_per_month || usage.limits.max_tracked_clicks_per_month)}
+		{#if usage && usage.tier === "free" && usage.limits.max_links_per_month}
 			<div class="max-w-6xl mx-auto px-6">
 				<div
-					class="bg-white rounded-2xl border-2 p-6 {linksAtLimit ||
-					clicksAtLimit
+					class="bg-white rounded-2xl border-2 p-6 {linksAtLimit
 						? 'border-amber-300 bg-amber-50'
 						: 'border-gray-200'}"
 				>
@@ -354,46 +335,6 @@
 									<p class="text-xs text-red-600 mt-1">
 										Monthly link limit reached. Limits reset
 										on the 1st of each month.
-									</p>
-								{/if}
-							</div>
-						{/if}
-
-						{#if usage.limits.max_tracked_clicks_per_month}
-							<div>
-								<div
-									class="flex items-center justify-between mb-1.5"
-								>
-									<span class="text-sm text-gray-600"
-										>Tracked clicks this month</span
-									>
-									<span
-										class="text-sm font-medium {clicksAtLimit
-											? 'text-red-600'
-											: 'text-gray-900'}"
-									>
-										{usage.usage.tracked_clicks_this_month} /
-										{usage.limits
-											.max_tracked_clicks_per_month}
-									</span>
-								</div>
-								<div
-									class="w-full bg-gray-200 rounded-full h-2"
-								>
-									<div
-										class="h-2 rounded-full transition-all duration-500 {clicksAtLimit
-											? 'bg-red-500'
-											: clicksUsagePercent >= 80
-												? 'bg-amber-500'
-												: 'bg-blue-500'}"
-										style="width: {clicksUsagePercent}%"
-									></div>
-								</div>
-								{#if clicksAtLimit}
-									<p class="text-xs text-red-600 mt-1">
-										Monthly click tracking limit reached.
-										Links still redirect but analytics are
-										paused.
 									</p>
 								{/if}
 							</div>

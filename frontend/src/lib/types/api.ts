@@ -101,11 +101,9 @@ export interface UsageResponse {
 	tier: string;
 	limits: {
 		max_links_per_month: number | null;
-		max_tracked_clicks_per_month: number | null;
 		analytics_retention_days: number | null;
 	};
 	usage: {
 		links_created_this_month: number;
-		tracked_clicks_this_month: number;
 	};
 }
