@@ -1,6 +1,5 @@
 use crate::models::{AnalyticsEvent, Link, Organization, User, user::CreateUserData};
 use crate::utils::now_timestamp;
-use chrono::Datelike;
 use wasm_bindgen::JsValue;
 use worker::d1::D1Database;
 use worker::*;
@@ -439,11 +438,6 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
     .run()
     .await?;
 
-    // Also increment the monthly click counter
-    let now = chrono::Utc::now();
-    let year_month = format!("{}-{:02}", now.year(), now.month());
-    increment_monthly_click_counter(db, &event.org_id, &year_month).await?;
-
     Ok(())
 }
 
@@ -762,52 +756,6 @@ pub async fn get_monthly_counter(db: &D1Database, org_id: &str, year_month: &str
         Some(val) => Ok(val["links_created"].as_f64().unwrap_or(0.0) as i64),
         None => Ok(0),
     }
-}
-
-/// Get the monthly click counter for an organization
-pub async fn get_monthly_click_counter(
-    db: &D1Database,
-    org_id: &str,
-    year_month: &str,
-) -> Result<i64> {
-    let stmt = db.prepare(
-        "SELECT clicks_tracked FROM monthly_counters
-         WHERE org_id = ?1 AND year_month = ?2",
-    );
-
-    let result = stmt
-        .bind(&[org_id.into(), year_month.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    match result {
-        Some(val) => Ok(val["clicks_tracked"].as_f64().unwrap_or(0.0) as i64),
-        None => Ok(0),
-    }
-}
-
-/// Increment monthly click counter
-pub async fn increment_monthly_click_counter(
-    db: &D1Database,
-    org_id: &str,
-    year_month: &str,
-) -> Result<()> {
-    let now = now_timestamp();
-
-    // Increment the click counter
-    let stmt = db.prepare(
-        "INSERT INTO monthly_counters (org_id, year_month, links_created, clicks_tracked, updated_at)
-         VALUES (?1, ?2, 0, 1, ?3)
-         ON CONFLICT(org_id, year_month) DO UPDATE SET
-           clicks_tracked = clicks_tracked + 1,
-           updated_at = ?3",
-    );
-
-    stmt.bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
-        .run()
-        .await?;
-
-    Ok(())
 }
 
 /// Increment monthly counter with limit check
