@@ -22,15 +22,13 @@ pub fn get_test_jwt() -> String {
 }
 
 /// Get the user ID from the test JWT
-/// This is a simplified version that extracts the user ID from the JWT
+/// The mock OAuth server generates user IDs starting at 1000, so the first test user is "1000"
 pub fn get_test_user_id() -> String {
-    // For testing purposes, we use a hardcoded user ID
-    // The actual user ID is extracted from the JWT during authentication
-    "test-user-id".to_string()
+    "1000".to_string()
 }
 
 // Test user ID - matches the ID created during test setup
-pub const TEST_USER_ID: &str = "test-user-id";
+pub const TEST_USER_ID: &str = "1000";
 
 /// Create an authenticated test client using JWT from environment
 pub fn authenticated_client() -> Client {

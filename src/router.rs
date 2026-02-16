@@ -1636,7 +1636,10 @@ pub async fn handle_admin_suspend_user(
 
     // Safety guard: Cannot suspend self
     if target_user_id == user_ctx.user_id {
-        return Response::error("Cannot suspend yourself", 400);
+        return Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "Cannot suspend yourself"
+        }));
     }
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;

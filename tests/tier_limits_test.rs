@@ -57,7 +57,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
     // Get user info to find organization ID
     let user_response = client
-        .get(format!("{}/api/links?page=1&limit=100", BASE_URL))
+        .get(format!("{}/api/auth/me", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -142,7 +142,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
     // Get user info to find organization ID
     let user_response = client
-        .get(format!("{}/api/links?page=1&limit=100", BASE_URL))
+        .get(format!("{}/api/auth/me", BASE_URL))
         .send()
         .await
         .unwrap();
