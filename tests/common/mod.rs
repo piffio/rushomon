@@ -21,6 +21,17 @@ pub fn get_test_jwt() -> String {
     std::env::var("TEST_JWT").expect("TEST_JWT not set. Run: ./scripts/run-integration-tests.sh")
 }
 
+/// Get the user ID from the test JWT
+/// This is a simplified version that extracts the user ID from the JWT
+pub fn get_test_user_id() -> String {
+    // For testing purposes, we use a hardcoded user ID
+    // The actual user ID is extracted from the JWT during authentication
+    "test-user-id".to_string()
+}
+
+// Test user ID - matches the ID created during test setup
+pub const TEST_USER_ID: &str = "test-user-id";
+
 /// Create an authenticated test client using JWT from environment
 pub fn authenticated_client() -> Client {
     let jwt = get_test_jwt();
@@ -46,7 +57,7 @@ pub async fn create_test_link(url: &str, title: Option<&str>) -> Response {
     }
 
     client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&body)
         .send()
         .await

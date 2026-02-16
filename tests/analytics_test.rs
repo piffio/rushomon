@@ -9,7 +9,7 @@ async fn test_get_link_analytics_requires_auth() {
     let client = test_client();
 
     let response = client
-        .get(&format!("{}/api/links/fake-id/analytics", BASE_URL))
+        .get(format!("{}/api/links/fake-id/analytics", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -22,7 +22,7 @@ async fn test_get_link_analytics_not_found() {
     let client = authenticated_client();
 
     let response = client
-        .get(&format!("{}/api/links/nonexistent-id/analytics", BASE_URL))
+        .get(format!("{}/api/links/nonexistent-id/analytics", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -36,7 +36,7 @@ async fn test_get_link_analytics_empty() {
 
     // Create a fresh link (no clicks yet)
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/analytics-empty-test",
             "title": "Analytics Empty Test"
@@ -51,7 +51,7 @@ async fn test_get_link_analytics_empty() {
 
     // Fetch analytics
     let response = client
-        .get(&format!("{}/api/links/{}/analytics", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}/analytics", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -93,7 +93,7 @@ async fn test_get_link_analytics_with_clicks() {
 
     // Create a link
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/analytics-clicks-test",
             "title": "Analytics Clicks Test"
@@ -110,7 +110,7 @@ async fn test_get_link_analytics_with_clicks() {
     // Generate clicks with different user agents and referrers
     for i in 0..3 {
         let response = redirect_client
-            .get(&format!("{}/{}", BASE_URL, short_code))
+            .get(format!("{}/{}", BASE_URL, short_code))
             .header("User-Agent", format!("Mozilla/5.0 TestBot/{}", i))
             .header("Referer", "https://google.com")
             .send()
@@ -130,7 +130,7 @@ async fn test_get_link_analytics_with_clicks() {
 
     // Fetch analytics
     let response = client
-        .get(&format!("{}/api/links/{}/analytics", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}/analytics", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -165,7 +165,7 @@ async fn test_get_link_analytics_with_time_range() {
 
     // Create a link
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/analytics-range-test"
         }))
@@ -185,7 +185,7 @@ async fn test_get_link_analytics_with_time_range() {
     let start = now - 7 * 24 * 60 * 60;
 
     let response = client
-        .get(&format!(
+        .get(format!(
             "{}/api/links/{}/analytics?start={}&end={}",
             BASE_URL, link_id, start, now
         ))
@@ -208,7 +208,7 @@ async fn test_get_link_by_short_code() {
     let code = unique_short_code("an");
 
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/by-code-test",
             "short_code": code,
@@ -221,7 +221,7 @@ async fn test_get_link_by_short_code() {
 
     // Look up by short code
     let response = client
-        .get(&format!("{}/api/links/by-code/{}", BASE_URL, code))
+        .get(format!("{}/api/links/by-code/{}", BASE_URL, code))
         .send()
         .await
         .unwrap();
@@ -238,7 +238,7 @@ async fn test_get_link_by_short_code_not_found() {
     let client = authenticated_client();
 
     let response = client
-        .get(&format!("{}/api/links/by-code/nonexistent123", BASE_URL))
+        .get(format!("{}/api/links/by-code/nonexistent123", BASE_URL))
         .send()
         .await
         .unwrap();

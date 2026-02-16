@@ -8,9 +8,12 @@ export interface User {
 	org_id: string;
 	role: 'admin' | 'member';
 	created_at: number;
+	suspended_at: number | null;
+	suspension_reason: string | null;
+	suspended_by: string | null;
 }
 
-export type LinkStatus = 'active' | 'disabled';
+export type LinkStatus = 'active' | 'disabled' | 'blocked';
 
 export interface Link {
 	id: string;
@@ -106,4 +109,51 @@ export interface UsageResponse {
 	usage: {
 		links_created_this_month: number;
 	};
+}
+
+// Admin moderation types
+export interface AdminLink {
+	id: string;
+	org_id: string;
+	short_code: string;
+	destination_url: string;
+	title: string | null;
+	created_by: string;
+	created_at: number;
+	updated_at: number | null;
+	expires_at: number | null;
+	status: LinkStatus;
+	click_count: number;
+	creator_email: string;
+	org_name: string;
+}
+
+export interface BlacklistEntry {
+	id: string;
+	destination: string;
+	match_type: 'exact' | 'domain';
+	reason: string;
+	created_by: string;
+	created_at: number;
+}
+
+export interface BlockDestinationRequest {
+	destination: string;
+	match_type?: 'exact' | 'domain';
+	reason: string;
+}
+
+export interface SuspendUserRequest {
+	reason: string;
+}
+
+export interface UpdateLinkStatusRequest {
+	status: LinkStatus;
+}
+
+export interface AdminLinksResponse {
+	links: AdminLink[];
+	total: number;
+	page: number;
+	limit: number;
 }

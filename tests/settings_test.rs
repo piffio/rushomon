@@ -9,7 +9,7 @@ async fn test_settings_requires_auth() {
     let client = test_client();
 
     let response = client
-        .get(&format!("{}/api/admin/settings", BASE_URL))
+        .get(format!("{}/api/admin/settings", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -22,7 +22,7 @@ async fn test_get_settings_returns_defaults() {
     let client = authenticated_client();
 
     let response = client
-        .get(&format!("{}/api/admin/settings", BASE_URL))
+        .get(format!("{}/api/admin/settings", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -51,7 +51,7 @@ async fn test_update_setting_signups_enabled() {
 
     // First get current value
     let get_response = client
-        .get(&format!("{}/api/admin/settings", BASE_URL))
+        .get(format!("{}/api/admin/settings", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -75,7 +75,7 @@ async fn test_update_setting_signups_enabled() {
     };
 
     let response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "key": "signups_enabled", "value": new_value }))
         .send()
         .await
@@ -88,7 +88,7 @@ async fn test_update_setting_signups_enabled() {
 
     // Restore original value
     let restore_response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "key": "signups_enabled", "value": original_value }))
         .send()
         .await
@@ -102,7 +102,7 @@ async fn test_update_setting_invalid_key() {
     let client = authenticated_client();
 
     let response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "key": "nonexistent_setting", "value": "true" }))
         .send()
         .await
@@ -123,7 +123,7 @@ async fn test_update_setting_invalid_value() {
     let client = authenticated_client();
 
     let response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "key": "signups_enabled", "value": "maybe" }))
         .send()
         .await
@@ -145,7 +145,7 @@ async fn test_update_setting_missing_fields() {
 
     // Missing value
     let response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "key": "signups_enabled" }))
         .send()
         .await
@@ -162,7 +162,7 @@ async fn test_update_setting_missing_fields() {
 
     // Missing key
     let response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "value": "true" }))
         .send()
         .await
@@ -176,7 +176,7 @@ async fn test_update_settings_requires_auth() {
     let client = test_client();
 
     let response = client
-        .put(&format!("{}/api/admin/settings", BASE_URL))
+        .put(format!("{}/api/admin/settings", BASE_URL))
         .json(&json!({ "key": "signups_enabled", "value": "false" }))
         .send()
         .await

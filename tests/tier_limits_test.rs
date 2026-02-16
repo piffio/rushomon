@@ -15,7 +15,7 @@ async fn test_unlimited_tier_no_link_limit() {
     let mut created_links = Vec::new();
     for i in 0..20 {
         let response = client
-            .post(&format!("{}/api/links", BASE_URL))
+            .post(format!("{}/api/links", BASE_URL))
             .json(&json!({
                 "destination_url": format!("https://example.com/unlimited-test-{}", i),
                 "title": format!("Unlimited Test Link {}", i)
@@ -45,7 +45,7 @@ async fn test_unlimited_tier_no_link_limit() {
     // Clean up created links
     for link_id in created_links {
         let _ = client
-            .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+            .delete(format!("{}/api/links/{}", BASE_URL, link_id))
             .send()
             .await;
     }
@@ -57,7 +57,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
     // Get user info to find organization ID
     let user_response = client
-        .get(&format!("{}/api/auth/me", BASE_URL))
+        .get(format!("{}/api/links?page=1&limit=100", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -68,7 +68,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         .expect("Failed to get organization ID");
 
     let tier_response = client
-        .put(&format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
         .json(&json!({"tier": "free"}))
         .send()
         .await
@@ -87,7 +87,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     for i in 0..20 {
         // Try up to 20 links to find the limit
         let response = client
-            .post(&format!("{}/api/links", BASE_URL))
+            .post(format!("{}/api/links", BASE_URL))
             .json(&json!({
                 "destination_url": format!("https://example.com/free-test-{}", i),
                 "title": format!("Free Test Link {}", i)
@@ -142,7 +142,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
     // Get user info to find organization ID
     let user_response = client
-        .get(&format!("{}/api/auth/me", BASE_URL))
+        .get(format!("{}/api/links?page=1&limit=100", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -158,7 +158,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
     // Use admin API to upgrade organization tier
     let upgrade_response = client
-        .put(&format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await
@@ -171,7 +171,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     } else {
         // Create one more link (should succeed on unlimited tier)
         let response = client
-            .post(&format!("{}/api/links", BASE_URL))
+            .post(format!("{}/api/links", BASE_URL))
             .json(&json!({
                 "destination_url": "https://example.com/unlimited-test-after-upgrade",
                 "title": "Unlimited Test Link After Upgrade"
@@ -193,14 +193,14 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     // Clean up created links
     for link_id in created_links {
         let _ = client
-            .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+            .delete(format!("{}/api/links/{}", BASE_URL, link_id))
             .send()
             .await;
     }
 
     // Reset organization back to unlimited tier for subsequent tests
     let reset_response = client
-        .put(&format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await

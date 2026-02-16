@@ -9,7 +9,7 @@ async fn test_redirect_with_301() {
     let client = test_client(); // Doesn't follow redirects
 
     let response = client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -26,7 +26,7 @@ async fn test_nonexistent_short_code_redirects_to_404_page() {
     let client = test_client();
 
     let response = client
-        .get(&format!("{}/nonexistent999", BASE_URL))
+        .get(format!("{}/nonexistent999", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -61,7 +61,7 @@ async fn test_redirect_increments_click_count() {
 
     // Access the short link (public, unauthenticated)
     let redirect_response = public_client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -74,7 +74,7 @@ async fn test_redirect_increments_click_count() {
 
     // Get link and check click count (authenticated)
     let get_response = auth_client
-        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -102,14 +102,14 @@ async fn test_inactive_link_redirects_to_404_page() {
 
     // Delete the link (soft delete, authenticated)
     let _ = auth_client
-        .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
 
     // Try to access the short link (public)
     let response = public_client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -132,7 +132,7 @@ async fn test_inactive_link_redirects_to_404_page() {
 async fn test_root_redirects_to_frontend() {
     let client = test_client();
 
-    let response = client.get(&format!("{}/", BASE_URL)).send().await.unwrap();
+    let response = client.get(format!("{}/", BASE_URL)).send().await.unwrap();
 
     assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY); // 301
     let location = response

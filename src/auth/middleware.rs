@@ -1,4 +1,5 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
+use worker::D1Database;
 use worker::{Request, Response, RouteContext};
 
 /// Authentication error that can be converted to an HTTP response
@@ -143,6 +144,33 @@ pub async fn authenticate_request(
     // Verify user_id matches (constant-time comparison to prevent timing attacks)
     if !crate::utils::secure_compare(&session.user_id, &claims.sub) {
         return Err(AuthError::Unauthorized("Session mismatch".to_string()));
+    }
+
+    // Check if user is suspended
+    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+        Ok(db) => db,
+        Err(_e) => {
+            return Err(AuthError::InternalError(
+                "Server configuration error".to_string(),
+            ));
+        }
+    };
+
+    let user = match crate::db::get_user_by_id(&db, &session.user_id).await {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            return Err(AuthError::Unauthorized("User not found".to_string()));
+        }
+        Err(_e) => {
+            return Err(AuthError::InternalError(
+                "Failed to validate user".to_string(),
+            ));
+        }
+    };
+
+    // Check if user is suspended
+    if user.suspended_at.is_some() {
+        return Err(AuthError::Forbidden("Account suspended".to_string()));
     }
 
     Ok(UserContext {

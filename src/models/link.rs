@@ -7,6 +7,8 @@ pub enum LinkStatus {
     Active,
     #[serde(rename = "disabled")]
     Disabled,
+    #[serde(rename = "blocked")]
+    Blocked,
 }
 
 impl LinkStatus {
@@ -14,6 +16,7 @@ impl LinkStatus {
         match self {
             LinkStatus::Active => "active",
             LinkStatus::Disabled => "disabled",
+            LinkStatus::Blocked => "blocked",
         }
     }
 }
@@ -59,6 +62,7 @@ impl<'de> Deserialize<'de> for Link {
         let status = match helper.status.as_str() {
             "active" => LinkStatus::Active,
             "disabled" => LinkStatus::Disabled,
+            "blocked" => LinkStatus::Blocked,
             _ => LinkStatus::Disabled, // Default to disabled for unknown values
         };
 
