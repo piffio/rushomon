@@ -89,26 +89,39 @@ echo "  Test protected: curl -v http://localhost:8787/api/links"
 echo ""
 echo "Press Ctrl+C to stop both services..."
 
-# Cleanup function
+# Cleanup function with port-based fallback and improved signal handling
 cleanup() {
     echo ""
     echo "🛑 Stopping services..."
-    kill $WRANGLER_PID 2>/dev/null || true
-    kill $FRONTEND_PID 2>/dev/null || true
 
-    # Wait for processes to actually stop
+    # Initial graceful termination
+    kill -TERM $WRANGLER_PID 2>/dev/null || true
+    kill -TERM $FRONTEND_PID 2>/dev/null || true
+
+    # Wait for graceful shutdown
     sleep 2
 
-    # Force kill if still running
-    kill -9 $WRANGLER_PID 2>/dev/null || true
-    kill -9 $FRONTEND_PID 2>/dev/null || true
+    # Force kill if still running by PID
+    kill -KILL $WRANGLER_PID 2>/dev/null || true
+    kill -KILL $FRONTEND_PID 2>/dev/null || true
+
+    # Fallback: kill by port to ensure complete cleanup
+    echo "🔍 Checking for remaining processes on ports..."
+    lsof -ti:8787 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+    lsof -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+
+    # Final fallback: kill by process name patterns
+    echo "🔍 Checking for remaining development processes..."
+    pkill -f "wrangler dev" 2>/dev/null || true
+    pkill -f "npm run dev" 2>/dev/null || true
+    pkill -f "vite" 2>/dev/null || true
 
     echo "✅ All services stopped"
     exit 0
 }
 
-# Wait for interrupt (catch multiple signals)
-trap cleanup INT TERM
+# Wait for interrupt (catch more signal types for better handling)
+trap cleanup INT TERM EXIT
 
 # Wait for both background processes
 wait $WRANGLER_PID $FRONTEND_PID
