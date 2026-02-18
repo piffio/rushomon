@@ -1448,28 +1448,64 @@ pub async fn handle_admin_update_link_status(
     .await?;
 
     // Update KV mapping for status changes (disabled/blocked should stop redirects)
+    console_log!(
+        "Checking if KV update needed. Status from request: '{}'",
+        status
+    );
     if status == "blocked" || status == "disabled" {
-        console_log!("Updating KV for status change to: {}", status);
+        console_log!(
+            "Status matched! Updating KV for status change to: {}",
+            status
+        );
         // Get the updated link from database to ensure we have the latest status
-        if let Ok(Some(updated_link)) = db::get_link_by_id_no_auth(&db, &link_id).await {
-            console_log!("Found link with status: {}", updated_link.status.as_str());
-            let kv = ctx.kv("URL_MAPPINGS")?;
-            if status == "blocked" {
-                // Blocked links are removed from KV entirely
-                console_log!("Deleting KV mapping for blocked link");
-                kv::delete_link_mapping(&kv, &updated_link.org_id, &updated_link.short_code)
-                    .await?;
-            } else {
-                // Disabled links remain in KV but with updated status
-                console_log!("Updating KV mapping for disabled link");
-                let mapping = updated_link.to_mapping();
-                console_log!("New mapping status: {:?}", mapping.status);
-                kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await?;
-                console_log!("KV mapping updated successfully");
+        match db::get_link_by_id_no_auth(&db, &link_id).await {
+            Ok(Some(updated_link)) => {
+                console_log!(
+                    "Found link: short_code='{}', org_id='{}', status='{}'",
+                    updated_link.short_code,
+                    updated_link.org_id,
+                    updated_link.status.as_str()
+                );
+                let kv = ctx.kv("URL_MAPPINGS")?;
+                if status == "blocked" {
+                    // Blocked links are removed from KV entirely
+                    console_log!(
+                        "Deleting KV mapping for blocked link: key='{}'",
+                        updated_link.short_code
+                    );
+                    match kv::delete_link_mapping(
+                        &kv,
+                        &updated_link.org_id,
+                        &updated_link.short_code,
+                    )
+                    .await
+                    {
+                        Ok(_) => console_log!("KV delete successful"),
+                        Err(e) => console_log!("KV delete FAILED: {:?}", e),
+                    }
+                } else {
+                    // Disabled links remain in KV but with updated status
+                    console_log!("Updating KV mapping for disabled link");
+                    let mapping = updated_link.to_mapping();
+                    console_log!("New mapping status: {:?}", mapping.status);
+                    match kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await {
+                        Ok(_) => console_log!("KV update successful"),
+                        Err(e) => console_log!("KV update FAILED: {:?}", e),
+                    }
+                }
             }
-        } else {
-            console_log!("Failed to find link for KV update");
+            Ok(None) => {
+                console_log!(
+                    "CRITICAL: Link not found in DB after update! link_id={}",
+                    link_id
+                );
+            }
+            Err(e) => {
+                console_log!("CRITICAL: DB error when fetching link: {:?}", e);
+            }
         }
+    } else {
+        console_log!("Status did NOT match blocked/disabled. No KV update needed.");
     }
 
     Response::from_json(&serde_json::json!({
