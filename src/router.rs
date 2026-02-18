@@ -1448,50 +1448,19 @@ pub async fn handle_admin_update_link_status(
     .await?;
 
     // Update KV mapping for status changes (disabled/blocked should stop redirects)
-    console_log!(
-        "Checking if KV update needed. Status from request: '{}'",
-        status
-    );
     if status == "blocked" || status == "disabled" {
-        console_log!(
-            "Status matched! Updating KV for status change to: {}",
-            status
-        );
         // Get the updated link from database to ensure we have the latest status
-        match db::get_link_by_id_no_auth(&db, &link_id).await {
+        match db::get_link_by_id_no_auth_all(&db, &link_id).await {
             Ok(Some(updated_link)) => {
-                console_log!(
-                    "Found link: short_code='{}', org_id='{}', status='{}'",
-                    updated_link.short_code,
-                    updated_link.org_id,
-                    updated_link.status.as_str()
-                );
                 let kv = ctx.kv("URL_MAPPINGS")?;
                 if status == "blocked" {
                     // Blocked links are removed from KV entirely
-                    console_log!(
-                        "Deleting KV mapping for blocked link: key='{}'",
-                        updated_link.short_code
-                    );
-                    match kv::delete_link_mapping(
-                        &kv,
-                        &updated_link.org_id,
-                        &updated_link.short_code,
-                    )
-                    .await
-                    {
-                        Ok(_) => console_log!("KV delete successful"),
-                        Err(e) => console_log!("KV delete FAILED: {:?}", e),
-                    }
+                    kv::delete_link_mapping(&kv, &updated_link.org_id, &updated_link.short_code)
+                        .await?;
                 } else {
                     // Disabled links remain in KV but with updated status
-                    console_log!("Updating KV mapping for disabled link");
                     let mapping = updated_link.to_mapping();
-                    console_log!("New mapping status: {:?}", mapping.status);
-                    match kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await {
-                        Ok(_) => console_log!("KV update successful"),
-                        Err(e) => console_log!("KV update FAILED: {:?}", e),
-                    }
+                    kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await?;
                 }
             }
             Ok(None) => {
@@ -1533,7 +1502,7 @@ pub async fn handle_admin_delete_link(req: Request, ctx: RouteContext<()>) -> Re
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Get link first to get short_code for KV deletion
-    let link = match db::get_link_by_id_no_auth(&db, &link_id).await? {
+    let link = match db::get_link_by_id_no_auth_all(&db, &link_id).await? {
         Some(link) => link,
         None => return Response::error("Link not found", 404),
     };

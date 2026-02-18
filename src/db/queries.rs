@@ -329,6 +329,17 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
 }
 
+/// Get a link by ID without org_id check (used for admin operations - returns all statuses)
+pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+         FROM links
+         WHERE id = ?1"
+    );
+
+    stmt.bind(&[link_id.into()])?.first::<Link>(None).await
+}
+
 /// Update a link
 pub async fn update_link(
     db: &D1Database,
