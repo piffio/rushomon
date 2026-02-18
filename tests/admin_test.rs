@@ -225,12 +225,22 @@ async fn test_admin_block_destination() {
     let blacklist_body: serde_json::Value = blacklist_response.json().await.unwrap();
     let entries = blacklist_body.as_array().unwrap();
 
-    // Find the entry we just added
-    let entry = entries
-        .iter()
-        .find(|e| e["destination"].as_str().unwrap_or("") == "https://malicious.example.com");
+    // Debug: print all entries to see what we have
+    println!("Blacklist entries:");
+    for (i, entry) in entries.iter().enumerate() {
+        println!("  {}: {:?}", i, entry);
+    }
 
-    assert!(entry.is_some());
+    // Find the entry we just added (check both original and normalized forms)
+    let entry = entries.iter().find(|e| {
+        let dest = e["destination"].as_str().unwrap_or("");
+        dest == "https://malicious.example.com/" || dest == "https://malicious.example.com"
+    });
+
+    assert!(
+        entry.is_some(),
+        "Expected to find blacklist entry for 'https://malicious.example.com' or its normalized form"
+    );
 
     // Remove the entry
     let entry_id = entry.unwrap()["id"].as_str().unwrap();

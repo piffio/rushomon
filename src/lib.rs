@@ -10,7 +10,7 @@ mod kv;
 mod middleware;
 mod models;
 mod router;
-mod utils;
+pub mod utils;
 
 // Thread-local storage for deferred analytics futures from redirect handlers.
 // Workers are single-threaded, so thread_local is safe and avoids passing Context through the Router.

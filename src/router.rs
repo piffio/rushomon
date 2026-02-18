@@ -1551,6 +1551,21 @@ pub async fn handle_admin_block_destination(
         None => "exact".to_string(), // Default to exact
     };
 
+    // Normalize the destination URL for exact matches to ensure consistency
+    let normalized_destination = if match_type == "exact" {
+        match crate::utils::normalize_url_for_blacklist(&destination) {
+            Ok(url) => url,
+            Err(e) => {
+                console_log!("Failed to normalize URL '{}': {:?}", destination, e);
+                // Fall back to original URL if normalization fails
+                destination.clone()
+            }
+        }
+    } else {
+        // For domain matches, keep original as we need the domain extraction
+        destination.clone()
+    };
+
     let reason = match body.get("reason").and_then(|r| r.as_str()) {
         Some(r) => r.to_string(),
         None => return Response::error("Missing 'reason' field", 400),
@@ -1559,17 +1574,31 @@ pub async fn handle_admin_block_destination(
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Add to blacklist
-    db::add_to_blacklist(&db, &destination, &match_type, &reason, &user_ctx.user_id).await?;
+    db::add_to_blacklist(
+        &db,
+        &normalized_destination,
+        &match_type,
+        &reason,
+        &user_ctx.user_id,
+    )
+    .await?;
 
-    // Block all matching links
+    // Block all matching links (use original destination for matching existing links)
     let blocked_count =
         db::block_links_matching_destination(&db, &destination, &match_type).await?;
 
     // Delete blocked links from KV to stop redirects
     if blocked_count > 0 {
         let kv = ctx.kv("URL_MAPPINGS")?;
-        if let Ok(links) =
-            db::get_all_links_admin(&db, blocked_count, 0, None, None, Some(&destination)).await
+        if let Ok(links) = db::get_all_links_admin(
+            &db,
+            blocked_count,
+            0,
+            None,
+            None,
+            Some(&destination.clone()),
+        )
+        .await
         {
             for link in links {
                 kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;

@@ -973,21 +973,32 @@ pub async fn get_all_blacklist(db: &D1Database) -> Result<Vec<BlacklistEntry>> {
 
 /// Check if a destination is blacklisted (exact or domain match)
 pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> Result<bool> {
-    // First check exact match
+    use crate::utils::normalize_url_for_blacklist;
+
+    // Normalize the destination URL for comparison
+    let normalized_destination = match normalize_url_for_blacklist(destination) {
+        Ok(url) => url,
+        Err(_) => {
+            // If URL parsing fails, fall back to exact string comparison
+            destination.to_string()
+        }
+    };
+
+    // First check exact match against normalized blacklist entries
     let exact_stmt = db.prepare(
         "SELECT 1 FROM destination_blacklist
          WHERE destination = ?1 AND match_type = 'exact'
          LIMIT 1",
     );
     if let Ok(Some(_)) = exact_stmt
-        .bind(&[destination.into()])?
+        .bind(&[normalized_destination.clone().into()])?
         .first::<serde_json::Value>(None)
         .await
     {
         return Ok(true);
     }
 
-    // Then check domain match
+    // Then check domain match (still uses original domain extraction logic)
     let url = match url::Url::parse(destination) {
         Ok(u) => u,
         Err(_) => return Ok(false),
@@ -1005,6 +1016,18 @@ pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> R
         .await
     {
         return Ok(true);
+    }
+
+    // Finally, check if any normalized blacklist entries match our normalized destination
+    // This handles cases where blocked URLs have different forms but same normalized form
+    let all_entries = get_all_blacklist(db).await?;
+    for entry in all_entries {
+        if entry.match_type == "exact"
+            && let Ok(normalized_entry) = normalize_url_for_blacklist(&entry.destination)
+            && normalized_entry == normalized_destination
+        {
+            return Ok(true);
+        }
     }
 
     Ok(false)

@@ -69,6 +69,28 @@ pub async fn create_link_and_get_code(url: &str) -> String {
     link["short_code"].as_str().unwrap().to_string()
 }
 
+/// Helper to create a test link and return error response (for testing blocked URLs)
+pub async fn create_test_link_expect_error(url: &str, title: Option<&str>) -> String {
+    let client = authenticated_client();
+    let mut body = json!({"destination_url": url});
+
+    if let Some(t) = title {
+        body["title"] = json!(t);
+    }
+
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to create test link");
+
+    let status = response.status();
+    let text = response.text().await.unwrap();
+
+    format!("Status: {}, Response: {}", status, text)
+}
+
 /// Generate a unique short code for testing
 /// Uses timestamp to avoid collisions between test runs
 pub fn unique_short_code(prefix: &str) -> String {
