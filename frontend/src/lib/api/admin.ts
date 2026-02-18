@@ -1,5 +1,13 @@
 import { apiClient } from './client';
-import type { User, AdminLink, BlacklistEntry, AdminLinksResponse } from '$lib/types/api';
+import type {
+	User,
+	Link,
+	AdminLink,
+	BlacklistEntry,
+	BlockDestinationRequest,
+	BlockDestinationResponse,
+	AdminLinksResponse,
+} from "$lib/types/api";
 
 export interface AdminUsersResponse {
 	users: User[];
@@ -149,8 +157,8 @@ export const adminApi = {
 		destination: string,
 		matchType: 'exact' | 'domain' = 'exact',
 		reason: string
-	): Promise<{ success: boolean; message: string; blocked_links: number; }> {
-		return apiClient.request<{ success: boolean; message: string; blocked_links: number; }>('/api/admin/blacklist', {
+	): Promise<BlockDestinationResponse> {
+		return apiClient.request<BlockDestinationResponse>('/api/admin/blacklist', {
 			method: 'POST',
 			body: JSON.stringify({ destination, match_type: matchType, reason })
 		});

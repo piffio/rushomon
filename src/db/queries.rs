@@ -925,6 +925,28 @@ pub async fn enable_all_links_for_user(db: &D1Database, user_id: &str) -> Result
         .unwrap_or(0))
 }
 
+/// Check if destination is already blacklisted
+pub async fn is_destination_already_blacklisted(
+    db: &D1Database,
+    destination: &str,
+    match_type: &str,
+) -> Result<bool> {
+    let stmt = db.prepare(
+        "SELECT 1 FROM destination_blacklist
+         WHERE destination = ?1 AND match_type = ?2
+         LIMIT 1",
+    );
+    if let Ok(Some(_)) = stmt
+        .bind(&[destination.into(), match_type.into()])?
+        .first::<serde_json::Value>(None)
+        .await
+    {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 /// Add destination to blacklist
 pub async fn add_to_blacklist(
     db: &D1Database,

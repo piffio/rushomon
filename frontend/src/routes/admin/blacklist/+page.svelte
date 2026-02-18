@@ -32,12 +32,24 @@
 		if (!newDestination || !newReason) return;
 
 		try {
-			await adminApi.blockDestination(newDestination, "exact", newReason);
-			await loadBlacklist();
-			showAddModal = false;
-			newDestination = "";
-			newReason = "";
-			showToastMessage("Destination added to blacklist");
+			const response = await adminApi.blockDestination(
+				newDestination,
+				"exact",
+				newReason,
+			);
+
+			if (response.success) {
+				await loadBlacklist();
+				showAddModal = false;
+				newDestination = "";
+				newReason = "";
+				showToastMessage("Destination added to blacklist");
+			} else {
+				// Handle duplicate or other error cases
+				showToastMessage(
+					response.message || "Failed to add destination",
+				);
+			}
 		} catch (err) {
 			console.error("Failed to add entry:", err);
 			showToastMessage("Failed to add destination");

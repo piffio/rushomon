@@ -143,6 +143,13 @@ export interface BlockDestinationRequest {
 	reason: string;
 }
 
+export interface BlockDestinationResponse {
+	success: boolean;
+	message: string;
+	blocked_links: number;
+	already_blocked?: boolean;
+}
+
 export interface SuspendUserRequest {
 	reason: string;
 }

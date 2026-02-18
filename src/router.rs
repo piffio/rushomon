@@ -1573,6 +1573,15 @@ pub async fn handle_admin_block_destination(
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
+    // Check if destination is already blacklisted
+    if db::is_destination_already_blacklisted(&db, &normalized_destination, &match_type).await? {
+        return Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "Destination is already blocked",
+            "already_blocked": true
+        }));
+    }
+
     // Add to blacklist
     db::add_to_blacklist(
         &db,
