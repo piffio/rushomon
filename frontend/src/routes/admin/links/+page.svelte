@@ -14,6 +14,7 @@
 	let confirmingLinkId = $state<string | null>(null);
 	let confirmingAction = $state<"delete" | "block" | null>(null);
 	let blockDestination = $state("");
+	let blockMatchType = $state<"exact" | "domain">("exact");
 	let blockReason = $state("");
 	let activeDropdown = $state<string | null>(null);
 	let dropdownPosition = $state<{ top: number; right: number } | null>(null);
@@ -87,11 +88,15 @@
 		try {
 			const response = await adminApi.blockDestination(
 				blockDestination,
-				"exact",
+				blockMatchType,
 				blockReason,
 			);
 			await loadLinks();
-			showToast(`Blocked ${response.blocked_links} links`, "success");
+			const action = blockMatchType === "domain" ? "domain" : "URL";
+			showToast(
+				`Blocked ${action} - ${response.blocked_links} links affected`,
+				"success",
+			);
 		} catch (err) {
 			showToast(
 				(err as ApiError).message || "Failed to block destination",
@@ -127,17 +132,27 @@
 		confirmingAction = "delete";
 	}
 
-	function confirmBlock(linkId: string, destination: string) {
+	function confirmBlock(
+		linkId: string,
+		destination: string,
+		matchType: "exact" | "domain" = "exact",
+	) {
 		confirmingLinkId = linkId;
 		confirmingAction = "block";
 		blockDestination = destination;
+		blockMatchType = matchType;
 		blockReason = "";
+	}
+
+	function confirmBlockDomain(linkId: string, destination: string) {
+		confirmBlock(linkId, destination, "domain");
 	}
 
 	function closeConfirm() {
 		confirmingLinkId = null;
 		confirmingAction = null;
 		blockDestination = "";
+		blockMatchType = "exact";
 		blockReason = "";
 	}
 
@@ -313,20 +328,6 @@
 													Enable
 												</button>
 											{/if}
-											{#if link.status !== "blocked"}
-												<button
-													class="dropdown-item danger"
-													onclick={() => {
-														handleUpdateStatus(
-															link.id,
-															"blocked",
-														);
-														closeDropdown();
-													}}
-												>
-													Block
-												</button>
-											{/if}
 											<button
 												class="dropdown-item danger"
 												onclick={() => {
@@ -337,16 +338,29 @@
 												Delete
 											</button>
 											<button
-												class="dropdown-item warning"
+												class="dropdown-item danger"
 												onclick={() => {
 													confirmBlock(
+														link.id,
+														link.destination_url,
+														"exact",
+													);
+													closeDropdown();
+												}}
+											>
+												Block Destination URL
+											</button>
+											<button
+												class="dropdown-item danger"
+												onclick={() => {
+													confirmBlockDomain(
 														link.id,
 														link.destination_url,
 													);
 													closeDropdown();
 												}}
 											>
-												Block Destination
+												Block Destination Domain
 											</button>
 										</div>
 									{/if}
@@ -448,17 +462,36 @@
 			aria-modal="true"
 		>
 			<div class="modal-header">
-				<h3>Block Destination</h3>
+				<h3>
+					{blockMatchType === "domain"
+						? "Block Destination Domain"
+						: "Block Destination URL"}
+				</h3>
 				<button class="modal-close" onclick={closeConfirm}
 					>&times;</button
 				>
 			</div>
 			<div class="modal-body">
 				<div class="form-group">
-					<label>Destination URL</label>
+					<label
+						>Destination {blockMatchType === "domain"
+							? "Domain"
+							: "URL"}</label
+					>
 					<input
 						type="url"
 						bind:value={blockDestination}
+						readonly
+						class="form-input"
+					/>
+				</div>
+				<div class="form-group">
+					<label>Match Type</label>
+					<input
+						type="text"
+						value={blockMatchType === "domain"
+							? "Domain (blocks all URLs from this domain)"
+							: "Exact URL (blocks only this specific URL)"}
 						readonly
 						class="form-input"
 					/>
@@ -477,7 +510,7 @@
 					Cancel
 				</button>
 				<button class="btn btn-danger" onclick={handleBlockDestination}>
-					Block Destination
+					{blockMatchType === "domain" ? "Block Domain" : "Block URL"}
 				</button>
 			</div>
 		</div>

@@ -221,3 +221,76 @@ async fn test_prevent_duplicate_blacklist() {
         }
     }
 }
+
+#[tokio::test]
+async fn test_domain_blocking_functionality() {
+    let auth_client = authenticated_client();
+
+    // Block a domain
+    let block_response = auth_client
+        .post(format!("{}/api/admin/blacklist", BASE_URL))
+        .json(&serde_json::json!({
+            "destination": "example.com",
+            "match_type": "domain",
+            "reason": "Test domain blocking"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(block_response.status(), StatusCode::OK);
+    let response: serde_json::Value = block_response.json().await.unwrap();
+    assert_eq!(response["success"], true);
+
+    // Test that URLs from this domain are blocked
+    let test_urls = vec![
+        "http://example.com",
+        "https://example.com",
+        "http://example.com/path",
+        "https://example.com/path?param=value",
+        "http://subdomain.example.com",
+        "https://subdomain.example.com/path",
+    ];
+
+    for url in test_urls {
+        let create_response = create_test_link_expect_error(url, None).await;
+        assert!(
+            create_response.contains("blocked")
+                || create_response.contains("Destination URL is blocked"),
+            "URL {} should be blocked by domain rule",
+            url
+        );
+    }
+
+    // Test that URLs from other domains are not blocked
+    let other_domain_response = create_test_link("http://otherdomain.com", None).await;
+    let other_response_text = other_domain_response.text().await.unwrap();
+    assert!(other_response_text.contains("id"));
+
+    // Clean up
+    let blacklist_entries: serde_json::Value = auth_client
+        .get(format!("{}/api/admin/blacklist", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    if let Some(entries) = blacklist_entries.as_array() {
+        for entry in entries {
+            if entry["destination"].as_str() == Some("example.com") {
+                let delete_response = auth_client
+                    .delete(format!(
+                        "{}/api/admin/blacklist/{}",
+                        BASE_URL,
+                        entry["id"].as_str().unwrap()
+                    ))
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(delete_response.status(), StatusCode::OK);
+            }
+        }
+    }
+}

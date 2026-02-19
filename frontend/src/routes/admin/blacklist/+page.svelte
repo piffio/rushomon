@@ -10,8 +10,11 @@
 	let selectedEntry = $state<BlacklistEntry | null>(null);
 	let newDestination = $state("");
 	let newReason = $state("");
+	let newMatchType = $state<"exact" | "domain">("exact");
 	let showToast = $state(false);
 	let toastMessage = $state("");
+	let destinationError = $state("");
+	let reasonError = $state("");
 
 	onMount(() => {
 		loadBlacklist();
@@ -28,13 +31,54 @@
 		}
 	}
 
+	function detectMatchType(destination: string): "exact" | "domain" {
+		const trimmed = destination.trim();
+
+		// If it looks like a domain (no protocol, no path, just domain.tld)
+		if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+			// Simple domain pattern - no slashes, no special URL characters
+			if (
+				!trimmed.includes("/") &&
+				!trimmed.includes("?") &&
+				!trimmed.includes("#")
+			) {
+				return "domain";
+			}
+		}
+
+		// Default to exact for full URLs
+		return "exact";
+	}
+
+	function handleDestinationChange() {
+		// Auto-detect match type based on input
+		newMatchType = detectMatchType(newDestination);
+	}
+
 	async function handleAddEntry() {
-		if (!newDestination || !newReason) return;
+		// Clear previous errors
+		destinationError = "";
+		reasonError = "";
+
+		// Validate fields
+		let hasError = false;
+
+		if (!newDestination.trim()) {
+			destinationError = "Destination URL or domain is required";
+			hasError = true;
+		}
+
+		if (!newReason.trim()) {
+			reasonError = "Reason is required";
+			hasError = true;
+		}
+
+		if (hasError) return;
 
 		try {
 			const response = await adminApi.blockDestination(
 				newDestination,
-				"exact",
+				newMatchType,
 				newReason,
 			);
 
@@ -43,6 +87,9 @@
 				showAddModal = false;
 				newDestination = "";
 				newReason = "";
+				newMatchType = "exact";
+				destinationError = "";
+				reasonError = "";
 				showToastMessage("Destination added to blacklist");
 			} else {
 				// Handle duplicate or other error cases
@@ -182,7 +229,26 @@
 						type="text"
 						bind:value={newDestination}
 						placeholder="https://example.com or example.com"
+						class={destinationError ? "error" : ""}
+						oninput={handleDestinationChange}
 					/>
+					{#if destinationError}
+						<div class="error-message">{destinationError}</div>
+					{/if}
+				</div>
+				<div class="form-group">
+					<label for="matchType">Match Type</label>
+					<select id="matchType" bind:value={newMatchType}>
+						<option value="exact">Exact URL</option>
+						<option value="domain">Domain</option>
+					</select>
+					<small class="form-help">
+						{#if newMatchType === "exact"}
+							Blocks only the exact URL entered
+						{:else}
+							Blocks all URLs from this domain and its subdomains
+						{/if}
+					</small>
 				</div>
 				<div class="form-group">
 					<label for="reason">Reason</label>
@@ -191,7 +257,11 @@
 						bind:value={newReason}
 						placeholder="Why should this destination be blocked?"
 						rows="3"
+						class={reasonError ? "error" : ""}
 					></textarea>
+					{#if reasonError}
+						<div class="error-message">{reasonError}</div>
+					{/if}
 				</div>
 			</div>
 			<div class="modal-footer">
@@ -488,5 +558,34 @@
 			transform: translateY(0);
 			opacity: 1;
 		}
+	}
+
+	.form-group input.error,
+	.form-group textarea.error {
+		border-color: #dc3545;
+		box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25);
+	}
+
+	.error-message {
+		color: #dc3545;
+		font-size: 0.875rem;
+		margin-top: 0.25rem;
+		display: block;
+	}
+
+	.form-help {
+		color: #6c757d;
+		font-size: 0.875rem;
+		margin-top: 0.25rem;
+		display: block;
+	}
+
+	.form-group select {
+		width: 100%;
+		padding: 0.5rem;
+		border: 1px solid #ddd;
+		border-radius: 4px;
+		background-color: white;
+		font-size: 1rem;
 	}
 </style>
