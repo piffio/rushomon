@@ -213,6 +213,7 @@ jobs:
           FRONTEND_URL = "https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           EPHEMERAL_ORIGIN_PATTERN = "https://rushomon-pr-{}.${{ env.WORKERS_DOMAIN }}"
+          ENABLE_KV_RATE_LIMITING = "false"
           EOF
 
       - name: Apply D1 Migrations
