@@ -10,7 +10,7 @@ mod kv;
 mod middleware;
 mod models;
 mod router;
-mod utils;
+pub mod utils;
 
 // Thread-local storage for deferred analytics futures from redirect handlers.
 // Workers are single-threaded, so thread_local is safe and avoids passing Context through the Router.
@@ -287,6 +287,16 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/settings", handle_cors_preflight)
         .options_async("/api/admin/orgs/:id/tier", handle_cors_preflight)
         .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
+        .options_async("/api/admin/links", handle_cors_preflight)
+        .options_async("/api/admin/links/:id", handle_cors_preflight)
+        .options_async("/api/admin/blacklist", handle_cors_preflight)
+        .options_async("/api/admin/blacklist/:id", handle_cors_preflight)
+        .options_async("/api/admin/users/:id/suspend", handle_cors_preflight)
+        .options_async("/api/admin/users/:id/unsuspend", handle_cors_preflight)
+        .options_async("/api/admin/reports", handle_cors_preflight)
+        .options_async("/api/admin/reports/:id", handle_cors_preflight)
+        .options_async("/api/admin/reports/pending/count", handle_cors_preflight)
+        .options_async("/api/reports/links", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
@@ -319,6 +329,40 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/admin/orgs/:id/reset-counter",
             router::handle_admin_reset_monthly_counter,
         )
+        // Admin moderation routes
+        .get_async("/api/admin/links", router::handle_admin_list_links)
+        .put_async(
+            "/api/admin/links/:id",
+            router::handle_admin_update_link_status,
+        )
+        .delete_async("/api/admin/links/:id", router::handle_admin_delete_link)
+        .post_async(
+            "/api/admin/blacklist",
+            router::handle_admin_block_destination,
+        )
+        .get_async("/api/admin/blacklist", router::handle_admin_get_blacklist)
+        .delete_async(
+            "/api/admin/blacklist/:id",
+            router::handle_admin_remove_blacklist,
+        )
+        .put_async(
+            "/api/admin/users/:id/suspend",
+            router::handle_admin_suspend_user,
+        )
+        .put_async(
+            "/api/admin/users/:id/unsuspend",
+            router::handle_admin_unsuspend_user,
+        )
+        // Admin report management routes
+        .get_async("/api/admin/reports", router::handle_admin_get_reports)
+        .get_async("/api/admin/reports/:id", router::handle_admin_get_report)
+        .put_async("/api/admin/reports/:id", router::handle_admin_update_report)
+        .get_async(
+            "/api/admin/reports/pending/count",
+            router::handle_admin_get_pending_reports_count,
+        )
+        // Abuse report route (public, can be called by anyone)
+        .post_async("/api/reports/links", router::handle_report_link)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
         .get_async("/", |_req, ctx| async move {
             let url = Url::parse(&router::get_frontend_url(&ctx.env))?;

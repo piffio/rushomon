@@ -11,6 +11,12 @@ pub struct User {
     pub org_id: String,
     pub role: String,
     pub created_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspension_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suspended_by: Option<String>,
 }
 
 impl User {

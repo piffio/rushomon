@@ -9,7 +9,7 @@ async fn test_redirect_with_301() {
     let client = test_client(); // Doesn't follow redirects
 
     let response = client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -26,7 +26,7 @@ async fn test_nonexistent_short_code_redirects_to_404_page() {
     let client = test_client();
 
     let response = client
-        .get(&format!("{}/nonexistent999", BASE_URL))
+        .get(format!("{}/nonexistent999", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -61,7 +61,7 @@ async fn test_redirect_increments_click_count() {
 
     // Access the short link (public, unauthenticated)
     let redirect_response = public_client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -74,7 +74,7 @@ async fn test_redirect_increments_click_count() {
 
     // Get link and check click count (authenticated)
     let get_response = auth_client
-        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -90,6 +90,97 @@ async fn test_redirect_increments_click_count() {
 }
 
 #[tokio::test]
+async fn test_disabled_link_redirects_to_404_page() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+
+    // Create a link
+    let create_response = create_test_link("https://example.com", None).await;
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let link_id = link["id"].as_str().unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    // Verify link works initially and check initial click count
+    let initial_response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        initial_response.status(),
+        reqwest::StatusCode::MOVED_PERMANENTLY
+    );
+    assert_eq!(
+        initial_response.headers().get("location").unwrap(),
+        "https://example.com/"
+    );
+
+    // Check click count after initial access
+    let initial_count_response = auth_client
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+    let initial_link: serde_json::Value = initial_count_response.json().await.unwrap();
+    let initial_click_count = initial_link["click_count"].as_i64().unwrap_or(0);
+
+    // Disable the link using regular user endpoint
+    let disable_response = auth_client
+        .put(format!("{}/api/links/{}", BASE_URL, link_id))
+        .json(&serde_json::json!({"status": "disabled"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(disable_response.status(), StatusCode::OK);
+
+    // Try to access the disabled link (public)
+    let response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+
+    // Should redirect to 404
+    assert_eq!(response.status(), StatusCode::FOUND); // 302 redirect to 404
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.ends_with("/404"),
+        "Expected redirect to /404 for disabled link, got: {}",
+        location
+    );
+
+    // Verify click count didn't increment beyond initial access
+    let get_response = auth_client
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+
+    let updated_link: serde_json::Value = get_response.json().await.unwrap();
+    let final_click_count = updated_link["click_count"].as_i64().unwrap_or(0);
+    assert_eq!(
+        final_click_count, initial_click_count,
+        "Click count should remain {} for disabled link, got {}",
+        initial_click_count, final_click_count
+    );
+
+    // Clean up - restore original status
+    let restore_response = auth_client
+        .put(format!("{}/api/links/{}", BASE_URL, link_id))
+        .json(&serde_json::json!({"status": "active"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(restore_response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
 async fn test_inactive_link_redirects_to_404_page() {
     let auth_client = authenticated_client();
     let public_client = test_client();
@@ -102,14 +193,14 @@ async fn test_inactive_link_redirects_to_404_page() {
 
     // Delete the link (soft delete, authenticated)
     let _ = auth_client
-        .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
 
     // Try to access the short link (public)
     let response = public_client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -132,7 +223,7 @@ async fn test_inactive_link_redirects_to_404_page() {
 async fn test_root_redirects_to_frontend() {
     let client = test_client();
 
-    let response = client.get(&format!("{}/", BASE_URL)).send().await.unwrap();
+    let response = client.get(format!("{}/", BASE_URL)).send().await.unwrap();
 
     assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY); // 301
     let location = response
@@ -145,4 +236,67 @@ async fn test_root_redirects_to_frontend() {
         !location.is_empty(),
         "Expected Location header to contain frontend URL"
     );
+}
+
+#[tokio::test]
+async fn test_admin_update_link_status_updates_kv() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+
+    // Create a link
+    let create_response = create_test_link("https://example.com", None).await;
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let link_id = link["id"].as_str().unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    // Verify link works initially
+    let initial_response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        initial_response.status(),
+        reqwest::StatusCode::MOVED_PERMANENTLY
+    );
+
+    // Disable the link using admin endpoint
+    let disable_response = auth_client
+        .put(format!("{}/api/admin/links/{}", BASE_URL, link_id))
+        .json(&serde_json::json!({"status": "disabled"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(disable_response.status(), StatusCode::OK);
+
+    // Try to access the disabled link (public)
+    let response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+
+    // Should redirect to 404
+    assert_eq!(response.status(), StatusCode::FOUND); // 302 redirect to 404
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.ends_with("/404"),
+        "Expected redirect to /404 for disabled link, got: {}",
+        location
+    );
+
+    // Clean up - restore original status
+    let restore_response = auth_client
+        .put(format!("{}/api/admin/links/{}", BASE_URL, link_id))
+        .json(&serde_json::json!({"status": "active"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(restore_response.status(), StatusCode::OK);
 }

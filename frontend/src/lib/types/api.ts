@@ -8,9 +8,12 @@ export interface User {
 	org_id: string;
 	role: 'admin' | 'member';
 	created_at: number;
+	suspended_at: number | null;
+	suspension_reason: string | null;
+	suspended_by: string | null;
 }
 
-export type LinkStatus = 'active' | 'disabled';
+export type LinkStatus = 'active' | 'disabled' | 'blocked';
 
 export interface Link {
 	id: string;
@@ -43,6 +46,7 @@ export interface UpdateLinkRequest {
 export interface ApiError {
 	message: string;
 	status: number;
+	data?: any; // Full error response data for detailed error handling
 }
 
 export interface PaginationMeta {
@@ -106,4 +110,101 @@ export interface UsageResponse {
 	usage: {
 		links_created_this_month: number;
 	};
+}
+
+// Admin moderation types
+export interface AdminLink {
+	id: string;
+	org_id: string;
+	short_code: string;
+	destination_url: string;
+	title: string | null;
+	created_by: string;
+	created_at: number;
+	updated_at: number | null;
+	expires_at: number | null;
+	status: LinkStatus;
+	click_count: number;
+	creator_email: string;
+	org_name: string;
+}
+
+export interface BlacklistEntry {
+	id: string;
+	destination: string;
+	match_type: 'exact' | 'domain';
+	reason: string;
+	created_by: string;
+	created_at: number;
+}
+
+export interface BlockDestinationRequest {
+	destination: string;
+	match_type?: 'exact' | 'domain';
+	reason: string;
+}
+
+export interface BlockDestinationResponse {
+	success: boolean;
+	message: string;
+	blocked_links: number;
+	already_blocked?: boolean;
+}
+
+export interface SuspendUserRequest {
+	reason: string;
+}
+
+export interface UpdateLinkStatusRequest {
+	status: LinkStatus;
+}
+
+export interface LinkReport {
+	id: string;
+	link_id: string;
+	reason: string;
+	reporter_user_id?: string;
+	reporter_email?: string;
+	status: 'pending' | 'reviewed' | 'dismissed';
+	admin_notes?: string;
+	reviewed_by?: string;
+	reviewed_at?: number;
+	created_at: number;
+}
+
+export interface LinkReportWithLink {
+	id: string;
+	link_id: string;
+	link: AdminLink;
+	reason: string;
+	reporter_user_id?: string;
+	reporter_email?: string;
+	status: 'pending' | 'reviewed' | 'dismissed';
+	admin_notes?: string;
+	reviewed_by?: string;
+	reviewed_at?: number;
+	created_at: number;
+	report_count: number; // For grouping
+}
+
+export interface AdminReportsResponse {
+	reports: LinkReportWithLink[];
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		pages: number;
+	};
+}
+
+export interface UpdateReportStatusRequest {
+	status: 'reviewed' | 'dismissed';
+	admin_notes?: string;
+}
+
+export interface AdminLinksResponse {
+	links: AdminLink[];
+	total: number;
+	page: number;
+	limit: number;
 }

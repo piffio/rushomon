@@ -9,7 +9,7 @@ async fn test_reject_javascript_url() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "javascript:alert(1)"
         }))
@@ -29,7 +29,7 @@ async fn test_reject_file_url() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "file:///etc/passwd"
         }))
@@ -49,7 +49,7 @@ async fn test_reject_data_uri() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "data:text/html,<script>alert(1)</script>"
         }))
@@ -69,7 +69,7 @@ async fn test_reject_malformed_url() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "not a url"
         }))
@@ -89,7 +89,7 @@ async fn test_accept_valid_http_url() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "http://example.com/page"
         }))
@@ -105,7 +105,7 @@ async fn test_accept_valid_https_url() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/page?foo=bar"
         }))
@@ -121,7 +121,7 @@ async fn test_reject_short_code_too_short() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "abc"  // 3 chars, minimum is 4
@@ -142,7 +142,7 @@ async fn test_reject_short_code_too_long() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "abcdefghijk"  // 11 chars, maximum is 10
@@ -163,7 +163,7 @@ async fn test_reject_short_code_with_special_chars() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "test-code"  // Hyphen not allowed
@@ -184,7 +184,7 @@ async fn test_reject_short_code_with_underscore() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "test_code"  // Underscore not allowed
@@ -205,7 +205,7 @@ async fn test_reject_reserved_word_api() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "api"  // Reserved word
@@ -226,7 +226,7 @@ async fn test_reject_reserved_word_auth() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "auth"  // Reserved word
@@ -247,7 +247,7 @@ async fn test_reserved_word_case_insensitive() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": "API"  // Reserved word (uppercase)
@@ -271,7 +271,7 @@ async fn test_accept_valid_alphanumeric_code() {
     let valid_code = unique_short_code("test");
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": valid_code

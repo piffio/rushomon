@@ -12,7 +12,7 @@ async fn test_create_link_with_random_short_code() {
     let client = authenticated_client();
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/test-page",
             "title": "Test Link"
@@ -52,7 +52,7 @@ async fn test_create_link_with_custom_short_code() {
     let custom_code = unique_short_code("gh");
 
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://github.com",
             "short_code": custom_code,
@@ -77,7 +77,7 @@ async fn test_create_duplicate_short_code_fails() {
 
     // Create first link
     let _ = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
             "short_code": unique_code
@@ -88,7 +88,7 @@ async fn test_create_duplicate_short_code_fails() {
 
     // Try to create with same short code (should fail)
     let response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://other.com",
             "short_code": unique_code
@@ -111,7 +111,7 @@ async fn test_list_links() {
 
     // Create a few test links
     let create_response1 = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/1",
             "title": "Link 1"
@@ -122,7 +122,7 @@ async fn test_list_links() {
     assert_eq!(create_response1.status(), StatusCode::OK);
 
     let create_response2 = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/2",
             "title": "Link 2"
@@ -134,7 +134,7 @@ async fn test_list_links() {
 
     // List links
     let response = client
-        .get(&format!("{}/api/links", BASE_URL))
+        .get(format!("{}/api/links", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -163,7 +163,7 @@ async fn test_get_link_by_id() {
 
     // Create a link
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com"
         }))
@@ -177,7 +177,7 @@ async fn test_get_link_by_id() {
 
     // Get link by ID
     let response = client
-        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -194,7 +194,7 @@ async fn test_delete_link() {
 
     // Create a link
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com"
         }))
@@ -209,7 +209,7 @@ async fn test_delete_link() {
 
     // Delete link
     let delete_response = client
-        .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -219,7 +219,7 @@ async fn test_delete_link() {
     // Verify redirect no longer works (now redirects to /404 page)
     let redirect_client = test_client();
     let redirect_response = redirect_client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -245,7 +245,7 @@ async fn test_delete_link_with_analytics_events() {
 
     // Create a link
     let create_response = client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/analytics-test"
         }))
@@ -261,7 +261,7 @@ async fn test_delete_link_with_analytics_events() {
     // Generate some analytics events by accessing the short URL multiple times
     for i in 0..5 {
         let redirect_response = test_client
-            .get(&format!("{}/{}", BASE_URL, short_code))
+            .get(format!("{}/{}", BASE_URL, short_code))
             .header("User-Agent", format!("TestBot/{}", i))
             .header("Referer", format!("https://example.com/referrer{}", i))
             .send()
@@ -279,7 +279,7 @@ async fn test_delete_link_with_analytics_events() {
 
     // Verify the link has analytics data (click count should be > 0)
     let get_response = client
-        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -295,7 +295,7 @@ async fn test_delete_link_with_analytics_events() {
 
     // Delete link - this should not fail with FK constraint error
     let delete_response = client
-        .delete(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();
@@ -304,7 +304,7 @@ async fn test_delete_link_with_analytics_events() {
 
     // Verify redirect no longer works (now redirects to /404 page)
     let redirect_response = test_client
-        .get(&format!("{}/{}", BASE_URL, short_code))
+        .get(format!("{}/{}", BASE_URL, short_code))
         .send()
         .await
         .unwrap();
@@ -324,7 +324,7 @@ async fn test_delete_link_with_analytics_events() {
 
     // Verify link is no longer accessible via API
     let get_after_delete = client
-        .get(&format!("{}/api/links/{}", BASE_URL, link_id))
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
         .send()
         .await
         .unwrap();

@@ -111,6 +111,13 @@
 					</li>
 					<li>
 						<a
+							href="/report"
+							class="text-gray-600 hover:text-orange-600 transition-colors"
+							>Report Abuse</a
+						>
+					</li>
+					<li>
+						<a
 							href="https://github.com/piffio/rushomon/blob/main/LICENSE.md"
 							target="_blank"
 							rel="noopener noreferrer"

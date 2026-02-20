@@ -132,18 +132,21 @@ pub async fn handle_redirect(
     let now = now_timestamp();
 
     let analytics_future: Pin<Box<dyn Future<Output = ()> + 'static>> = Box::pin(async move {
-        // Get the full link to extract org_id (no auth check for public redirects)
+        // Get the full link to extract org_id and check status (no auth check for public redirects)
         let link = match db::get_link_by_id_no_auth(&db, &link_id).await {
             Ok(Some(link)) => link,
             Ok(None) => {
                 console_log!("Analytics: link not found for id {}", link_id);
                 return;
             }
-            Err(e) => {
-                console_log!("Analytics: error getting link: {}", e);
+            Err(_) => {
                 return;
             }
         };
+
+        if !matches!(link.status, LinkStatus::Active) {
+            return;
+        }
 
         let event = crate::models::AnalyticsEvent {
             id: None,
@@ -269,6 +272,11 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             return Response::error(format!("Invalid destination URL: {}", e), 400);
         }
     };
+
+    // Check if destination is blacklisted
+    if db::is_destination_blacklisted(&db, &destination_url).await? {
+        return Response::error("Destination URL is blocked", 403);
+    }
 
     // Validate title length (max 200 characters)
     if let Some(ref title) = body.title
@@ -597,10 +605,16 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
 
     // Validate destination URL if provided
-    if let Some(url) = &update_req.destination_url
-        && let Err(e) = validate_url(url)
-    {
-        return Response::error(format!("Invalid URL: {}", e), 400);
+    if let Some(url) = &update_req.destination_url {
+        if let Err(e) = validate_url(url) {
+            return Response::error(format!("Invalid URL: {}", e), 400);
+        }
+
+        // Check if destination is blacklisted
+        let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+        if db::is_destination_blacklisted(&db, url).await? {
+            return Response::error("Destination URL is blocked", 403);
+        }
     }
 
     // Validate title length if provided (max 200 characters)
@@ -1311,6 +1325,773 @@ pub async fn handle_admin_reset_monthly_counter(
         Err(e) => {
             println!("Failed to reset monthly counter for org {}: {}", org_id, e);
             Response::error("Failed to reset monthly counter", 500)
+        }
+    }
+}
+
+/// Handle listing all links for admin moderation: GET /api/admin/links (admin only)
+pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    // Parse pagination and filter params
+    let url = req.url()?;
+    let page: i64 = url
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find(|s| s.starts_with("page="))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or(1);
+
+    let limit: i64 = url
+        .query()
+        .and_then(|q| {
+            q.split('&')
+                .find(|s| s.starts_with("limit="))
+                .and_then(|s| s.split('=').nth(1))
+                .and_then(|s| s.parse().ok())
+        })
+        .unwrap_or(50)
+        .min(100);
+
+    let offset = (page - 1) * limit;
+
+    // Parse filters
+    let org_filter = url.query().and_then(|q| {
+        q.split('&')
+            .find(|s| s.starts_with("org="))
+            .and_then(|s| s.split('=').nth(1))
+    });
+
+    let email_filter = url.query().and_then(|q| {
+        q.split('&')
+            .find(|s| s.starts_with("email="))
+            .and_then(|s| s.split('=').nth(1))
+    });
+
+    let domain_filter = url.query().and_then(|q| {
+        q.split('&')
+            .find(|s| s.starts_with("domain="))
+            .and_then(|s| s.split('=').nth(1))
+    });
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let links =
+        db::get_all_links_admin(&db, limit, offset, org_filter, email_filter, domain_filter)
+            .await?;
+    let total = db::get_all_links_admin_count(&db, org_filter, email_filter, domain_filter).await?;
+
+    Response::from_json(&serde_json::json!({
+        "links": links,
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }))
+}
+
+/// Handle updating a link's status: PUT /api/admin/links/:id (admin only)
+pub async fn handle_admin_update_link_status(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let link_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?
+        .to_string();
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let status = match body.get("status").and_then(|s| s.as_str()) {
+        Some(s) if s == "active" || s == "disabled" || s == "blocked" => s.to_string(),
+        Some(_) => {
+            return Response::error(
+                "Invalid status. Must be 'active', 'disabled', or 'blocked'",
+                400,
+            );
+        }
+        None => return Response::error("Missing 'status' field", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Update link status
+    let now = now_timestamp();
+    let stmt = db.prepare("UPDATE links SET status = ?1, updated_at = ?2 WHERE id = ?3");
+    stmt.bind(&[
+        status.clone().into(),
+        (now as f64).into(),
+        link_id.clone().into(),
+    ])?
+    .run()
+    .await?;
+
+    // Update KV mapping for status changes (disabled/blocked should stop redirects)
+    if status == "blocked" || status == "disabled" {
+        // Get the updated link from database to ensure we have the latest status
+        match db::get_link_by_id_no_auth_all(&db, &link_id).await {
+            Ok(Some(updated_link)) => {
+                let kv = ctx.kv("URL_MAPPINGS")?;
+                if status == "blocked" {
+                    // Blocked links are removed from KV entirely
+                    kv::delete_link_mapping(&kv, &updated_link.org_id, &updated_link.short_code)
+                        .await?;
+                } else {
+                    // Disabled links remain in KV but with updated status
+                    let mapping = updated_link.to_mapping();
+                    kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await?;
+                }
+            }
+            Ok(None) => {
+                console_log!(
+                    "CRITICAL: Link not found in DB after update! link_id={}",
+                    link_id
+                );
+            }
+            Err(e) => {
+                console_log!("CRITICAL: DB error when fetching link: {:?}", e);
+            }
+        }
+    } else {
+        console_log!("Status did NOT match blocked/disabled. No KV update needed.");
+    }
+
+    // Auto-resolve all pending reports for this link if status is being changed to disabled/blocked
+    if (status == "disabled" || status == "blocked")
+        && let Err(e) = db::resolve_reports_for_link(
+            &db,
+            &link_id,
+            "reviewed",
+            &format!("Action taken: Link {}", status),
+            &user_ctx.user_id,
+        )
+        .await
+    {
+        console_log!("Failed to resolve reports for link {}: {:?}", link_id, e);
+    }
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": format!("Link status updated to {}", status)
+    }))
+}
+
+/// Handle deleting a link: DELETE /api/admin/links/:id (admin only)
+pub async fn handle_admin_delete_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let link_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Get link first to get short_code for KV deletion
+    let link = match db::get_link_by_id_no_auth_all(&db, &link_id).await? {
+        Some(link) => link,
+        None => return Response::error("Link not found", 404),
+    };
+
+    // Hard delete from D1
+    db::hard_delete_link(&db, &link_id, &link.org_id).await?;
+
+    // Delete from KV
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "Link deleted successfully"
+    }))
+}
+
+/// Handle blocking a destination: POST /api/admin/blacklist (admin only)
+pub async fn handle_admin_block_destination(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let destination = match body.get("destination").and_then(|d| d.as_str()) {
+        Some(d) => d.to_string(),
+        None => return Response::error("Missing 'destination' field", 400),
+    };
+
+    let match_type = match body.get("match_type").and_then(|m| m.as_str()) {
+        Some(m) if m == "exact" || m == "domain" => m.to_string(),
+        Some(_) => return Response::error("Invalid match_type. Must be 'exact' or 'domain'", 400),
+        None => "exact".to_string(), // Default to exact
+    };
+
+    // Normalize the destination URL for exact matches to ensure consistency
+    let normalized_destination = if match_type == "exact" {
+        match crate::utils::normalize_url_for_blacklist(&destination) {
+            Ok(url) => url,
+            Err(e) => {
+                console_log!("Failed to normalize URL '{}': {:?}", destination, e);
+                // Fall back to original URL if normalization fails
+                destination.clone()
+            }
+        }
+    } else {
+        // For domain matches, keep original as we need the domain extraction
+        destination.clone()
+    };
+
+    let reason = match body.get("reason").and_then(|r| r.as_str()) {
+        Some(r) => r.to_string(),
+        None => return Response::error("Missing 'reason' field", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Check if destination is already blacklisted
+    if db::is_destination_already_blacklisted(&db, &normalized_destination, &match_type).await? {
+        return Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "Destination is already blocked",
+            "already_blocked": true
+        }));
+    }
+
+    // Add to blacklist
+    db::add_to_blacklist(
+        &db,
+        &normalized_destination,
+        &match_type,
+        &reason,
+        &user_ctx.user_id,
+    )
+    .await?;
+
+    // Block all matching links (use original destination for matching existing links)
+    let blocked_count =
+        db::block_links_matching_destination(&db, &destination, &match_type).await?;
+
+    // Auto-resolve all pending reports for the blocked links
+    if blocked_count > 0 {
+        // Get all blocked links to resolve their reports
+        if let Ok(links) = db::get_all_links_admin(
+            &db,
+            blocked_count,
+            0,
+            None,
+            None,
+            Some(&destination.clone()),
+        )
+        .await
+        {
+            // Resolve all pending reports for these links
+            for link in &links {
+                if let Err(e) = db::resolve_reports_for_link(
+                    &db,
+                    &link.id,
+                    "reviewed",
+                    &format!("Action taken: Blocked {} ({})", match_type, destination),
+                    &user_ctx.user_id,
+                )
+                .await
+                {
+                    console_log!("Failed to resolve reports for link {}: {:?}", link.id, e);
+                }
+            }
+
+            // Delete blocked links from KV to stop redirects
+            let kv = ctx.kv("URL_MAPPINGS")?;
+            for link in links {
+                kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
+            }
+        }
+    }
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "Destination blocked successfully",
+        "blocked_links": blocked_count
+    }))
+}
+
+/// Handle getting blacklist entries: GET /api/admin/blacklist (admin only)
+pub async fn handle_admin_get_blacklist(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let entries = db::get_all_blacklist(&db).await?;
+
+    Response::from_json(&entries)
+}
+
+/// Handle removing blacklist entry: DELETE /api/admin/blacklist/:id (admin only)
+pub async fn handle_admin_remove_blacklist(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing blacklist entry ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    db::remove_from_blacklist(&db, &id).await?;
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "Blacklist entry removed successfully"
+    }))
+}
+
+/// Handle suspending a user: PUT /api/admin/users/:id/suspend (admin only)
+pub async fn handle_admin_suspend_user(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let target_user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?
+        .to_string();
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let reason = match body.get("reason").and_then(|r| r.as_str()) {
+        Some(r) => r.to_string(),
+        None => return Response::error("Missing 'reason' field", 400),
+    };
+
+    // Safety guard: Cannot suspend self
+    if target_user_id == user_ctx.user_id {
+        return Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "Cannot suspend yourself"
+        }));
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Safety guard: Cannot suspend the last admin
+    let admin_count = db::get_admin_count(&db).await?;
+    if admin_count <= 1 {
+        // Check if target user is admin
+        if let Some(target_user) = db::get_user_by_id(&db, &target_user_id).await?
+            && target_user.role == "admin"
+        {
+            return Response::error("Cannot suspend the last admin", 400);
+        }
+    }
+
+    // Suspend user
+    db::suspend_user(&db, &target_user_id, &reason, &user_ctx.user_id).await?;
+
+    // Disable all links for the user
+    let disabled_count = db::disable_all_links_for_user(&db, &target_user_id).await?;
+
+    // Invalidate all sessions for the user
+    let _kv = ctx.kv("URL_MAPPINGS")?;
+    // Note: In a production system, we'd need to track user sessions and delete them
+    // For now, we'll rely on the suspended_at check in auth middleware
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "User suspended successfully",
+        "disabled_links": disabled_count
+    }))
+}
+
+/// Handle unsuspending a user: PUT /api/admin/users/:id/unsuspend (admin only)
+pub async fn handle_admin_unsuspend_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let target_user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    db::unsuspend_user(&db, &target_user_id).await?;
+
+    // Enable all disabled links for the user
+    let _enabled_count = db::enable_all_links_for_user(&db, &target_user_id).await?;
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "User unsuspended successfully"
+    }))
+}
+
+/// Handle abuse report submission: POST /api/reports/links
+pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let link_id = match body.get("link_id").and_then(|v| v.as_str()) {
+        Some(id) => id.to_string(),
+        None => return Response::error("Missing 'link_id' field", 400),
+    };
+
+    let reason = match body.get("reason").and_then(|v| v.as_str()) {
+        Some(r) => r.to_string(),
+        None => return Response::error("Missing 'reason' field", 400),
+    };
+
+    let reporter_email = body.get("reporter_email").and_then(|v| v.as_str());
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Validate that the link exists and check its status
+    let link = match db::get_link_by_short_code_no_auth(&db, &link_id).await {
+        Ok(Some(link)) => Some(link),
+        Ok(None) => {
+            // Try by ID if short code not found
+            match db::get_link_by_id_no_auth_all(&db, &link_id).await {
+                Ok(Some(link)) => Some(link),
+                Ok(None) => {
+                    return Ok(Response::from_json(&serde_json::json!({
+                        "success": false,
+                        "message": "This link doesn't exist or has been removed.",
+                        "error_type": "link_not_found"
+                    }))?
+                    .with_status(404));
+                }
+                Err(e) => {
+                    return Response::error(format!("Database error: {}", e), 500);
+                }
+            }
+        }
+        Err(e) => {
+            return Response::error(format!("Database error: {}", e), 500);
+        }
+    };
+
+    if link.is_none() {
+        return Ok(Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "This link doesn't exist or has been removed.",
+            "error_type": "link_not_found"
+        }))?
+        .with_status(404));
+    }
+
+    let link_ref = link.unwrap();
+
+    // Check if link is already blocked or disabled
+    if matches!(link_ref.status, LinkStatus::Blocked | LinkStatus::Disabled) {
+        return Ok(Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "This link has already been disabled and cannot be reported.",
+            "error_type": "link_already_disabled"
+        }))?
+        .with_status(422));
+    }
+
+    // Get reporter info (authenticated user or email)
+    let (reporter_user_id, reporter_email_opt) = match auth::authenticate_request(&req, &ctx).await
+    {
+        Ok(user_ctx) => {
+            // Authenticated user
+            (
+                Some(user_ctx.user_id),
+                reporter_email.map(|s| s.to_string()),
+            )
+        }
+        Err(_) => {
+            // Anonymous user - use provided email
+            (None, reporter_email.map(|s| s.to_string()))
+        }
+    };
+
+    let actual_link_id = link_ref.id.clone();
+
+    // Check for duplicate reports (same link, reason, reporter within 24h)
+    let is_duplicate = db::is_duplicate_report(
+        &db,
+        &actual_link_id,
+        &reason,
+        reporter_user_id.as_deref(),
+        reporter_email_opt.as_deref(),
+    )
+    .await;
+
+    if is_duplicate.unwrap_or(false) {
+        return Response::error(
+            "You have already reported this link for the same reason within the last 24 hours",
+            429,
+        );
+    }
+
+    // Rate limiting check
+    let _client_ip = if let Ok(Some(ip)) = req.headers().get("CF-Connecting-IP") {
+        ip.to_string()
+    } else if let Ok(Some(ip)) = req.headers().get("X-Forwarded-For") {
+        ip.to_string()
+    } else {
+        "unknown".to_string()
+    };
+
+    // For now, we'll implement basic rate limiting in the application layer
+    // In production, you might want to use Redis or a dedicated rate limiting service
+
+    // Store the report in database
+    match db::create_link_report(
+        &db,
+        &actual_link_id,
+        &reason,
+        reporter_user_id.as_deref(),
+        reporter_email_opt.as_deref(),
+    )
+    .await
+    {
+        Ok(_) => {
+            console_log!(
+                "Abuse report stored: link_id={}, reason={}, reporter_user_id={:?}, reporter_email={:?}",
+                actual_link_id,
+                reason,
+                reporter_user_id,
+                reporter_email_opt
+            );
+
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "Report submitted successfully. Thank you for helping keep our platform safe."
+            }))
+        }
+        Err(e) => {
+            console_log!("Failed to store abuse report: {}", e);
+            Response::error("Failed to store report. Please try again.", 500)
+        }
+    }
+}
+
+/// Handle getting reports for admin: GET /api/admin/reports
+pub async fn handle_admin_get_reports(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Parse query parameters
+    let url = req.url()?;
+    let query_pairs = url.query_pairs();
+
+    let mut page: u32 = 1;
+    let mut limit: u32 = 50;
+    let mut status_filter: Option<String> = None;
+
+    for (key, value) in query_pairs {
+        match key.as_ref() {
+            "page" => page = value.parse().unwrap_or(1),
+            "limit" => limit = value.parse().unwrap_or(50),
+            "status" => status_filter = Some(value.to_string()),
+            _ => {}
+        }
+    }
+
+    // Validate limits
+    if page < 1 {
+        page = 1;
+    }
+    limit = limit.clamp(10, 100);
+
+    match db::get_link_reports(&db, page, limit, status_filter.as_deref()).await {
+        Ok((reports, total)) => Response::from_json(&serde_json::json!({
+            "reports": reports,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": (total as f64 / limit as f64).ceil() as u32
+            }
+        })),
+        Err(e) => {
+            console_log!("Failed to get reports: {}", e);
+            Response::error("Failed to retrieve reports", 500)
+        }
+    }
+}
+
+/// Handle getting a single report: GET /api/admin/reports/:id
+pub async fn handle_admin_get_report(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let report_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing report ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::get_link_report_by_id(&db, &report_id).await {
+        Ok(report) => Response::from_json(&report),
+        Err(_) => Response::error("Report not found", 404),
+    }
+}
+
+/// Handle updating report status: PUT /api/admin/reports/:id
+pub async fn handle_admin_update_report(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let report_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing report ID".to_string()))?
+        .to_string();
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let status = match body.get("status").and_then(|v| v.as_str()) {
+        Some(s) if s == "reviewed" || s == "dismissed" => s.to_string(),
+        Some(_) => {
+            return Response::error("Invalid status. Must be 'reviewed' or 'dismissed'", 400);
+        }
+        None => return Response::error("Missing 'status' field", 400),
+    };
+
+    let admin_notes = body.get("admin_notes").and_then(|v| v.as_str());
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::update_link_report_status(&db, &report_id, &status, &user_ctx.user_id, admin_notes)
+        .await
+    {
+        Ok(_) => Response::from_json(&serde_json::json!({
+            "success": true,
+            "message": "Report status updated successfully"
+        })),
+        Err(e) => {
+            console_log!("Failed to update report status: {}", e);
+            Response::error("Failed to update report status", 500)
+        }
+    }
+}
+
+/// Handle getting pending reports count: GET /api/admin/reports/pending/count
+pub async fn handle_admin_get_pending_reports_count(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::get_pending_reports_count(&db).await {
+        Ok(count) => Response::from_json(&serde_json::json!({
+            "count": count
+        })),
+        Err(e) => {
+            console_log!("Failed to get pending reports count: {}", e);
+            Response::error("Failed to get pending reports count", 500)
         }
     }
 }

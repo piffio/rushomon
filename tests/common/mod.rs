@@ -21,6 +21,15 @@ pub fn get_test_jwt() -> String {
     std::env::var("TEST_JWT").expect("TEST_JWT not set. Run: ./scripts/run-integration-tests.sh")
 }
 
+/// Get the user ID from the test JWT
+/// The mock OAuth server generates user IDs starting at 1000, so the first test user is "1000"
+pub fn get_test_user_id() -> String {
+    "1000".to_string()
+}
+
+// Test user ID - matches the ID created during test setup
+pub const TEST_USER_ID: &str = "1000";
+
 /// Create an authenticated test client using JWT from environment
 pub fn authenticated_client() -> Client {
     let jwt = get_test_jwt();
@@ -46,7 +55,7 @@ pub async fn create_test_link(url: &str, title: Option<&str>) -> Response {
     }
 
     client
-        .post(&format!("{}/api/links", BASE_URL))
+        .post(format!("{}/api/links", BASE_URL))
         .json(&body)
         .send()
         .await
@@ -58,6 +67,28 @@ pub async fn create_link_and_get_code(url: &str) -> String {
     let response = create_test_link(url, None).await;
     let link: Value = response.json().await.unwrap();
     link["short_code"].as_str().unwrap().to_string()
+}
+
+/// Helper to create a test link and return error response (for testing blocked URLs)
+pub async fn create_test_link_expect_error(url: &str, title: Option<&str>) -> String {
+    let client = authenticated_client();
+    let mut body = json!({"destination_url": url});
+
+    if let Some(t) = title {
+        body["title"] = json!(t);
+    }
+
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to create test link");
+
+    let status = response.status();
+    let text = response.text().await.unwrap();
+
+    format!("Status: {}, Response: {}", status, text)
 }
 
 /// Generate a unique short code for testing

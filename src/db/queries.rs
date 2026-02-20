@@ -67,6 +67,9 @@ pub async fn create_or_update_user(
             org_id: user.org_id,
             role: user.role,
             created_at: user.created_at,
+            suspended_at: user.suspended_at,
+            suspension_reason: user.suspension_reason,
+            suspended_by: user.suspended_by,
         })
     } else {
         // Determine role: first user on the instance gets admin, all others get member
@@ -104,6 +107,9 @@ pub async fn create_or_update_user(
             org_id: org_id.to_string(),
             role: role.to_string(),
             created_at: now,
+            suspended_at: None,
+            suspension_reason: None,
+            suspended_by: None,
         })
     }
 }
@@ -323,6 +329,32 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
 }
 
+/// Get a link by ID without org_id check (used for admin operations - returns all statuses)
+pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+         FROM links
+         WHERE id = ?1"
+    );
+
+    stmt.bind(&[link_id.into()])?.first::<Link>(None).await
+}
+
+/// Get a link by short_code without org_id check (used for public reporting)
+pub async fn get_link_by_short_code_no_auth(
+    db: &D1Database,
+    short_code: &str,
+) -> Result<Option<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+         FROM links
+         WHERE short_code = ?1
+         AND status = 'active'"
+    );
+
+    stmt.bind(&[short_code.into()])?.first::<Link>(None).await
+}
+
 /// Update a link
 pub async fn update_link(
     db: &D1Database,
@@ -444,7 +476,7 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
 /// Get all users on the instance (paginated) - for admin dashboard
 pub async fn get_all_users(db: &D1Database, limit: i64, offset: i64) -> Result<Vec<User>> {
     let stmt = db.prepare(
-        "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at
+        "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at, suspended_at, suspension_reason, suspended_by
          FROM users
          ORDER BY created_at ASC
          LIMIT ?1 OFFSET ?2",
@@ -841,4 +873,690 @@ pub async fn set_org_tier(db: &D1Database, org_id: &str, tier: &str) -> Result<(
     let stmt = db.prepare("UPDATE organizations SET tier = ?1 WHERE id = ?2");
     stmt.bind(&[tier.into(), org_id.into()])?.run().await?;
     Ok(())
+}
+
+/// Suspend a user
+pub async fn suspend_user(
+    db: &D1Database,
+    user_id: &str,
+    reason: &str,
+    suspended_by: &str,
+) -> Result<()> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "UPDATE users SET suspended_at = ?1, suspension_reason = ?2, suspended_by = ?3 WHERE id = ?4"
+    );
+    stmt.bind(&[
+        (now as f64).into(),
+        reason.into(),
+        suspended_by.into(),
+        user_id.into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Unsuspend a user
+pub async fn unsuspend_user(db: &D1Database, user_id: &str) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE users SET suspended_at = NULL, suspension_reason = NULL, suspended_by = NULL WHERE id = ?1"
+    );
+    stmt.bind(&[user_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Disable all links for a user
+pub async fn disable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "UPDATE links SET status = 'disabled', updated_at = ?1 WHERE created_by = ?2 AND status = 'active'"
+    );
+    let result = stmt
+        .bind(&[(now as f64).into(), user_id.into()])?
+        .run()
+        .await?;
+    Ok(result
+        .meta()?
+        .and_then(|m| m.changes)
+        .map(|c| c as i64)
+        .unwrap_or(0))
+}
+
+/// Enable all disabled links for a user (when user is unsuspended)
+pub async fn enable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "UPDATE links SET status = 'active', updated_at = ?1 WHERE created_by = ?2 AND status = 'disabled'"
+    );
+    let result = stmt
+        .bind(&[(now as f64).into(), user_id.into()])?
+        .run()
+        .await?;
+    Ok(result
+        .meta()?
+        .and_then(|m| m.changes)
+        .map(|c| c as i64)
+        .unwrap_or(0))
+}
+
+/// Check if destination is already blacklisted
+pub async fn is_destination_already_blacklisted(
+    db: &D1Database,
+    destination: &str,
+    match_type: &str,
+) -> Result<bool> {
+    let stmt = db.prepare(
+        "SELECT 1 FROM destination_blacklist
+         WHERE destination = ?1 AND match_type = ?2
+         LIMIT 1",
+    );
+    if let Ok(Some(_)) = stmt
+        .bind(&[destination.into(), match_type.into()])?
+        .first::<serde_json::Value>(None)
+        .await
+    {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Add destination to blacklist
+pub async fn add_to_blacklist(
+    db: &D1Database,
+    destination: &str,
+    match_type: &str,
+    reason: &str,
+    created_by: &str,
+) -> Result<()> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "INSERT INTO destination_blacklist (id, destination, match_type, reason, created_by, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+    );
+    stmt.bind(&[
+        id.into(),
+        destination.into(),
+        match_type.into(),
+        reason.into(),
+        created_by.into(),
+        (now as f64).into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Remove destination from blacklist
+pub async fn remove_from_blacklist(db: &D1Database, id: &str) -> Result<()> {
+    let stmt = db.prepare("DELETE FROM destination_blacklist WHERE id = ?1");
+    stmt.bind(&[id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Get all blacklist entries
+pub async fn get_all_blacklist(db: &D1Database) -> Result<Vec<BlacklistEntry>> {
+    let stmt = db.prepare(
+        "SELECT id, destination, match_type, reason, created_by, created_at
+         FROM destination_blacklist
+         ORDER BY created_at DESC",
+    );
+    let results = stmt.all().await?;
+    let entries = results.results::<BlacklistEntry>()?;
+    Ok(entries)
+}
+
+/// Check if a destination is blacklisted (exact or domain match)
+pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> Result<bool> {
+    use crate::utils::normalize_url_for_blacklist;
+
+    // Normalize the destination URL for comparison
+    let normalized_destination = match normalize_url_for_blacklist(destination) {
+        Ok(url) => url,
+        Err(_) => {
+            // If URL parsing fails, fall back to exact string comparison
+            destination.to_string()
+        }
+    };
+
+    // First check exact match against normalized blacklist entries
+    let exact_stmt = db.prepare(
+        "SELECT 1 FROM destination_blacklist
+         WHERE destination = ?1 AND match_type = 'exact'
+         LIMIT 1",
+    );
+    if let Ok(Some(_)) = exact_stmt
+        .bind(&[normalized_destination.clone().into()])?
+        .first::<serde_json::Value>(None)
+        .await
+    {
+        return Ok(true);
+    }
+
+    // Then check domain match (still uses original domain extraction logic)
+    let url = match url::Url::parse(destination) {
+        Ok(u) => u,
+        Err(_) => return Ok(false),
+    };
+
+    let domain = url.host_str().unwrap_or("");
+    let domain_stmt = db.prepare(
+        "SELECT 1 FROM destination_blacklist
+         WHERE ?1 LIKE '%' || destination || '%' AND match_type = 'domain'
+         LIMIT 1",
+    );
+    if let Ok(Some(_)) = domain_stmt
+        .bind(&[domain.into()])?
+        .first::<serde_json::Value>(None)
+        .await
+    {
+        return Ok(true);
+    }
+
+    // Finally, check if any normalized blacklist entries match our normalized destination
+    // This handles cases where blocked URLs have different forms but same normalized form
+    let all_entries = get_all_blacklist(db).await?;
+    for entry in all_entries {
+        if entry.match_type == "exact"
+            && let Ok(normalized_entry) = normalize_url_for_blacklist(&entry.destination)
+            && normalized_entry == normalized_destination
+        {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+/// Block all links matching a blacklist target
+pub async fn block_links_matching_destination(
+    db: &D1Database,
+    destination: &str,
+    match_type: &str,
+) -> Result<i64> {
+    let now = now_timestamp();
+    let stmt = if match_type == "exact" {
+        db.prepare(
+            "UPDATE links SET status = 'blocked', updated_at = ?1
+             WHERE destination_url = ?2 AND status IN ('active', 'disabled')",
+        )
+    } else {
+        // Domain match - use LIKE with wildcards
+        db.prepare(
+            "UPDATE links SET status = 'blocked', updated_at = ?1
+             WHERE destination_url LIKE ?2 AND status IN ('active', 'disabled')",
+        )
+    };
+
+    let pattern = if match_type == "exact" {
+        destination.to_string()
+    } else {
+        format!("%{}%", destination)
+    };
+
+    let result = stmt
+        .bind(&[(now as f64).into(), pattern.into()])?
+        .run()
+        .await?;
+    Ok(result
+        .meta()?
+        .and_then(|m| m.changes)
+        .map(|c| c as i64)
+        .unwrap_or(0))
+}
+
+/// Get all links for admin (global listing with filters)
+pub async fn get_all_links_admin(
+    db: &D1Database,
+    limit: i64,
+    offset: i64,
+    org_filter: Option<&str>,
+    email_filter: Option<&str>,
+    domain_filter: Option<&str>,
+) -> Result<Vec<AdminLink>> {
+    let mut query = String::from(
+        "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, u.email as creator_email, o.name as org_name
+         FROM links l
+         JOIN users u ON l.created_by = u.id
+         JOIN organizations o ON l.org_id = o.id
+         WHERE l.status IN ('active', 'disabled', 'blocked')"
+    );
+
+    let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![];
+    let mut param_count = 1;
+
+    if let Some(org_id) = org_filter {
+        query.push_str(&format!(" AND l.org_id = ?{}", param_count));
+        params.push(org_id.into());
+        param_count += 1;
+    }
+
+    if let Some(email) = email_filter {
+        query.push_str(&format!(" AND u.email LIKE ?{}", param_count));
+        params.push(format!("%{}%", email).into());
+        param_count += 1;
+    }
+
+    if let Some(domain) = domain_filter {
+        query.push_str(&format!(" AND l.destination_url LIKE ?{}", param_count));
+        params.push(format!("%{}%", domain).into());
+        param_count += 1;
+    }
+
+    query.push_str(&format!(
+        " ORDER BY l.created_at DESC LIMIT ?{} OFFSET ?{}",
+        param_count,
+        param_count + 1
+    ));
+    params.push((limit as f64).into());
+    params.push((offset as f64).into());
+
+    let stmt = db.prepare(&query);
+    let results = stmt.bind(&params)?.all().await?;
+    let links = results.results::<AdminLink>()?;
+    Ok(links)
+}
+
+/// Get total count of links for admin with filters
+pub async fn get_all_links_admin_count(
+    db: &D1Database,
+    org_filter: Option<&str>,
+    email_filter: Option<&str>,
+    domain_filter: Option<&str>,
+) -> Result<i64> {
+    let mut query = String::from(
+        "SELECT COUNT(*) as count FROM links l
+         JOIN users u ON l.created_by = u.id
+         WHERE l.status IN ('active', 'disabled', 'blocked')",
+    );
+
+    let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![];
+    let mut param_count = 1;
+
+    if let Some(org_id) = org_filter {
+        query.push_str(&format!(" AND l.org_id = ?{}", param_count));
+        params.push(org_id.into());
+        param_count += 1;
+    }
+
+    if let Some(email) = email_filter {
+        query.push_str(&format!(" AND u.email LIKE ?{}", param_count));
+        params.push(format!("%{}%", email).into());
+        param_count += 1;
+    }
+
+    if let Some(domain) = domain_filter {
+        query.push_str(&format!(" AND l.destination_url LIKE ?{}", param_count));
+        params.push(format!("%{}%", domain).into());
+    }
+
+    let stmt = db.prepare(&query);
+    let result = stmt.bind(&params)?.first::<serde_json::Value>(None).await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct BlacklistEntry {
+    pub id: String,
+    pub destination: String,
+    pub match_type: String,
+    pub reason: String,
+    pub created_by: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AdminLink {
+    pub id: String,
+    pub org_id: String,
+    pub short_code: String,
+    pub destination_url: String,
+    pub title: Option<String>,
+    pub created_by: String,
+    pub created_at: i64,
+    pub updated_at: Option<i64>,
+    pub expires_at: Option<i64>,
+    pub status: String,
+    pub click_count: i64,
+    pub creator_email: String,
+    pub org_name: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct LinkReport {
+    pub id: String,
+    pub link_id: String,
+    pub reason: String,
+    pub reporter_user_id: Option<String>,
+    pub reporter_email: Option<String>,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub reviewed_by: Option<String>,
+    pub reviewed_at: Option<i64>,
+    pub created_at: i64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct LinkReportWithLink {
+    pub id: String,
+    pub link_id: String,
+    pub link: AdminLink,
+    pub reason: String,
+    pub reporter_user_id: Option<String>,
+    pub reporter_email: Option<String>,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub reviewed_by: Option<String>,
+    pub reviewed_at: Option<i64>,
+    pub created_at: i64,
+    pub report_count: i64, // For grouping
+}
+
+// Helper struct for flat query results
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct LinkReportQueryResult {
+    pub id: String,
+    pub link_id: String,
+    pub reason: String,
+    pub reporter_user_id: Option<String>,
+    pub reporter_email: Option<String>,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub reviewed_by: Option<String>,
+    pub reviewed_at: Option<i64>,
+    pub created_at: i64,
+    pub link__id: String,
+    pub link__org_id: String,
+    pub link__short_code: String,
+    pub link__destination_url: String,
+    pub link__title: Option<String>,
+    pub link__created_by: String,
+    pub link__created_at: i64,
+    pub link__updated_at: Option<i64>,
+    pub link__expires_at: Option<i64>,
+    pub link__status: String,
+    pub link__click_count: i64,
+    pub link__creator_email: String,
+    pub link__org_name: String,
+    pub report_count: i64,
+}
+
+/// Create a new link abuse report
+pub async fn create_link_report(
+    db: &D1Database,
+    link_id: &str,
+    reason: &str,
+    reporter_user_id: Option<&str>,
+    reporter_email: Option<&str>,
+) -> Result<LinkReport> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "INSERT INTO link_reports (id, link_id, reason, reporter_user_id, reporter_email, status, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+    );
+
+    stmt.bind(&[
+        id.clone().into(),
+        link_id.into(),
+        reason.into(),
+        reporter_user_id.map(|s| s.into()).unwrap_or(JsValue::NULL),
+        reporter_email.map(|s| s.into()).unwrap_or(JsValue::NULL),
+        "pending".into(),
+        (now as f64).into(),
+    ])?
+    .run()
+    .await?;
+
+    // Return the created report
+    get_link_report_by_id(db, &id).await
+}
+
+/// Get a single report by ID
+pub async fn get_link_report_by_id(db: &D1Database, _report_id: &str) -> Result<LinkReport> {
+    let stmt = db.prepare(
+        "SELECT id, link_id, reason, reporter_user_id, reporter_email, status, 
+                admin_notes, reviewed_by, reviewed_at, created_at
+         FROM link_reports WHERE id = ?1",
+    );
+
+    let bound_stmt = stmt.bind(&[_report_id.into()])?;
+    let result = bound_stmt.first::<LinkReport>(None).await?;
+
+    match result {
+        Some(report) => Ok(report),
+        None => Err(Error::RustError("Report not found".to_string())),
+    }
+}
+
+/// Get paginated list of reports with optional filtering
+pub async fn get_link_reports(
+    db: &D1Database,
+    page: u32,
+    limit: u32,
+    status_filter: Option<&str>,
+) -> Result<(Vec<LinkReportWithLink>, i64)> {
+    let offset = (page - 1) * limit;
+
+    // Build the base query with status filter
+    let filter_param = status_filter;
+
+    // Get total count
+    let count_query = format!(
+        "SELECT COUNT(*) as count
+         FROM link_reports lr
+         {}",
+        if status_filter.is_some() {
+            "WHERE lr.status = ?1"
+        } else {
+            ""
+        }
+    );
+
+    let count_result = if let Some(filter) = filter_param {
+        let stmt = db.prepare(&count_query);
+        let bound_stmt = stmt.bind(&[filter.into()])?;
+        bound_stmt.first::<serde_json::Value>(None).await?
+    } else {
+        let stmt = db.prepare(&count_query);
+        stmt.first::<serde_json::Value>(None).await?
+    };
+
+    let total = count_result
+        .and_then(|v| v["count"].as_f64())
+        .unwrap_or(0.0) as i64;
+
+    // Get reports with link details and report count
+    let reports_query = format!(
+        "SELECT
+            lr.id, lr.link_id, lr.reason, lr.reporter_user_id, lr.reporter_email,
+            lr.status, lr.admin_notes, lr.reviewed_by, lr.reviewed_at, lr.created_at,
+            l.id as link__id, l.org_id as link__org_id, l.short_code as link__short_code,
+            l.destination_url as link__destination_url, l.title as link__title,
+            l.created_by as link__created_by, l.created_at as link__created_at,
+            l.updated_at as link__updated_at, l.expires_at as link__expires_at,
+            l.status as link__status, l.click_count as link__click_count,
+            u.email as link__creator_email, o.name as link__org_name,
+            COUNT(lr_sub.id) as report_count
+         FROM link_reports lr
+         LEFT JOIN links l ON lr.link_id = l.id
+         LEFT JOIN users u ON l.created_by = u.id
+         LEFT JOIN organizations o ON l.org_id = o.id
+         LEFT JOIN link_reports lr_sub ON lr.link_id = lr_sub.link_id
+         {}
+         GROUP BY lr.id, l.id, u.id, o.id
+         ORDER BY lr.created_at DESC
+         LIMIT {} OFFSET {}",
+        if status_filter.is_some() {
+            "WHERE lr.status = ?1"
+        } else {
+            ""
+        },
+        if status_filter.is_some() { "?2" } else { "?1" },
+        if status_filter.is_some() { "?3" } else { "?2" }
+    );
+
+    let results = if let Some(filter) = filter_param {
+        let stmt = db.prepare(&reports_query);
+        let bound_stmt =
+            stmt.bind(&[filter.into(), (limit as f64).into(), (offset as f64).into()])?;
+        bound_stmt.all().await?
+    } else {
+        let stmt = db.prepare(&reports_query);
+        let bound_stmt = stmt.bind(&[(limit as f64).into(), (offset as f64).into()])?;
+        bound_stmt.all().await?
+    };
+
+    let query_results: Vec<LinkReportQueryResult> = results.results()?;
+
+    // Convert flat results to nested structure
+    let reports: Vec<LinkReportWithLink> = query_results
+        .into_iter()
+        .map(|qr| LinkReportWithLink {
+            id: qr.id,
+            link_id: qr.link_id,
+            link: AdminLink {
+                id: qr.link__id,
+                org_id: qr.link__org_id,
+                short_code: qr.link__short_code,
+                destination_url: qr.link__destination_url,
+                title: qr.link__title,
+                created_by: qr.link__created_by,
+                created_at: qr.link__created_at,
+                updated_at: qr.link__updated_at,
+                expires_at: qr.link__expires_at,
+                status: qr.link__status,
+                click_count: qr.link__click_count,
+                creator_email: qr.link__creator_email,
+                org_name: qr.link__org_name,
+            },
+            reason: qr.reason,
+            reporter_user_id: qr.reporter_user_id,
+            reporter_email: qr.reporter_email,
+            status: qr.status,
+            admin_notes: qr.admin_notes,
+            reviewed_by: qr.reviewed_by,
+            reviewed_at: qr.reviewed_at,
+            created_at: qr.created_at,
+            report_count: qr.report_count,
+        })
+        .collect();
+
+    Ok((reports, total))
+}
+
+/// Update report status and add admin notes
+pub async fn update_link_report_status(
+    db: &D1Database,
+    report_id: &str,
+    status: &str,
+    admin_user_id: &str,
+    admin_notes: Option<&str>,
+) -> Result<()> {
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "UPDATE link_reports
+         SET status = ?1, admin_notes = ?2, reviewed_by = ?3, reviewed_at = ?4
+         WHERE id = ?5",
+    );
+
+    stmt.bind(&[
+        status.into(),
+        admin_notes.map(|s| s.into()).unwrap_or(JsValue::NULL),
+        admin_user_id.into(),
+        (now as f64).into(),
+        report_id.into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(())
+}
+
+/// Resolve all pending reports for a specific link
+pub async fn resolve_reports_for_link(
+    db: &D1Database,
+    link_id: &str,
+    status: &str,
+    admin_notes: &str,
+    admin_user_id: &str,
+) -> Result<()> {
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "UPDATE link_reports
+         SET status = ?1, admin_notes = ?2, reviewed_by = ?3, reviewed_at = ?4
+         WHERE link_id = ?5 AND status = 'pending'",
+    );
+
+    stmt.bind(&[
+        status.into(),
+        admin_notes.into(),
+        admin_user_id.into(),
+        (now as f64).into(),
+        link_id.into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(())
+}
+
+/// Get count of pending reports for admin badge
+pub async fn get_pending_reports_count(db: &D1Database) -> Result<i64> {
+    let stmt = db.prepare("SELECT COUNT(*) as count FROM link_reports WHERE status = 'pending'");
+    let result = stmt.first::<serde_json::Value>(None).await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Check for duplicate reports (same link, reason, and reporter within 24h)
+pub async fn is_duplicate_report(
+    db: &D1Database,
+    link_id: &str,
+    reason: &str,
+    reporter_user_id: Option<&str>,
+    reporter_email: Option<&str>,
+) -> Result<bool> {
+    let twenty_four_hours_ago = now_timestamp() - (24 * 60 * 60); // 24 hours ago
+
+    let query = if reporter_user_id.is_some() {
+        "SELECT COUNT(*) as count
+         FROM link_reports
+         WHERE link_id = ?1 AND reason = ?2 AND reporter_user_id = ?3 AND created_at > ?4"
+            .to_string()
+    } else {
+        "SELECT COUNT(*) as count
+         FROM link_reports
+         WHERE link_id = ?1 AND reason = ?2 AND reporter_email = ?3 AND created_at > ?4"
+            .to_string()
+    };
+
+    let stmt = db.prepare(&query);
+    let reporter_id = reporter_user_id.or(reporter_email).unwrap_or("");
+
+    let bound_stmt = stmt.bind(&[
+        link_id.into(),
+        reason.into(),
+        reporter_id.into(),
+        (twenty_four_hours_ago as f64).into(),
+    ])?;
+
+    let result = bound_stmt.first::<serde_json::Value>(None).await?;
+
+    let count = result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64;
+
+    Ok(count > 0)
 }
