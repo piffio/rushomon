@@ -8,6 +8,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 worker = { version = "0.7.4", features = ["d1"] }
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+web-sys = { version = "0.3", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1.0", features = ["v4", "serde", "js"] }
@@ -15,7 +17,6 @@ url = "2.5"
 console_error_panic_hook = "0.1"
 getrandom = { version = "0.3.4", features = ["std", "wasm_js"] }
 rand = "0.9.2"
-wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 jwt-compact = { version = "0.8.0", default-features = false, features = ["clock"] }
 hmac = "0.12"
@@ -23,6 +24,7 @@ sha2 = "0.10"
 chrono = { version = "0.4", features = ["wasmbind"] }
 js-sys = "0.3"
 subtle = "2.6"
+regex = "1.11"
 
 [dev-dependencies]
 reqwest = { version = "0.13.1", features = ["json"] }

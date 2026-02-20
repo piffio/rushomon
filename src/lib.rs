@@ -297,6 +297,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/reports/:id", handle_cors_preflight)
         .options_async("/api/admin/reports/pending/count", handle_cors_preflight)
         .options_async("/api/reports/links", handle_cors_preflight)
+        .options_async("/api/fetch-title", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
@@ -363,6 +364,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)
+        // Title fetch route (public, can be called by anyone)
+        .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
         .get_async("/", |_req, ctx| async move {
             let url = Url::parse(&router::get_frontend_url(&ctx.env))?;

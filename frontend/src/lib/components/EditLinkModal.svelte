@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
-	import type { Link, UpdateLinkRequest } from "$lib/types/api";
+	import type { Link, UpdateLinkRequest, LinkStatus } from "$lib/types/api";
 	import { linksApi } from "$lib/api/links";
 
 	let {
@@ -16,7 +16,7 @@
 	let destinationUrl = $state("");
 	let title = $state("");
 	let expiresAt = $state("");
-	let status = $state<"active" | "disabled">("active");
+	let status = $state<LinkStatus>("active");
 
 	let isSubmitting = $state(false);
 	let error = $state("");
