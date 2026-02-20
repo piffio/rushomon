@@ -1817,7 +1817,7 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    // Validate that the link exists - try both short code and ID
+    // Validate that the link exists and check its status
     let link = match db::get_link_by_short_code_no_auth(&db, &link_id).await {
         Ok(Some(link)) => Some(link),
         Ok(None) => {
@@ -1825,7 +1825,12 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             match db::get_link_by_id_no_auth_all(&db, &link_id).await {
                 Ok(Some(link)) => Some(link),
                 Ok(None) => {
-                    return Response::error("Link not found", 404);
+                    return Ok(Response::from_json(&serde_json::json!({
+                        "success": false,
+                        "message": "This link doesn't exist or has been removed.",
+                        "error_type": "link_not_found"
+                    }))?
+                    .with_status(404));
                 }
                 Err(e) => {
                     return Response::error(format!("Database error: {}", e), 500);
@@ -1838,7 +1843,24 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
 
     if link.is_none() {
-        return Response::error("Link not found", 404);
+        return Ok(Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "This link doesn't exist or has been removed.",
+            "error_type": "link_not_found"
+        }))?
+        .with_status(404));
+    }
+
+    let link_ref = link.unwrap();
+
+    // Check if link is already blocked or disabled
+    if matches!(link_ref.status, LinkStatus::Blocked | LinkStatus::Disabled) {
+        return Ok(Response::from_json(&serde_json::json!({
+            "success": false,
+            "message": "This link has already been disabled and cannot be reported.",
+            "error_type": "link_already_disabled"
+        }))?
+        .with_status(422));
     }
 
     // Get reporter info (authenticated user or email)
@@ -1857,7 +1879,7 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         }
     };
 
-    let actual_link_id = link.unwrap().id.clone();
+    let actual_link_id = link_ref.id.clone();
 
     // Check for duplicate reports (same link, reason, reporter within 24h)
     let is_duplicate = db::is_duplicate_report(

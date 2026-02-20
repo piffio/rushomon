@@ -46,6 +46,7 @@ export interface UpdateLinkRequest {
 export interface ApiError {
 	message: string;
 	status: number;
+	data?: any; // Full error response data for detailed error handling
 }
 
 export interface PaginationMeta {

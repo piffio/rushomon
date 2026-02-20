@@ -91,15 +91,22 @@ export class ApiClient {
 				if (contentType?.includes('application/json')) {
 					const errorData = await response.json();
 					errorMessage = errorData.message || 'An error occurred';
+
+					const error: ApiError = {
+						message: errorMessage,
+						status: response.status,
+						data: errorData // Preserve full error data
+					};
+					throw error;
 				} else {
 					errorMessage = await response.text();
-				}
 
-				const error: ApiError = {
-					message: errorMessage,
-					status: response.status
-				};
-				throw error;
+					const error: ApiError = {
+						message: errorMessage,
+						status: response.status
+					};
+					throw error;
+				}
 			}
 
 			const contentType = response.headers.get('content-type');

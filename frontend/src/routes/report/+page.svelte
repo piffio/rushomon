@@ -71,9 +71,36 @@
 				reporterEmail = "";
 				goto("/?message=report-submitted");
 			}, 2000);
-		} catch (err) {
-			showToast("Failed to submit report. Please try again.", "error");
+		} catch (err: any) {
 			console.error(err);
+
+			// Handle specific error responses from backend
+			if (err?.data) {
+				const errorData = err.data;
+				if (errorData.error_type === "link_not_found") {
+					showToast(
+						"This link doesn't exist or has been removed.",
+						"error",
+					);
+				} else if (errorData.error_type === "link_already_disabled") {
+					showToast(
+						"This link has already been disabled and cannot be reported.",
+						"error",
+					);
+				} else {
+					showToast(
+						errorData.message ||
+							"Failed to submit report. Please try again.",
+						"error",
+					);
+				}
+			} else {
+				showToast(
+					err?.message ||
+						"Failed to submit report. Please try again.",
+					"error",
+				);
+			}
 		} finally {
 			submitting = false;
 		}
