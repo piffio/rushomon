@@ -287,6 +287,10 @@ jobs:
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "DELETE FROM analytics_events WHERE link_id IN (SELECT id FROM links WHERE short_code = 'smoke-test')" || true
 
+          echo "🗑️  Cleaning up link reports..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM link_reports WHERE link_id IN (SELECT id FROM links WHERE short_code = 'smoke-test')" || true
+
           echo "🗑️  Cleaning up links..."
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "DELETE FROM links WHERE short_code = 'smoke-test'" || true
