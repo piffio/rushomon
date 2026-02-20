@@ -2,7 +2,13 @@
 	import { page } from "$app/stores";
 	import { goto } from "$app/navigation";
 
-	type Module = "dashboard" | "users" | "links" | "blacklist" | "settings";
+	type Module =
+		| "dashboard"
+		| "users"
+		| "links"
+		| "blacklist"
+		| "reports"
+		| "settings";
 
 	$: activeModule = $page.url.pathname.split("/").pop() || "dashboard";
 
@@ -44,6 +50,13 @@
 			>
 				<span class="nav-icon">🚫</span>
 				<span class="nav-label">Blacklist</span>
+			</button>
+			<button
+				class="nav-item {activeModule === 'reports' ? 'active' : ''}"
+				onclick={() => navigateTo("reports")}
+			>
+				<span class="nav-icon">🚨</span>
+				<span class="nav-label">Reports</span>
 			</button>
 			<button
 				class="nav-item {activeModule === 'settings' ? 'active' : ''}"

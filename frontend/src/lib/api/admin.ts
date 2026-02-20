@@ -7,6 +7,10 @@ import type {
 	BlockDestinationRequest,
 	BlockDestinationResponse,
 	AdminLinksResponse,
+	LinkReport,
+	LinkReportWithLink,
+	AdminReportsResponse,
+	UpdateReportStatusRequest,
 } from "$lib/types/api";
 
 export interface AdminUsersResponse {
@@ -219,5 +223,53 @@ export const adminApi = {
 			method: 'POST',
 			body: JSON.stringify({ link_id: linkId, reason, reporter_email: reporterEmail })
 		});
+	},
+
+	/**
+	 * Get all abuse reports (admin only)
+	 * @param page - Page number (default: 1)
+	 * @param limit - Number of reports per page (default: 50)
+	 * @param status - Filter by status ('pending', 'reviewed', 'dismissed')
+	 * @returns Paginated list of reports
+	 */
+	async getReports(page: number = 1, limit: number = 50, status?: string): Promise<AdminReportsResponse> {
+		const params = new URLSearchParams({
+			page: page.toString(),
+			limit: limit.toString(),
+		});
+		if (status) params.append('status', status);
+
+		return apiClient.get<AdminReportsResponse>(`/api/admin/reports?${params}`);
+	},
+
+	/**
+	 * Get a single abuse report by ID (admin only)
+	 * @param id - Report UUID
+	 * @returns Report details
+	 */
+	async getReport(id: string): Promise<LinkReport> {
+		return apiClient.get<LinkReport>(`/api/admin/reports/${id}`);
+	},
+
+	/**
+	 * Update report status (admin only)
+	 * @param id - Report UUID
+	 * @param status - New status ('reviewed' or 'dismissed')
+	 * @param adminNotes - Optional admin notes
+	 * @returns Success message
+	 */
+	async updateReportStatus(id: string, status: 'reviewed' | 'dismissed', adminNotes?: string): Promise<{ success: boolean; message: string; }> {
+		return apiClient.request<{ success: boolean; message: string; }>(`/api/admin/reports/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify({ status, admin_notes: adminNotes })
+		});
+	},
+
+	/**
+	 * Get count of pending reports (admin only)
+	 * @returns Number of pending reports
+	 */
+	async getPendingReportsCount(): Promise<{ count: number; }> {
+		return apiClient.get<{ count: number; }>('/api/admin/reports/pending/count');
 	}
 };

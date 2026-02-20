@@ -1,0 +1,533 @@
+<script lang="ts">
+	import { onMount } from "svelte";
+	import { goto } from "$app/navigation";
+	import { adminApi } from "$lib/api/admin";
+	import { authApi } from "$lib/api/auth";
+	import type {
+		LinkReportWithLink,
+		AdminReportsResponse,
+		User,
+	} from "$lib/types/api";
+
+	let reports = $state<LinkReportWithLink[]>([]);
+	let loading = $state(false);
+	let error = $state("");
+	let currentPage = $state(1);
+	let totalPages = $state(0);
+	let statusFilter = $state<"all" | "pending" | "reviewed" | "dismissed">(
+		"all",
+	);
+	let pendingCount = $state(0);
+	let currentUser = $state<User | null>(null);
+	let authLoading = $state(true);
+
+	onMount(async () => {
+		// First check authentication
+		try {
+			currentUser = await authApi.me();
+
+			// Check if user is admin
+			if (currentUser.role !== "admin") {
+				error = "Access denied. Admin privileges required.";
+				authLoading = false;
+				return;
+			}
+
+			// Load reports if authenticated and admin
+			await Promise.all([loadReports(), loadPendingCount()]);
+		} catch (err: any) {
+			console.error("Authentication error:", err);
+			if (err.message?.includes("401") || err.status === 401) {
+				// Not authenticated, redirect to login
+				window.location.href = authApi.getLoginUrl();
+				return;
+			}
+			error = "Failed to authenticate. Please try logging in again.";
+		} finally {
+			authLoading = false;
+		}
+	});
+
+	async function loadReports() {
+		try {
+			loading = true;
+			error = "";
+
+			const status = statusFilter === "all" ? undefined : statusFilter;
+			const response: AdminReportsResponse = await adminApi.getReports(
+				currentPage,
+				50,
+				status,
+			);
+
+			reports = response.reports;
+			totalPages = response.pagination.pages;
+		} catch (err) {
+			console.error("Failed to load reports:", err);
+			error = "Failed to load reports. Please try again.";
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function loadPendingCount() {
+		try {
+			const response = await adminApi.getPendingReportsCount();
+			pendingCount = response.count;
+		} catch (err) {
+			console.error("Failed to load pending count:", err);
+		}
+	}
+
+	async function handlePageChange(page: number) {
+		if (page < 1 || page > totalPages) return;
+		currentPage = page;
+		await loadReports();
+	}
+
+	async function handleStatusFilterChange() {
+		currentPage = 1;
+		await loadReports();
+	}
+
+	async function handleUpdateReportStatus(
+		reportId: string,
+		status: "reviewed" | "dismissed",
+		adminNotes?: string,
+	) {
+		try {
+			await adminApi.updateReportStatus(reportId, status, adminNotes);
+			await loadReports();
+			await loadPendingCount();
+		} catch (err) {
+			console.error("Failed to update report status:", err);
+			error = "Failed to update report status. Please try again.";
+		}
+	}
+
+	function getStatusBadge(status: string): string {
+		switch (status) {
+			case "pending":
+				return "warning";
+			case "reviewed":
+				return "success";
+			case "dismissed":
+				return "secondary";
+			default:
+				return "secondary";
+		}
+	}
+
+	function getStatusLabel(status: string): string {
+		switch (status) {
+			case "pending":
+				return "Pending";
+			case "reviewed":
+				return "Reviewed";
+			case "dismissed":
+				return "Dismissed";
+			default:
+				return status;
+		}
+	}
+
+	function formatDate(timestamp: number): string {
+		return new Date(timestamp * 1000).toLocaleString();
+	}
+
+	function getReporterInfo(report: LinkReportWithLink): string {
+		if (report.reporter_user_id) {
+			return `User ${report.reporter_user_id.slice(0, 8)}...`;
+		}
+		if (report.reporter_email) {
+			return report.reporter_email;
+		}
+		return "Anonymous";
+	}
+
+	async function handleBlockDestinationURL(
+		linkId: string,
+		destinationUrl: string,
+	) {
+		try {
+			await adminApi.blockDestination(
+				destinationUrl,
+				"exact",
+				"Reviewed via report",
+			);
+			await loadReports();
+		} catch (err) {
+			console.error("Failed to block destination:", err);
+			error = "Failed to block destination. Please try again.";
+		}
+	}
+
+	async function handleBlockDestinationDomain(
+		linkId: string,
+		destinationUrl: string,
+	) {
+		try {
+			// Extract domain from URL
+			const url = new URL(destinationUrl);
+			const domain = url.hostname;
+
+			await adminApi.blockDestination(
+				domain,
+				"domain",
+				"Reviewed via report",
+			);
+			await loadReports();
+		} catch (err) {
+			console.error("Failed to block domain:", err);
+			error = "Failed to block domain. Please try again.";
+		}
+	}
+
+	async function handleDisableLink(linkId: string) {
+		try {
+			await adminApi.updateLinkStatus(linkId, "disabled");
+			await loadReports();
+		} catch (err) {
+			console.error("Failed to disable link:", err);
+			error = "Failed to disable link. Please try again.";
+		}
+	}
+</script>
+
+<svelte:head>
+	<title>Reports - Admin Console</title>
+</svelte:head>
+
+<div class="reports-page">
+	<div class="container mx-auto px-4 py-8">
+		<!-- Authentication Loading State -->
+		{#if authLoading}
+			<div class="text-center py-8">
+				<div
+					class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+				></div>
+				<p class="mt-2 text-gray-600">Checking authentication...</p>
+			</div>
+		{:else if error && !currentUser}
+			<!-- Authentication Error -->
+			<div class="text-center py-8 bg-white rounded-lg shadow-md">
+				<div class="mb-4">
+					<div class="text-red-600 text-xl mb-2">
+						🔒 Authentication Required
+					</div>
+					<p class="text-gray-700 mb-4">{error}</p>
+					<a
+						href={authApi.getLoginUrl()}
+						class="inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+					>
+						Log in with GitHub
+					</a>
+				</div>
+			</div>
+		{:else if currentUser && currentUser.role !== "admin"}
+			<!-- Admin Access Denied -->
+			<div class="text-center py-8 bg-white rounded-lg shadow-md">
+				<div class="mb-4">
+					<div class="text-red-600 text-xl mb-2">
+						⛔ Access Denied
+					</div>
+					<p class="text-gray-700 mb-4">
+						Admin privileges required to view reports.
+					</p>
+					<p class="text-gray-600 text-sm">
+						Logged in as: {currentUser.email} ({currentUser.role})
+					</p>
+				</div>
+			</div>
+		{:else}
+			<!-- Main Content (authenticated admin) -->
+			<div class="flex justify-between items-center mb-6">
+				<h1 class="text-3xl font-bold text-gray-900">Abuse Reports</h1>
+				{#if pendingCount > 0}
+					<div class="badge badge-warning">
+						{pendingCount} pending
+					</div>
+				{/if}
+			</div>
+
+			<!-- Filters -->
+			<div class="bg-white rounded-lg shadow-md p-6 mb-6">
+				<div class="flex items-center gap-4">
+					<label for="status-filter" class="font-medium text-gray-700"
+						>Status:</label
+					>
+					<select
+						id="status-filter"
+						bind:value={statusFilter}
+						onchange={handleStatusFilterChange}
+						class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+					>
+						<option value="all">All Reports</option>
+						<option value="pending">Pending</option>
+						<option value="reviewed">Reviewed</option>
+						<option value="dismissed">Dismissed</option>
+					</select>
+				</div>
+			</div>
+
+			<!-- Error Message -->
+			{#if error}
+				<div
+					class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6"
+				>
+					{error}
+				</div>
+			{/if}
+
+			<!-- Loading State -->
+			{#if loading}
+				<div class="text-center py-8">
+					<div
+						class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+					></div>
+					<p class="mt-2 text-gray-600">Loading reports...</p>
+				</div>
+			{:else if reports.length === 0}
+				<div class="text-center py-8 bg-white rounded-lg shadow-md">
+					<p class="text-gray-600">No reports found.</p>
+				</div>
+			{:else}
+				<!-- Reports Table -->
+				<div class="bg-white rounded-lg shadow-md overflow-hidden">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-50">
+							<tr>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Report
+								</th>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Link
+								</th>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Reason
+								</th>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Reporter
+								</th>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Status
+								</th>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Date
+								</th>
+								<th
+									class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+								>
+									Actions
+								</th>
+							</tr>
+						</thead>
+						<tbody class="bg-white divide-y divide-gray-200">
+							{#each reports as report, index}
+								<tr>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<div class="text-sm text-gray-900">
+											Report #{index + 1}
+											{#if report.report_count > 1}
+												<span
+													class="ml-2 text-xs text-gray-500"
+												>
+													({report.report_count} total)
+												</span>
+											{/if}
+										</div>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<div class="text-sm">
+											<div
+												class="font-medium text-gray-900"
+											>
+												{report.link.short_code}
+											</div>
+											<div
+												class="text-gray-500 max-w-xs"
+												title={report.link
+													.destination_url}
+											>
+												{report.link.destination_url}
+											</div>
+											<div class="text-gray-400 text-xs">
+												by {report.link.creator_email}
+											</div>
+										</div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="text-sm text-gray-900">
+											{report.reason}
+										</div>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<div class="text-sm text-gray-900">
+											{getReporterInfo(report)}
+										</div>
+									</td>
+									<td class="px-6 py-4 whitespace-nowrap">
+										<span
+											class="badge badge-{getStatusBadge(
+												report.status,
+											)}"
+										>
+											{getStatusLabel(report.status)}
+										</span>
+									</td>
+									<td
+										class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+									>
+										{formatDate(report.created_at)}
+									</td>
+									<td
+										class="px-6 py-4 whitespace-nowrap text-sm font-medium"
+									>
+										{#if report.status === "pending"}
+											<div class="flex gap-2">
+												<button
+													class="text-blue-600 hover:text-blue-900"
+													onclick={() =>
+														handleBlockDestinationURL(
+															report.link.id,
+															report.link
+																.destination_url,
+														)}
+													title="Block this exact URL"
+												>
+													Block URL
+												</button>
+												<button
+													class="text-purple-600 hover:text-purple-900"
+													onclick={() =>
+														handleBlockDestinationDomain(
+															report.link.id,
+															report.link
+																.destination_url,
+														)}
+													title="Block this entire domain"
+												>
+													Block Domain
+												</button>
+												<button
+													class="text-orange-600 hover:text-orange-900"
+													onclick={() =>
+														handleDisableLink(
+															report.link.id,
+														)}
+													title="Disable this link only"
+												>
+													Disable
+												</button>
+												<button
+													class="text-green-600 hover:text-green-900"
+													onclick={() =>
+														handleUpdateReportStatus(
+															report.id,
+															"reviewed",
+															"Action taken",
+														)}
+													title="Mark as reviewed"
+												>
+													Resolve
+												</button>
+												<button
+													class="text-red-600 hover:text-red-900"
+													onclick={() =>
+														handleUpdateReportStatus(
+															report.id,
+															"dismissed",
+															"Not a violation",
+														)}
+													title="Dismiss report"
+												>
+													Dismiss
+												</button>
+											</div>
+										{:else}
+											<span class="text-gray-400"
+												>No actions</span
+											>
+										{/if}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+
+				<!-- Pagination -->
+				{#if totalPages > 1}
+					<div class="flex justify-center items-center gap-2 mt-6">
+						<button
+							class="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+							disabled={currentPage <= 1}
+							onclick={() => handlePageChange(currentPage - 1)}
+						>
+							Previous
+						</button>
+
+						<span class="px-3 py-1">
+							Page {currentPage} of {totalPages}
+						</span>
+
+						<button
+							class="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+							disabled={currentPage >= totalPages}
+							onclick={() => handlePageChange(currentPage + 1)}
+						>
+							Next
+						</button>
+					</div>
+				{/if}
+	</div>
+</div>
+
+<style>
+	.reports-page {
+		min-height: 100vh;
+		background: #f8fafc;
+	}
+
+	.badge {
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.badge-warning {
+		background: #f59e0b;
+		color: white;
+	}
+
+	.badge-success {
+		background: #10b981;
+		color: white;
+	}
+
+	.badge-secondary {
+		background: #6b7280;
+		color: white;
+	}
+
+	.container {
+		max-width: 1200px;
+	}
+
+	.max-w-xs {
+		max-width: 12rem;
+	}
+</style>

@@ -50,6 +50,10 @@
 		return "exact";
 	}
 
+	function formatDate(timestamp: number): string {
+		return new Date(timestamp * 1000).toLocaleString();
+	}
+
 	function handleDestinationChange() {
 		// Auto-detect match type based on input
 		newMatchType = detectMatchType(newDestination);
@@ -183,11 +187,7 @@
 							</td>
 							<td>{entry.reason}</td>
 							<td>{entry.created_by}</td>
-							<td
-								>{new Date(
-									entry.created_at,
-								).toLocaleDateString()}</td
-							>
+							<td>{formatDate(entry.created_at)}</td>
 							<td>
 								<button
 									class="btn btn-danger btn-sm"

@@ -293,6 +293,9 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/blacklist/:id", handle_cors_preflight)
         .options_async("/api/admin/users/:id/suspend", handle_cors_preflight)
         .options_async("/api/admin/users/:id/unsuspend", handle_cors_preflight)
+        .options_async("/api/admin/reports", handle_cors_preflight)
+        .options_async("/api/admin/reports/:id", handle_cors_preflight)
+        .options_async("/api/admin/reports/pending/count", handle_cors_preflight)
         .options_async("/api/reports/links", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
@@ -349,6 +352,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .put_async(
             "/api/admin/users/:id/unsuspend",
             router::handle_admin_unsuspend_user,
+        )
+        // Admin report management routes
+        .get_async("/api/admin/reports", router::handle_admin_get_reports)
+        .get_async("/api/admin/reports/:id", router::handle_admin_get_report)
+        .put_async("/api/admin/reports/:id", router::handle_admin_update_report)
+        .get_async(
+            "/api/admin/reports/pending/count",
+            router::handle_admin_get_pending_reports_count,
         )
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)

@@ -158,6 +158,49 @@ export interface UpdateLinkStatusRequest {
 	status: LinkStatus;
 }
 
+export interface LinkReport {
+	id: string;
+	link_id: string;
+	reason: string;
+	reporter_user_id?: string;
+	reporter_email?: string;
+	status: 'pending' | 'reviewed' | 'dismissed';
+	admin_notes?: string;
+	reviewed_by?: string;
+	reviewed_at?: number;
+	created_at: number;
+}
+
+export interface LinkReportWithLink {
+	id: string;
+	link_id: string;
+	link: AdminLink;
+	reason: string;
+	reporter_user_id?: string;
+	reporter_email?: string;
+	status: 'pending' | 'reviewed' | 'dismissed';
+	admin_notes?: string;
+	reviewed_by?: string;
+	reviewed_at?: number;
+	created_at: number;
+	report_count: number; // For grouping
+}
+
+export interface AdminReportsResponse {
+	reports: LinkReportWithLink[];
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		pages: number;
+	};
+}
+
+export interface UpdateReportStatusRequest {
+	status: 'reviewed' | 'dismissed';
+	admin_notes?: string;
+}
+
 export interface AdminLinksResponse {
 	links: AdminLink[];
 	total: number;
