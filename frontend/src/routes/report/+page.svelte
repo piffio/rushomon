@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { apiClient } from "$lib/api/client";
+	import type { User } from "$lib/types/api";
+
+	let { data } = $props();
+	let currentUser: User | undefined = $derived(data.user);
 
 	let showReportDialog = $state(false);
 	let reportingLink = $state("");
@@ -52,7 +56,8 @@
 			await apiClient.post("/api/reports/links", {
 				link_id: reportingLink,
 				reason,
-				reporter_email: reporterEmail || undefined,
+				reporter_email:
+					currentUser?.email || reporterEmail || undefined,
 			});
 
 			showToast(
@@ -281,13 +286,24 @@
 					</select>
 				</div>
 				<div class="form-group">
-					<label>Your Email (optional)</label>
-					<input
-						type="email"
-						bind:value={reporterEmail}
-						placeholder="your@email.com"
-						class="form-input"
-					/>
+					<label
+						>Your Email {currentUser
+							? "(authenticated)"
+							: "(optional)"}</label
+					>
+					{#if currentUser}
+						<div class="authenticated-user-info">
+							<span class="user-email">{currentUser.email}</span>
+							<span class="user-badge">Logged in</span>
+						</div>
+					{:else}
+						<input
+							type="email"
+							bind:value={reporterEmail}
+							placeholder="your@email.com"
+							class="form-input"
+						/>
+					{/if}
 				</div>
 			</div>
 			<div class="modal-footer">
@@ -471,5 +487,29 @@
 
 	.btn-danger:hover:not(:disabled) {
 		background: #b91c1c;
+	}
+
+	.authenticated-user-info {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.75rem 1rem;
+		background: #f0fdf4;
+		border: 1px solid #bbf7d0;
+		border-radius: 6px;
+	}
+
+	.user-email {
+		font-weight: 500;
+		color: #166534;
+	}
+
+	.user-badge {
+		font-size: 0.75rem;
+		font-weight: 500;
+		padding: 0.25rem 0.5rem;
+		background: #22c55e;
+		color: white;
+		border-radius: 9999px;
 	}
 </style>
