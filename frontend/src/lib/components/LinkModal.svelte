@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
-	import type { Link } from "$lib/types/api";
+	import type { Link, LinkStatus } from "$lib/types/api";
 	import { linksApi } from "$lib/api/links";
+	import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
 
 	interface Props {
 		link?: Link | null;
@@ -14,17 +15,21 @@
 
 	// Determine mode
 	const isEditMode = $derived(!!link);
-	const modalTitle = $derived(isEditMode ? "Edit Link" : "Create New Short Link");
+	const modalTitle = $derived(
+		isEditMode ? "Edit Link" : "Create New Short Link",
+	);
 
 	// Form state
 	let destinationUrl = $state("");
 	let shortCode = $state("");
 	let title = $state("");
 	let expiresAt = $state("");
-	let status = $state<"active" | "disabled">("active");
+	let status = $state<LinkStatus>("active");
 
 	let loading = $state(false);
 	let error = $state("");
+	let isFetchingTitle = $state(false);
+	let hasUserEnteredTitle = $state(false);
 
 	// Reset form fields
 	function resetForm() {
@@ -34,6 +39,8 @@
 		expiresAt = "";
 		status = "active";
 		error = "";
+		isFetchingTitle = false;
+		hasUserEnteredTitle = false;
 	}
 
 	// Update form when link prop changes (for edit mode) OR when modal opens
@@ -45,7 +52,9 @@
 				shortCode = link.short_code;
 				title = link.title || "";
 				expiresAt = link.expires_at
-					? new Date(link.expires_at * 1000).toISOString().slice(0, 16)
+					? new Date(link.expires_at * 1000)
+							.toISOString()
+							.slice(0, 16)
 					: "";
 				status = link.status;
 				error = "";
@@ -78,7 +87,9 @@
 			const linkData: any = {
 				destination_url: destinationUrl,
 				title: title || undefined,
-				expires_at: expiresAt ? Math.floor(new Date(expiresAt).getTime() / 1000) : undefined
+				expires_at: expiresAt
+					? Math.floor(new Date(expiresAt).getTime() / 1000)
+					: undefined,
 			};
 
 			let savedLink: Link;
@@ -107,6 +118,49 @@
 			loading = false;
 		}
 	}
+
+	// Debounced function to fetch title when URL changes (only in create mode)
+	const fetchTitleForUrl = debounce(async (url: string) => {
+		// Don't fetch if in edit mode, user has already entered a title, or if URL is invalid
+		if (
+			isEditMode ||
+			hasUserEnteredTitle ||
+			!url.trim() ||
+			(!url.startsWith("http://") && !url.startsWith("https://"))
+		) {
+			return;
+		}
+
+		isFetchingTitle = true;
+
+		try {
+			const fetchedTitle = await fetchUrlTitle(url.trim());
+			// Only set the title if user hasn't entered one and we got a valid title
+			if (!hasUserEnteredTitle && fetchedTitle) {
+				title = fetchedTitle;
+			}
+		} catch (err) {
+			// Silently handle errors - title fetching is optional
+			console.debug("Failed to fetch URL title:", err);
+		} finally {
+			isFetchingTitle = false;
+		}
+	}, 500); // 500ms debounce delay
+
+	// Handle URL changes (only in create mode)
+	$effect(() => {
+		if (destinationUrl && !isEditMode) {
+			fetchTitleForUrl(destinationUrl);
+		}
+	});
+
+	// Handle manual title changes
+	$effect(() => {
+		// Mark that user has entered a title if it's not empty
+		if (title.trim()) {
+			hasUserEnteredTitle = true;
+		}
+	});
 </script>
 
 {#if isOpen}
@@ -122,8 +176,13 @@
 			onclick={(e) => e.stopPropagation()}
 		>
 			<!-- Modal Header -->
-			<div class="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-				<h2 id="modal-title" class="text-xl font-semibold text-gray-900">
+			<div
+				class="border-b border-gray-200 px-6 py-4 flex justify-between items-center"
+			>
+				<h2
+					id="modal-title"
+					class="text-xl font-semibold text-gray-900"
+				>
 					{modalTitle}
 				</h2>
 				<button
@@ -132,8 +191,18 @@
 					class="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
 					aria-label="Close modal"
 				>
-					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					<svg
+						class="w-6 h-6"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M6 18L18 6M6 6l12 12"
+						/>
 					</svg>
 				</button>
 			</div>
@@ -141,14 +210,19 @@
 			<!-- Modal Body -->
 			<form onsubmit={handleSubmit} class="px-6 py-6 space-y-6">
 				{#if error}
-					<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+					<div
+						class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
+					>
 						{error}
 					</div>
 				{/if}
 
 				<!-- Destination URL -->
 				<div>
-					<label for="destination-url" class="block text-sm font-medium text-gray-700 mb-2">
+					<label
+						for="destination-url"
+						class="block text-sm font-medium text-gray-700 mb-2"
+					>
 						Destination URL <span class="text-red-500">*</span>
 					</label>
 					<input
@@ -164,7 +238,10 @@
 
 				<!-- Short Code -->
 				<div>
-					<label for="short-code" class="block text-sm font-medium text-gray-700 mb-2">
+					<label
+						for="short-code"
+						class="block text-sm font-medium text-gray-700 mb-2"
+					>
 						{#if isEditMode}
 							Short Code (Read-only)
 						{:else}
@@ -183,14 +260,18 @@
 						{#if isEditMode}
 							Short codes cannot be changed after creation
 						{:else}
-							4-10 alphanumeric characters. Leave empty for auto-generated code
+							4-10 alphanumeric characters. Leave empty for
+							auto-generated code
 						{/if}
 					</p>
 				</div>
 
 				<!-- Title -->
 				<div>
-					<label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+					<label
+						for="title"
+						class="block text-sm font-medium text-gray-700 mb-2"
+					>
 						Title (Optional)
 					</label>
 					<input
@@ -199,14 +280,55 @@
 						bind:value={title}
 						placeholder="My Awesome Link"
 						maxlength="200"
-						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-						disabled={loading}
+						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+						disabled={loading || isFetchingTitle}
 					/>
+					{#if isFetchingTitle && !isEditMode}
+						<p
+							class="text-xs text-gray-500 mt-1 flex items-center gap-1"
+						>
+							<svg
+								class="animate-spin h-3 w-3"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								></circle>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+								></path>
+							</svg>
+							Fetching title...
+						</p>
+					{:else if hasUserEnteredTitle}
+						<p class="text-xs text-gray-500 mt-1">
+							Custom title entered
+						</p>
+					{:else if !isEditMode}
+						<p class="text-xs text-gray-500 mt-1">
+							Title will be fetched automatically
+						</p>
+					{:else}
+						<p class="text-xs text-gray-500 mt-1">
+							Edit title manually
+						</p>
+					{/if}
 				</div>
 
 				<!-- Expiration Date -->
 				<div>
-					<label for="expires-at" class="block text-sm font-medium text-gray-700 mb-2">
+					<label
+						for="expires-at"
+						class="block text-sm font-medium text-gray-700 mb-2"
+					>
 						Expiration Date (Optional)
 					</label>
 					<input
@@ -224,7 +346,10 @@
 				<!-- Status (Edit mode only) -->
 				{#if isEditMode}
 					<div>
-						<label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+						<label
+							for="status"
+							class="block text-sm font-medium text-gray-700 mb-2"
+						>
 							Status
 						</label>
 						<select
@@ -233,11 +358,16 @@
 							disabled={loading}
 							class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50"
 						>
-							<option value="active">Active - Link redirects normally</option>
-							<option value="disabled">Disabled - Link returns 404</option>
+							<option value="active"
+								>Active - Link redirects normally</option
+							>
+							<option value="disabled"
+								>Disabled - Link returns 404</option
+							>
 						</select>
 						<p class="text-xs text-gray-500 mt-1">
-							Disabled links don't redirect but keep the short code reserved
+							Disabled links don't redirect but keep the short
+							code reserved
 						</p>
 					</div>
 				{/if}
@@ -257,7 +387,11 @@
 						disabled={loading}
 						class="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
 					>
-						{loading ? "Saving..." : isEditMode ? "Save Changes" : "Create Short Link"}
+						{loading
+							? "Saving..."
+							: isEditMode
+								? "Save Changes"
+								: "Create Short Link"}
 					</button>
 				</div>
 			</form>
