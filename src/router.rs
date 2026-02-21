@@ -386,36 +386,71 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
 
     // Parse pagination params
     let url = req.url()?;
-    let page: i64 = url
-        .query()
-        .and_then(|q| {
-            q.split('&')
-                .find(|s| s.starts_with("page="))
-                .and_then(|s| s.split('=').nth(1))
-                .and_then(|s| s.parse().ok())
-        })
+    let query = url.query().unwrap_or("");
+
+    let page: i64 = query
+        .split('&')
+        .find(|s| s.starts_with("page="))
+        .and_then(|s| s.split('=').nth(1))
+        .and_then(|s| s.parse().ok())
         .unwrap_or(1)
         .max(1); // Ensure page is at least 1
 
-    let limit: i64 = url
-        .query()
-        .and_then(|q| {
-            q.split('&')
-                .find(|s| s.starts_with("limit="))
-                .and_then(|s| s.split('=').nth(1))
-                .and_then(|s| s.parse().ok())
-        })
+    let limit: i64 = query
+        .split('&')
+        .find(|s| s.starts_with("limit="))
+        .and_then(|s| s.split('=').nth(1))
+        .and_then(|s| s.parse().ok())
         .unwrap_or(20)
         .min(100); // Cap at 100 items per page to prevent DoS via unbounded queries
+
+    // Parse search parameter
+    let search = query
+        .split('&')
+        .find(|s| s.starts_with("search="))
+        .and_then(|s| s.split('=').nth(1))
+        .map(|s| urlencoding::decode(s).unwrap_or_default().into_owned())
+        .filter(|s| !s.trim().is_empty() && s.len() <= 100);
+
+    // Parse status filter parameter
+    let status_filter = query
+        .split('&')
+        .find(|s| s.starts_with("status="))
+        .and_then(|s| s.split('=').nth(1))
+        .and_then(|s| match s {
+            "active" | "disabled" => Some(s),
+            _ => None,
+        });
+
+    // Parse sort parameter
+    let sort = query
+        .split('&')
+        .find(|s| s.starts_with("sort="))
+        .and_then(|s| s.split('=').nth(1))
+        .map(|s| match s {
+            "clicks" | "updated" | "title" | "code" => s,
+            _ => "created", // Default: created
+        })
+        .unwrap_or("created");
 
     let offset = (page - 1) * limit;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    // Get total count, links, and stats
+    // Get total count, links, and stats using filtered queries
     // D1 doesn't support parallel queries, so we run them sequentially
-    let total = db::get_links_count_by_org(&db, org_id).await?;
-    let links = db::get_links_by_org(&db, org_id, limit, offset).await?;
+    let total =
+        db::get_links_count_by_org_filtered(&db, org_id, search.as_deref(), status_filter).await?;
+    let links = db::get_links_by_org_filtered(
+        &db,
+        org_id,
+        search.as_deref(),
+        status_filter,
+        sort,
+        limit,
+        offset,
+    )
+    .await?;
     let stats = db::get_dashboard_stats(&db, org_id).await?;
 
     // Build pagination metadata

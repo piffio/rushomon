@@ -10,23 +10,36 @@ export const load: PageLoad = async ({ parent, url }) => {
 
 	if (!user) {
 		// This shouldn't happen if layout is working, but just in case
-		return { user: null, paginatedLinks: null, usage: null };
+		return {
+			user: null,
+			paginatedLinks: null,
+			usage: null,
+			initialSearch: '',
+			initialStatus: 'all',
+			initialSort: 'created'
+		};
 	}
 
 	try {
-		// Get page from URL query params, default to 1
+		// Get params from URL query params
 		const page = parseInt(url.searchParams.get('page') || '1', 10);
+		const search = url.searchParams.get('search') || '';
+		const status = url.searchParams.get('status') as 'active' | 'disabled' | null;
+		const sort = (url.searchParams.get('sort') || 'created') as 'created' | 'updated' | 'clicks' | 'title' | 'code';
 
 		// Fetch links and usage data in parallel
 		const [paginatedLinks, usage] = await Promise.all([
-			linksApi.list(page, 10),
+			linksApi.list(page, 10, search || undefined, status || undefined, sort),
 			usageApi.getUsage().catch(() => null)
 		]);
 
 		return {
 			user,
 			paginatedLinks,
-			usage
+			usage,
+			initialSearch: search,
+			initialStatus: status || 'all',
+			initialSort: sort
 		};
 	} catch (error) {
 		// If links fetch fails, still return user data
@@ -34,7 +47,10 @@ export const load: PageLoad = async ({ parent, url }) => {
 		return {
 			user,
 			paginatedLinks: null,
-			usage: null
+			usage: null,
+			initialSearch: '',
+			initialStatus: 'all',
+			initialSort: 'created'
 		};
 	}
 };

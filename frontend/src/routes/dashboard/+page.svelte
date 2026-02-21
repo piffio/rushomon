@@ -3,6 +3,7 @@
 	import LinkList from "$lib/components/LinkList.svelte";
 	import LinkModal from "$lib/components/LinkModal.svelte";
 	import Pagination from "$lib/components/Pagination.svelte";
+	import SearchFilterBar from "$lib/components/SearchFilterBar.svelte";
 	import { linksApi } from "$lib/api/links";
 	import { goto } from "$app/navigation";
 	import type { PageData } from "./$types";
@@ -23,10 +24,20 @@
 		total_clicks: number;
 	} | null>(null);
 	let loading = $state(false);
-	let error = $state("");
+	let isSearching = $state(false);
+	let error = $state<string>("");
 	let editingLink = $state<Link | null>(null);
 	let isModalOpen = $state(false);
 	let usage = $state<UsageResponse | null>(null);
+
+	// Filter states - initialize from data props
+	let search = $state<string>((data as any).initialSearch || "");
+	let status = $state<"all" | "active" | "disabled">(
+		(data as any).initialStatus || "all",
+	);
+	let sort = $state<"created" | "updated" | "clicks" | "title" | "code">(
+		(data as any).initialSort || "created",
+	);
 
 	// Initialize links, pagination, and stats from data (runs on mount and when data changes)
 	$effect(() => {
@@ -41,6 +52,10 @@
 		}
 		const d = data as Record<string, any>;
 		usage = (d.usage as UsageResponse) || null;
+		// Update filter states from data
+		search = d.initialSearch || "";
+		status = d.initialStatus || "all";
+		sort = d.initialSort || "created";
 	});
 
 	let linksUsagePercent = $derived(
@@ -104,16 +119,37 @@
 		if (page < 1) return;
 
 		loading = true;
+		isSearching = true;
 		error = "";
 
 		try {
-			// Update URL with new page (enables browser back/forward and shareable URLs)
-			await goto(`/dashboard?page=${page}`, {
+			// Build URL with all current filters
+			const params = new URLSearchParams();
+			params.set("page", page.toString());
+			if (search.trim()) {
+				params.set("search", search.trim());
+			}
+			if (status !== "all") {
+				params.set("status", status);
+			}
+			if (sort !== "created") {
+				params.set("sort", sort);
+			}
+			const queryString = params.toString();
+
+			// Update URL with new page and filters (enables browser back/forward and shareable URLs)
+			await goto(`/dashboard${queryString ? `?${queryString}` : ""}`, {
 				replaceState: true,
 				keepFocus: true,
 			});
 
-			const paginatedLinks = await linksApi.list(page, 10);
+			const paginatedLinks = await linksApi.list(
+				page,
+				10,
+				search || undefined,
+				status === "all" ? undefined : status,
+				sort,
+			);
 			links = paginatedLinks.data;
 			pagination = paginatedLinks.pagination;
 			stats = paginatedLinks.stats || null;
@@ -122,6 +158,66 @@
 			error = apiError.message || "Failed to load links";
 		} finally {
 			loading = false;
+			isSearching = false;
+		}
+	}
+
+	async function handleFilterChange(
+		event: CustomEvent<{
+			search: string;
+			status: "all" | "active" | "disabled";
+			sort: "created" | "updated" | "clicks" | "title" | "code";
+		}>,
+	) {
+		const {
+			search: newSearch,
+			status: newStatus,
+			sort: newSort,
+		} = event.detail;
+
+		// Reset to page 1 when filters change
+		search = newSearch;
+		status = newStatus;
+		sort = newSort;
+		isSearching = true;
+		error = "";
+
+		try {
+			// Build URL with new filters
+			const params = new URLSearchParams();
+			params.set("page", "1");
+			if (search.trim()) {
+				params.set("search", search.trim());
+			}
+			if (status !== "all") {
+				params.set("status", status);
+			}
+			if (sort !== "created") {
+				params.set("sort", sort);
+			}
+			const queryString = params.toString();
+
+			// Update URL
+			await goto(`/dashboard${queryString ? `?${queryString}` : ""}`, {
+				replaceState: true,
+				keepFocus: true,
+			});
+
+			const paginatedLinks = await linksApi.list(
+				1,
+				10,
+				search || undefined,
+				status === "all" ? undefined : status,
+				sort,
+			);
+			links = paginatedLinks.data;
+			pagination = paginatedLinks.pagination;
+			stats = paginatedLinks.stats || null;
+		} catch (err) {
+			const apiError = err as ApiError;
+			error = apiError.message || "Failed to load links";
+		} finally {
+			isSearching = false;
 		}
 	}
 </script>
@@ -134,218 +230,130 @@
 	{#if data.user}
 		<Header user={data.user} currentPage="dashboard" />
 
-		<!-- Header Section -->
-		<div
-			class="bg-gradient-to-br from-gray-50 to-gray-100 border-b border-gray-200"
-		>
-			<div class="max-w-6xl mx-auto px-6 py-8">
-				<div class="flex items-center justify-between">
-					<div>
-						<h1
-							class="text-3xl md:text-4xl font-bold text-gray-900"
-						>
-							Rushomon Links
-						</h1>
-						{#if pagination}
-							<p class="text-gray-600 mt-2">
-								Showing {(pagination.page - 1) *
-									pagination.limit +
-									1}–{Math.min(
-									pagination.page * pagination.limit,
-									pagination.total,
-								)} of {pagination.total} link{pagination.total !==
-								1
-									? "s"
-									: ""}
-							</p>
-						{/if}
-					</div>
-					<button
-						onclick={handleCreateNew}
-						disabled={linksAtLimit}
-						class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
-						title={linksAtLimit
-							? "Monthly link limit reached"
-							: "Create a new short link"}
+		<!-- Slim Title Bar -->
+		<div class="border-b border-gray-200 bg-white">
+			<div
+				class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"
+			>
+				<h1 class="text-xl font-semibold text-gray-900">My Links</h1>
+				<button
+					onclick={handleCreateNew}
+					disabled={linksAtLimit}
+					class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2 rounded-lg shadow hover:shadow-md transition-all duration-200 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+					title={linksAtLimit
+						? "Monthly link limit reached"
+						: "Create a new short link"}
+				>
+					+ New Link
+				</button>
+			</div>
+		</div>
+
+		<!-- Stats + Free Tier Strip -->
+		<div class="border-b border-gray-200 bg-white">
+			<div
+				class="max-w-6xl mx-auto px-6 py-3 flex flex-wrap items-center gap-x-5 gap-y-2"
+			>
+				<!-- Stat pills -->
+				<span class="flex items-center gap-1.5 text-sm text-gray-600">
+					<svg
+						class="w-4 h-4 text-orange-500"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
 					>
-						+ New Link
-					</button>
-				</div>
-			</div>
-		</div>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+						/>
+					</svg>
+					<span class="font-semibold text-gray-900"
+						>{stats?.total_links ?? 0}</span
+					> links
+				</span>
+				<span class="text-gray-300 hidden sm:inline">·</span>
+				<span class="flex items-center gap-1.5 text-sm text-gray-600">
+					<svg
+						class="w-4 h-4 text-blue-500"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+						/>
+					</svg>
+					<span class="font-semibold text-gray-900"
+						>{stats?.total_clicks ?? 0}</span
+					> clicks
+				</span>
+				<span class="text-gray-300 hidden sm:inline">·</span>
+				<span class="flex items-center gap-1.5 text-sm text-gray-600">
+					<svg
+						class="w-4 h-4 text-green-500"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M5 13l4 4L19 7"
+						/>
+					</svg>
+					<span class="font-semibold text-gray-900"
+						>{stats?.active_links ?? 0}</span
+					> active
+				</span>
 
-		<!-- Stats Cards Section -->
-		<div class="max-w-6xl mx-auto px-6 py-6">
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-				<!-- Total Links -->
-				<div
-					class="bg-white rounded-2xl border-2 border-gray-200 p-6 transition-all duration-300 hover:border-orange-500 hover:shadow-lg"
-				>
-					<div class="flex items-center gap-4">
-						<div
-							class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0"
+				<!-- Free tier usage inline -->
+				{#if usage && usage.tier === "free" && usage.limits.max_links_per_month}
+					<span class="text-gray-300 hidden sm:inline">·</span>
+					<span class="flex items-center gap-2 text-sm">
+						<span class="text-gray-500">This month:</span>
+						<span
+							class="font-semibold {linksAtLimit
+								? 'text-red-600'
+								: 'text-gray-900'}"
 						>
-							<svg
-								class="w-6 h-6 text-orange-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-								/>
-							</svg>
-						</div>
-						<div>
-							<p class="text-gray-600 text-sm">Total Links</p>
-							<p class="text-2xl font-bold text-gray-900">
-								{stats?.total_links ?? 0}
-							</p>
-						</div>
-					</div>
-				</div>
-
-				<!-- Total Clicks -->
-				<div
-					class="bg-white rounded-2xl border-2 border-gray-200 p-6 transition-all duration-300 hover:border-blue-500 hover:shadow-lg"
-				>
-					<div class="flex items-center gap-4">
+							{usage.usage.links_created_this_month} / {usage
+								.limits.max_links_per_month}
+						</span>
 						<div
-							class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0"
+							class="w-20 bg-gray-200 rounded-full h-1.5 hidden sm:block"
 						>
-							<svg
-								class="w-6 h-6 text-blue-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
+							<div
+								class="h-1.5 rounded-full transition-all duration-500 {linksAtLimit
+									? 'bg-red-500'
+									: linksUsagePercent >= 80
+										? 'bg-amber-500'
+										: 'bg-orange-500'}"
+								style="width: {linksUsagePercent}%"
+							></div>
+						</div>
+						{#if linksAtLimit}
+							<span class="text-xs text-red-600 font-medium"
+								>Limit reached</span
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
-								/>
-							</svg>
-						</div>
-						<div>
-							<p class="text-gray-600 text-sm">Total Clicks</p>
-							<p class="text-2xl font-bold text-gray-900">
-								{stats?.total_clicks ?? 0}
-							</p>
-						</div>
-					</div>
-				</div>
-
-				<!-- Active Links -->
-				<div
-					class="bg-white rounded-2xl border-2 border-gray-200 p-6 transition-all duration-300 hover:border-green-500 hover:shadow-lg"
-				>
-					<div class="flex items-center gap-4">
-						<div
-							class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0"
-						>
-							<svg
-								class="w-6 h-6 text-green-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M5 13l4 4L19 7"
-								/>
-							</svg>
-						</div>
-						<div>
-							<p class="text-gray-600 text-sm">Active Links</p>
-							<p class="text-2xl font-bold text-gray-900">
-								{stats?.active_links ?? 0}
-							</p>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- Usage Indicators (free tier only) -->
-		{#if usage && usage.tier === "free" && usage.limits.max_links_per_month}
-			<div class="max-w-6xl mx-auto px-6">
-				<div
-					class="bg-white rounded-2xl border-2 p-6 {linksAtLimit
-						? 'border-amber-300 bg-amber-50'
-						: 'border-gray-200'}"
-				>
-					<div class="flex items-center justify-between mb-4">
-						<div class="flex items-center gap-2">
-							<h3
-								class="text-sm font-semibold text-gray-700 uppercase tracking-wider"
-							>
-								Free Tier Usage
-							</h3>
-							<span
-								class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-							>
-								Free
-							</span>
-						</div>
+						{/if}
 						<a
 							href="/pricing"
-							class="text-sm text-orange-600 hover:text-orange-700 font-medium"
+							class="text-xs text-orange-600 hover:text-orange-700 font-medium"
+							>Upgrade →</a
 						>
-							View plans &rarr;
-						</a>
-					</div>
-
-					<div class="space-y-4">
-						{#if usage.limits.max_links_per_month}
-							<div>
-								<div
-									class="flex items-center justify-between mb-1.5"
-								>
-									<span class="text-sm text-gray-600"
-										>Links created this month</span
-									>
-									<span
-										class="text-sm font-medium {linksAtLimit
-											? 'text-red-600'
-											: 'text-gray-900'}"
-									>
-										{usage.usage.links_created_this_month} /
-										{usage.limits.max_links_per_month}
-									</span>
-								</div>
-								<div
-									class="w-full bg-gray-200 rounded-full h-2"
-								>
-									<div
-										class="h-2 rounded-full transition-all duration-500 {linksAtLimit
-											? 'bg-red-500'
-											: linksUsagePercent >= 80
-												? 'bg-amber-500'
-												: 'bg-orange-500'}"
-										style="width: {linksUsagePercent}%"
-									></div>
-								</div>
-								{#if linksAtLimit}
-									<p class="text-xs text-red-600 mt-1">
-										Monthly link limit reached. Limits reset
-										on the 1st of each month.
-									</p>
-								{/if}
-							</div>
-						{/if}
-					</div>
-				</div>
+					</span>
+				{/if}
 			</div>
-		{/if}
+		</div>
 
 		<!-- Main Content Area -->
-		<main class="max-w-6xl mx-auto px-6 py-6">
+		<main class="max-w-6xl mx-auto px-6 py-4">
 			<!-- Error Message -->
 			{#if error}
 				<div
@@ -355,13 +363,29 @@
 				</div>
 			{/if}
 
-			<!-- Links List -->
-			<LinkList
-				{links}
-				{loading}
-				onDelete={handleDelete}
-				onEdit={handleEdit}
+			<!-- Search and Filter Bar -->
+			<SearchFilterBar
+				bind:search
+				bind:status
+				bind:sort
+				resultCount={links.length}
+				totalCount={pagination?.total ?? 0}
+				currentPage={pagination?.page ?? 1}
+				pageSize={pagination?.limit ?? 10}
+				{isSearching}
+				on:change={handleFilterChange}
 			/>
+
+			<!-- Links List -->
+			<div class="mt-6">
+				<LinkList
+					{links}
+					{loading}
+					isFiltered={search.trim() !== "" || status !== "all"}
+					onDelete={handleDelete}
+					onEdit={handleEdit}
+				/>
+			</div>
 
 			<!-- Pagination -->
 			{#if pagination && pagination.total_pages > 1}

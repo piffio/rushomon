@@ -25,6 +25,7 @@ chrono = { version = "0.4", features = ["wasmbind"] }
 js-sys = "0.3"
 subtle = "2.6"
 regex = "1.11"
+urlencoding = "2.1"
 
 [dev-dependencies]
 reqwest = { version = "0.13.1", features = ["json"] }
