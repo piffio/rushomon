@@ -3,6 +3,10 @@
 /// Uses Cloudflare KV for distributed rate limit tracking across edge locations.
 /// Implements a sliding window rate limit algorithm.
 ///
+/// **IMPORTANT**: KV-based rate limiting is now disabled by default in favor of
+/// Cloudflare's built-in rate limiting rules. Set ENABLE_KV_RATE_LIMITING=true
+/// to re-enable KV-based rate limiting for specific use cases.
+///
 /// # Current Implementation Status
 ///
 /// Rate limiting is currently applied to:
@@ -137,6 +141,7 @@ impl RateLimiter {
     /// * `kv` - KV store for tracking rate limits
     /// * `key` - Unique identifier for rate limit (e.g., "ratelimit:oauth:{ip}")
     /// * `config` - Rate limit configuration
+    /// * `kv_rate_limiting_enabled` - Whether KV rate limiting is enabled (from environment)
     ///
     /// # Returns
     ///
@@ -145,7 +150,14 @@ impl RateLimiter {
         kv: &KvStore,
         key: &str,
         config: &RateLimitConfig,
+        kv_rate_limiting_enabled: bool,
     ) -> std::result::Result<(), RateLimitError> {
+        // Check if KV-based rate limiting is disabled
+        if !kv_rate_limiting_enabled {
+            // KV rate limiting is disabled, allow all requests
+            return Ok(());
+        }
+
         let now = Self::current_timestamp();
 
         // Get existing rate limit data

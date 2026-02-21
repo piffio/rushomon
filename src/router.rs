@@ -70,7 +70,21 @@ pub async fn handle_redirect(
     let rate_limit_key = RateLimiter::ip_key("redirect", &client_ip);
     let rate_limit_config = RateLimitConfig::redirect();
 
-    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+    // Check if KV rate limiting is enabled (default false)
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -188,7 +202,21 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let rate_limit_key = RateLimiter::user_key("create_link", user_id);
     let rate_limit_config = RateLimitConfig::link_creation();
 
-    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+    // Check if KV rate limiting is enabled (default false)
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -671,7 +699,21 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
 
-    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+    // Check if KV rate limiting is enabled (default false)
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -704,7 +746,21 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
 
-    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+    // Check if KV rate limiting is enabled (default false)
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -804,7 +860,21 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
     let rate_limit_key = RateLimiter::session_key("auth_check", &user_ctx.session_id);
     let rate_limit_config = RateLimitConfig::auth_check();
 
-    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+    // Check if KV rate limiting is enabled (default false)
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -900,7 +970,21 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
     let rate_limit_key = RateLimiter::session_key("token_refresh", &claims.session_id);
     let rate_limit_config = RateLimitConfig::token_refresh();
 
-    if let Err(err) = RateLimiter::check(&kv, &rate_limit_key, &rate_limit_config).await {
+    // Check if KV rate limiting is enabled (default false)
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response

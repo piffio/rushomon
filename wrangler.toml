@@ -26,6 +26,9 @@ database_id = "3770f758-a236-41e3-b158-58c6a6253da8"
 GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"
 DOMAIN = "yourdomain.com"
 FRONTEND_URL = "http://localhost:5173"
+# KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
+# Set to "true" to re-enable KV-based rate limiting for specific use cases
+ENABLE_KV_RATE_LIMITING = "false"
 
 # CORS configuration
 # Comma-separated list of allowed origins

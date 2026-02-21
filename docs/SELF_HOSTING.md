@@ -162,6 +162,9 @@ GITHUB_USER_URL = "https://api.github.com/user"
 DOMAIN = "api.myapp.com"  # Where OAuth callbacks go (your API domain)
 FRONTEND_URL = "https://myapp.com"  # Main web interface URL
 ALLOWED_ORIGINS = "https://myapp.com,https://api.myapp.com"  # CORS allowed origins
+# KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
+# Set to "true" to re-enable KV-based rate limiting for specific use cases
+ENABLE_KV_RATE_LIMITING = "false"
 ```
 
 Replace the placeholder values:
@@ -269,7 +272,82 @@ After deployment, attach custom domains to your Worker via the Cloudflare Dashbo
 
 ---
 
-## Step 8: Verify Your Deployment
+## Step 8: Configure Rate Limiting (Important)
+
+Rushomon uses Cloudflare's built-in rate limiting instead of KV-based rate limiting to eliminate costs and improve performance. You must configure rate limiting rules after deployment.
+
+### Why Cloudflare Rate Limiting?
+
+- **Cost-effective**: Free tier includes 1 rule, Pro tier ($20/month) includes 3 rules
+- **Better performance**: Edge-native (0ms) vs KV-based (+2ms per request)
+- **More reliable**: No KV dependency for rate limiting
+- **Eliminates KV write costs**: Previously $60-$1,200/month in overages
+
+### Option A: Free Tier Setup (1 Rule)
+
+For basic protection, use one comprehensive rule:
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Select your domain → **Security** → **WAF** → **Rate limiting rules**
+3. Click **Create rule**
+4. **Rule name**: `Comprehensive API and Redirect Protection`
+5. **Expression**: `(http.request.uri.path starts_with "/api/") or (http.request.uri.path matches "^/[a-zA-Z0-9_-]+$")`
+6. **Rate limit settings**:
+   - **Requests per period**: 200
+   - **Period**: 1 minute
+   - **Action**: Challenge
+7. Click **Deploy**
+
+### Option B: Pro Tier Setup (3 Rules) - Recommended
+
+For production, upgrade to Pro plan ($20/month) and configure granular rules:
+
+1. **Redirect Protection**:
+   - **Expression**: `not (http.request.uri.path starts_with "/api/") and not (http.request.uri.path starts_with "/admin/")`
+   - **Requests per period**: 300
+   - **Period**: 1 minute
+   - **Action**: Challenge
+
+2. **API Protection**:
+   - **Expression**: `http.request.uri.path starts_with "/api/"`
+   - **Requests per period**: 100
+   - **Period**: 1 minute
+   - **Action**: Challenge
+
+3. **Auth Protection**:
+   - **Expression**: `http.request.uri.path starts_with "/api/auth/"`
+   - **Requests per period**: 20
+   - **Period**: 15 minutes
+   - **Action**: Challenge
+
+### Testing Rate Limiting
+
+```bash
+# Test API rate limiting (should work for first 200 requests, then show challenge)
+for i in {1..250}; do
+  curl -s -o /dev/null -w "%{http_code}\n" https://api.myapp.com/api/links
+done
+
+# Test redirect rate limiting
+for i in {1..250}; do
+  curl -s -o /dev/null -w "%{http_code}\n" https://short.io/nonexistent
+done
+```
+
+### Optional: Re-enable KV Rate Limiting
+
+If you need per-user or session-based rate limiting:
+
+```bash
+wrangler secret put ENABLE_KV_RATE_LIMITING -c wrangler.production.toml
+# Enter: true
+```
+
+**Note**: This will incur KV write costs and is only recommended for specific use cases.
+
+---
+
+## Step 9: Verify Your Deployment
 
 ### Check the Frontend
 
@@ -300,7 +378,7 @@ curl -s -o /dev/null -w "%{http_code}" https://api.myapp.com/api/links
 1. Navigate to `https://myapp.com/admin`
 2. You should see the admin console (only accessible to the first user)
 3. Verify you can see your user account with "free" tier
-4. **Important**: See Step 9 to upgrade your admin account and configure default tiers
+4. **Important**: See Step 10 to upgrade your admin account and configure default tiers
 
 ### Test Short Link Redirects
 
@@ -315,7 +393,7 @@ curl -I https://short.io/abc123
 
 ---
 
-## Step 9: Configure User Tiers (Important for Self-Hosting)
+## Step 10: Configure User Tiers (Important for Self-Hosting)
 
 Rushomon includes a tier system with **Free** and **Unlimited** plans. As a self-hosted instance administrator, you need to configure tiers appropriately for your use case.
 
@@ -395,6 +473,7 @@ As an admin, you can:
 | `DOMAIN` | Domain where OAuth callbacks go (no protocol) | `api.myapp.com` |
 | `FRONTEND_URL` | Main web interface URL (with protocol) | `https://myapp.com` |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins | `https://myapp.com,https://api.myapp.com` |
+| `ENABLE_KV_RATE_LIMITING` | Enable KV-based rate limiting (default: false) | `false` |
 
 ### Worker Secrets (set via `wrangler secret put`)
 
@@ -493,3 +572,21 @@ wrangler deploy -c wrangler.production.toml
 - Free tier users only see 7 days of analytics data
 - Upgrade users to "unlimited" tier for full analytics access
 - Check retention limits in the tier system (Free: 7 days, Unlimited: unlimited)
+
+### Rate limiting not working
+- Verify Cloudflare rate limiting rules are deployed and enabled
+- Check rule expressions match your domain structure
+- Monitor Cloudflare Security dashboard for rate limiting events
+- Ensure rules are attached to the correct domain/zone
+
+### Users getting rate limited too quickly
+- Check your rate limiting limits (200/min for comprehensive rule)
+- Consider upgrading to Pro tier for granular rules
+- Monitor for abuse patterns vs legitimate traffic
+- Adjust limits based on your usage patterns
+
+### High KV costs (if KV rate limiting enabled)
+- Ensure `ENABLE_KV_RATE_LIMITING` is set to "false"
+- Check Cloudflare KV usage dashboard
+- Consider using Cloudflare rate limiting instead
+- Monitor KV write operations in analytics
