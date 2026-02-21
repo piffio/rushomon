@@ -215,25 +215,6 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
     Ok(())
 }
 
-/// Get total count of non-deleted links for an organization
-pub async fn get_links_count_by_org(db: &D1Database, org_id: &str) -> Result<i64> {
-    let stmt = db.prepare(
-        "SELECT COUNT(*) as count FROM links
-         WHERE org_id = ?1
-         AND status IN ('active', 'disabled')",
-    );
-
-    let result = stmt
-        .bind(&[org_id.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    match result {
-        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
-        None => Ok(0),
-    }
-}
-
 /// Dashboard statistics for an organization
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct DashboardStats {
@@ -273,33 +254,119 @@ pub async fn get_dashboard_stats(db: &D1Database, org_id: &str) -> Result<Dashbo
     }
 }
 
-/// Get links for an organization (paginated)
-pub async fn get_links_by_org(
+/// Get links for an organization with search, filter, and sort options
+pub async fn get_links_by_org_filtered(
     db: &D1Database,
     org_id: &str,
+    search: Option<&str>,
+    status_filter: Option<&str>,
+    sort: &str,
     limit: i64,
     offset: i64,
 ) -> Result<Vec<Link>> {
-    let stmt = db.prepare(
+    let mut query = String::from(
         "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
          FROM links
-         WHERE org_id = ?1
-         AND status IN ('active', 'disabled')
-         ORDER BY created_at DESC
-         LIMIT ?2 OFFSET ?3"
+         WHERE org_id = ?1"
     );
 
-    // For now, let's try a simple approach that works
-    // We'll fix the multiple rows issue later
-    let results = stmt
-        .bind(&[org_id.into(), (limit as f64).into(), (offset as f64).into()])?
-        .all()
-        .await?;
+    let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![org_id.into()];
+    let mut param_count = 2;
 
-    // Extract results from D1Result
+    // Add status filter
+    if let Some(status) = status_filter {
+        query.push_str(&format!(" AND status = ?{}", param_count));
+        params.push(status.into());
+        param_count += 1;
+    } else {
+        // Default: show both active and disabled (not blocked)
+        query.push_str(" AND status IN ('active', 'disabled')");
+    }
+
+    // Add search filter (matches title, short_code, or destination_url)
+    if let Some(search_term) = search {
+        let term = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
+        query.push_str(&format!(
+            " AND (LOWER(title) LIKE LOWER(?{}) OR LOWER(short_code) LIKE LOWER(?{}) OR LOWER(destination_url) LIKE LOWER(?{}))",
+            param_count,
+            param_count + 1,
+            param_count + 2
+        ));
+        params.push(term.clone().into());
+        params.push(term.clone().into());
+        params.push(term.into());
+        param_count += 3;
+    }
+
+    // Add ORDER BY based on sort parameter
+    let order_clause = match sort {
+        "clicks" => "ORDER BY click_count DESC",
+        "updated" => "ORDER BY updated_at DESC NULLS LAST",
+        "title" => "ORDER BY title ASC NULLS LAST",
+        "code" => "ORDER BY short_code ASC",
+        _ => "ORDER BY created_at DESC", // Default: created
+    };
+    query.push_str(&format!(" {}", order_clause));
+
+    // Add LIMIT and OFFSET
+    query.push_str(&format!(
+        " LIMIT ?{} OFFSET ?{}",
+        param_count,
+        param_count + 1
+    ));
+    params.push((limit as f64).into());
+    params.push((offset as f64).into());
+
+    let stmt = db.prepare(&query);
+    let results = stmt.bind(&params)?.all().await?;
     let links = results.results::<Link>()?;
 
     Ok(links)
+}
+
+/// Get total count of links for an organization with search and status filters
+pub async fn get_links_count_by_org_filtered(
+    db: &D1Database,
+    org_id: &str,
+    search: Option<&str>,
+    status_filter: Option<&str>,
+) -> Result<i64> {
+    let mut query = String::from("SELECT COUNT(*) as count FROM links WHERE org_id = ?1");
+
+    let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![org_id.into()];
+    let mut param_count = 2;
+
+    // Add status filter
+    if let Some(status) = status_filter {
+        query.push_str(&format!(" AND status = ?{}", param_count));
+        params.push(status.into());
+        param_count += 1;
+    } else {
+        // Default: show both active and disabled (not blocked)
+        query.push_str(" AND status IN ('active', 'disabled')");
+    }
+
+    // Add search filter
+    if let Some(search_term) = search {
+        let term = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
+        query.push_str(&format!(
+            " AND (LOWER(title) LIKE LOWER(?{}) OR LOWER(short_code) LIKE LOWER(?{}) OR LOWER(destination_url) LIKE LOWER(?{}))",
+            param_count,
+            param_count + 1,
+            param_count + 2
+        ));
+        params.push(term.clone().into());
+        params.push(term.clone().into());
+        params.push(term.into());
+    }
+
+    let stmt = db.prepare(&query);
+    let result = stmt.bind(&params)?.first::<serde_json::Value>(None).await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
 }
 
 /// Get a link by ID

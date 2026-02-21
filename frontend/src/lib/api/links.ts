@@ -6,10 +6,31 @@ export const linksApi = {
 	 * List all links for the authenticated user's organization
 	 * @param page - Page number (default: 1)
 	 * @param limit - Number of links per page (default: 20)
+	 * @param search - Search term for filtering links (optional)
+	 * @param status - Status filter: 'active', 'disabled', or undefined (optional)
+	 * @param sort - Sort order: 'created', 'updated', 'clicks', 'title', 'code' (default: 'created')
 	 * @returns Paginated response with links and pagination metadata
 	 */
-	async list(page: number = 1, limit: number = 20): Promise<PaginatedResponse<Link>> {
-		return apiClient.get<PaginatedResponse<Link>>(`/api/links?page=${page}&limit=${limit}`);
+	async list(
+		page: number = 1,
+		limit: number = 20,
+		search?: string,
+		status?: 'active' | 'disabled',
+		sort?: 'created' | 'updated' | 'clicks' | 'title' | 'code'
+	): Promise<PaginatedResponse<Link>> {
+		const params = new URLSearchParams();
+		params.set('page', page.toString());
+		params.set('limit', limit.toString());
+		if (search?.trim()) {
+			params.set('search', search.trim());
+		}
+		if (status) {
+			params.set('status', status);
+		}
+		if (sort && sort !== 'created') {
+			params.set('sort', sort);
+		}
+		return apiClient.get<PaginatedResponse<Link>>(`/api/links?${params.toString()}`);
 	},
 
 	/**
