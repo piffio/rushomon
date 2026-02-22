@@ -1,8 +1,12 @@
+# Rushomon Cloudflare Worker Configuration
+# Copy this file to wrangler.toml and update the values below for your setup
+
 name = "rushomon"
 main = "build/worker/shim.mjs"
 compatibility_date = "2026-02-10"
 upload_source_maps = true
 
+# Observability configuration
 [observability]
 enabled = true
 head_sampling_rate = 1
@@ -19,8 +23,8 @@ command = "cargo install -q worker-build && worker-build --release"
 # Then update the id below with the returned namespace ID
 [[kv_namespaces]]
 binding = "URL_MAPPINGS"
-id = "8bd613d0dfc4464189531023547c79f5"
-preview_id = "48136fe5129f406184e6956849b5280f"
+id = "your-kv-namespace-id-here"
+preview_id = "your-preview-kv-id-here"
 
 # D1 Database for metadata and analytics
 # Run: wrangler d1 create rushomon
@@ -28,7 +32,7 @@ preview_id = "48136fe5129f406184e6956849b5280f"
 [[d1_databases]]
 binding = "rushomon"
 database_name = "rushomon"
-database_id = "3770f758-a236-41e3-b158-58c6a6253da8"
+database_id = "your-database-id-here"
 
 # Environment variables (non-sensitive)
 [vars]
@@ -41,9 +45,7 @@ ENABLE_KV_RATE_LIMITING = "false"
 
 # CORS configuration
 # Comma-separated list of allowed origins
-ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-ui.pages.dev"
-# Pattern for ephemeral environments (use {} as placeholder for PR number)
-EPHEMERAL_ORIGIN_PATTERN = "https://pr-{}.rushomon-ui.pages.dev"
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://your-frontend.pages.dev"
 
 [assets]
 directory = "./frontend/build"

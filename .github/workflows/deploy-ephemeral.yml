@@ -9,7 +9,7 @@ on:
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'wrangler.toml'
+      - 'wrangler.example.toml'
       - 'migrations/**'
       - 'frontend/**'
       - '.github/workflows/deploy-ephemeral.yml'

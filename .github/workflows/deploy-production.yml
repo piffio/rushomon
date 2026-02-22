@@ -94,11 +94,16 @@ jobs:
           main = "build/worker/shim.mjs"
           compatibility_date = "2026-02-10"
           workers_dev = false
+          upload_source_maps = true
 
-          # Custom domains (configured manually in Cloudflare Dashboard):
-          # - rushomon.cc (UI + API)
-          # - api.rushomon.cc (API subdomain)
-          # - rush.mn (short link redirects)
+          # Observability configuration
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
 
           [[d1_databases]]
           binding = "rushomon"
@@ -126,9 +131,6 @@ jobs:
           EOF
 
           echo "✅ Generated wrangler.production.toml"
-          echo "   Worker name: rushomon-production"
-          echo "   Domains: rushomon.cc, api.rushomon.cc, rush.mn"
-          echo "   Architecture: Unified Worker with ASSETS binding"
 
       - name: Apply D1 Migrations
         env:
@@ -160,38 +162,6 @@ jobs:
           echo "🚀 Deploying worker to production..."
           wrangler deploy -c wrangler.production.toml
           echo "✅ Worker deployed successfully"
-
-      - name: Post-Deployment Instructions
-        run: |
-          echo "✅ Unified Worker deployed successfully!"
-          echo ""
-          echo "📋 MANUAL STEPS REQUIRED:"
-          echo ""
-          echo "1️⃣  Configure Custom Domains in Cloudflare Dashboard:"
-          echo "   → Workers & Pages → rushomon-production → Settings → Domains & Routes"
-          echo "   → Add these custom domains:"
-          echo "      • rushomon.cc"
-          echo "      • api.rushomon.cc"
-          echo "      • rush.mn"
-          echo ""
-          echo "2️⃣  Update GitHub OAuth App:"
-          echo "   → GitHub → Settings → Developer settings → OAuth Apps"
-          echo "   → Change callback URL from:"
-          echo "      https://rush.mn/api/auth/callback"
-          echo "   → To:"
-          echo "      https://rushomon.cc/api/auth/callback"
-          echo ""
-          echo "3️⃣  Test OAuth Flow:"
-          echo "   → Visit https://rushomon.cc"
-          echo "   → Click 'Login with GitHub'"
-          echo "   → Verify redirect works and cookies are set"
-          echo ""
-          echo "4️⃣  Test Redirects:"
-          echo "   → Create a test short link in dashboard"
-          echo "   → Visit https://rush.mn/{short-code}"
-          echo "   → Verify redirect works"
-          echo ""
-          echo "📝 See PRODUCTION_MIGRATION_GUIDE.md for detailed testing checklist"
 
   smoke-tests:
     name: Production Smoke Tests
