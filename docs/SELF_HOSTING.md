@@ -1,6 +1,6 @@
 # Self-Hosting Rushomon
 
-Step-by-step guide to deploy your own Rushomon URL shortener instance on Cloudflare. This guide covers manual setup — for automated CI/CD, see the GitHub Actions workflow in `.github/workflows/deploy-production.yml`.
+Step-by-step guide to deploy your own Rushomon URL shortener instance on Cloudflare. This guide covers manual setup — for automated CI/CD, see the GitHub Actions workflow in `.github/workflows/deploy-production.yml` as a source of inspiration for setting up your own.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ You have flexibility in how you configure domains:
 **Option A: Single Domain (Simplest)**
 - `myapp.com` — Serves everything (UI, API, redirects)
 - Pros: Simplest setup, no CORS complexity
-- Cons: Short URLs are longer (e.g., `myapp.com/abc123`)
+- Cons: Short URLs can be longer (e.g., `myapp.com/abc123`)
 
 **Option B: Multi-Domain (Recommended)**
 - `myapp.com` — Main web interface
@@ -121,7 +121,14 @@ Rushomon uses GitHub OAuth for authentication. You need to create an OAuth App:
 
 ⚠️ **SECURITY WARNING**: This file contains configuration data but should NOT contain secrets. Secrets are stored separately via `wrangler secret put` (see Step 5).
 
-Create a file called `wrangler.production.toml` in the project root. This file can be committed to version control as long as you follow Step 5 correctly.
+Copy the example configuration file and customize it for production:
+
+```bash
+# Copy the example configuration
+cp wrangler.example.toml wrangler.toml
+```
+
+Now edit `wrangler.toml` and update the following values:
 
 ```toml
 name = "rushomon-production"
@@ -181,18 +188,20 @@ Replace the placeholder values:
 
 🔒 **CRITICAL SECURITY STEP**: Secrets must be stored via Cloudflare Workers Secrets API, NOT in wrangler.toml files.
 
+The configuration file (`wrangler.toml`) should already be created from Step 4. Now set the required secrets:
+
 Set these secrets in your Cloudflare account:
 
 ```bash
 # GitHub OAuth client secret (from Step 3)
-wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.production.toml
+wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.toml
 
 # JWT signing secret (MUST be at least 32 characters)
 # Generate a secure random string:
 openssl rand -base64 32
 
 # Then store it:
-wrangler secret put JWT_SECRET -c wrangler.production.toml
+wrangler secret put JWT_SECRET -c wrangler.toml
 ```
 
 **Security Requirements**:
@@ -238,13 +247,13 @@ worker-build --release
 ### Apply Database Migrations
 
 ```bash
-wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
+wrangler d1 migrations apply rushomon --remote -c wrangler.toml
 ```
 
 ### Deploy Worker
 
 ```bash
-wrangler deploy -c wrangler.production.toml
+wrangler deploy -c wrangler.toml
 ```
 
 This deploys the unified Worker with both frontend assets and backend API.
@@ -274,14 +283,7 @@ After deployment, attach custom domains to your Worker via the Cloudflare Dashbo
 
 ## Step 8: Configure Rate Limiting (Important)
 
-Rushomon uses Cloudflare's built-in rate limiting instead of KV-based rate limiting to eliminate costs and improve performance. You must configure rate limiting rules after deployment.
-
-### Why Cloudflare Rate Limiting?
-
-- **Cost-effective**: Free tier includes 1 rule, Pro tier ($20/month) includes 3 rules
-- **Better performance**: Edge-native (0ms) vs KV-based (+2ms per request)
-- **More reliable**: No KV dependency for rate limiting
-- **Eliminates KV write costs**: Previously $60-$1,200/month in overages
+Rushomon can use Cloudflare's built-in rate limiting instead of KV-based rate limiting to reduce costs and improve performance. If you chose this option, you will have to configure rate limiting rules after deployment.
 
 ### Option A: Free Tier Setup (1 Rule)
 
@@ -298,7 +300,7 @@ For basic protection, use one comprehensive rule:
    - **Action**: Challenge
 7. Click **Deploy**
 
-### Option B: Pro Tier Setup (3 Rules) - Recommended
+### Option B: Pro Tier Setup (3 Rules)
 
 For production, upgrade to Pro plan ($20/month) and configure granular rules:
 
@@ -336,18 +338,48 @@ done
 
 ### Optional: Re-enable KV Rate Limiting
 
-If you need per-user or session-based rate limiting:
+If you need a more fine-grained rate limiting and are not concerned about the extra reads and writes on the KV store, you can use the following command to enable it:
 
 ```bash
-wrangler secret put ENABLE_KV_RATE_LIMITING -c wrangler.production.toml
+wrangler secret put ENABLE_KV_RATE_LIMITING -c wrangler.toml
 # Enter: true
 ```
 
-**Note**: This will incur KV write costs and is only recommended for specific use cases.
+**Note**: This will incur KV write costs or will exhaust your free tier allowance, and is only recommended for specific use cases.
 
 ---
 
-## Step 9: Verify Your Deployment
+## Step 9: Configure Observability and Logging
+
+Rushomon includes comprehensive observability features using Cloudflare Workers' built-in capabilities. These are already configured in the sample `wrangler.example.toml` and should be included in production deployments.
+
+### What's Included
+
+**Built-in Observability Features:**
+- **Source Maps** - Deobfuscated stack traces for debugging
+- **Workers Logs** - All application logs captured centrally
+- **Traces** - End-to-end request tracing (10% sampling by default, configurable via `traces_sample_rate` in `wrangler.toml`)
+- **Structured JSON Logging** - Consistent, searchable log format
+
+### Accessing Logs and Traces
+
+1. **View Logs in Cloudflare Dashboard**:
+   - Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
+   - Navigate to **Workers & Pages** → **rushomon**
+   - Click the **Logs** tab to view real-time logs
+   - Click the **Traces** tab to view request traces
+
+2. **Search Logs**:
+   Use JSON syntax to filter logs:
+   ```
+   event:"rate_limit_hit"
+   event:"auth_*" AND level:"warn"
+   level:"error"
+   ```
+
+---
+
+## Step 10: Verify Your Deployment
 
 ### Check the Frontend
 
@@ -419,8 +451,8 @@ The first user to sign in to your instance automatically becomes the **instance 
 
 2. **Upgrade Your Admin Account**:
    - Find your user in the admin console
-   - Change your tier from "free" to "unlimited"
-   - Click **Update** to save changes
+   - Change your tier from "free" to "unlimited" by clicking on the `Free` label
+   - Click **Change Tier** to save changes
 
 ### Setting Default Tier for New Users
 
@@ -444,19 +476,7 @@ As an admin, you can:
 - **Downgrade users** (if needed)
 - **See usage statistics** for each user
 
-### Tier Considerations for Self-Hosting
-
-**Why Configure Tiers?**
-- **Resource management**: Prevent abuse on public instances
-- **Usage monitoring**: Track link creation and click patterns
-- **Future monetization**: Prepare for paid tiers if desired
-
-**Self-Hosting Recommendations**:
-- **Personal use**: Set default to "unlimited" for maximum flexibility
-- **Team/Company**: Set default to "unlimited" and manage via organization
-- **Public service**: Keep "free" default to prevent abuse
-
-> **Important**: The admin console is only accessible to the first user who signed in. If you lose access to the admin account, you'll need to contact your database administrator to manually update user tiers in the `organizations` table.
+> **Important**: The admin console is only accessible to the first user who signed in. If you lose access to the admin account, you'll need to run queries via the Cloudflare D1 console to change user's roles.
 
 ---
 
@@ -572,6 +592,30 @@ wrangler deploy -c wrangler.production.toml
 - Free tier users only see 7 days of analytics data
 - Upgrade users to "unlimited" tier for full analytics access
 - Check retention limits in the tier system (Free: 7 days, Unlimited: unlimited)
+
+### Observability not working
+- Verify observability is enabled in `wrangler.toml` (should be by default)
+- Check that `upload_source_maps = true` for deobfuscated stack traces
+- Ensure `[observability]` and `[observability.traces]` sections are present
+- Logs may take a few minutes to appear in the Cloudflare dashboard
+
+### Logs not appearing in Cloudflare Dashboard
+- Navigate to **Workers & Pages** → **rushomon** → **Logs** tab
+- Check the time range filter (logs are retained for 7 days on free plan)
+- Try searching for a specific event: `event:"rate_limit_hit"`
+- Verify your Worker is receiving traffic (check the Analytics tab)
+
+### Traces not visible
+- Traces are sampled at 10% by default - you may need more traffic to see traces
+- Check the **Traces** tab in Workers dashboard
+- For debugging, temporarily increase sampling to 100% in `wrangler.toml`
+- Remember to reset sampling to 0.1 after debugging
+
+### High error rate in logs
+- Search for `level:"error"` to identify system issues
+- Check `analytics_event_failed` events for database connectivity issues
+- Monitor `click_count_failed` events for D1 performance problems
+- Use `level:"critical"` to find data integrity issues
 
 ### Rate limiting not working
 - Verify Cloudflare rate limiting rules are deployed and enabled
