@@ -1601,7 +1601,13 @@ pub async fn handle_admin_reset_monthly_counter(
     req: Request,
     ctx: RouteContext<()>,
 ) -> Result<Response> {
-    println!("Admin reset counter endpoint called");
+    console_log!(
+        "{}",
+        serde_json::json!({
+            "event": "admin_reset_counter_called",
+            "level": "info"
+        })
+    );
 
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -1627,14 +1633,29 @@ pub async fn handle_admin_reset_monthly_counter(
     // Reset the monthly counter to 0
     match db::reset_monthly_counter(&db, &org_id).await {
         Ok(_) => {
-            println!("Monthly counter reset for org: {}", org_id);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_reset_counter_success",
+                    "org_id": org_id,
+                    "level": "info"
+                })
+            );
             Response::from_json(&serde_json::json!({
                 "success": true,
                 "message": "Monthly counter reset successfully"
             }))
         }
         Err(e) => {
-            println!("Failed to reset monthly counter for org {}: {}", org_id, e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_reset_counter_failed",
+                    "org_id": org_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
             Response::error("Failed to reset monthly counter", 500)
         }
     }
