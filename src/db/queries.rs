@@ -308,7 +308,7 @@ pub async fn get_links_by_org_filtered(
             params.push(tags[0].as_str().into());
         } else {
             // Multiple tags - use IN clause for OR semantics
-            let start_param = params.len();
+            let start_param = params.len() + 1;
             let placeholders: Vec<String> = (0..tags.len())
                 .map(|i| format!("?{}", start_param + i))
                 .collect();
@@ -394,7 +394,7 @@ pub async fn get_links_count_by_org_filtered(
             params.push(tags[0].as_str().into());
         } else {
             // Multiple tags - use IN clause for OR semantics
-            let start_param = params.len();
+            let start_param = params.len() + 1;
             let placeholders: Vec<String> = (0..tags.len())
                 .map(|i| format!("?{}", start_param + i))
                 .collect();

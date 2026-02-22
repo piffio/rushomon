@@ -455,7 +455,7 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
         })
         .unwrap_or("created");
 
-    // Parse tags filter parameter: ?tags=foo,bar (AND semantics)
+    // Parse tags filter parameter: ?tags=foo,bar (OR semantics)
     let tags_filter: Vec<String> = query
         .split('&')
         .find(|s| s.starts_with("tags="))
