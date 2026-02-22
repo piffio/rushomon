@@ -1,5 +1,5 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
-use worker::D1Database;
+use worker::{D1Database, console_log};
 use worker::{Request, Response, RouteContext};
 
 /// Authentication error that can be converted to an HTTP response
@@ -92,6 +92,13 @@ pub async fn authenticate_request(
     let jwt_secret = match ctx.env.secret("JWT_SECRET") {
         Ok(secret) => secret.to_string(),
         Err(_e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_jwt_secret_missing",
+                    "level": "error"
+                })
+            );
             return Err(AuthError::InternalError(
                 "Server configuration error".to_string(),
             ));
@@ -102,6 +109,13 @@ pub async fn authenticate_request(
     let claims = match validate_jwt(&jwt, &jwt_secret) {
         Ok(claims) => claims,
         Err(_e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_jwt_invalid",
+                    "level": "warn"
+                })
+            );
             return Err(AuthError::Unauthorized(
                 "Token expired or invalid".to_string(),
             ));
@@ -111,6 +125,14 @@ pub async fn authenticate_request(
     // STRICT: Only access tokens allowed for general API access
     // Refresh tokens are long-lived (7 days) and should ONLY be used for token refresh endpoint
     if claims.token_type != "access" {
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "auth_wrong_token_type",
+                "token_type": claims.token_type,
+                "level": "warn"
+            })
+        );
         return Err(AuthError::Unauthorized(
             "Invalid token type - use access token".to_string(),
         ));
@@ -121,6 +143,13 @@ pub async fn authenticate_request(
     let kv = match ctx.kv("URL_MAPPINGS") {
         Ok(kv) => kv,
         Err(_e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_kv_error",
+                    "level": "error"
+                })
+            );
             return Err(AuthError::InternalError(
                 "Server configuration error".to_string(),
             ));
@@ -130,11 +159,26 @@ pub async fn authenticate_request(
     let session = match get_session(&kv, &claims.session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_session_not_found",
+                    "session_id": claims.session_id,
+                    "level": "warn"
+                })
+            );
             return Err(AuthError::Unauthorized(
                 "Session expired or invalid".to_string(),
             ));
         }
         Err(_e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_session_lookup_failed",
+                    "level": "error"
+                })
+            );
             return Err(AuthError::InternalError(
                 "Failed to validate session".to_string(),
             ));
@@ -143,6 +187,13 @@ pub async fn authenticate_request(
 
     // Verify user_id matches (constant-time comparison to prevent timing attacks)
     if !crate::utils::secure_compare(&session.user_id, &claims.sub) {
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "auth_session_mismatch",
+                "level": "warn"
+            })
+        );
         return Err(AuthError::Unauthorized("Session mismatch".to_string()));
     }
 
@@ -150,6 +201,13 @@ pub async fn authenticate_request(
     let db = match ctx.env.get_binding::<D1Database>("rushomon") {
         Ok(db) => db,
         Err(_e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_db_binding_failed",
+                    "level": "error"
+                })
+            );
             return Err(AuthError::InternalError(
                 "Server configuration error".to_string(),
             ));
@@ -159,9 +217,24 @@ pub async fn authenticate_request(
     let user = match crate::db::get_user_by_id(&db, &session.user_id).await {
         Ok(Some(u)) => u,
         Ok(None) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_user_not_found",
+                    "user_id": session.user_id,
+                    "level": "warn"
+                })
+            );
             return Err(AuthError::Unauthorized("User not found".to_string()));
         }
         Err(_e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_user_lookup_failed",
+                    "level": "error"
+                })
+            );
             return Err(AuthError::InternalError(
                 "Failed to validate user".to_string(),
             ));
@@ -170,6 +243,14 @@ pub async fn authenticate_request(
 
     // Check if user is suspended
     if user.suspended_at.is_some() {
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "auth_user_suspended",
+                "user_id": user.id,
+                "level": "warn"
+            })
+        );
         return Err(AuthError::Forbidden("Account suspended".to_string()));
     }
 

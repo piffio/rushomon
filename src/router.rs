@@ -45,6 +45,15 @@ fn get_client_ip(req: &Request) -> String {
     "unknown".to_string()
 }
 
+/// Hash an IP address for logging to avoid storing raw IPs
+fn hash_ip(ip: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    ip.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
 /// Result of a redirect operation, containing the response and optional deferred analytics work.
 pub struct RedirectResult {
     pub response: Response,
@@ -85,6 +94,18 @@ pub async fn handle_redirect(
     )
     .await
     {
+        let ip_hash = hash_ip(&client_ip);
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "redirect",
+                "limit_type": "ip_per_code",
+                "ip_hash": ip_hash,
+                "short_code": short_code,
+                "level": "warn"
+            })
+        );
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -150,7 +171,14 @@ pub async fn handle_redirect(
         let link = match db::get_link_by_id_no_auth(&db, &link_id).await {
             Ok(Some(link)) => link,
             Ok(None) => {
-                console_log!("Analytics: link not found for id {}", link_id);
+                console_log!(
+                    "{}",
+                    serde_json::json!({
+                        "event": "analytics_link_not_found",
+                        "link_id": link_id,
+                        "level": "warn"
+                    })
+                );
                 return;
             }
             Err(_) => {
@@ -174,10 +202,26 @@ pub async fn handle_redirect(
         };
 
         if let Err(e) = db::log_analytics_event(&db, &event).await {
-            console_log!("Analytics event logging failed: {}", e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "analytics_event_failed",
+                    "link_id": link_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
         }
         if let Err(e) = db::increment_click_count(&db, &link_id).await {
-            console_log!("Click count increment failed: {}", e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "click_count_failed",
+                    "link_id": link_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
         }
     });
 
@@ -217,6 +261,16 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     )
     .await
     {
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "create_link",
+                "limit_type": "user",
+                "user_id": user_id,
+                "level": "warn"
+            })
+        );
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -830,6 +884,17 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
     )
     .await
     {
+        let ip_hash = hash_ip(&client_ip);
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "oauth_login",
+                "limit_type": "ip",
+                "ip_hash": ip_hash,
+                "level": "warn"
+            })
+        );
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -877,6 +942,17 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     )
     .await
     {
+        let ip_hash = hash_ip(&client_ip);
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "oauth_callback",
+                "limit_type": "ip",
+                "ip_hash": ip_hash,
+                "level": "warn"
+            })
+        );
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -991,6 +1067,16 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
     )
     .await
     {
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "auth_me",
+                "limit_type": "session",
+                "session_id": user_ctx.session_id,
+                "level": "warn"
+            })
+        );
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -1116,6 +1202,16 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
     )
     .await
     {
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "token_refresh",
+                "limit_type": "session",
+                "session_id": claims.session_id,
+                "level": "warn"
+            })
+        );
         let mut response = Response::error(err.to_error_response(), 429)?;
         if let Some(retry_after) = err.retry_after() {
             response
@@ -1505,7 +1601,13 @@ pub async fn handle_admin_reset_monthly_counter(
     req: Request,
     ctx: RouteContext<()>,
 ) -> Result<Response> {
-    println!("Admin reset counter endpoint called");
+    console_log!(
+        "{}",
+        serde_json::json!({
+            "event": "admin_reset_counter_called",
+            "level": "info"
+        })
+    );
 
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -1531,14 +1633,29 @@ pub async fn handle_admin_reset_monthly_counter(
     // Reset the monthly counter to 0
     match db::reset_monthly_counter(&db, &org_id).await {
         Ok(_) => {
-            println!("Monthly counter reset for org: {}", org_id);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_reset_counter_success",
+                    "org_id": org_id,
+                    "level": "info"
+                })
+            );
             Response::from_json(&serde_json::json!({
                 "success": true,
                 "message": "Monthly counter reset successfully"
             }))
         }
         Err(e) => {
-            println!("Failed to reset monthly counter for org {}: {}", org_id, e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_reset_counter_failed",
+                    "org_id": org_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
             Response::error("Failed to reset monthly counter", 500)
         }
     }
@@ -1680,16 +1797,36 @@ pub async fn handle_admin_update_link_status(
             }
             Ok(None) => {
                 console_log!(
-                    "CRITICAL: Link not found in DB after update! link_id={}",
-                    link_id
+                    "{}",
+                    serde_json::json!({
+                        "event": "admin_link_sync_not_found",
+                        "link_id": link_id,
+                        "level": "critical"
+                    })
                 );
             }
             Err(e) => {
-                console_log!("CRITICAL: DB error when fetching link: {:?}", e);
+                console_log!(
+                    "{}",
+                    serde_json::json!({
+                        "event": "admin_link_sync_db_error",
+                        "link_id": link_id,
+                        "error": e.to_string(),
+                        "level": "critical"
+                    })
+                );
             }
         }
     } else {
-        console_log!("Status did NOT match blocked/disabled. No KV update needed.");
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "admin_link_no_kv_update",
+                "link_id": link_id,
+                "status": status,
+                "level": "debug"
+            })
+        );
     }
 
     // Auto-resolve all pending reports for this link if status is being changed to disabled/blocked
@@ -1703,7 +1840,15 @@ pub async fn handle_admin_update_link_status(
         )
         .await
     {
-        console_log!("Failed to resolve reports for link {}: {:?}", link_id, e);
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "reports_resolve_failed",
+                "link_id": link_id,
+                "error": e.to_string(),
+                "level": "error"
+            })
+        );
     }
 
     Response::from_json(&serde_json::json!({
@@ -1785,7 +1930,15 @@ pub async fn handle_admin_block_destination(
         match crate::utils::normalize_url_for_blacklist(&destination) {
             Ok(url) => url,
             Err(e) => {
-                console_log!("Failed to normalize URL '{}': {:?}", destination, e);
+                console_log!(
+                    "{}",
+                    serde_json::json!({
+                        "event": "url_normalize_failed",
+                        "url": destination,
+                        "error": e.to_string(),
+                        "level": "warn"
+                    })
+                );
                 // Fall back to original URL if normalization fails
                 destination.clone()
             }
@@ -1849,7 +2002,15 @@ pub async fn handle_admin_block_destination(
                 )
                 .await
                 {
-                    console_log!("Failed to resolve reports for link {}: {:?}", link.id, e);
+                    console_log!(
+                        "{}",
+                        serde_json::json!({
+                            "event": "reports_resolve_failed",
+                            "link_id": link.id,
+                            "error": e.to_string(),
+                            "level": "error"
+                        })
+                    );
                 }
             }
 
@@ -2137,11 +2298,15 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     {
         Ok(_) => {
             console_log!(
-                "Abuse report stored: link_id={}, reason={}, reporter_user_id={:?}, reporter_email={:?}",
-                actual_link_id,
-                reason,
-                reporter_user_id,
-                reporter_email_opt
+                "{}",
+                serde_json::json!({
+                    "event": "abuse_report_stored",
+                    "link_id": actual_link_id,
+                    "reason": reason,
+                    "reporter_user_id": reporter_user_id,
+                    "reporter_email": reporter_email_opt,
+                    "level": "info"
+                })
             );
 
             Response::from_json(&serde_json::json!({
@@ -2150,7 +2315,14 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             }))
         }
         Err(e) => {
-            console_log!("Failed to store abuse report: {}", e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "abuse_report_failed",
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
             Response::error("Failed to store report. Please try again.", 500)
         }
     }
@@ -2203,7 +2375,14 @@ pub async fn handle_admin_get_reports(req: Request, ctx: RouteContext<()>) -> Re
             }
         })),
         Err(e) => {
-            console_log!("Failed to get reports: {}", e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "reports_fetch_failed",
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
             Response::error("Failed to retrieve reports", 500)
         }
     }
@@ -2278,7 +2457,14 @@ pub async fn handle_admin_update_report(
             "message": "Report status updated successfully"
         })),
         Err(e) => {
-            console_log!("Failed to update report status: {}", e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "report_update_failed",
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
             Response::error("Failed to update report status", 500)
         }
     }
@@ -2305,7 +2491,14 @@ pub async fn handle_admin_get_pending_reports_count(
             "count": count
         })),
         Err(e) => {
-            console_log!("Failed to get pending reports count: {}", e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "reports_count_failed",
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
             Response::error("Failed to get pending reports count", 500)
         }
     }
