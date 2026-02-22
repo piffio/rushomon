@@ -9,11 +9,38 @@
 		link,
 		onDelete,
 		onEdit,
+		onTagClick,
 	}: {
 		link: Link;
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
+		onTagClick?: (tag: string) => void;
 	} = $props();
+
+	const TAG_COLORS = [
+		"bg-blue-100 text-blue-800",
+		"bg-green-100 text-green-800",
+		"bg-purple-100 text-purple-800",
+		"bg-yellow-100 text-yellow-800",
+		"bg-pink-100 text-pink-800",
+		"bg-indigo-100 text-indigo-800",
+		"bg-orange-100 text-orange-800",
+		"bg-teal-100 text-teal-800",
+	];
+
+	function tagColor(tag: string): string {
+		let hash = 0;
+		for (let i = 0; i < tag.length; i++) {
+			hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffffff;
+		}
+		return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+	}
+
+	const MAX_VISIBLE_TAGS = 3;
+	const visibleTags = $derived(link.tags?.slice(0, MAX_VISIBLE_TAGS) ?? []);
+	const hiddenTagCount = $derived(
+		Math.max(0, (link.tags?.length ?? 0) - MAX_VISIBLE_TAGS),
+	);
 
 	const SHORT_LINK_BASE =
 		PUBLIC_VITE_SHORT_LINK_BASE_URL ||
@@ -191,6 +218,31 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Tags Row -->
+	{#if link.tags && link.tags.length > 0}
+		<div class="flex flex-wrap gap-1.5 mt-3 mb-1">
+			{#each visibleTags as tag (tag)}
+				<button
+					type="button"
+					class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-75 {tagColor(
+						tag,
+					)}"
+					onclick={() => onTagClick?.(tag)}
+					title={onTagClick ? `Filter by "${tag}"` : tag}
+				>
+					{tag}
+				</button>
+			{/each}
+			{#if hiddenTagCount > 0}
+				<span
+					class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+				>
+					+{hiddenTagCount} more
+				</span>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Stats Row with Copy Button -->
 	<div

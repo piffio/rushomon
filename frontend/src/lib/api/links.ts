@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Link, CreateLinkRequest, UpdateLinkRequest, PaginatedResponse, LinkAnalyticsResponse } from '$lib/types/api';
+import type { Link, CreateLinkRequest, UpdateLinkRequest, PaginatedResponse, LinkAnalyticsResponse, TagWithCount } from '$lib/types/api';
 
 export const linksApi = {
 	/**
@@ -16,7 +16,8 @@ export const linksApi = {
 		limit: number = 20,
 		search?: string,
 		status?: 'active' | 'disabled',
-		sort?: 'created' | 'updated' | 'clicks' | 'title' | 'code'
+		sort?: 'created' | 'updated' | 'clicks' | 'title' | 'code',
+		tags?: string[]
 	): Promise<PaginatedResponse<Link>> {
 		const params = new URLSearchParams();
 		params.set('page', page.toString());
@@ -29,6 +30,9 @@ export const linksApi = {
 		}
 		if (sort && sort !== 'created') {
 			params.set('sort', sort);
+		}
+		if (tags && tags.length > 0) {
+			params.set('tags', tags.join(','));
 		}
 		return apiClient.get<PaginatedResponse<Link>>(`/api/links?${params.toString()}`);
 	},
@@ -100,5 +104,15 @@ export const linksApi = {
 		if (end !== undefined) params.set('end', end.toString());
 		const query = params.toString();
 		return apiClient.get<LinkAnalyticsResponse>(`/api/links/${id}/analytics${query ? `?${query}` : ''}`);
+	}
+};
+
+export const tagsApi = {
+	/**
+	 * Get all tags for the authenticated org with usage counts
+	 * @returns Array of tags sorted by usage count desc
+	 */
+	async list(): Promise<TagWithCount[]> {
+		return apiClient.get<TagWithCount[]>('/api/tags');
 	}
 };

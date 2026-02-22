@@ -254,7 +254,8 @@ pub async fn get_dashboard_stats(db: &D1Database, org_id: &str) -> Result<Dashbo
     }
 }
 
-/// Get links for an organization with search, filter, and sort options
+/// Get links for an organization with search, filter, sort, and tag filter options
+#[allow(clippy::too_many_arguments)]
 pub async fn get_links_by_org_filtered(
     db: &D1Database,
     org_id: &str,
@@ -263,6 +264,7 @@ pub async fn get_links_by_org_filtered(
     sort: &str,
     limit: i64,
     offset: i64,
+    tags_filter: Option<&[String]>,
 ) -> Result<Vec<Link>> {
     let mut query = String::from(
         "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
@@ -271,13 +273,11 @@ pub async fn get_links_by_org_filtered(
     );
 
     let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![org_id.into()];
-    let mut param_count = 2;
 
     // Add status filter
     if let Some(status) = status_filter {
-        query.push_str(&format!(" AND status = ?{}", param_count));
+        query.push_str(&format!(" AND status = ?{}", params.len() + 1));
         params.push(status.into());
-        param_count += 1;
     } else {
         // Default: show both active and disabled (not blocked)
         query.push_str(" AND status IN ('active', 'disabled')");
@@ -288,14 +288,38 @@ pub async fn get_links_by_org_filtered(
         let term = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
         query.push_str(&format!(
             " AND (LOWER(title) LIKE LOWER(?{}) OR LOWER(short_code) LIKE LOWER(?{}) OR LOWER(destination_url) LIKE LOWER(?{}))",
-            param_count,
-            param_count + 1,
-            param_count + 2
+            params.len() + 1,
+            params.len() + 2,
+            params.len() + 3
         ));
         params.push(term.clone().into());
         params.push(term.clone().into());
         params.push(term.into());
-        param_count += 3;
+    }
+
+    // Add tag filter (OR semantics: link must have ANY of the specified tags)
+    if let Some(tags) = tags_filter {
+        if tags.len() == 1 {
+            // Single tag - simple EXISTS
+            query.push_str(&format!(
+                " AND EXISTS (SELECT 1 FROM link_tags lt WHERE lt.link_id = id AND lt.tag_name = ?{})",
+                params.len() + 1
+            ));
+            params.push(tags[0].as_str().into());
+        } else {
+            // Multiple tags - use IN clause for OR semantics
+            let start_param = params.len() + 1;
+            let placeholders: Vec<String> = (0..tags.len())
+                .map(|i| format!("?{}", start_param + i))
+                .collect();
+            query.push_str(&format!(
+                " AND id IN (SELECT DISTINCT link_id FROM link_tags WHERE tag_name IN ({}))",
+                placeholders.join(", ")
+            ));
+            for tag in tags {
+                params.push(tag.as_str().into());
+            }
+        }
     }
 
     // Add ORDER BY based on sort parameter
@@ -311,8 +335,8 @@ pub async fn get_links_by_org_filtered(
     // Add LIMIT and OFFSET
     query.push_str(&format!(
         " LIMIT ?{} OFFSET ?{}",
-        param_count,
-        param_count + 1
+        params.len() + 1,
+        params.len() + 2
     ));
     params.push((limit as f64).into());
     params.push((offset as f64).into());
@@ -324,23 +348,22 @@ pub async fn get_links_by_org_filtered(
     Ok(links)
 }
 
-/// Get total count of links for an organization with search and status filters
+/// Get total count of links for an organization with search, status, and tag filters
 pub async fn get_links_count_by_org_filtered(
     db: &D1Database,
     org_id: &str,
     search: Option<&str>,
     status_filter: Option<&str>,
+    tags_filter: Option<&[String]>,
 ) -> Result<i64> {
     let mut query = String::from("SELECT COUNT(*) as count FROM links WHERE org_id = ?1");
 
     let mut params: Vec<worker::wasm_bindgen::JsValue> = vec![org_id.into()];
-    let mut param_count = 2;
 
     // Add status filter
     if let Some(status) = status_filter {
-        query.push_str(&format!(" AND status = ?{}", param_count));
+        query.push_str(&format!(" AND status = ?{}", params.len() + 1));
         params.push(status.into());
-        param_count += 1;
     } else {
         // Default: show both active and disabled (not blocked)
         query.push_str(" AND status IN ('active', 'disabled')");
@@ -351,13 +374,38 @@ pub async fn get_links_count_by_org_filtered(
         let term = format!("%{}%", search_term.replace('%', "\\%").replace('_', "\\_"));
         query.push_str(&format!(
             " AND (LOWER(title) LIKE LOWER(?{}) OR LOWER(short_code) LIKE LOWER(?{}) OR LOWER(destination_url) LIKE LOWER(?{}))",
-            param_count,
-            param_count + 1,
-            param_count + 2
+            params.len() + 1,
+            params.len() + 2,
+            params.len() + 3
         ));
         params.push(term.clone().into());
         params.push(term.clone().into());
         params.push(term.into());
+    }
+
+    // Add tag filter (OR semantics)
+    if let Some(tags) = tags_filter {
+        if tags.len() == 1 {
+            // Single tag - simple EXISTS
+            query.push_str(&format!(
+                " AND EXISTS (SELECT 1 FROM link_tags lt WHERE lt.link_id = id AND lt.tag_name = ?{})",
+                params.len() + 1
+            ));
+            params.push(tags[0].as_str().into());
+        } else {
+            // Multiple tags - use IN clause for OR semantics
+            let start_param = params.len() + 1;
+            let placeholders: Vec<String> = (0..tags.len())
+                .map(|i| format!("?{}", start_param + i))
+                .collect();
+            query.push_str(&format!(
+                " AND id IN (SELECT DISTINCT link_id FROM link_tags WHERE tag_name IN ({}))",
+                placeholders.join(", ")
+            ));
+            for tag in tags {
+                params.push(tag.as_str().into());
+            }
+        }
     }
 
     let stmt = db.prepare(&query);
@@ -1626,4 +1674,148 @@ pub async fn is_duplicate_report(
     let count = result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64;
 
     Ok(count > 0)
+}
+
+// ─── Tag queries ─────────────────────────────────────────────────────────────
+
+/// Normalize a tag name: trim whitespace, collapse internal spaces, max 50 chars.
+/// Returns None if the result is empty.
+pub fn normalize_tag(tag: &str) -> Option<String> {
+    let normalized: String = tag.split_whitespace().collect::<Vec<&str>>().join(" ");
+    if normalized.is_empty() || normalized.len() > 50 {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+/// Validate and normalize a list of tags. Returns error string if any tag is invalid.
+pub fn validate_and_normalize_tags(tags: &[String]) -> Result<Vec<String>> {
+    if tags.len() > 20 {
+        return Err(worker::Error::RustError(
+            "Maximum 20 tags per link".to_string(),
+        ));
+    }
+    let mut normalized = Vec::with_capacity(tags.len());
+    for tag in tags {
+        match normalize_tag(tag) {
+            Some(t) => normalized.push(t),
+            None => {
+                return Err(worker::Error::RustError(format!(
+                    "Invalid tag: '{}'. Tags must be non-empty and at most 50 characters.",
+                    tag
+                )));
+            }
+        }
+    }
+    // Deduplicate (case-insensitive)
+    let mut seen = std::collections::HashSet::new();
+    normalized.retain(|t| seen.insert(t.to_lowercase()));
+    Ok(normalized)
+}
+
+/// Get all tags for a single link, sorted alphabetically.
+pub async fn get_tags_for_link(db: &D1Database, link_id: &str) -> Result<Vec<String>> {
+    let stmt =
+        db.prepare("SELECT tag_name FROM link_tags WHERE link_id = ?1 ORDER BY tag_name ASC");
+    let results = stmt.bind(&[link_id.into()])?.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+    let tags = rows
+        .iter()
+        .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
+        .collect();
+    Ok(tags)
+}
+
+/// Get tags for multiple links in a single query. Returns a map of link_id → tags.
+pub async fn get_tags_for_links(
+    db: &D1Database,
+    link_ids: &[String],
+) -> Result<std::collections::HashMap<String, Vec<String>>> {
+    let mut map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    if link_ids.is_empty() {
+        return Ok(map);
+    }
+
+    // Build IN clause: ?1, ?2, ...
+    let placeholders: Vec<String> = (1..=link_ids.len()).map(|i| format!("?{}", i)).collect();
+    let query = format!(
+        "SELECT link_id, tag_name FROM link_tags WHERE link_id IN ({}) ORDER BY link_id, tag_name ASC",
+        placeholders.join(", ")
+    );
+
+    let params: Vec<worker::wasm_bindgen::JsValue> =
+        link_ids.iter().map(|id| id.as_str().into()).collect();
+
+    let stmt = db.prepare(&query);
+    let results = stmt.bind(&params)?.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+
+    for row in &rows {
+        if let (Some(link_id), Some(tag_name)) = (row["link_id"].as_str(), row["tag_name"].as_str())
+        {
+            map.entry(link_id.to_string())
+                .or_default()
+                .push(tag_name.to_string());
+        }
+    }
+    Ok(map)
+}
+
+/// Replace all tags for a link atomically (delete existing, insert new).
+pub async fn set_tags_for_link(
+    db: &D1Database,
+    link_id: &str,
+    org_id: &str,
+    tags: &[String],
+) -> Result<()> {
+    // Delete existing tags
+    let delete_stmt = db.prepare("DELETE FROM link_tags WHERE link_id = ?1");
+    delete_stmt.bind(&[link_id.into()])?.run().await?;
+
+    // Insert new tags
+    for tag in tags {
+        let insert_stmt =
+            db.prepare("INSERT INTO link_tags (link_id, tag_name, org_id) VALUES (?1, ?2, ?3)");
+        insert_stmt
+            .bind(&[link_id.into(), tag.as_str().into(), org_id.into()])?
+            .run()
+            .await?;
+    }
+    Ok(())
+}
+
+/// Delete all tags for a link (called on link deletion).
+pub async fn delete_tags_for_link(db: &D1Database, link_id: &str) -> Result<()> {
+    let stmt = db.prepare("DELETE FROM link_tags WHERE link_id = ?1");
+    stmt.bind(&[link_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Get all tags for an org with usage counts, sorted by count desc then name asc.
+pub async fn get_org_tags(db: &D1Database, org_id: &str) -> Result<Vec<OrgTag>> {
+    let stmt = db.prepare(
+        "SELECT tag_name, COUNT(*) as count
+         FROM link_tags
+         WHERE org_id = ?1
+         GROUP BY tag_name
+         ORDER BY count DESC, tag_name ASC",
+    );
+    let results = stmt.bind(&[org_id.into()])?.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+    let tags = rows
+        .iter()
+        .filter_map(|row| {
+            let name = row["tag_name"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(OrgTag { name, count })
+        })
+        .collect();
+    Ok(tags)
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct OrgTag {
+    pub name: String,
+    pub count: i64,
 }

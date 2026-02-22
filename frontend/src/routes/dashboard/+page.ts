@@ -3,7 +3,10 @@ import { linksApi } from '$lib/api/links';
 import { usageApi } from '$lib/api/usage';
 import type { PaginatedResponse, Link, UsageResponse } from '$lib/types/api';
 
-export const load: PageLoad = async ({ parent, url }) => {
+export const load: PageLoad = async ({ parent, url, depends }) => {
+	// Declare dependency for invalidation
+	depends('app:dashboard');
+
 	// Get user data from layout (now client-side)
 	const parentData = await parent() as { user?: any; };
 	const user = parentData.user;

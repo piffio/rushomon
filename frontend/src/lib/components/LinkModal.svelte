@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { createEventDispatcher } from "svelte";
-	import type { Link, LinkStatus } from "$lib/types/api";
-	import { linksApi } from "$lib/api/links";
+	import { createEventDispatcher, onMount } from "svelte";
+	import type { Link, LinkStatus, TagWithCount } from "$lib/types/api";
+	import { linksApi, tagsApi } from "$lib/api/links";
 	import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
+	import TagInput from "$lib/components/TagInput.svelte";
 
 	interface Props {
 		link?: Link | null;
@@ -25,11 +26,36 @@
 	let title = $state("");
 	let expiresAt = $state("");
 	let status = $state<LinkStatus>("active");
+	let tags = $state<string[]>([]);
 
 	let loading = $state(false);
 	let error = $state("");
 	let isFetchingTitle = $state(false);
 	let hasUserEnteredTitle = $state(false);
+	let availableTags = $state<TagWithCount[]>([]);
+
+	onMount(async () => {
+		try {
+			availableTags = await tagsApi.list();
+		} catch {
+			// Non-critical: autocomplete just won't show suggestions
+		}
+	});
+
+	// Refresh available tags when modal opens
+	$effect(() => {
+		if (isOpen) {
+			refreshAvailableTags();
+		}
+	});
+
+	async function refreshAvailableTags() {
+		try {
+			availableTags = await tagsApi.list();
+		} catch {
+			// Non-critical: autocomplete just won't show suggestions
+		}
+	}
 
 	// Reset form fields
 	function resetForm() {
@@ -38,6 +64,7 @@
 		title = "";
 		expiresAt = "";
 		status = "active";
+		tags = [];
 		error = "";
 		isFetchingTitle = false;
 		hasUserEnteredTitle = false;
@@ -57,6 +84,7 @@
 							.slice(0, 16)
 					: "";
 				status = link.status;
+				tags = [...(link.tags ?? [])];
 				error = "";
 			} else {
 				// Create mode: reset form
@@ -90,6 +118,7 @@
 				expires_at: expiresAt
 					? Math.floor(new Date(expiresAt).getTime() / 1000)
 					: undefined,
+				tags: tags.length > 0 ? tags : [],
 			};
 
 			let savedLink: Link;
@@ -341,6 +370,19 @@
 					<p class="text-xs text-gray-500 mt-1">
 						Leave empty for links that never expire
 					</p>
+				</div>
+
+				<!-- Tags -->
+				<div>
+					<p class="block text-sm font-medium text-gray-700 mb-2">
+						Tags (Optional)
+					</p>
+					<TagInput
+						bind:tags
+						{availableTags}
+						placeholder="Add tags..."
+						disabled={loading}
+					/>
 				</div>
 
 				<!-- Status (Edit mode only) -->
