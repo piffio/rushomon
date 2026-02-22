@@ -42,6 +42,21 @@
 		}
 	});
 
+	// Refresh available tags when modal opens
+	$effect(() => {
+		if (isOpen) {
+			refreshAvailableTags();
+		}
+	});
+
+	async function refreshAvailableTags() {
+		try {
+			availableTags = await tagsApi.list();
+		} catch {
+			// Non-critical: autocomplete just won't show suggestions
+		}
+	}
+
 	// Reset form fields
 	function resetForm() {
 		destinationUrl = "";
