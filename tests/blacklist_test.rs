@@ -32,8 +32,6 @@ async fn test_url_blocking_with_normalization() {
     // Try to create a link with query parameters - should NOT be blocked (different content)
     let create_response2 =
         create_test_link_expect_error("http://example.com?param=value", None).await;
-    println!("Query param test response: {}", create_response2);
-    println!("DEBUG: Testing if 'http://example.com?param=value' is blocked");
     // Query parameters point to potentially different content, so they should NOT be blocked by exact match
     assert!(
         !create_response2.contains("blocked")
