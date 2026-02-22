@@ -186,6 +186,15 @@ jobs:
           name = "rushomon-pr-${{ env.PR_NUMBER }}"
           main = "build/worker/shim.mjs"
           compatibility_date = "2026-02-10"
+          upload_source_maps = true
+
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
 
           [build]
           command = "cargo install -q worker-build && worker-build --release"

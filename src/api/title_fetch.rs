@@ -34,7 +34,15 @@ pub async fn fetch_title(mut req: Request, ctx: RouteContext<()>) -> Result<Resp
             Response::from_json(&response)
         }
         Err(e) => {
-            console_log!("Failed to fetch URL {}: {}", url, e);
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "title_fetch_failed",
+                    "url": url,
+                    "error": e.to_string(),
+                    "level": "warn"
+                })
+            );
             // Return success with null title instead of error, so frontend can handle gracefully
             let response = serde_json::json!({
                 "title": null
