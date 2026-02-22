@@ -74,5 +74,13 @@ jobs:
       - name: Build Worker
         run: worker-build --release
 
+      - name: Create wrangler.toml for tests
+        run: |
+          cp wrangler.example.toml wrangler.toml
+          # Update values for local testing
+          sed -i.bak 's/name = "rushomon"/name = "rushomon-test"/' wrangler.toml
+          sed -i.bak 's/workers_dev = true/workers_dev = true/' wrangler.toml
+          sed -i.bak 's/database_name = "rushomon"/database_name = "rushomon-test"/' wrangler.toml
+
       - name: Run integration tests
         run: ./scripts/run-integration-tests.sh --ci
