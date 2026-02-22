@@ -4,14 +4,17 @@
 	import LinkModal from "$lib/components/LinkModal.svelte";
 	import Pagination from "$lib/components/Pagination.svelte";
 	import SearchFilterBar from "$lib/components/SearchFilterBar.svelte";
-	import { linksApi } from "$lib/api/links";
-	import { goto } from "$app/navigation";
+	import { linksApi, tagsApi } from "$lib/api/links";
+	import { goto, invalidate } from "$app/navigation";
+	import { onMount } from "svelte";
 	import type { PageData } from "./$types";
 	import type {
 		Link,
 		ApiError,
 		PaginationMeta,
 		UsageResponse,
+		TagWithCount,
+		PaginatedResponse,
 	} from "$lib/types/api";
 
 	let { data }: { data: PageData } = $props();
@@ -38,6 +41,20 @@
 	let sort = $state<"created" | "updated" | "clicks" | "title" | "code">(
 		(data as any).initialSort || "created",
 	);
+	let selectedTags = $state<string[]>(
+		(data as any).initialTags
+			? (data as any).initialTags.split(",").filter(Boolean)
+			: [],
+	);
+	let availableTags = $state<TagWithCount[]>([]);
+
+	onMount(async () => {
+		try {
+			availableTags = await tagsApi.list();
+		} catch {
+			// Non-critical
+		}
+	});
 
 	// Initialize links, pagination, and stats from data (runs on mount and when data changes)
 	$effect(() => {
@@ -56,6 +73,7 @@
 		search = d.initialSearch || "";
 		status = d.initialStatus || "all";
 		sort = d.initialSort || "created";
+		// selectedTags is bindable, initialized from props
 	});
 
 	let linksUsagePercent = $derived(
@@ -76,6 +94,17 @@
 					usage.limits.max_links_per_month
 			: false,
 	);
+
+	// Helper to refresh all dashboard data (stats, usage, links)
+	async function refreshDashboardData() {
+		await invalidate("app:dashboard");
+		// Also refresh tags
+		try {
+			availableTags = await tagsApi.list();
+		} catch {
+			// Non-critical
+		}
+	}
 
 	function handleEdit(link: Link) {
 		editingLink = link;
@@ -101,6 +130,9 @@
 				pagination = { ...pagination, total: pagination.total + 1 };
 			}
 		}
+
+		// Refresh all dashboard data to update stats
+		refreshDashboardData();
 	}
 
 	async function handleDelete(id: string) {
@@ -109,6 +141,9 @@
 			await linksApi.delete(id);
 			// Remove from list
 			links = links.filter((link) => link.id !== id);
+
+			// Refresh all dashboard data to update stats
+			refreshDashboardData();
 		} catch (err) {
 			const apiError = err as ApiError;
 			error = apiError.message || "Failed to delete link";
@@ -123,21 +158,15 @@
 		error = "";
 
 		try {
-			// Build URL with all current filters
 			const params = new URLSearchParams();
 			params.set("page", page.toString());
-			if (search.trim()) {
-				params.set("search", search.trim());
-			}
-			if (status !== "all") {
-				params.set("status", status);
-			}
-			if (sort !== "created") {
-				params.set("sort", sort);
-			}
+			if (search.trim()) params.set("search", search.trim());
+			if (status !== "all") params.set("status", status);
+			if (sort !== "created") params.set("sort", sort);
+			if (selectedTags.length > 0)
+				params.set("tags", selectedTags.join(","));
 			const queryString = params.toString();
 
-			// Update URL with new page and filters (enables browser back/forward and shareable URLs)
 			await goto(`/dashboard${queryString ? `?${queryString}` : ""}`, {
 				replaceState: true,
 				keepFocus: true,
@@ -149,6 +178,7 @@
 				search || undefined,
 				status === "all" ? undefined : status,
 				sort,
+				selectedTags.length > 0 ? selectedTags : undefined,
 			);
 			links = paginatedLinks.data;
 			pagination = paginatedLinks.pagination;
@@ -167,37 +197,34 @@
 			search: string;
 			status: "all" | "active" | "disabled";
 			sort: "created" | "updated" | "clicks" | "title" | "code";
+			tags: string[];
 		}>,
 	) {
 		const {
 			search: newSearch,
 			status: newStatus,
 			sort: newSort,
+			tags: newTags,
 		} = event.detail;
 
-		// Reset to page 1 when filters change
 		search = newSearch;
 		status = newStatus;
 		sort = newSort;
+		// selectedTags is bindable, no need to reassign
 		isSearching = true;
 		error = "";
 
 		try {
-			// Build URL with new filters
 			const params = new URLSearchParams();
 			params.set("page", "1");
-			if (search.trim()) {
-				params.set("search", search.trim());
-			}
-			if (status !== "all") {
-				params.set("status", status);
-			}
-			if (sort !== "created") {
-				params.set("sort", sort);
+			if (search.trim()) params.set("search", search.trim());
+			if (status !== "all") params.set("status", status);
+			if (sort !== "created") params.set("sort", sort);
+			if (selectedTags.length > 0) {
+				params.set("tags", selectedTags.join(","));
 			}
 			const queryString = params.toString();
 
-			// Update URL
 			await goto(`/dashboard${queryString ? `?${queryString}` : ""}`, {
 				replaceState: true,
 				keepFocus: true,
@@ -209,6 +236,7 @@
 				search || undefined,
 				status === "all" ? undefined : status,
 				sort,
+				selectedTags.length > 0 ? selectedTags : undefined,
 			);
 			links = paginatedLinks.data;
 			pagination = paginatedLinks.pagination;
@@ -218,6 +246,17 @@
 			error = apiError.message || "Failed to load links";
 		} finally {
 			isSearching = false;
+		}
+	}
+
+	function handleTagClick(tag: string) {
+		if (!selectedTags.includes(tag)) {
+			selectedTags = [...selectedTags, tag];
+			handleFilterChange(
+				new CustomEvent("change", {
+					detail: { search, status, sort, tags: selectedTags },
+				}),
+			);
 		}
 	}
 </script>
@@ -368,6 +407,8 @@
 				bind:search
 				bind:status
 				bind:sort
+				bind:selectedTags
+				{availableTags}
 				resultCount={links.length}
 				totalCount={pagination?.total ?? 0}
 				currentPage={pagination?.page ?? 1}
@@ -381,9 +422,12 @@
 				<LinkList
 					{links}
 					{loading}
-					isFiltered={search.trim() !== "" || status !== "all"}
+					isFiltered={search.trim() !== "" ||
+						status !== "all" ||
+						selectedTags.length > 0}
 					onDelete={handleDelete}
 					onEdit={handleEdit}
+					onTagClick={handleTagClick}
 				/>
 			</div>
 

@@ -27,6 +27,12 @@ export interface Link {
 	expires_at: number | null;
 	status: LinkStatus;
 	click_count: number;
+	tags: string[];
+}
+
+export interface TagWithCount {
+	name: string;
+	count: number;
 }
 
 export interface CreateLinkRequest {
@@ -34,6 +40,7 @@ export interface CreateLinkRequest {
 	short_code?: string;
 	title?: string;
 	expires_at?: number;
+	tags?: string[];
 }
 
 export interface UpdateLinkRequest {
@@ -41,6 +48,7 @@ export interface UpdateLinkRequest {
 	title?: string;
 	expires_at?: number;
 	status?: LinkStatus;
+	tags?: string[];
 }
 
 export interface ApiError {

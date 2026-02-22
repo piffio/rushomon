@@ -268,13 +268,19 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
 
     // Validate that only expected fields are present
-    let expected_fields = ["destination_url", "short_code", "title", "expires_at"];
+    let expected_fields = [
+        "destination_url",
+        "short_code",
+        "title",
+        "expires_at",
+        "tags",
+    ];
     if let Some(obj) = raw_body.as_object() {
         for field_name in obj.keys() {
             if !expected_fields.contains(&field_name.as_str()) {
                 return Response::error(
                     format!(
-                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional)",
+                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional)",
                         field_name
                     ),
                     400,
@@ -346,6 +352,16 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         code
     };
 
+    // Validate and normalize tags if provided
+    let normalized_tags = if let Some(tags) = body.tags {
+        match db::validate_and_normalize_tags(&tags) {
+            Ok(t) => t,
+            Err(e) => return Response::error(e.to_string(), 400),
+        }
+    } else {
+        Vec::new()
+    };
+
     // Create link record
     let link_id = uuid::Uuid::new_v4().to_string();
     let now = now_timestamp();
@@ -362,10 +378,16 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         expires_at: body.expires_at,
         status: LinkStatus::Active,
         click_count: 0,
+        tags: normalized_tags.clone(),
     };
 
     // Store in D1
     db::create_link(&db, &link).await?;
+
+    // Store tags
+    if !normalized_tags.is_empty() {
+        db::set_tags_for_link(&db, &link_id, org_id, &normalized_tags).await?;
+    }
 
     // Store in KV
     let kv = ctx.kv("URL_MAPPINGS")?;
@@ -433,15 +455,48 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
         })
         .unwrap_or("created");
 
+    // Parse tags filter parameter: ?tags=foo,bar (AND semantics)
+    let tags_filter: Vec<String> = query
+        .split('&')
+        .find(|s| s.starts_with("tags="))
+        .and_then(|s| s.split('=').nth(1))
+        .map(|s| {
+            // Replace + with space before decoding (urlencoding crate doesn't handle + correctly)
+            let s_plus_fixed = s.replace('+', " ");
+            urlencoding::decode(&s_plus_fixed)
+                .unwrap_or_default()
+                .into_owned()
+        })
+        .map(|s| {
+            s.split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let tags_filter_opt: Option<&[String]> = if tags_filter.is_empty() {
+        None
+    } else {
+        Some(&tags_filter)
+    };
+
     let offset = (page - 1) * limit;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Get total count, links, and stats using filtered queries
     // D1 doesn't support parallel queries, so we run them sequentially
-    let total =
-        db::get_links_count_by_org_filtered(&db, org_id, search.as_deref(), status_filter).await?;
-    let links = db::get_links_by_org_filtered(
+    let total = db::get_links_count_by_org_filtered(
+        &db,
+        org_id,
+        search.as_deref(),
+        status_filter,
+        tags_filter_opt,
+    )
+    .await?;
+
+    let mut links = db::get_links_by_org_filtered(
         &db,
         org_id,
         search.as_deref(),
@@ -449,9 +504,17 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
         sort,
         limit,
         offset,
+        tags_filter_opt,
     )
     .await?;
     let stats = db::get_dashboard_stats(&db, org_id).await?;
+
+    // Batch-fetch tags for all returned links
+    let link_ids: Vec<String> = links.iter().map(|l| l.id.clone()).collect();
+    let tags_map = db::get_tags_for_links(&db, &link_ids).await?;
+    for link in &mut links {
+        link.tags = tags_map.get(&link.id).cloned().unwrap_or_default();
+    }
 
     // Build pagination metadata
     let pagination = PaginationMeta::new(page, limit, total);
@@ -481,7 +544,10 @@ pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Resp
     let link = db::get_link_by_id(&db, link_id, org_id).await?;
 
     match link {
-        Some(link) => Response::from_json(&link),
+        Some(mut link) => {
+            link.tags = db::get_tags_for_link(&db, &link.id).await?;
+            Response::from_json(&link)
+        }
         None => Response::error("Link not found", 404),
     }
 }
@@ -637,6 +703,9 @@ pub async fn handle_delete_link(req: Request, ctx: RouteContext<()>) -> Result<R
         return Response::error("Link not found", 404);
     };
 
+    // Delete tags first (FK constraint)
+    db::delete_tags_for_link(&db, link_id).await?;
+
     // Hard delete from D1 (frees up short code)
     db::hard_delete_link(&db, link_id, org_id).await?;
 
@@ -705,7 +774,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
 
     // Update in D1
-    let updated_link = db::update_link(
+    let mut updated_link = db::update_link(
         &db,
         &link_id,
         &user_ctx.org_id,
@@ -715,6 +784,18 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         update_req.expires_at,
     )
     .await?;
+
+    // Update tags if provided
+    if let Some(tags) = update_req.tags {
+        let normalized_tags = match db::validate_and_normalize_tags(&tags) {
+            Ok(t) => t,
+            Err(e) => return Response::error(e.to_string(), 400),
+        };
+        db::set_tags_for_link(&db, &link_id, &user_ctx.org_id, &normalized_tags).await?;
+        updated_link.tags = normalized_tags;
+    } else {
+        updated_link.tags = db::get_tags_for_link(&db, &link_id).await?;
+    }
 
     // If destination URL or status changed, update KV mapping
     if update_req.destination_url.is_some() || update_req.status.is_some() {
@@ -962,6 +1043,21 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
     });
 
     Response::from_json(&usage)
+}
+
+/// Handle getting org tags: GET /api/tags
+/// Returns all tags for the authenticated org with usage counts
+pub async fn handle_get_org_tags(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let tags = db::get_org_tags(&db, org_id).await?;
+
+    Response::from_json(&tags)
 }
 
 /// Handle token refresh: POST /api/auth/refresh

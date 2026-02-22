@@ -8,12 +8,14 @@
 		isFiltered = false,
 		onDelete,
 		onEdit,
+		onTagClick,
 	}: {
 		links: Link[];
 		loading?: boolean;
 		isFiltered?: boolean;
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
+		onTagClick?: (tag: string) => void;
 	} = $props();
 </script>
 
@@ -63,7 +65,7 @@
 		<!-- Links Grid -->
 		<div class="space-y-4">
 			{#each links as link (link.id)}
-				<LinkCard {link} {onDelete} {onEdit} />
+				<LinkCard {link} {onDelete} {onEdit} {onTagClick} />
 			{/each}
 		</div>
 	{/if}

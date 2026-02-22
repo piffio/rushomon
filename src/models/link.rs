@@ -34,6 +34,7 @@ pub struct Link {
     pub expires_at: Option<i64>,
     pub status: LinkStatus,
     pub click_count: i64,
+    pub tags: Vec<String>,
 }
 
 impl<'de> Deserialize<'de> for Link {
@@ -78,6 +79,7 @@ impl<'de> Deserialize<'de> for Link {
             expires_at: helper.expires_at,
             status,
             click_count: helper.click_count,
+            tags: Vec::new(), // Populated separately via get_tags_for_links
         })
     }
 }
@@ -98,6 +100,7 @@ pub struct CreateLinkRequest {
     pub short_code: Option<String>,
     pub title: Option<String>,
     pub expires_at: Option<i64>,
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -106,6 +109,7 @@ pub struct UpdateLinkRequest {
     pub title: Option<String>,
     pub status: Option<LinkStatus>,
     pub expires_at: Option<i64>,
+    pub tags: Option<Vec<String>>,
 }
 
 impl Link {
@@ -146,6 +150,7 @@ mod tests {
             expires_at: None, // No expiration
             status: LinkStatus::Active,
             click_count: 0,
+            tags: Vec::new(),
         };
         assert!(!link.is_expired());
     }
@@ -170,6 +175,7 @@ mod tests {
             expires_at: Some(future_timestamp),
             status: LinkStatus::Active,
             click_count: 0,
+            tags: Vec::new(),
         };
         assert!(!link.is_expired());
     }
@@ -190,6 +196,7 @@ mod tests {
             expires_at: Some(past_timestamp),
             status: LinkStatus::Active,
             click_count: 0,
+            tags: Vec::new(),
         };
         assert!(link.is_expired());
     }
@@ -208,6 +215,7 @@ mod tests {
             expires_at: Some(2000000),
             status: LinkStatus::Active,
             click_count: 42,
+            tags: Vec::new(),
         };
 
         let mapping = link.to_mapping();
@@ -232,6 +240,7 @@ mod tests {
             expires_at: None,
             status: LinkStatus::Disabled,
             click_count: 100,
+            tags: Vec::new(),
         };
 
         let mapping = link.to_mapping();
