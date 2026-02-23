@@ -322,15 +322,16 @@ pub async fn get_links_by_org_filtered(
         }
     }
 
-    // Add ORDER BY based on sort parameter
+    // Add ORDER BY based on sort parameter (whitelisted for security)
+    // SECURITY: Only use pre-defined sort clauses, never interpolate user input
     let order_clause = match sort {
-        "clicks" => "ORDER BY click_count DESC",
-        "updated" => "ORDER BY updated_at DESC NULLS LAST",
-        "title" => "ORDER BY title ASC NULLS LAST",
-        "code" => "ORDER BY short_code ASC",
-        _ => "ORDER BY created_at DESC", // Default: created
+        "clicks" => " ORDER BY click_count DESC",
+        "updated" => " ORDER BY updated_at DESC NULLS LAST",
+        "title" => " ORDER BY title ASC NULLS LAST",
+        "code" => " ORDER BY short_code ASC",
+        _ => " ORDER BY created_at DESC", // Default: created
     };
-    query.push_str(&format!(" {}", order_clause));
+    query.push_str(order_clause);
 
     // Add LIMIT and OFFSET
     query.push_str(&format!(
