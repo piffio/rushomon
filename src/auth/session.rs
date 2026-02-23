@@ -408,4 +408,36 @@ mod tests {
         let cookie = create_logout_cookie();
         assert!(cookie.contains("Max-Age=0"));
     }
+
+    #[test]
+    fn test_validate_jwt_secret_accepts_valid_secret() {
+        // 32 characters - minimum valid length
+        let result = validate_jwt_secret("12345678901234567890123456789012");
+        assert!(result.is_ok());
+
+        // Longer secret - should also be valid
+        let result =
+            validate_jwt_secret("this-is-a-very-long-secret-that-is-definitely-secure-enough");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_jwt_secret_rejects_short_secret() {
+        // 31 characters - too short
+        let result = validate_jwt_secret("1234567890123456789012345678901");
+        assert!(result.is_err());
+
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("JWT_SECRET must be at least 32 characters"));
+        assert!(err_msg.contains("got 31"));
+    }
+
+    #[test]
+    fn test_validate_jwt_secret_rejects_empty_secret() {
+        let result = validate_jwt_secret("");
+        assert!(result.is_err());
+
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("JWT_SECRET must be at least 32 characters"));
+    }
 }

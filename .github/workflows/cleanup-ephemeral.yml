@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Extract PR Number
         id: pr_number
@@ -139,7 +139,7 @@ jobs:
 
       - name: Post Cleanup Notification
         if: always()
-        uses: thollander/actions-comment-pull-request@v3.0.1
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           pr-number: ${{ steps.pr_number.outputs.pr_number }}
           message: |

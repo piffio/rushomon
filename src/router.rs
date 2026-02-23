@@ -931,7 +931,7 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
     };
     let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
 
-    auth::oauth::initiate_github_oauth(&kv, &client_id, &redirect_uri, &ctx.env).await
+    auth::oauth::initiate_github_oauth(&req, &kv, &client_id, &redirect_uri, &ctx.env).await
 }
 
 /// Handle OAuth callback: GET /api/auth/callback
@@ -991,7 +991,7 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
 
     // Handle OAuth callback - returns both access and refresh tokens
     let (user, _org, tokens) =
-        match auth::oauth::handle_oauth_callback(code, state, &kv, &db, &ctx.env).await {
+        match auth::oauth::handle_oauth_callback(&req, code, state, &kv, &db, &ctx.env).await {
             Ok(result) => result,
             Err(e) => {
                 // Check if signups are disabled
@@ -2314,14 +2314,28 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     .await
     {
         Ok(_) => {
+            // Hash sensitive fields for logging (privacy protection while maintaining correlation capability)
+            let reporter_user_id_hash = reporter_user_id.as_ref().map(|id| {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(id.as_bytes());
+                format!("{:x}", hasher.finalize())
+            });
+            let reporter_email_hash = reporter_email_opt.as_ref().map(|email| {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(email.as_bytes());
+                format!("{:x}", hasher.finalize())
+            });
+
             console_log!(
                 "{}",
                 serde_json::json!({
                     "event": "abuse_report_stored",
                     "link_id": actual_link_id,
                     "reason": reason,
-                    "reporter_user_id": reporter_user_id,
-                    "reporter_email": reporter_email_opt,
+                    "reporter_user_id_hash": reporter_user_id_hash,
+                    "reporter_email_hash": reporter_email_hash,
                     "level": "info"
                 })
             );

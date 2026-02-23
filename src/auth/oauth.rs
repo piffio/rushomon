@@ -35,10 +35,52 @@ fn get_github_user_url(env: &Env) -> String {
         .unwrap_or_else(|_| DEFAULT_GITHUB_USER_URL.to_string())
 }
 
+/// Generate a request fingerprint for CSRF protection
+///
+/// Creates a hash of request metadata to bind the OAuth state to the original request.
+/// This prevents an attacker from using a state parameter in a different context.
+///
+/// Components:
+/// - User-Agent: Browser/client identifier
+/// - CF-Connecting-IP: Client IP address (Cloudflare header)
+/// - Accept-Language: Browser language preferences
+///
+/// The fingerprint is hashed with SHA-256 to:
+/// 1. Normalize varying lengths
+/// 2. Prevent information disclosure in logs
+/// 3. Protect against timing attacks
+fn generate_request_fingerprint(req: &Request) -> String {
+    use sha2::{Digest, Sha256};
+
+    let headers = req.headers();
+
+    // Collect request metadata (use empty strings for missing headers)
+    let user_agent = headers.get("User-Agent").ok().flatten().unwrap_or_default();
+    let ip = headers
+        .get("CF-Connecting-IP")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let accept_language = headers
+        .get("Accept-Language")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+
+    // Combine components and hash
+    let combined = format!("{}|{}|{}", user_agent, ip, accept_language);
+    let mut hasher = Sha256::new();
+    hasher.update(combined.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OAuthState {
     pub state: String,
     pub created_at: i64,
+    /// Request fingerprint for CSRF protection - binds state to original request context
+    /// Includes: User-Agent hash, CF-Connecting-IP, Accept-Language hash
+    pub fingerprint: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +99,7 @@ pub struct GitHubTokenResponse {
 
 /// Initiates the GitHub OAuth flow
 pub async fn initiate_github_oauth(
+    req: &Request,
     kv: &KvStore,
     client_id: &str,
     redirect_uri: &str,
@@ -66,10 +109,14 @@ pub async fn initiate_github_oauth(
     let state = uuid::Uuid::new_v4().to_string();
     let now = (js_sys::Date::now() / 1000.0) as i64;
 
-    // Store state in KV with TTL
+    // Generate request fingerprint to bind state to original request context
+    let fingerprint = generate_request_fingerprint(req);
+
+    // Store state with fingerprint in KV with TTL
     let state_data = OAuthState {
         state: state.clone(),
         created_at: now,
+        fingerprint,
     };
 
     let key = format!("oauth_state:{}", state);
@@ -107,6 +154,7 @@ pub struct OAuthTokens {
 }
 
 pub async fn handle_oauth_callback(
+    req: &Request,
     code: String,
     state: String,
     kv: &KvStore,
@@ -135,6 +183,15 @@ pub async fn handle_oauth_callback(
     if !crate::utils::secure_compare(&state_data.state, &state) {
         return Err(Error::RustError(
             "Invalid or expired OAuth state".to_string(),
+        ));
+    }
+
+    // Validate request fingerprint matches the original request
+    // This prevents an attacker from using a state parameter in a different context
+    let current_fingerprint = generate_request_fingerprint(req);
+    if !crate::utils::secure_compare(&state_data.fingerprint, &current_fingerprint) {
+        return Err(Error::RustError(
+            "OAuth state validation failed: request context mismatch".to_string(),
         ));
     }
 

@@ -322,15 +322,16 @@ pub async fn get_links_by_org_filtered(
         }
     }
 
-    // Add ORDER BY based on sort parameter
+    // Add ORDER BY based on sort parameter (whitelisted for security)
+    // SECURITY: Only use pre-defined sort clauses, never interpolate user input
     let order_clause = match sort {
-        "clicks" => "ORDER BY click_count DESC",
-        "updated" => "ORDER BY updated_at DESC NULLS LAST",
-        "title" => "ORDER BY title ASC NULLS LAST",
-        "code" => "ORDER BY short_code ASC",
-        _ => "ORDER BY created_at DESC", // Default: created
+        "clicks" => " ORDER BY click_count DESC",
+        "updated" => " ORDER BY updated_at DESC NULLS LAST",
+        "title" => " ORDER BY title ASC NULLS LAST",
+        "code" => " ORDER BY short_code ASC",
+        _ => " ORDER BY created_at DESC", // Default: created
     };
-    query.push_str(&format!(" {}", order_clause));
+    query.push_str(order_clause);
 
     // Add LIMIT and OFFSET
     query.push_str(&format!(
@@ -915,26 +916,43 @@ pub async fn increment_monthly_counter(
 ) -> Result<bool> {
     let now = now_timestamp();
 
-    // First check current count
-    let current_count = get_monthly_counter(db, org_id, year_month).await?;
-    if current_count >= max_links {
-        return Ok(false);
-    }
+    // Atomic approach: Try to insert/update only if under limit
+    // This prevents race conditions where multiple requests could bypass the limit
 
-    // Increment the counter
-    let stmt = db.prepare(
+    // First, ensure the row exists (idempotent operation)
+    let init_stmt = db.prepare(
         "INSERT INTO monthly_counters (org_id, year_month, links_created, updated_at)
-         VALUES (?1, ?2, 1, ?3)
-         ON CONFLICT(org_id, year_month) DO UPDATE SET
-           links_created = links_created + 1,
-           updated_at = ?3",
+         VALUES (?1, ?2, 0, ?3)
+         ON CONFLICT(org_id, year_month) DO NOTHING",
     );
-
-    stmt.bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
+    init_stmt
+        .bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
         .run()
         .await?;
 
-    Ok(true)
+    // Now atomically increment only if below limit
+    // The WHERE clause ensures we only increment if current count < max_links
+    let stmt = db.prepare(
+        "UPDATE monthly_counters
+         SET links_created = links_created + 1, updated_at = ?1
+         WHERE org_id = ?2 AND year_month = ?3 AND links_created < ?4",
+    );
+
+    let result = stmt
+        .bind(&[
+            (now as f64).into(),
+            org_id.into(),
+            year_month.into(),
+            (max_links as f64).into(),
+        ])?
+        .run()
+        .await?;
+
+    // Check if the update actually modified a row
+    // If changes == 0, it means the limit was already reached (WHERE clause prevented update)
+    let changes = result.meta()?.and_then(|m| m.changes).unwrap_or(0);
+
+    Ok(changes > 0)
 }
 
 /// Reset monthly counter for an organization to 0
