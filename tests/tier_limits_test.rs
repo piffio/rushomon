@@ -212,3 +212,218 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         "Failed to reset organization to unlimited tier"
     );
 }
+
+#[tokio::test]
+async fn test_free_tier_cannot_create_custom_short_code() {
+    let client = authenticated_client();
+
+    // Get user info to find organization ID
+    let user_response = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let user: serde_json::Value = user_response.json().await.unwrap();
+    let org_id = user["org_id"]
+        .as_str()
+        .expect("Failed to get organization ID");
+
+    // Set organization to free tier
+    let tier_response = client
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .json(&json!({"tier": "free"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tier_response.status(),
+        200,
+        "Failed to set organization to free tier"
+    );
+
+    // Try to create a link with a custom short code (should fail with 403)
+    // Note: short codes must be alphanumeric only (no hyphens) and 4-10 chars
+    let custom_code = "mycode";
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/free-custom-code-test",
+            "short_code": custom_code,
+            "title": "Free Tier Custom Code Test"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    // Should be blocked with 403
+    assert_eq!(
+        response.status(),
+        StatusCode::FORBIDDEN,
+        "Free tier should not be able to create custom short codes"
+    );
+
+    // Verify error message mentions upgrade
+    let error_text = response.text().await.unwrap();
+    assert!(
+        error_text.contains("Upgrade") || error_text.contains("Unlimited"),
+        "Error message should mention upgrade: {}",
+        error_text
+    );
+
+    println!("Free tier correctly blocked from creating custom short codes");
+
+    // Upgrade to unlimited tier
+    let upgrade_response = client
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .json(&json!({"tier": "unlimited"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        upgrade_response.status(),
+        200,
+        "Failed to upgrade organization to unlimited tier"
+    );
+
+    // Now try to create a link with a custom short code (should succeed)
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/unlimited-custom-code-test",
+            "short_code": custom_code,
+            "title": "Unlimited Tier Custom Code Test"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Unlimited tier should be able to create custom short codes"
+    );
+
+    let link: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(
+        link["short_code"].as_str().unwrap(),
+        custom_code,
+        "Custom short code should be set correctly"
+    );
+
+    let link_id = link["id"].as_str().unwrap().to_string();
+
+    // Clean up
+    let delete_response = client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        delete_response.status(),
+        StatusCode::OK,
+        "Should be able to delete the created link"
+    );
+
+    // Reset organization back to unlimited tier for subsequent tests
+    let reset_response = client
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .json(&json!({"tier": "unlimited"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset organization to unlimited tier"
+    );
+}
+
+#[tokio::test]
+async fn test_usage_api_includes_custom_code_flag() {
+    let client = authenticated_client();
+
+    // Get user info to find organization ID
+    let user_response = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let user: serde_json::Value = user_response.json().await.unwrap();
+    let org_id = user["org_id"]
+        .as_str()
+        .expect("Failed to get organization ID");
+
+    // Test on free tier
+    let tier_response = client
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .json(&json!({"tier": "free"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tier_response.status(),
+        200,
+        "Failed to set organization to free tier"
+    );
+
+    // Get usage info
+    let usage_response = client
+        .get(format!("{}/api/usage", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        usage_response.status(),
+        StatusCode::OK,
+        "Should be able to get usage info"
+    );
+
+    let usage: serde_json::Value = usage_response.json().await.unwrap();
+    assert_eq!(usage["tier"], "free", "Tier should be free");
+    assert_eq!(
+        usage["limits"]["allow_custom_short_code"], false,
+        "Free tier should not allow custom short codes"
+    );
+
+    // Upgrade to unlimited tier
+    let upgrade_response = client
+        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .json(&json!({"tier": "unlimited"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        upgrade_response.status(),
+        200,
+        "Failed to upgrade organization to unlimited tier"
+    );
+
+    // Get usage info again
+    let usage_response = client
+        .get(format!("{}/api/usage", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        usage_response.status(),
+        StatusCode::OK,
+        "Should be able to get usage info after upgrade"
+    );
+
+    let usage: serde_json::Value = usage_response.json().await.unwrap();
+    assert_eq!(usage["tier"], "unlimited", "Tier should be unlimited");
+    assert_eq!(
+        usage["limits"]["allow_custom_short_code"], true,
+        "Unlimited tier should allow custom short codes"
+    );
+}

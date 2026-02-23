@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { createEventDispatcher, onMount } from "svelte";
-	import type { Link, LinkStatus, TagWithCount } from "$lib/types/api";
+	import type {
+		Link,
+		LinkStatus,
+		TagWithCount,
+		UsageResponse,
+	} from "$lib/types/api";
 	import { linksApi, tagsApi } from "$lib/api/links";
 	import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
 	import TagInput from "$lib/components/TagInput.svelte";
@@ -8,14 +13,22 @@
 	interface Props {
 		link?: Link | null;
 		isOpen?: boolean;
+		usage?: UsageResponse | null;
 	}
 
-	let { link = null, isOpen = $bindable(false) }: Props = $props();
+	let {
+		link = null,
+		isOpen = $bindable(false),
+		usage = null,
+	}: Props = $props();
 
 	const dispatch = createEventDispatcher<{ saved: Link }>();
 
-	// Determine mode
+	// Determine mode and tier-based custom code availability
 	const isEditMode = $derived(!!link);
+	const allowCustomShortCode = $derived(
+		usage?.limits?.allow_custom_short_code ?? false,
+	);
 	const modalTitle = $derived(
 		isEditMode ? "Edit Link" : "Create New Short Link",
 	);
@@ -269,25 +282,52 @@
 				<div>
 					<label
 						for="short-code"
-						class="block text-sm font-medium text-gray-700 mb-2"
+						class="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
 					>
 						{#if isEditMode}
 							Short Code (Read-only)
 						{:else}
 							Custom Short Code (Optional)
+							{#if !allowCustomShortCode}
+								<svg
+									class="w-4 h-4 text-gray-400"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+									/>
+								</svg>
+							{/if}
 						{/if}
 					</label>
 					<input
 						id="short-code"
 						type="text"
 						bind:value={shortCode}
-						disabled={isEditMode || loading}
-						placeholder={isEditMode ? "" : "my-link"}
+						disabled={isEditMode ||
+							loading ||
+							!allowCustomShortCode}
+						placeholder={isEditMode
+							? ""
+							: allowCustomShortCode
+								? "my-link"
+								: "Available on Unlimited"}
 						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
 					/>
 					<p class="text-xs text-gray-500 mt-1">
 						{#if isEditMode}
 							Short codes cannot be changed after creation
+						{:else if !allowCustomShortCode}
+							<a
+								href="/pricing"
+								class="text-orange-600 hover:text-orange-700 hover:underline"
+								>Upgrade to Unlimited</a
+							> to use custom short codes
 						{:else}
 							4-10 alphanumeric characters. Leave empty for
 							auto-generated code

@@ -15,6 +15,26 @@ const RESERVED_CODES: &[&str] = &[
     "help",
     "terms",
     "privacy",
+    // Brand and navigation codes
+    "rushomon",
+    "download",
+    "app",
+    "go",
+    "get",
+    "blog",
+    "pricing",
+    "settings",
+    "support",
+    "contact",
+    "link",
+    "links",
+    "signup",
+    "register",
+    "news",
+    "team",
+    "careers",
+    "home",
+    "index",
 ];
 
 /// Validate a destination URL
