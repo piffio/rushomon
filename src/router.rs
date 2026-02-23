@@ -290,26 +290,30 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         .await?
         .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
-    if let Some(tier) = Tier::from_str_value(&org.tier) {
-        let limits = tier.limits();
-        if let Some(max_links) = limits.max_links_per_month {
-            let now = chrono::Utc::now();
-            let year_month = format!("{}-{:02}", now.year(), now.month());
+    // Get tier limits for this org (used for both link limit and custom code checks)
+    let tier = Tier::from_str_value(&org.tier);
+    let limits = tier.as_ref().map(|t| t.limits());
 
-            // Try to increment the counter - this will fail if limit reached
-            let can_create =
-                db::increment_monthly_counter(&db, org_id, &year_month, max_links).await?;
+    // Check link creation limit for this tier
+    if let Some(ref tier_limits) = limits
+        && let Some(max_links) = tier_limits.max_links_per_month
+    {
+        let now = chrono::Utc::now();
+        let year_month = format!("{}-{:02}", now.year(), now.month());
 
-            if !can_create {
-                let current_count = db::get_monthly_counter(&db, org_id, &year_month).await?;
-                let remaining = max_links - current_count;
-                let message = if remaining > 0 {
-                    format!("You can create {} more short links this month.", remaining)
-                } else {
-                    "You have reached your monthly link limit. Upgrade your plan to create more links.".to_string()
-                };
-                return Response::error(message, 403);
-            }
+        // Try to increment the counter - this will fail if limit reached
+        let can_create = db::increment_monthly_counter(&db, org_id, &year_month, max_links).await?;
+
+        if !can_create {
+            let current_count = db::get_monthly_counter(&db, org_id, &year_month).await?;
+            let remaining = max_links - current_count;
+            let message = if remaining > 0 {
+                format!("You can create {} more short links this month.", remaining)
+            } else {
+                "You have reached your monthly link limit. Upgrade your plan to create more links."
+                    .to_string()
+            };
+            return Response::error(message, 403);
         }
     }
 
@@ -371,6 +375,18 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         && title.len() > 200
     {
         return Response::error("Title must be 200 characters or less", 400);
+    }
+
+    // Check if custom short code is allowed for this tier
+    let allow_custom = limits
+        .as_ref()
+        .map(|l| l.allow_custom_short_code)
+        .unwrap_or(false);
+    if body.short_code.is_some() && !allow_custom {
+        return Response::error(
+            "Custom short codes are not available on the free tier. Upgrade to Unlimited.",
+            403,
+        );
     }
 
     // Generate or validate short code
@@ -1122,6 +1138,7 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
         "limits": {
             "max_links_per_month": limits.max_links_per_month,
             "analytics_retention_days": limits.analytics_retention_days,
+            "allow_custom_short_code": limits.allow_custom_short_code,
         },
         "usage": {
             "links_created_this_month": links_created_this_month,

@@ -20,6 +20,12 @@
 
 set -e  # Exit on any error
 
+# Ensure wrangler.toml exists (copy from example if missing)
+if [ ! -f "wrangler.toml" ] && [ -f "wrangler.example.toml" ]; then
+    echo "📄 Creating wrangler.toml from wrangler.example.toml..."
+    cp wrangler.example.toml wrangler.toml
+fi
+
 # Configuration
 DB_NAME="rushomon"
 KV_NAMESPACE="URL_MAPPINGS"

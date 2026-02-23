@@ -29,10 +29,12 @@ impl Tier {
             Tier::Free => TierLimits {
                 max_links_per_month: Some(15),
                 analytics_retention_days: Some(7),
+                allow_custom_short_code: false,
             },
             Tier::Unlimited => TierLimits {
                 max_links_per_month: None,
                 analytics_retention_days: None,
+                allow_custom_short_code: true,
             },
         }
     }
@@ -52,6 +54,8 @@ pub struct TierLimits {
     /// Analytics data retention in days. None = unlimited.
     /// Enforced at the API level (data is kept, but filtered by date window).
     pub analytics_retention_days: Option<i64>,
+    /// Whether custom short codes are allowed for this tier.
+    pub allow_custom_short_code: bool,
 }
 
 #[cfg(test)]

@@ -447,6 +447,7 @@
 			<LinkModal
 				link={editingLink}
 				bind:isOpen={isModalOpen}
+				{usage}
 				on:saved={handleLinkSaved}
 			/>
 		</main>

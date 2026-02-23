@@ -5,6 +5,12 @@
 
 set -e
 
+# Ensure wrangler.toml exists (copy from example if missing)
+if [ ! -f "wrangler.toml" ] && [ -f "wrangler.example.toml" ]; then
+    echo "📄 Creating wrangler.toml from wrangler.example.toml..."
+    cp wrangler.example.toml wrangler.toml
+fi
+
 echo "🧹 Clearing local D1 database and KV namespace..."
 
 # Clear local miniflare state (both D1 and KV)
