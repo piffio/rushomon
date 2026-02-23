@@ -3,4 +3,4 @@ pub mod oauth;
 pub mod session;
 
 pub use middleware::{AuthError, authenticate_request, require_admin};
-pub use session::create_jwt;
+pub use session::{create_jwt, validate_jwt_secret};

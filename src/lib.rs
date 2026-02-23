@@ -171,6 +171,11 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
     // Set up panic hook for better error messages
     console_error_panic_hook::set_once();
 
+    // Validate JWT secret at startup - fail fast if misconfigured
+    // This prevents production deployment with weak secrets
+    let jwt_secret = env.secret("JWT_SECRET")?.to_string();
+    auth::validate_jwt_secret(&jwt_secret)?;
+
     // Extract origin and URL scheme for CORS and security headers (before router consumes request)
     let origin = req.headers().get("Origin").ok().flatten();
     let is_https = req.url().map(|u| u.scheme() == "https").unwrap_or(false);
