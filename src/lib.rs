@@ -304,9 +304,12 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/reports/links", handle_cors_preflight)
         .options_async("/api/tags", handle_cors_preflight)
         .options_async("/api/fetch-title", handle_cors_preflight)
+        .options_async("/api/version", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
+        // Version endpoint (public)
+        .get_async("/api/version", crate::api::version::handle_version)
         // API routes - authentication required
         .get_async("/api/auth/me", router::handle_get_current_user)
         .post_async("/api/auth/refresh", router::handle_token_refresh)
