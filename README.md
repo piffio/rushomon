@@ -47,6 +47,14 @@ Rushomon can be used in two ways:
 
 2. **Managed service**: Use the public instance at https://rushomon.cc. It's currently in beta and you can sign up to try the free tier via GitHub OAuth. Paid tiers will be made available in the near future. Signing up for a Rushomon subscription is the best way to support the open-source development of this project.
 
+## Version Management
+
+Rushomon uses a robust versioning system with `Cargo.toml` as the single source of truth. See [docs/VERSIONING.md](./docs/VERSIONING.md) for complete version management instructions using the provided Makefile targets.
+
+For self-hosted users:
+- **Stable releases**: Use version tags (e.g., `git checkout v0.1.0`)
+- **Latest features**: Pull from `main` branch (e.g., `git pull origin main`)
+
 
 ## Tech Stack
 

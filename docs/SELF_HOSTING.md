@@ -517,10 +517,34 @@ As an admin, you can:
 
 To update to a newer version of Rushomon:
 
-```bash
-# Pull latest changes
-git pull origin main
+### Option A: Stable Releases (Recommended)
 
+For production deployments, use version tags for stable releases:
+
+```bash
+# Check available versions
+git tag --list 'v*'
+
+# Checkout a specific stable version
+git checkout v0.1.0
+
+# Then follow the build and deploy steps below
+```
+
+### Option B: Latest Features
+
+For development or to get the latest features:
+
+```bash
+# Pull latest changes from main branch
+git pull origin main
+```
+
+### Build and Deploy
+
+After checking out your desired version:
+
+```bash
 # Rebuild frontend
 cd frontend
 npm ci
@@ -538,6 +562,17 @@ wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
 # Deploy unified Worker (includes both frontend and backend)
 wrangler deploy -c wrangler.production.toml
 ```
+
+### Verify Version
+
+After updating, verify your version:
+
+```bash
+# Check the API version endpoint
+curl https://api.myapp.com/api/version
+```
+
+This returns version information including the current version, build timestamp, and git commit.
 
 > **Note**: Because frontend assets are included in the Worker deployment, you only need one `wrangler deploy` command.
 
