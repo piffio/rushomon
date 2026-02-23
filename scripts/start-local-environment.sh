@@ -2,6 +2,12 @@
 
 set -e
 
+# Ensure wrangler.toml exists (copy from example if missing)
+if [ ! -f "wrangler.toml" ] && [ -f "wrangler.example.toml" ]; then
+    echo "📄 Creating wrangler.toml from wrangler.example.toml..."
+    cp wrangler.example.toml wrangler.toml
+fi
+
 echo "🚀 Starting Rushomon with GitHub OAuth..."
 echo "📍 Backend URL: http://localhost:8787"
 echo "📍 Frontend URL: http://localhost:5173"
