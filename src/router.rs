@@ -931,7 +931,7 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
     };
     let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
 
-    auth::oauth::initiate_github_oauth(&kv, &client_id, &redirect_uri, &ctx.env).await
+    auth::oauth::initiate_github_oauth(&req, &kv, &client_id, &redirect_uri, &ctx.env).await
 }
 
 /// Handle OAuth callback: GET /api/auth/callback
@@ -991,7 +991,7 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
 
     // Handle OAuth callback - returns both access and refresh tokens
     let (user, _org, tokens) =
-        match auth::oauth::handle_oauth_callback(code, state, &kv, &db, &ctx.env).await {
+        match auth::oauth::handle_oauth_callback(&req, code, state, &kv, &db, &ctx.env).await {
             Ok(result) => result,
             Err(e) => {
                 // Check if signups are disabled
