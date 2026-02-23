@@ -2314,14 +2314,28 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     .await
     {
         Ok(_) => {
+            // Hash sensitive fields for logging (privacy protection while maintaining correlation capability)
+            let reporter_user_id_hash = reporter_user_id.as_ref().map(|id| {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(id.as_bytes());
+                format!("{:x}", hasher.finalize())
+            });
+            let reporter_email_hash = reporter_email_opt.as_ref().map(|email| {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(email.as_bytes());
+                format!("{:x}", hasher.finalize())
+            });
+
             console_log!(
                 "{}",
                 serde_json::json!({
                     "event": "abuse_report_stored",
                     "link_id": actual_link_id,
                     "reason": reason,
-                    "reporter_user_id": reporter_user_id,
-                    "reporter_email": reporter_email_opt,
+                    "reporter_user_id_hash": reporter_user_id_hash,
+                    "reporter_email_hash": reporter_email_hash,
                     "level": "info"
                 })
             );
