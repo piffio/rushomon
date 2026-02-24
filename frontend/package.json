@@ -4,7 +4,7 @@
     "ua-parser-js": "^1.0.41"
   },
   "devDependencies": {
-    "@sveltejs/adapter-auto": "^7.0.0",
+    "@sveltejs/adapter-auto": "^7.0.1",
     "@sveltejs/adapter-cloudflare": "^7.2.6",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.53.0",
