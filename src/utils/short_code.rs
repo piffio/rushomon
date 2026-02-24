@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 
 const BASE62_CHARS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const SHORT_CODE_LENGTH: usize = 6;
