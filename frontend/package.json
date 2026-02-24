@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "chart.js": "^4.5.1",
-    "ua-parser-js": "^1.0.41"
+    "ua-parser-js": "^2.0.9"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^7.0.1",
