@@ -23,7 +23,7 @@
 		BarController,
 		BarElement,
 	} from "chart.js";
-	import UAParser from "ua-parser-js";
+	import { UAParser } from "ua-parser-js";
 
 	Chart.register(
 		LineController,
