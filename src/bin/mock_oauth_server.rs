@@ -25,6 +25,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -131,9 +132,21 @@ async fn github_user() -> impl IntoResponse {
         avatar_url: Some("https://avatars.githubusercontent.com/u/0".to_string()),
     };
 
+    // Hash sensitive information for logging
+    let user_id_hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(user.id.to_string().as_bytes());
+        format!("{:x}", hasher.finalize())
+    };
+    let user_login_hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(user.login.as_bytes());
+        format!("{:x}", hasher.finalize())
+    };
+
     println!(
-        "[Mock OAuth/GitHub] Returning user: id={}, login={}",
-        user.id, user.login
+        "[Mock OAuth/GitHub] Returning user: id_hash={}, login_hash={}",
+        user_id_hash, user_login_hash
     );
 
     Json(user)
@@ -226,9 +239,21 @@ async fn google_user() -> impl IntoResponse {
         picture: Some("https://lh3.googleusercontent.com/photo.jpg".to_string()),
     };
 
+    // Hash sensitive information for logging
+    let user_sub_hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(user.sub.as_bytes());
+        format!("{:x}", hasher.finalize())
+    };
+    let user_email_hash = user.email.as_ref().map(|email| {
+        let mut hasher = Sha256::new();
+        hasher.update(email.as_bytes());
+        format!("{:x}", hasher.finalize())
+    });
+
     println!(
-        "[Mock OAuth/Google] Returning user: sub={}, email={:?}",
-        user.sub, user.email
+        "[Mock OAuth/Google] Returning user: sub_hash={}, email_hash={:?}",
+        user_sub_hash, user_email_hash
     );
 
     Json(user)
