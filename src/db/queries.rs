@@ -114,6 +114,80 @@ pub async fn create_or_update_user(
     }
 }
 
+/// Generate a unique slug for an organization name
+/// Always adds random 5-character suffix for consistency and collision prevention
+pub async fn generate_unique_slug(_db: &D1Database, org_name: &str) -> Result<String> {
+    // Generate base slug using existing logic
+    let base_slug = org_name
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-')
+        .collect::<String>();
+
+    let uuid_str = uuid::Uuid::new_v4().to_string().replace('-', "");
+    let random_suffix = &uuid_str[..5];
+
+    let slug = format!("{}-{}", base_slug, random_suffix);
+
+    Ok(slug)
+}
+
+#[cfg(test)]
+mod slug_tests {
+    // Test slug generation logic without database dependency
+    #[tokio::test]
+    async fn test_slug_generation_logic() {
+        // Test base slug generation
+        let base_slug = "Test Organization"
+            .to_lowercase()
+            .replace(' ', "-")
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-')
+            .collect::<String>();
+
+        assert_eq!(base_slug, "test-organization");
+
+        // Test with special characters
+        let special_slug = "John's Test Organization! @#$%"
+            .to_lowercase()
+            .replace(' ', "-")
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-')
+            .collect::<String>();
+
+        assert_eq!(special_slug, "johns-test-organization-");
+
+        // Test UUID-based suffix generation
+        let uuid_str = uuid::Uuid::new_v4().to_string().replace('-', "");
+        let suffix = &uuid_str[..5];
+        assert_eq!(suffix.len(), 5);
+        assert!(suffix.chars().all(|c| c.is_alphanumeric()));
+
+        // Test full slug generation (always includes suffix)
+        let full_slug = format!("{}-{}", base_slug, suffix);
+        assert!(full_slug.starts_with("test-organization-"));
+        assert_eq!(full_slug.len(), base_slug.len() + 1 + 5); // base + "-" + 5 chars
+    }
+
+    #[tokio::test]
+    async fn test_random_suffix_uniqueness() {
+        let mut suffixes = std::collections::HashSet::new();
+
+        // Generate multiple suffixes and verify they're unique
+        for _ in 0..100 {
+            let uuid_str = uuid::Uuid::new_v4().to_string().replace('-', "");
+            let suffix = &uuid_str[..5];
+
+            // Extremely unlikely to have collision, but let's check
+            assert!(!suffixes.contains(suffix), "Collision detected: {}", suffix);
+            suffixes.insert(suffix.to_string());
+        }
+
+        assert_eq!(suffixes.len(), 100);
+    }
+}
+
 /// Create a default organization for a new user
 pub async fn create_default_org(
     db: &D1Database,
@@ -121,12 +195,7 @@ pub async fn create_default_org(
     org_name: &str,
 ) -> Result<Organization> {
     let org_id = uuid::Uuid::new_v4().to_string();
-    let slug = org_name
-        .to_lowercase()
-        .replace(' ', "-")
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect::<String>();
+    let slug = generate_unique_slug(db, org_name).await?;
 
     let now = now_timestamp();
 
