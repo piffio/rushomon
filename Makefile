@@ -5,7 +5,7 @@ CURRENT_VERSION := $(shell grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'
 
 # Function to get current version from Cargo.toml (evaluated at runtime)
 define get-version
-	$(shell grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2)
+$(shell grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2)
 endef
 
 # Version bump targets
