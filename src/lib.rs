@@ -139,7 +139,11 @@ fn add_security_headers(mut response: Response, is_https: bool) -> Response {
 }
 
 /// Add CORS headers to a response based on the request origin
-fn add_cors_headers(mut response: Response, origin: Option<String>, env: &Env) -> Response {
+pub(crate) fn add_cors_headers(
+    mut response: Response,
+    origin: Option<String>,
+    env: &Env,
+) -> Response {
     if let Some(origin_value) = origin
         && is_allowed_origin(&origin_value, env)
     {
@@ -240,7 +244,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard" | "auth" | "settings" | "admin" | "404"
+                    "dashboard" | "auth" | "settings" | "admin" | "404" | "login"
                 )
             {
                 return Response::error("Not found", 404);
@@ -264,7 +268,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard" | "auth" | "settings" | "admin" | "404"
+                    "dashboard" | "auth" | "settings" | "admin" | "404" | "login"
                 )
             {
                 return Response::error("Not found", 404);
@@ -277,7 +281,9 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             Ok(result.response)
         })
         // CORS preflight handlers for API routes
+        .options_async("/api/auth/providers", handle_cors_preflight)
         .options_async("/api/auth/github", handle_cors_preflight)
+        .options_async("/api/auth/google", handle_cors_preflight)
         .options_async("/api/auth/callback", handle_cors_preflight)
         .options_async("/api/auth/me", handle_cors_preflight)
         .options_async("/api/auth/refresh", handle_cors_preflight)
@@ -306,7 +312,9 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/fetch-title", handle_cors_preflight)
         .options_async("/api/version", handle_cors_preflight)
         // Auth routes (public)
+        .get_async("/api/auth/providers", router::handle_list_auth_providers)
         .get_async("/api/auth/github", router::handle_github_login)
+        .get_async("/api/auth/google", router::handle_google_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
         // Version endpoint (public)
         .get_async("/api/version", crate::api::version::handle_version)

@@ -104,6 +104,13 @@
 					</li>
 					<li>
 						<a
+							href="/privacy"
+							class="text-gray-600 hover:text-orange-600 transition-colors"
+							>Privacy Policy</a
+						>
+					</li>
+					<li>
+						<a
 							href="/terms#abuse-policy"
 							class="text-gray-600 hover:text-orange-600 transition-colors"
 							>Abuse Policy</a

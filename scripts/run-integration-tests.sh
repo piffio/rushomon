@@ -114,12 +114,17 @@ fi
 
 cat > .dev.vars << EOF
 JWT_SECRET=${JWT_SECRET}
-GITHUB_CLIENT_ID=test-client-id
-GITHUB_CLIENT_SECRET=test-client-secret
+GITHUB_CLIENT_ID=test-github-client-id
+GITHUB_CLIENT_SECRET=test-github-client-secret
 DOMAIN=localhost:${WORKER_PORT}
-GITHUB_AUTHORIZE_URL=${MOCK_OAUTH_URL}/login/oauth/authorize
-GITHUB_TOKEN_URL=${MOCK_OAUTH_URL}/login/oauth/access_token
-GITHUB_USER_URL=${MOCK_OAUTH_URL}/api/user
+GITHUB_AUTHORIZE_URL=${MOCK_OAUTH_URL}/github/login/oauth/authorize
+GITHUB_TOKEN_URL=${MOCK_OAUTH_URL}/github/login/oauth/access_token
+GITHUB_USER_URL=${MOCK_OAUTH_URL}/github/api/user
+GOOGLE_CLIENT_ID=test-google-client-id
+GOOGLE_CLIENT_SECRET=test-google-client-secret
+GOOGLE_AUTHORIZE_URL=${MOCK_OAUTH_URL}/google/o/oauth2/v2/auth
+GOOGLE_TOKEN_URL=${MOCK_OAUTH_URL}/google/token
+GOOGLE_USER_URL=${MOCK_OAUTH_URL}/google/openidconnect/v1/userinfo
 EOF
 
 # Step 4: Apply D1 migrations
@@ -197,7 +202,7 @@ echo "  → OAuth state: ${STATE:0:20}..."
 
 # Call the mock OAuth authorize endpoint (it will redirect back with a code)
 # We just need to construct the callback URL ourselves
-MOCK_CODE="mock-auth-code-${STATE}"
+MOCK_CODE="mock-gh-code-${STATE}"
 CALLBACK_URL="${BASE_URL}/api/auth/callback?code=${MOCK_CODE}&state=${STATE}"
 
 echo "  → Calling callback with mock code..."

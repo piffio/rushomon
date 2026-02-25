@@ -15,11 +15,23 @@
 # 3. Never share your .dev.vars file or commit it to git
 #
 
+# ─── OAuth Providers ─────────────────────────────────────────────────────────
+# Only providers with a CLIENT_ID set will appear on the login page.
+# You can enable one or both providers.
+
 # GitHub OAuth Configuration
-# Create a separate OAuth app for development at: https://github.com/settings/developers
-# Use callback URL: http://localhost:8787/api/auth/callback
+# Create a GitHub OAuth app at: https://github.com/settings/developers
+# Callback URL: http://localhost:8787/api/auth/callback
 GITHUB_CLIENT_ID=your-dev-github-client-id-here
 GITHUB_CLIENT_SECRET=your-dev-github-client-secret-here
+
+# Google OAuth Configuration (optional)
+# Create a Google OAuth client at: https://console.cloud.google.com/apis/credentials
+# Application type: Web application
+# Authorised redirect URI: http://localhost:8787/api/auth/callback
+# Required scopes: openid email profile
+GOOGLE_CLIENT_ID=your-dev-google-client-id-here
+GOOGLE_CLIENT_SECRET=your-dev-google-client-secret-here
 
 # JWT Secret for Token Signing
 # Generate a secure random string (minimum 32 characters):

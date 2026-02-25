@@ -11,7 +11,7 @@ Step-by-step guide to deploy your own Rushomon URL shortener instance on Cloudfl
 - **worker-build** — `cargo install worker-build`
 - **Node.js 20+** — For frontend build. I recommend using [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions.
 - **Wrangler CLI** — `npm install -g wrangler`
-- **GitHub account** — For OAuth authentication
+- **GitHub or Google account** — For OAuth authentication (at least one provider must be configured)
 
 ## Architecture Overview
 
@@ -90,29 +90,50 @@ Find your Account ID in the Cloudflare dashboard: click on any zone → **Overvi
 
 ---
 
-## Step 3: Create GitHub OAuth App
+## Step 3: Configure OAuth Providers
 
 🔒 **SECURITY NOTE**: Create separate OAuth apps for development and production environments. Never reuse development credentials in production.
 
-Rushomon uses GitHub OAuth for authentication. You need to create an OAuth App:
+Rushomon supports multiple OAuth providers. A provider is only shown to users if its `CLIENT_ID` environment variable is set. You can enable one or both.
+
+**Both providers use the same callback URL**: `https://api.myapp.com/api/auth/callback`
+
+### 3a: GitHub OAuth App
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Click **OAuth Apps** → **New OAuth App**
 3. Fill in:
    - **Application name**: `Rushomon` (or your preferred name)
    - **Homepage URL**: `https://myapp.com` (your main web domain)
-   - **Authorization callback URL**: `https://api.myapp.com/api/auth/callback` (your API domain/subdomain)
+   - **Authorization callback URL**: `https://api.myapp.com/api/auth/callback`
 4. Click **Register application**
 5. Save the **Client ID**
 6. Click **Generate a new client secret** and save the **Client Secret**
 
-> **Important**:
-> - The callback URL must point to where your API endpoints are served
->   - If using subdomain: `https://api.myapp.com/api/auth/callback`
->   - If using single domain: `https://myapp.com/api/auth/callback`
+### 3b: Google OAuth App (optional)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Select or create a project
+3. Click **Create Credentials** → **OAuth client ID**
+4. If prompted, configure the **OAuth consent screen** first:
+   - User type: **External** (for public instances) or **Internal** (for G Suite/Workspace)
+   - Add scopes: `openid`, `email`, `profile`
+   - Add your domain to **Authorised domains**
+5. Back in **Create OAuth client ID**:
+   - Application type: **Web application**
+   - Name: `Rushomon`
+   - **Authorised redirect URIs**: `https://api.myapp.com/api/auth/callback`
+6. Click **Create** and save the **Client ID** and **Client Secret**
+
+> **Google-specific notes**:
+> - For development, add `http://localhost:8787/api/auth/callback` as an additional redirect URI
+> - Google requires your app to be verified for production use with external users; internal (Workspace) apps do not require verification
+> - If you see `Error 400: redirect_uri_mismatch`, double-check the redirect URI matches exactly (no trailing slash)
+
+> **Applies to both providers**:
 > - The callback URL must match the `DOMAIN` variable in your Worker configuration
 > - Never commit OAuth secrets to version control
-> - Use different OAuth apps for development (`http://localhost:8787/api/auth/callback`) and production
+> - Use different OAuth apps for development and production
 > - Store production secrets via `wrangler secret put` (see Step 5)
 
 ---
@@ -162,10 +183,18 @@ not_found_handling = "none"
 
 # Environment variables
 [vars]
+# GitHub OAuth (omit GITHUB_CLIENT_ID to disable GitHub login)
 GITHUB_CLIENT_ID = "YOUR_GITHUB_CLIENT_ID"
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
+
+# Google OAuth (omit GOOGLE_CLIENT_ID to disable Google login)
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+
 DOMAIN = "api.myapp.com"  # Where OAuth callbacks go (your API domain)
 FRONTEND_URL = "https://myapp.com"  # Main web interface URL
 ALLOWED_ORIGINS = "https://myapp.com,https://api.myapp.com"  # CORS allowed origins
@@ -177,7 +206,8 @@ ENABLE_KV_RATE_LIMITING = "false"
 Replace the placeholder values:
 - `YOUR_D1_DATABASE_ID` — from Step 2
 - `YOUR_KV_NAMESPACE_ID` — from Step 2
-- `YOUR_GITHUB_CLIENT_ID` — from Step 3
+- `YOUR_GITHUB_CLIENT_ID` — from Step 3a (omit key entirely to disable GitHub login)
+- `YOUR_GOOGLE_CLIENT_ID` — from Step 3b (omit key entirely to disable Google login)
 - `api.myapp.com` — your API domain/subdomain (must match OAuth callback URL)
 - `myapp.com` — your main web domain
 - Adjust `ALLOWED_ORIGINS` to match your domain setup
@@ -193,8 +223,11 @@ The configuration file (`wrangler.toml`) should already be created from Step 4. 
 Set these secrets in your Cloudflare account:
 
 ```bash
-# GitHub OAuth client secret (from Step 3)
+# GitHub OAuth client secret (from Step 3a) — skip if not using GitHub
 wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.toml
+
+# Google OAuth client secret (from Step 3b) — skip if not using Google
+wrangler secret put GOOGLE_CLIENT_SECRET -c wrangler.toml
 
 # JWT signing secret (MUST be at least 32 characters)
 # Generate a secure random string:
@@ -587,10 +620,22 @@ This returns version information including the current version, build timestamp,
 - Check that custom domains are correctly attached in Workers dashboard
 
 ### OAuth callback fails with "redirect_uri_mismatch"
-- Verify the callback URL in your GitHub OAuth App matches exactly: `https://YOUR_API_DOMAIN/api/auth/callback`
+- Verify the callback URL in your GitHub or Google OAuth App matches exactly: `https://YOUR_API_DOMAIN/api/auth/callback`
 - Ensure `DOMAIN` in wrangler.toml matches your API domain (no `https://` prefix, no trailing slash)
 - Check for hidden characters (tabs, newlines) in the `DOMAIN` value when setting it
 - The `DOMAIN` must match the domain where `/api/auth/callback` is served
+- For Google: the redirect URI must be listed under **Authorised redirect URIs** in the Google Cloud Console (not just the consent screen)
+
+### Google OAuth shows "access_denied"
+- Check the OAuth consent screen configuration in Google Cloud Console
+- If in "Testing" mode, only listed test users can sign in — publish the app or add the user to the test list
+- Ensure the `email` and `profile` scopes are included in the consent screen
+- Verify the Google account has a verified email address
+
+### Login page shows no providers
+- Ensure at least one provider's `CLIENT_ID` variable is set in your `wrangler.toml` `[vars]` section
+- Check that the corresponding secret (`GITHUB_CLIENT_SECRET` or `GOOGLE_CLIENT_SECRET`) is also set via `wrangler secret put`
+- Verify the Worker was redeployed after adding variables
 
 ### CORS errors in browser console
 - Ensure `ALLOWED_ORIGINS` in wrangler.toml includes all domains that need API access

@@ -876,6 +876,37 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     Response::from_json(&updated_link)
 }
 
+/// Returns the list of enabled OAuth providers: GET /api/auth/providers
+pub async fn handle_list_auth_providers(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    use serde_json::json;
+
+    let env = &ctx.env;
+    let mut providers = Vec::new();
+
+    if auth::providers::GITHUB.is_enabled(env) {
+        providers.push(json!({ "name": "github", "label": "GitHub" }));
+    }
+    if auth::providers::GOOGLE.is_enabled(env) {
+        providers.push(json!({ "name": "google", "label": "Google" }));
+    }
+
+    let origin = req.headers().get("Origin").ok().flatten();
+    let response = Response::from_json(&json!({ "providers": providers }))?;
+    Ok(crate::add_cors_headers(response, origin, env))
+}
+
+/// Shared rate-limit + redirect_uri setup for OAuth initiation handlers
+fn oauth_redirect_uri(ctx: &RouteContext<()>) -> Result<(String, String)> {
+    let domain = ctx.env.var("DOMAIN")?.to_string();
+    let scheme = if domain.starts_with("localhost") {
+        "http"
+    } else {
+        "https"
+    };
+    let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
+    Ok((scheme.to_string(), redirect_uri))
+}
+
 /// Handle GitHub OAuth initiation: GET /api/auth/github
 pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
@@ -920,18 +951,63 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
         return Ok(response);
     }
 
-    let client_id = ctx.env.var("GITHUB_CLIENT_ID")?.to_string();
-    let domain = ctx.env.var("DOMAIN")?.to_string();
+    if !auth::providers::GITHUB.is_enabled(&ctx.env) {
+        return Response::error("GitHub OAuth is not configured", 404);
+    }
 
-    // Use http for localhost, https for production (consistent with callback handling)
-    let scheme = if domain.starts_with("localhost") {
-        "http"
-    } else {
-        "https"
-    };
-    let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
+    let (_, redirect_uri) = oauth_redirect_uri(&ctx)?;
+    auth::oauth::initiate_oauth(&req, &kv, &auth::providers::GITHUB, &redirect_uri, &ctx.env).await
+}
 
-    auth::oauth::initiate_github_oauth(&req, &kv, &client_id, &redirect_uri, &ctx.env).await
+/// Handle Google OAuth initiation: GET /api/auth/google
+pub async fn handle_google_login(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
+    // Rate limiting: 20 requests per 15 minutes per IP
+    let client_ip = get_client_ip(&req);
+    let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
+    let rate_limit_config = RateLimitConfig::oauth();
+
+    let kv_rate_limiting_enabled = ctx
+        .env
+        .var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+
+    if let Err(err) = RateLimiter::check(
+        &kv,
+        &rate_limit_key,
+        &rate_limit_config,
+        kv_rate_limiting_enabled,
+    )
+    .await
+    {
+        let ip_hash = hash_ip(&client_ip);
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "rate_limit_hit",
+                "endpoint": "oauth_login",
+                "limit_type": "ip",
+                "ip_hash": ip_hash,
+                "level": "warn"
+            })
+        );
+        let mut response = Response::error(err.to_error_response(), 429)?;
+        if let Some(retry_after) = err.retry_after() {
+            response
+                .headers_mut()
+                .set("Retry-After", &retry_after.to_string())?;
+        }
+        return Ok(response);
+    }
+
+    if !auth::providers::GOOGLE.is_enabled(&ctx.env) {
+        return Response::error("Google OAuth is not configured", 404);
+    }
+
+    let (_, redirect_uri) = oauth_redirect_uri(&ctx)?;
+    auth::oauth::initiate_oauth(&req, &kv, &auth::providers::GOOGLE, &redirect_uri, &ctx.env).await
 }
 
 /// Handle OAuth callback: GET /api/auth/callback
@@ -2542,7 +2618,9 @@ fn extract_query_param(query: &str, name: &str) -> Result<String> {
         .find_map(|pair| {
             let parts: Vec<&str> = pair.splitn(2, '=').collect();
             if parts.len() == 2 && parts[0] == name {
-                Some(parts[1].to_string())
+                // URL-decode the parameter value
+                let decoded = urlencoding::decode(parts[1]).ok()?;
+                Some(decoded.to_string())
             } else {
                 None
             }

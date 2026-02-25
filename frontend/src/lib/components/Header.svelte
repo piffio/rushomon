@@ -82,6 +82,14 @@
 						</a>
 					{/if}
 					<UserMenu {user} onLogout={handleLogout} />
+				{:else}
+					<!-- Unauthenticated: Show Sign In button -->
+					<a
+						href="/login"
+						class="hidden md:block px-4 py-2 text-sm font-semibold text-gray-700 hover:text-orange-600 transition-colors"
+					>
+						Sign In
+					</a>
 				{/if}
 
 				<!-- Mobile Menu Button -->
@@ -177,6 +185,13 @@
 						class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
 						>Docs</a
 					>
+					<div class="border-t border-gray-100 mt-2 pt-2">
+						<a
+							href="/login"
+							class="block py-2 font-semibold text-orange-600 hover:text-orange-700 transition-colors"
+							>Sign In</a
+						>
+					</div>
 				{/if}
 			</nav>
 		{/if}

@@ -59,3 +59,18 @@ opt-level = "s"
 lto = true
 strip = true
 codegen-units = 1
+
+[workspace.lints.clippy]
+# Enforce secure logging practices
+all = "warn"
+# Custom rule: forbid logging sensitive user data directly
+# This should be enforced via code review and custom lint rules
+pedantic = "warn"
+nursery = "warn"
+
+# Specific rules for security
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+unimplemented = "warn"
+todo = "warn"
