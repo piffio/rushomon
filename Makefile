@@ -9,21 +9,21 @@ version-bump-patch:
 	@cargo install cargo-edit 2>/dev/null || true
 	@cargo set-version --bump patch
 	@$(MAKE) version-sync
-	@echo "✅ Version bumped to $(shell grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//')"
+	@echo "✅ Version bumped to $(shell grep -A1 '^\[package\]' Cargo.toml | grep '^version = ' | sed 's/version = "//' | sed 's/"//')"
 
 version-bump-minor:
 	@echo "🔢 Bumping minor version..."
 	@cargo install cargo-edit 2>/dev/null || true
 	@cargo set-version --bump minor
 	@$(MAKE) version-sync
-	@echo "✅ Version bumped to $(shell grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//')"
+	@echo "✅ Version bumped to $(shell grep -A1 '^\[package\]' Cargo.toml | grep '^version = ' | sed 's/version = "//' | sed 's/"//')"
 
 version-bump-major:
 	@echo "🔢 Bumping major version..."
 	@cargo install cargo-edit 2>/dev/null || true
 	@cargo set-version --bump major
 	@$(MAKE) version-sync
-	@echo "✅ Version bumped to $(shell grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//')"
+	@echo "✅ Version bumped to $(shell grep -A1 '^\[package\]' Cargo.toml | grep '^version = ' | sed 's/version = "//' | sed 's/"//')"
 
 # Sync version without bumping
 version-sync:
@@ -41,7 +41,7 @@ version-tag:
 
 # Full release process
 release: version-bump-patch version-tag
-	@echo "🚀 Release v$(shell grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//') ready!"
+	@echo "🚀 Release v$(shell grep -A1 '^\[package\]' Cargo.toml | grep '^version = ' | sed 's/version = "//' | sed 's/"//') ready!"
 	@echo "📝 Run 'git push origin main && git push origin --tags' to complete release."
 
 # Show current version
