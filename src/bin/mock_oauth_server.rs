@@ -174,11 +174,26 @@ async fn google_authorize(Query(params): Query<AuthorizeParams>) -> impl IntoRes
 }
 
 /// POST /google/token
-async fn google_token(Json(request): Json<TokenRequest>) -> impl IntoResponse {
-    println!("[Mock OAuth/Google] Token exchange: code={}", request.code);
+async fn google_token(body: String) -> impl IntoResponse {
+    println!("[Mock OAuth/Google] Token exchange request body: {}", body);
+
+    // Parse form-encoded data (like real Google OAuth)
+    let code = if body.contains("application/json") {
+        // Handle JSON format (for compatibility)
+        "mock-google-code-json".to_string()
+    } else {
+        // Parse form-encoded data: client_id=...&code=...&redirect_uri=...
+        body.split('&')
+            .find(|part| part.starts_with("code="))
+            .and_then(|part| part.strip_prefix("code="))
+            .unwrap_or("empty-code")
+            .to_string()
+    };
+
+    println!("[Mock OAuth/Google] Extracted code: {}", code);
 
     // Accept any auth code format for testing
-    if request.code.is_empty() {
+    if code.is_empty() || code == "empty-code" {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "invalid_grant", "error_description": "Authorization code is required"})),
@@ -187,7 +202,7 @@ async fn google_token(Json(request): Json<TokenRequest>) -> impl IntoResponse {
     }
 
     let response = GoogleTokenResponse {
-        access_token: format!("mock-google-token-{}", request.code),
+        access_token: format!("mock-google-token-{}", code),
         token_type: "Bearer".to_string(),
         expires_in: 3600,
     };
