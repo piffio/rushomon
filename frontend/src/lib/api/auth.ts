@@ -1,6 +1,11 @@
 import { apiClient, clearAccessToken } from './client';
 import type { User } from '$lib/types/api';
 
+export interface AuthProvider {
+	name: string;
+	label: string;
+}
+
 export const authApi = {
 	/**
 	 * Get the current authenticated user
@@ -24,12 +29,28 @@ export const authApi = {
 	},
 
 	/**
-	 * Initiate GitHub OAuth login
-	 * This should be called by redirecting the browser, not via fetch
-	 * @returns The URL to redirect to
+	 * Fetch the list of enabled OAuth providers from the backend.
+	 * Only providers with a configured CLIENT_ID are returned.
+	 */
+	async getProviders(): Promise<AuthProvider[]> {
+		const result = await apiClient.get<{ providers: AuthProvider[]; }>('/api/auth/providers');
+		return result.providers;
+	},
+
+	/**
+	 * Get the login URL for a specific OAuth provider.
+	 * Browser should be redirected to this URL (not fetched via XHR).
+	 */
+	getProviderLoginUrl(providerName: string): string {
+		const baseUrl = apiClient['baseUrl'];
+		return `${baseUrl}/api/auth/${providerName}`;
+	},
+
+	/**
+	 * @deprecated Use getProviderLoginUrl('github') instead.
+	 * Kept for backwards compatibility.
 	 */
 	getLoginUrl(): string {
-		const baseUrl = apiClient['baseUrl'];
-		return `${baseUrl}/api/auth/github`;
+		return this.getProviderLoginUrl('github');
 	}
 };

@@ -1,13 +1,21 @@
 //! Mock OAuth Server for Integration Testing
 //!
-//! This server simulates GitHub's OAuth endpoints for local testing.
+//! This server simulates both GitHub and Google OAuth endpoints for local testing.
 //! It allows the integration tests to perform the full OAuth flow without
-//! requiring actual GitHub credentials.
+//! requiring actual provider credentials.
 //!
-//! Endpoints:
-//! - GET  /login/oauth/authorize - Redirects back with a mock code
-//! - POST /login/oauth/access_token - Returns a mock access token
-//! - GET  /api/user - Returns a mock GitHub user profile
+//! GitHub endpoints (prefix: /github):
+//! - GET  /github/login/oauth/authorize      - Redirects back with a mock code
+//! - POST /github/login/oauth/access_token   - Returns a mock access token
+//! - GET  /github/api/user                   - Returns a mock GitHub user profile
+//!
+//! Google endpoints (prefix: /google):
+//! - GET  /google/o/oauth2/v2/auth           - Redirects back with a mock code
+//! - POST /google/token                      - Returns a mock access token
+//! - GET  /google/openidconnect/v1/userinfo  - Returns a mock Google user profile
+//!
+//! Health check:
+//! - GET  /health
 
 use axum::{
     Json, Router,
@@ -20,30 +28,40 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-// Atomic counter for generating unique user IDs
+// Atomic counter for generating unique user IDs (shared across providers)
 static USER_COUNTER: AtomicU64 = AtomicU64::new(1000);
 
+// ─── Shared types ────────────────────────────────────────────────────────────
+
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Mock OAuth server doesn't use all GitHub OAuth fields
+#[allow(dead_code)]
 struct AuthorizeParams {
     client_id: String,
     redirect_uri: String,
     state: String,
     #[serde(default)]
     scope: String,
+    #[serde(default)]
+    response_type: String,
+    #[serde(default)]
+    access_type: String,
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Mock OAuth server doesn't use all GitHub OAuth fields
+#[allow(dead_code)]
 struct TokenRequest {
     client_id: String,
     client_secret: String,
     code: String,
     redirect_uri: String,
+    #[serde(default)]
+    grant_type: String,
 }
 
+// ─── GitHub handlers ─────────────────────────────────────────────────────────
+
 #[derive(Debug, Serialize)]
-struct TokenResponse {
+struct GitHubTokenResponse {
     access_token: String,
     token_type: String,
     scope: String,
@@ -58,39 +76,28 @@ struct GitHubUser {
     avatar_url: Option<String>,
 }
 
-/// GET /login/oauth/authorize
-/// Simulates GitHub's authorization page by immediately redirecting back
-/// with a mock authorization code.
-async fn authorize(Query(params): Query<AuthorizeParams>) -> impl IntoResponse {
+/// GET /github/login/oauth/authorize
+async fn github_authorize(Query(params): Query<AuthorizeParams>) -> impl IntoResponse {
     println!(
-        "[Mock OAuth] Authorize request: client_id={}, state={}",
+        "[Mock OAuth/GitHub] Authorize: client_id={}, state={}",
         params.client_id, params.state
     );
 
-    // Generate a mock authorization code
-    let code = format!("mock-auth-code-{}", params.state);
-
-    // Build redirect URL with code and state
+    let code = format!("mock-gh-code-{}", params.state);
     let redirect_url = format!(
         "{}?code={}&state={}",
         params.redirect_uri, code, params.state
     );
 
-    println!("[Mock OAuth] Redirecting to: {}", redirect_url);
-
+    println!("[Mock OAuth/GitHub] Redirecting to: {}", redirect_url);
     Redirect::temporary(&redirect_url)
 }
 
-/// POST /login/oauth/access_token
-/// Exchanges the authorization code for an access token.
-async fn token(Json(request): Json<TokenRequest>) -> impl IntoResponse {
-    println!(
-        "[Mock OAuth] Token exchange: client_id={}, code={}",
-        request.client_id, request.code
-    );
+/// POST /github/login/oauth/access_token
+async fn github_token(Json(request): Json<TokenRequest>) -> impl IntoResponse {
+    println!("[Mock OAuth/GitHub] Token exchange: code={}", request.code);
 
-    // Validate that the code looks like our mock code
-    if !request.code.starts_with("mock-auth-code-") {
+    if !request.code.starts_with("mock-gh-code-") {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "invalid_grant", "error_description": "Invalid authorization code"})),
@@ -98,22 +105,18 @@ async fn token(Json(request): Json<TokenRequest>) -> impl IntoResponse {
             .into_response();
     }
 
-    // Return a mock access token
-    let response = TokenResponse {
-        access_token: format!("mock-access-token-{}", request.code),
+    let response = GitHubTokenResponse {
+        access_token: format!("mock-gh-token-{}", request.code),
         token_type: "bearer".to_string(),
         scope: "user:email".to_string(),
     };
 
-    println!("[Mock OAuth] Returning access token");
-
+    println!("[Mock OAuth/GitHub] Returning access token");
     Json(response).into_response()
 }
 
-/// GET /api/user
-/// Returns a mock GitHub user profile.
-async fn user() -> impl IntoResponse {
-    // Generate a unique user ID for each test run
+/// GET /github/api/user
+async fn github_user() -> impl IntoResponse {
     let user_id = USER_COUNTER.fetch_add(1, Ordering::SeqCst);
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -122,24 +125,107 @@ async fn user() -> impl IntoResponse {
 
     let user = GitHubUser {
         id: user_id,
-        login: format!("test-user-{}", timestamp),
-        email: Some(format!("test-user-{}@test.local", timestamp)),
-        name: Some(format!("Test User {}", user_id)),
+        login: format!("gh-test-user-{}", timestamp),
+        email: Some(format!("gh-test-{}@test.local", timestamp)),
+        name: Some(format!("GitHub Test User {}", user_id)),
         avatar_url: Some("https://avatars.githubusercontent.com/u/0".to_string()),
     };
 
     println!(
-        "[Mock OAuth] Returning user profile: id={}, login={}",
+        "[Mock OAuth/GitHub] Returning user: id={}, login={}",
         user.id, user.login
     );
 
     Json(user)
 }
 
-/// Health check endpoint
+// ─── Google handlers ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+struct GoogleTokenResponse {
+    access_token: String,
+    token_type: String,
+    expires_in: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct GoogleUser {
+    sub: String,
+    email: Option<String>,
+    name: Option<String>,
+    picture: Option<String>,
+}
+
+/// GET /google/o/oauth2/v2/auth
+async fn google_authorize(Query(params): Query<AuthorizeParams>) -> impl IntoResponse {
+    println!(
+        "[Mock OAuth/Google] Authorize: client_id={}, state={}",
+        params.client_id, params.state
+    );
+
+    let code = format!("mock-google-code-{}", params.state);
+    let redirect_url = format!(
+        "{}?code={}&state={}",
+        params.redirect_uri, code, params.state
+    );
+
+    println!("[Mock OAuth/Google] Redirecting to: {}", redirect_url);
+    Redirect::temporary(&redirect_url)
+}
+
+/// POST /google/token
+async fn google_token(Json(request): Json<TokenRequest>) -> impl IntoResponse {
+    println!("[Mock OAuth/Google] Token exchange: code={}", request.code);
+
+    // Accept any auth code format for testing
+    if request.code.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid_grant", "error_description": "Authorization code is required"})),
+        )
+            .into_response();
+    }
+
+    let response = GoogleTokenResponse {
+        access_token: format!("mock-google-token-{}", request.code),
+        token_type: "Bearer".to_string(),
+        expires_in: 3600,
+    };
+
+    println!("[Mock OAuth/Google] Returning access token");
+    Json(response).into_response()
+}
+
+/// GET /google/openidconnect/v1/userinfo
+async fn google_user() -> impl IntoResponse {
+    let user_id = USER_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let user = GoogleUser {
+        sub: format!("{}", user_id),
+        email: Some(format!("google-test-{}@gmail.com", timestamp)),
+        name: Some(format!("Google Test User {}", user_id)),
+        picture: Some("https://lh3.googleusercontent.com/photo.jpg".to_string()),
+    };
+
+    println!(
+        "[Mock OAuth/Google] Returning user: sub={}, email={:?}",
+        user.sub, user.email
+    );
+
+    Json(user)
+}
+
+// ─── Health check ─────────────────────────────────────────────────────────────
+
 async fn health() -> &'static str {
     "Mock OAuth Server OK"
 }
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() {
@@ -150,19 +236,27 @@ async fn main() {
 
     let app = Router::new()
         // GitHub OAuth endpoints
-        .route("/login/oauth/authorize", get(authorize))
-        .route("/login/oauth/access_token", post(token))
-        .route("/api/user", get(user))
+        .route("/github/login/oauth/authorize", get(github_authorize))
+        .route("/github/login/oauth/access_token", post(github_token))
+        .route("/github/api/user", get(github_user))
+        // Google OAuth endpoints
+        .route("/google/o/oauth2/v2/auth", get(google_authorize))
+        .route("/google/token", post(google_token))
+        .route("/google/openidconnect/v1/userinfo", get(google_user))
         // Health check
         .route("/health", get(health));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     println!("[Mock OAuth] Starting server on http://{}", addr);
-    println!("[Mock OAuth] Endpoints:");
-    println!("  GET  /login/oauth/authorize");
-    println!("  POST /login/oauth/access_token");
-    println!("  GET  /api/user");
-    println!("  GET  /health");
+    println!("[Mock OAuth] GitHub endpoints:");
+    println!("  GET  /github/login/oauth/authorize");
+    println!("  POST /github/login/oauth/access_token");
+    println!("  GET  /github/api/user");
+    println!("[Mock OAuth] Google endpoints:");
+    println!("  GET  /google/o/oauth2/v2/auth");
+    println!("  POST /google/token");
+    println!("  GET  /google/openidconnect/v1/userinfo");
+    println!("[Mock OAuth] Health: GET /health");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

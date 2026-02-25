@@ -1,15 +1,12 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import Footer from "$lib/components/Footer.svelte";
-	import { authApi } from "$lib/api/auth";
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import type { PageData } from "./$types";
 
 	let { data }: { data: PageData } = $props();
-
-	const loginUrl = authApi.getLoginUrl();
 
 	let mounted = $state(false);
 	let signupsDisabled = $derived(
@@ -71,7 +68,7 @@
 
 					<!-- CTA Button -->
 					<a
-						href={data.user ? "/dashboard" : loginUrl}
+						href={data.user ? "/dashboard" : "/login"}
 						class="inline-flex items-center gap-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-10 py-5 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 transform duration-200"
 					>
 						{data.user ? "Go to Dashboard" : "Get Started"}

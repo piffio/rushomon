@@ -15,7 +15,7 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 - **Fast Edge Redirects**: Sub-millisecond URL resolution via Cloudflare KV
 - **Custom Redirect Codes**: User-chosen slugs with random fallback
 - **Per-Link Analytics**: Detailed analytics data for individual links with filtering
-- **OAuth Authentication**: GitHub OAuth with secure JWT sessions (Other providers coming soon)
+- **OAuth Authentication**: GitHub and Google OAuth with secure JWT sessions, provider opt-in via env vars, and account linking across providers
 - **Instance Admin**: First user becomes admin; admin dashboard for user management and settings
 - **Signup Control**: Admins can disable new signups to lock down the instance
 - **Multi-tenant Ready**: Organization/team model from day one
@@ -33,7 +33,7 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 ## Planned Features
 
 - **Analytics aggregation**: Advanced queries and dashboard UI
-- **More OAuth providers**: Add other popular providers
+- **More OAuth providers**: GitLab and other providers beyond GitHub/Google
 - **Team/organization management**: Enhanced collaborative features and permissions
 - **QR Codes Generation**: Generate QR codes for links
 - **Bulk link operations**: Import/export and batch management
@@ -45,7 +45,7 @@ Rushomon can be used in two ways:
 
 1. **Self-hosted**: Deploy your own instance on Cloudflare Workers. Check the [SELF_HOSTING.md](./docs/SELF_HOSTING.md) file for detailed instructions. You will need to deploy your own domain and ensure the whole configuration is working.
 
-2. **Managed service**: Use the public instance at https://rushomon.cc. It's currently in beta and you can sign up to try the free tier via GitHub OAuth. Paid tiers will be made available in the near future. Signing up for a Rushomon subscription is the best way to support the open-source development of this project.
+2. **Managed service**: Use the public instance at https://rushomon.cc. It's currently in beta and you can sign up to try the free tier via GitHub or Google OAuth. Paid tiers will be made available in the near future. Signing up for a Rushomon subscription is the best way to support the open-source development of this project.
 
 ## Version Management
 
@@ -72,9 +72,10 @@ The project is designed to be deployed on a single Cloudflare worker, bundling b
 2. **Wasm target**: `rustup target add wasm32-unknown-unknown`
 3. **worker-build**: `cargo install worker-build`
 4. **Cloudflare account**: Sign up at [cloudflare.com](https://cloudflare.com)
-5. **Wrangler CLI**: `npm install -g wrangler` or `cargo install wrangler`
-6. **Node.js**: For frontend development (v20+ recommended)
-7. **expect** (macOS only): For colored output in development script - `brew install expect`
+5. **GitHub or Google account**: For OAuth authentication (at least one provider required)
+6. **Wrangler CLI**: `npm install -g wrangler` or `cargo install wrangler`
+7. **Node.js**: For frontend development (v20+ recommended)
+8. **expect** (macOS only): For colored output in development script - `brew install expect`
 
 ### Step 1: Clone and Install
 
