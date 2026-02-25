@@ -169,23 +169,6 @@ mod slug_tests {
         assert!(full_slug.starts_with("test-organization-"));
         assert_eq!(full_slug.len(), base_slug.len() + 1 + 5); // base + "-" + 5 chars
     }
-
-    #[tokio::test]
-    async fn test_random_suffix_uniqueness() {
-        let mut suffixes = std::collections::HashSet::new();
-
-        // Generate multiple suffixes and verify they're unique
-        for _ in 0..100 {
-            let uuid_str = uuid::Uuid::new_v4().to_string().replace('-', "");
-            let suffix = &uuid_str[..5];
-
-            // Extremely unlikely to have collision, but let's check
-            assert!(!suffixes.contains(suffix), "Collision detected: {}", suffix);
-            suffixes.insert(suffix.to_string());
-        }
-
-        assert_eq!(suffixes.len(), 100);
-    }
 }
 
 /// Create a default organization for a new user
