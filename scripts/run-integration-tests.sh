@@ -236,10 +236,11 @@ wrangler kv key list --namespace-id "48136fe5129f406184e6956849b5280f" --local 2
 done
 echo "✅ KV rate limits cleared..."
 
-# Set ALL billing accounts to unlimited tier for reliable test execution
+# Set ALL billing accounts and organizations to unlimited tier for reliable test execution
 echo "🔄 Setting up unlimited tier test environment..."
 wrangler d1 execute "${DB_NAME}" --local --command "UPDATE billing_accounts SET tier = 'unlimited'" 2>/dev/null || true
-echo "✅ All billing accounts set to unlimited tier"
+wrangler d1 execute "${DB_NAME}" --local --command "UPDATE organizations SET tier = 'unlimited'" 2>/dev/null || true
+echo "✅ All billing accounts and organizations set to unlimited tier"
 
 # Export environment variables for tests
 export TEST_JWT="${JWT}"

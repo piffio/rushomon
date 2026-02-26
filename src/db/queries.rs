@@ -223,7 +223,8 @@ pub async fn create_default_org(
 /// Get user by ID
 pub async fn get_user_by_id(db: &D1Database, user_id: &str) -> Result<Option<User>> {
     let stmt = db.prepare(
-        "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at
+        "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
+                suspended_at, suspension_reason, suspended_by
          FROM users
          WHERE id = ?1",
     );
