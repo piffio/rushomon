@@ -7,7 +7,10 @@ pub struct Organization {
     pub slug: String,
     pub created_at: i64,
     pub created_by: String,
+    /// DEPRECATED: Use billing_account.tier instead. Kept for backward compatibility.
     pub tier: String,
+    /// Link to the billing account that owns this organization
+    pub billing_account_id: Option<String>,
 }
 
 impl Organization {

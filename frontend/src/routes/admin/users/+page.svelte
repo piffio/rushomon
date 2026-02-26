@@ -34,6 +34,9 @@
 			const response = await adminApi.listUsers(currentPage, 50);
 			users = response.users;
 			total = response.total;
+			if (response.org_tiers) {
+				orgTiers = { ...orgTiers, ...response.org_tiers };
+			}
 		} catch (err) {
 			error = "Failed to load users";
 			console.error(err);
@@ -188,11 +191,12 @@
 		await loadUsers();
 	}
 
-	function formatDate(dateString: string): string {
-		return new Date(dateString).toLocaleDateString();
+	function formatDate(ts: number | string): string {
+		const ms = typeof ts === "number" ? ts * 1000 : Number(ts) * 1000;
+		return new Date(ms).toLocaleDateString();
 	}
 
-	const totalPages = Math.ceil(total / 50);
+	const totalPages = $derived(Math.ceil(total / 50));
 </script>
 
 <div class="users-page">
@@ -216,6 +220,7 @@
 							<th>Provider</th>
 							<th>Role</th>
 							<th>Status</th>
+							<th>Billing Account</th>
 							<th>Tier</th>
 							<th>Joined</th>
 							<th>Actions</th>
@@ -265,25 +270,58 @@
 									{/if}
 								</td>
 								<td>
-									<button
-										onclick={() =>
-											handleTierChange(
-												user.id,
+									{#if user.billing_account_id}
+										<a
+											href="/admin/billing#{user.billing_account_id}"
+											class="billing-link"
+											title="View billing account"
+										>
+											{user.billing_account_id.substring(
+												0,
+												12,
+											)}...
+										</a>
+									{:else}
+										<span class="no-billing">N/A</span>
+									{/if}
+								</td>
+								<td>
+									{#if user.billing_account_tier}
+										<a
+											href="/admin/billing#{user.billing_account_id}"
+											class="tier-badge-link {user.billing_account_tier ===
+											'unlimited'
+												? 'unlimited'
+												: user.billing_account_tier ===
+													  'business'
+													? 'business'
+													: user.billing_account_tier ===
+														  'pro'
+														? 'pro'
+														: 'free'}"
+											title="Managed at billing account level"
+										>
+											{user.billing_account_tier
+												.charAt(0)
+												.toUpperCase() +
+												user.billing_account_tier.slice(
+													1,
+												)} 🔗
+										</a>
+									{:else}
+										<span
+											class="tier-badge {getOrgTier(
 												user.org_id,
-												getOrgTier(user.org_id),
-											)}
-										disabled={tierLoading}
-										class="tier-badge {getOrgTier(
-											user.org_id,
-										) === 'unlimited'
-											? 'unlimited'
-											: 'free'}"
-										title="Click to change tier"
-									>
-										{getOrgTier(user.org_id) === "unlimited"
-											? "Unlimited"
-											: "Free"}
-									</button>
+											) === 'unlimited'
+												? 'unlimited'
+												: 'free'}"
+										>
+											{getOrgTier(user.org_id) ===
+											"unlimited"
+												? "Unlimited"
+												: "Free"}
+										</span>
+									{/if}
 								</td>
 								<td class="date"
 									>{formatDate(user.created_at)}</td
@@ -614,6 +652,38 @@
 		font-size: 1rem;
 	}
 
+	.info-notice {
+		display: flex;
+		gap: 0.75rem;
+		padding: 1rem;
+		background: #eff6ff;
+		border: 1px solid #bfdbfe;
+		border-radius: 8px;
+		margin-bottom: 2rem;
+	}
+
+	.info-icon {
+		font-size: 1.25rem;
+		flex-shrink: 0;
+	}
+
+	.info-content {
+		flex: 1;
+		color: #1e40af;
+		font-size: 0.875rem;
+		line-height: 1.5;
+	}
+
+	.info-content a {
+		color: #1e40af;
+		font-weight: 600;
+		text-decoration: underline;
+	}
+
+	.info-content a:hover {
+		color: #1e3a8a;
+	}
+
 	.loading,
 	.error {
 		text-align: center;
@@ -768,6 +838,70 @@
 	.tier-badge:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.tier-badge-link {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.25rem 0.75rem;
+		border-radius: 9999px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		text-decoration: none;
+		transition: all 0.2s;
+	}
+
+	.tier-badge-link.free {
+		background: #dbeafe;
+		color: #1e40af;
+	}
+
+	.tier-badge-link.free:hover {
+		background: #bfdbfe;
+	}
+
+	.tier-badge-link.pro {
+		background: #fef3c7;
+		color: #92400e;
+	}
+
+	.tier-badge-link.pro:hover {
+		background: #fde68a;
+	}
+
+	.tier-badge-link.business {
+		background: #d1fae5;
+		color: #065f46;
+	}
+
+	.tier-badge-link.business:hover {
+		background: #a7f3d0;
+	}
+
+	.tier-badge-link.unlimited {
+		background: #e0e7ff;
+		color: #3730a3;
+	}
+
+	.tier-badge-link.unlimited:hover {
+		background: #c7d2fe;
+	}
+
+	.billing-link {
+		color: #3b82f6;
+		text-decoration: none;
+		font-size: 0.875rem;
+		font-family: monospace;
+	}
+
+	.billing-link:hover {
+		text-decoration: underline;
+	}
+
+	.no-billing {
+		color: #9ca3af;
+		font-style: italic;
+		font-size: 0.875rem;
 	}
 
 	.date {

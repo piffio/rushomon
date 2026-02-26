@@ -1,4 +1,6 @@
-use crate::models::{AnalyticsEvent, Link, Organization, User, user::CreateUserData};
+use crate::models::{
+    AnalyticsEvent, BillingAccount, Link, Organization, User, user::CreateUserData,
+};
 use crate::utils::now_timestamp;
 use wasm_bindgen::JsValue;
 use worker::d1::D1Database;
@@ -187,9 +189,12 @@ pub async fn create_default_org(
         .await?
         .unwrap_or_else(|| "free".to_string());
 
+    // Create billing account for the user
+    let billing_account = create_billing_account(db, user_id, &tier).await?;
+
     let stmt = db.prepare(
-        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier, billing_account_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
     );
 
     stmt.bind(&[
@@ -199,6 +204,7 @@ pub async fn create_default_org(
         (now as f64).into(),
         user_id.into(),
         tier.clone().into(),
+        billing_account.id.clone().into(),
     ])?
     .run()
     .await?;
@@ -210,6 +216,7 @@ pub async fn create_default_org(
         created_at: now,
         created_by: user_id.to_string(),
         tier,
+        billing_account_id: Some(billing_account.id),
     })
 }
 
@@ -227,7 +234,7 @@ pub async fn get_user_by_id(db: &D1Database, user_id: &str) -> Result<Option<Use
 /// Get organization by ID
 pub async fn get_org_by_id(db: &D1Database, org_id: &str) -> Result<Option<Organization>> {
     let stmt = db.prepare(
-        "SELECT id, name, slug, created_at, created_by, tier
+        "SELECT id, name, slug, created_at, created_by, tier, billing_account_id
          FROM organizations
          WHERE id = ?1",
     );
@@ -642,6 +649,26 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
 }
 
 /// Get all users on the instance (paginated) - for admin dashboard
+/// Extended user info for admin panel with billing account details
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct UserWithBillingInfo {
+    pub id: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+    pub oauth_provider: String,
+    pub oauth_id: String,
+    pub org_id: String,
+    pub role: String,
+    pub created_at: i64,
+    pub suspended_at: Option<i64>,
+    pub suspension_reason: Option<String>,
+    pub suspended_by: Option<String>,
+    pub billing_account_id: Option<String>,
+    pub billing_account_tier: Option<String>,
+}
+
+#[allow(dead_code)]
 pub async fn get_all_users(db: &D1Database, limit: i64, offset: i64) -> Result<Vec<User>> {
     let stmt = db.prepare(
         "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at, suspended_at, suspension_reason, suspended_by
@@ -656,6 +683,54 @@ pub async fn get_all_users(db: &D1Database, limit: i64, offset: i64) -> Result<V
         .await?;
 
     let users = results.results::<User>()?;
+    Ok(users)
+}
+
+/// Get all users with billing account information (for admin panel)
+pub async fn get_all_users_with_billing_info(
+    db: &D1Database,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<UserWithBillingInfo>> {
+    let stmt = db.prepare(
+        "SELECT u.id, u.email, u.name, u.avatar_url, u.oauth_provider, u.oauth_id,
+                u.org_id, u.role, u.created_at, u.suspended_at, u.suspension_reason, u.suspended_by,
+                o.billing_account_id, ba.tier as billing_account_tier
+         FROM users u
+         LEFT JOIN organizations o ON u.org_id = o.id
+         LEFT JOIN billing_accounts ba ON o.billing_account_id = ba.id
+         ORDER BY u.created_at ASC
+         LIMIT ?1 OFFSET ?2",
+    );
+
+    let results = stmt
+        .bind(&[(limit as f64).into(), (offset as f64).into()])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let users: Vec<UserWithBillingInfo> = rows
+        .iter()
+        .filter_map(|row| {
+            Some(UserWithBillingInfo {
+                id: row["id"].as_str()?.to_string(),
+                email: row["email"].as_str()?.to_string(),
+                name: row["name"].as_str().map(|s| s.to_string()),
+                avatar_url: row["avatar_url"].as_str().map(|s| s.to_string()),
+                oauth_provider: row["oauth_provider"].as_str()?.to_string(),
+                oauth_id: row["oauth_id"].as_str()?.to_string(),
+                org_id: row["org_id"].as_str()?.to_string(),
+                role: row["role"].as_str()?.to_string(),
+                created_at: row["created_at"].as_f64()? as i64,
+                suspended_at: row["suspended_at"].as_f64().map(|v| v as i64),
+                suspension_reason: row["suspension_reason"].as_str().map(|s| s.to_string()),
+                suspended_by: row["suspended_by"].as_str().map(|s| s.to_string()),
+                billing_account_id: row["billing_account_id"].as_str().map(|s| s.to_string()),
+                billing_account_tier: row["billing_account_tier"].as_str().map(|s| s.to_string()),
+            })
+        })
+        .collect();
+
     Ok(users)
 }
 
@@ -941,6 +1016,8 @@ pub async fn get_all_settings(db: &D1Database) -> Result<Vec<(String, String)>> 
 }
 
 /// Get the monthly counter for an organization
+/// DEPRECATED: Use get_monthly_counter_for_billing_account instead
+#[allow(dead_code)]
 pub async fn get_monthly_counter(db: &D1Database, org_id: &str, year_month: &str) -> Result<i64> {
     let stmt = db.prepare(
         "SELECT links_created FROM monthly_counters
@@ -960,6 +1037,8 @@ pub async fn get_monthly_counter(db: &D1Database, org_id: &str, year_month: &str
 
 /// Increment monthly counter with limit check
 /// Returns true if increment succeeded, false if limit reached
+/// DEPRECATED: Use increment_monthly_counter_for_billing_account instead
+#[allow(dead_code)]
 pub async fn increment_monthly_counter(
     db: &D1Database,
     org_id: &str,
@@ -1008,6 +1087,8 @@ pub async fn increment_monthly_counter(
 }
 
 /// Reset monthly counter for an organization to 0
+/// DEPRECATED: Use reset_monthly_counter_for_billing_account instead
+#[allow(dead_code)]
 pub async fn reset_monthly_counter(db: &D1Database, org_id: &str) -> Result<()> {
     let now = now_timestamp();
 
@@ -1888,4 +1969,972 @@ pub async fn get_org_tags(db: &D1Database, org_id: &str) -> Result<Vec<OrgTag>> 
 pub struct OrgTag {
     pub name: String,
     pub count: i64,
+}
+
+// ─── Org Management ───────────────────────────────────────────────────────────
+
+use crate::models::{OrgInvitation, OrgMember, OrgMemberWithUser, OrgWithRole};
+
+/// Get all organizations a user belongs to (via org_members junction table).
+/// Falls back to the user's default org_id if no org_members rows exist yet,
+/// and auto-inserts the missing membership row to self-heal.
+pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWithRole>> {
+    let stmt = db.prepare(
+        "SELECT o.id, o.name, o.tier, m.role, m.joined_at
+         FROM organizations o
+         JOIN org_members m ON o.id = m.org_id
+         WHERE m.user_id = ?1
+         ORDER BY m.joined_at ASC",
+    );
+    let results = stmt.bind(&[user_id.into()])?.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+    let orgs: Vec<OrgWithRole> = rows
+        .iter()
+        .filter_map(|row| {
+            Some(OrgWithRole {
+                id: row["id"].as_str()?.to_string(),
+                name: row["name"].as_str()?.to_string(),
+                tier: row["tier"].as_str()?.to_string(),
+                role: row["role"].as_str()?.to_string(),
+                joined_at: row["joined_at"].as_f64()? as i64,
+            })
+        })
+        .collect();
+
+    if !orgs.is_empty() {
+        return Ok(orgs);
+    }
+
+    // No org_members rows — fall back to users.org_id and auto-heal
+    let user_row = db
+        .prepare("SELECT org_id, created_at FROM users WHERE id = ?1")
+        .bind(&[user_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    let Some(user_row) = user_row else {
+        return Ok(vec![]);
+    };
+
+    let Some(org_id) = user_row["org_id"].as_str() else {
+        return Ok(vec![]);
+    };
+    let joined_at = user_row["created_at"].as_f64().unwrap_or(0.0) as i64;
+
+    // Insert the missing membership row (ignore conflicts)
+    db.prepare(
+        "INSERT INTO org_members (org_id, user_id, role, joined_at)
+         VALUES (?1, ?2, 'owner', ?3)
+         ON CONFLICT(org_id, user_id) DO NOTHING",
+    )
+    .bind(&[org_id.into(), user_id.into(), (joined_at as f64).into()])?
+    .run()
+    .await?;
+
+    // Now fetch the org details
+    let org = match get_org_by_id(db, org_id).await? {
+        Some(o) => o,
+        None => return Ok(vec![]),
+    };
+
+    Ok(vec![OrgWithRole {
+        id: org.id,
+        name: org.name,
+        tier: org.tier,
+        role: "owner".to_string(),
+        joined_at,
+    }])
+}
+
+/// Get the membership record for a specific user in a specific org.
+/// Falls back to users.org_id ownership check and auto-inserts the row to self-heal.
+pub async fn get_org_member(
+    db: &D1Database,
+    org_id: &str,
+    user_id: &str,
+) -> Result<Option<OrgMember>> {
+    let stmt = db.prepare(
+        "SELECT org_id, user_id, role, joined_at
+         FROM org_members
+         WHERE org_id = ?1 AND user_id = ?2",
+    );
+    let existing = stmt
+        .bind(&[org_id.into(), user_id.into()])?
+        .first::<OrgMember>(None)
+        .await?;
+
+    if existing.is_some() {
+        return Ok(existing);
+    }
+
+    // Not in org_members — check if org_id matches users.org_id (pre-migration user)
+    let user_row = db
+        .prepare("SELECT org_id, created_at FROM users WHERE id = ?1")
+        .bind(&[user_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    let Some(user_row) = user_row else {
+        return Ok(None);
+    };
+
+    if user_row["org_id"].as_str() != Some(org_id) {
+        return Ok(None);
+    }
+
+    let joined_at = user_row["created_at"].as_f64().unwrap_or(0.0) as i64;
+
+    // Auto-heal: insert the missing membership row
+    db.prepare(
+        "INSERT INTO org_members (org_id, user_id, role, joined_at)
+         VALUES (?1, ?2, 'owner', ?3)
+         ON CONFLICT(org_id, user_id) DO NOTHING",
+    )
+    .bind(&[org_id.into(), user_id.into(), (joined_at as f64).into()])?
+    .run()
+    .await?;
+
+    Ok(Some(OrgMember {
+        org_id: org_id.to_string(),
+        user_id: user_id.to_string(),
+        role: "owner".to_string(),
+        joined_at,
+    }))
+}
+
+/// Get all members of an org with user details
+pub async fn get_org_members(db: &D1Database, org_id: &str) -> Result<Vec<OrgMemberWithUser>> {
+    let stmt = db.prepare(
+        "SELECT u.id as user_id, u.email, u.name, u.avatar_url, m.role, m.joined_at
+         FROM org_members m
+         JOIN users u ON u.id = m.user_id
+         WHERE m.org_id = ?1
+         ORDER BY m.joined_at ASC",
+    );
+    let results = stmt.bind(&[org_id.into()])?.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+    let members = rows
+        .iter()
+        .filter_map(|row| {
+            Some(OrgMemberWithUser {
+                user_id: row["user_id"].as_str()?.to_string(),
+                email: row["email"].as_str()?.to_string(),
+                name: row["name"].as_str().map(|s| s.to_string()),
+                avatar_url: row["avatar_url"].as_str().map(|s| s.to_string()),
+                role: row["role"].as_str()?.to_string(),
+                joined_at: row["joined_at"].as_f64()? as i64,
+            })
+        })
+        .collect();
+    Ok(members)
+}
+
+/// Add a user to an org
+pub async fn add_org_member(
+    db: &D1Database,
+    org_id: &str,
+    user_id: &str,
+    role: &str,
+) -> Result<()> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "INSERT INTO org_members (org_id, user_id, role, joined_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(org_id, user_id) DO NOTHING",
+    );
+    stmt.bind(&[
+        org_id.into(),
+        user_id.into(),
+        role.into(),
+        (now as f64).into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Remove a user from an org
+pub async fn remove_org_member(db: &D1Database, org_id: &str, user_id: &str) -> Result<()> {
+    let stmt = db.prepare("DELETE FROM org_members WHERE org_id = ?1 AND user_id = ?2");
+    stmt.bind(&[org_id.into(), user_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Count owners of an org (to prevent removing the last owner)
+pub async fn count_org_owners(db: &D1Database, org_id: &str) -> Result<i64> {
+    let stmt = db
+        .prepare("SELECT COUNT(*) as count FROM org_members WHERE org_id = ?1 AND role = 'owner'");
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
+}
+
+/// Count all members in an organization (including owner)
+/// Used for enforcing member limits
+pub async fn count_org_members(db: &D1Database, org_id: &str) -> Result<i64> {
+    let stmt = db.prepare("SELECT COUNT(*) as count FROM org_members WHERE org_id = ?1");
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
+}
+
+/// Count pending (not yet accepted) invitations for an org
+/// Used for enforcing member limits (pending invites count toward the limit)
+pub async fn count_pending_invitations(db: &D1Database, org_id: &str) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(*) as count FROM org_invitations
+         WHERE org_id = ?1 AND accepted_at IS NULL AND expires_at > ?2",
+    );
+    let now = now_timestamp();
+    let result = stmt
+        .bind(&[org_id.into(), (now as f64).into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
+}
+
+/// Count organizations where a user is an owner
+/// Used for enforcing org creation limits (only owned orgs count against limit)
+pub async fn count_user_owned_orgs(db: &D1Database, user_id: &str) -> Result<i64> {
+    let stmt = db
+        .prepare("SELECT COUNT(*) as count FROM org_members WHERE user_id = ?1 AND role = 'owner'");
+    let result = stmt
+        .bind(&[user_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
+}
+
+/// Update an org's display name
+pub async fn update_org_name(db: &D1Database, org_id: &str, name: &str) -> Result<()> {
+    let stmt = db.prepare("UPDATE organizations SET name = ?1 WHERE id = ?2");
+    stmt.bind(&[name.into(), org_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Create a new organization (for users creating additional orgs beyond personal)
+/// DEPRECATED: Use create_organization_with_billing_account instead
+/// This function is kept for backward compatibility only
+#[allow(dead_code)]
+pub async fn create_organization(
+    db: &D1Database,
+    name: &str,
+    created_by: &str,
+) -> Result<Organization> {
+    let org_id = uuid::Uuid::new_v4().to_string();
+    let slug = generate_unique_slug(db, name).await?;
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'free')",
+    );
+    stmt.bind(&[
+        org_id.clone().into(),
+        name.into(),
+        slug.clone().into(),
+        (now as f64).into(),
+        created_by.into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(Organization {
+        id: org_id,
+        name: name.to_string(),
+        slug,
+        created_at: now,
+        created_by: created_by.to_string(),
+        tier: "free".to_string(),
+        billing_account_id: None, // Old orgs don't have billing accounts
+    })
+}
+
+/// Count active links in an organization
+/// Used to check if org has links before deletion and for migration slot validation
+pub async fn count_org_links(db: &D1Database, org_id: &str) -> Result<i64> {
+    let stmt =
+        db.prepare("SELECT COUNT(*) as count FROM links WHERE org_id = ?1 AND status = 'active'");
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
+}
+
+/// Get all link IDs for an organization (for KV cleanup)
+pub async fn get_org_link_ids(db: &D1Database, org_id: &str) -> Result<Vec<String>> {
+    let stmt = db.prepare("SELECT id FROM links WHERE org_id = ?1");
+    let results = stmt.bind(&[org_id.into()])?.all().await?;
+
+    let link_ids: Vec<String> = results
+        .results::<serde_json::Value>()?
+        .into_iter()
+        .filter_map(|v| v["id"].as_str().map(|s| s.to_string()))
+        .collect();
+
+    Ok(link_ids)
+}
+
+/// Migrate all links from one org to another (updates both active and inactive links)
+pub async fn migrate_org_links(db: &D1Database, from_org_id: &str, to_org_id: &str) -> Result<()> {
+    let stmt = db.prepare("UPDATE links SET org_id = ?1 WHERE org_id = ?2");
+    stmt.bind(&[to_org_id.into(), from_org_id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Hard delete all links in an organization (after KV cleanup)
+/// Deletes analytics events first to satisfy FK constraints
+pub async fn delete_org_links(db: &D1Database, org_id: &str) -> Result<()> {
+    // First delete analytics events (FK constraint: analytics_events.link_id -> links.id)
+    let analytics_stmt = db.prepare("DELETE FROM analytics_events WHERE org_id = ?1");
+    analytics_stmt.bind(&[org_id.into()])?.run().await?;
+
+    // Then delete the links themselves
+    let stmt = db.prepare("DELETE FROM links WHERE org_id = ?1");
+    stmt.bind(&[org_id.into()])?.run().await?;
+
+    Ok(())
+}
+
+/// Delete an organization and all related data
+/// IMPORTANT: Links and analytics must be handled BEFORE calling this function
+/// (either migrated or deleted via delete_org_links)
+pub async fn delete_organization(db: &D1Database, org_id: &str) -> Result<()> {
+    // Delete pending invitations
+    let stmt = db.prepare("DELETE FROM org_invitations WHERE org_id = ?1");
+    stmt.bind(&[org_id.into()])?.run().await?;
+
+    // Delete org members
+    let stmt = db.prepare("DELETE FROM org_members WHERE org_id = ?1");
+    stmt.bind(&[org_id.into()])?.run().await?;
+
+    // Delete monthly counters
+    let stmt = db.prepare("DELETE FROM monthly_counters WHERE org_id = ?1");
+    stmt.bind(&[org_id.into()])?.run().await?;
+
+    // Delete the organization
+    let stmt = db.prepare("DELETE FROM organizations WHERE id = ?1");
+    stmt.bind(&[org_id.into()])?.run().await?;
+
+    Ok(())
+}
+
+// ─── Invitation Queries ───────────────────────────────────────────────────────
+
+/// Create a new org invitation (token = UUID = id)
+pub async fn create_org_invitation(
+    db: &D1Database,
+    org_id: &str,
+    invited_by: &str,
+    email: &str,
+    role: &str,
+) -> Result<OrgInvitation> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = now_timestamp();
+    let expires_at = now + 7 * 24 * 3600; // 7 days
+
+    let stmt = db.prepare(
+        "INSERT INTO org_invitations (id, org_id, invited_by, email, role, created_at, expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    );
+    stmt.bind(&[
+        id.clone().into(),
+        org_id.into(),
+        invited_by.into(),
+        email.into(),
+        role.into(),
+        (now as f64).into(),
+        (expires_at as f64).into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(OrgInvitation {
+        id,
+        org_id: org_id.to_string(),
+        invited_by: invited_by.to_string(),
+        email: email.to_string(),
+        role: role.to_string(),
+        created_at: now,
+        expires_at,
+        accepted_at: None,
+    })
+}
+
+/// Look up an invitation by its token (UUID = id)
+pub async fn get_invitation_by_token(
+    db: &D1Database,
+    token: &str,
+) -> Result<Option<OrgInvitation>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, invited_by, email, role, created_at, expires_at, accepted_at
+         FROM org_invitations
+         WHERE id = ?1",
+    );
+    stmt.bind(&[token.into()])?
+        .first::<OrgInvitation>(None)
+        .await
+}
+
+/// List pending (not yet accepted, not expired) invitations for an org
+pub async fn list_org_invitations(db: &D1Database, org_id: &str) -> Result<Vec<OrgInvitation>> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "SELECT id, org_id, invited_by, email, role, created_at, expires_at, accepted_at
+         FROM org_invitations
+         WHERE org_id = ?1 AND accepted_at IS NULL AND expires_at > ?2
+         ORDER BY created_at DESC",
+    );
+    let results = stmt
+        .bind(&[org_id.into(), (now as f64).into()])?
+        .all()
+        .await?;
+    results.results::<OrgInvitation>()
+}
+
+/// Mark an invitation as accepted
+pub async fn accept_invitation(db: &D1Database, token: &str) -> Result<()> {
+    let now = now_timestamp();
+    let stmt = db.prepare("UPDATE org_invitations SET accepted_at = ?1 WHERE id = ?2");
+    stmt.bind(&[(now as f64).into(), token.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Delete an invitation (revoke)
+pub async fn revoke_invitation(db: &D1Database, invitation_id: &str) -> Result<()> {
+    let stmt = db.prepare("DELETE FROM org_invitations WHERE id = ?1");
+    stmt.bind(&[invitation_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Check whether a pending (non-expired) invite for this email already exists in the org
+pub async fn pending_invite_exists(db: &D1Database, org_id: &str, email: &str) -> Result<bool> {
+    let now = now_timestamp();
+    let stmt = db.prepare(
+        "SELECT 1 FROM org_invitations
+         WHERE org_id = ?1 AND email = ?2 AND accepted_at IS NULL AND expires_at > ?3
+         LIMIT 1",
+    );
+    Ok(stmt
+        .bind(&[org_id.into(), email.into(), (now as f64).into()])?
+        .first::<serde_json::Value>(None)
+        .await?
+        .is_some())
+}
+
+/// Get user by email (used during invite acceptance to find the accepting user)
+pub async fn get_user_by_email(
+    db: &D1Database,
+    email: &str,
+) -> Result<Option<crate::models::User>> {
+    let stmt = db.prepare(
+        "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
+                suspended_at, suspension_reason, suspended_by
+         FROM users WHERE email = ?1",
+    );
+    stmt.bind(&[email.into()])?
+        .first::<crate::models::User>(None)
+        .await
+}
+
+// ============================================================================
+// Billing Account Functions
+// ============================================================================
+
+/// Get billing account by ID
+pub async fn get_billing_account(db: &D1Database, id: &str) -> Result<Option<BillingAccount>> {
+    let stmt = db.prepare(
+        "SELECT id, owner_user_id, tier, stripe_customer_id, created_at
+         FROM billing_accounts
+         WHERE id = ?1",
+    );
+    stmt.bind(&[id.into()])?.first::<BillingAccount>(None).await
+}
+
+/// Get billing account for an organization
+pub async fn get_billing_account_for_org(
+    db: &D1Database,
+    org_id: &str,
+) -> Result<Option<BillingAccount>> {
+    let stmt = db.prepare(
+        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.stripe_customer_id, ba.created_at
+         FROM billing_accounts ba
+         INNER JOIN organizations o ON o.billing_account_id = ba.id
+         WHERE o.id = ?1",
+    );
+    stmt.bind(&[org_id.into()])?
+        .first::<BillingAccount>(None)
+        .await
+}
+
+/// Get billing account for a user (their primary billing account)
+/// Returns the billing account of the user's primary organization
+pub async fn get_user_billing_account(
+    db: &D1Database,
+    user_id: &str,
+) -> Result<Option<BillingAccount>> {
+    let stmt = db.prepare(
+        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.stripe_customer_id, ba.created_at
+         FROM billing_accounts ba
+         INNER JOIN organizations o ON o.billing_account_id = ba.id
+         INNER JOIN users u ON u.org_id = o.id
+         WHERE u.id = ?1",
+    );
+    stmt.bind(&[user_id.into()])?
+        .first::<BillingAccount>(None)
+        .await
+}
+
+/// Create a billing account
+pub async fn create_billing_account(
+    db: &D1Database,
+    owner_user_id: &str,
+    tier: &str,
+) -> Result<BillingAccount> {
+    let id = BillingAccount::generate_id();
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "INSERT INTO billing_accounts (id, owner_user_id, tier, created_at)
+         VALUES (?1, ?2, ?3, ?4)",
+    );
+
+    stmt.bind(&[
+        id.clone().into(),
+        owner_user_id.into(),
+        tier.into(),
+        (now as f64).into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(BillingAccount {
+        id,
+        owner_user_id: owner_user_id.to_string(),
+        tier: tier.to_string(),
+        stripe_customer_id: None,
+        created_at: now,
+    })
+}
+
+/// Get monthly counter for billing account
+pub async fn get_monthly_counter_for_billing_account(
+    db: &D1Database,
+    billing_account_id: &str,
+    year_month: &str,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT links_created
+         FROM monthly_counters
+         WHERE billing_account_id = ?1 AND year_month = ?2",
+    );
+
+    let result = stmt
+        .bind(&[billing_account_id.into(), year_month.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["links_created"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Increment monthly counter for billing account
+/// Returns true if increment succeeded (under limit), false if limit exceeded
+pub async fn increment_monthly_counter_for_billing_account(
+    db: &D1Database,
+    billing_account_id: &str,
+    year_month: &str,
+    max_value: i64,
+) -> Result<bool> {
+    // Get current counter
+    let current =
+        get_monthly_counter_for_billing_account(db, billing_account_id, year_month).await?;
+
+    // Check if we've hit the limit
+    if current >= max_value {
+        return Ok(false);
+    }
+
+    // Upsert: insert if not exists, increment if exists
+    let stmt = db.prepare(
+        "INSERT INTO monthly_counters (billing_account_id, year_month, links_created, updated_at)
+         VALUES (?1, ?2, 1, ?3)
+         ON CONFLICT(billing_account_id, year_month)
+         DO UPDATE SET links_created = links_created + 1",
+    );
+
+    let now = now_timestamp();
+    stmt.bind(&[
+        billing_account_id.into(),
+        year_month.into(),
+        (now as f64).into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(true)
+}
+
+/// Count organizations in a billing account
+pub async fn count_orgs_in_billing_account(
+    db: &D1Database,
+    billing_account_id: &str,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(*) as count
+         FROM organizations
+         WHERE billing_account_id = ?1",
+    );
+
+    let result = stmt
+        .bind(&[billing_account_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Reset monthly counter for billing account (admin only, for testing)
+#[allow(dead_code)]
+pub async fn reset_monthly_counter_for_billing_account(
+    db: &D1Database,
+    billing_account_id: &str,
+    year_month: &str,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "DELETE FROM monthly_counters
+         WHERE billing_account_id = ?1 AND year_month = ?2",
+    );
+    stmt.bind(&[billing_account_id.into(), year_month.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Update billing account owner
+pub async fn update_billing_account_owner(
+    db: &D1Database,
+    billing_account_id: &str,
+    new_owner_id: &str,
+) -> Result<()> {
+    let stmt = db.prepare("UPDATE billing_accounts SET owner_user_id = ?1 WHERE id = ?2");
+    stmt.bind(&[new_owner_id.into(), billing_account_id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Get billing account ID for an organization
+pub async fn get_org_billing_account(db: &D1Database, org_id: &str) -> Result<Option<String>> {
+    let stmt = db.prepare("SELECT billing_account_id FROM organizations WHERE id = ?1");
+
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["billing_account_id"].as_str().map(|s| s.to_string())),
+        None => Ok(None),
+    }
+}
+
+/// Create an organization linked to a specific billing account
+pub async fn create_organization_with_billing_account(
+    db: &D1Database,
+    org_name: &str,
+    created_by: &str,
+    billing_account_id: &str,
+) -> Result<Organization> {
+    let org_id = uuid::Uuid::new_v4().to_string();
+    let slug = generate_unique_slug(db, org_name).await?;
+    let now = now_timestamp();
+
+    // Get tier from billing account
+    let billing_account = get_billing_account(db, billing_account_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Billing account not found".to_string()))?;
+
+    let stmt = db.prepare(
+        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier, billing_account_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    );
+
+    stmt.bind(&[
+        org_id.clone().into(),
+        org_name.into(),
+        slug.clone().into(),
+        (now as f64).into(),
+        created_by.into(),
+        billing_account.tier.clone().into(),
+        billing_account_id.into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(Organization {
+        id: org_id,
+        name: org_name.to_string(),
+        slug,
+        created_at: now,
+        created_by: created_by.to_string(),
+        tier: billing_account.tier,
+        billing_account_id: Some(billing_account_id.to_string()),
+    })
+}
+
+// ─── Admin Billing Account Queries ────────────────────────────────────────────
+
+/// Response type for billing account list with stats
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct BillingAccountWithStats {
+    pub id: String,
+    pub owner_user_id: String,
+    pub owner_email: String,
+    pub owner_name: Option<String>,
+    pub tier: String,
+    pub org_count: i64,
+    pub total_members: i64,
+    pub links_created_this_month: i64,
+    pub created_at: i64,
+}
+
+/// Response type for org within a billing account
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct OrgWithMembersCount {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub member_count: i64,
+    pub link_count: i64,
+    pub created_at: i64,
+}
+
+/// Response type for detailed billing account view
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct BillingAccountDetails {
+    pub account: BillingAccount,
+    pub owner: User,
+    pub organizations: Vec<OrgWithMembersCount>,
+    pub usage: UsageStats,
+}
+
+/// Usage stats for billing account
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct UsageStats {
+    pub links_created_this_month: i64,
+    pub max_links_per_month: Option<i64>,
+    pub year_month: String,
+}
+
+/// List all billing accounts with statistics (admin only).
+/// Returns paginated list with aggregated stats.
+pub async fn list_billing_accounts_for_admin(
+    db: &D1Database,
+    page: i64,
+    limit: i64,
+    search: Option<&str>,
+    tier_filter: Option<&str>,
+) -> Result<(Vec<BillingAccountWithStats>, i64)> {
+    let offset = (page - 1) * limit;
+    let current_month = chrono::Utc::now().format("%Y-%m").to_string();
+
+    // Build WHERE clause for filtering
+    let mut where_clauses = vec![];
+    let mut bind_values: Vec<JsValue> = vec![];
+
+    if let Some(search_term) = search {
+        where_clauses.push("u.email LIKE ?");
+        bind_values.push(format!("%{}%", search_term).into());
+    }
+
+    if let Some(tier) = tier_filter {
+        where_clauses.push("ba.tier = ?");
+        bind_values.push(tier.into());
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    };
+
+    // Count total results
+    let count_sql = format!(
+        "SELECT COUNT(DISTINCT ba.id) as count
+         FROM billing_accounts ba
+         LEFT JOIN users u ON u.id = ba.owner_user_id
+         {}",
+        where_sql
+    );
+    let count_stmt = db.prepare(&count_sql);
+    let count_result = if bind_values.is_empty() {
+        count_stmt.first::<serde_json::Value>(None).await?
+    } else {
+        count_stmt
+            .bind(&bind_values)?
+            .first::<serde_json::Value>(None)
+            .await?
+    };
+    let total = count_result
+        .and_then(|v| v["count"].as_f64())
+        .unwrap_or(0.0) as i64;
+
+    // Fetch paginated results with aggregated stats
+    let mut bind_values_with_limit = bind_values.clone();
+    bind_values_with_limit.push(current_month.clone().into());
+    bind_values_with_limit.push((limit as f64).into());
+    bind_values_with_limit.push((offset as f64).into());
+
+    let query_sql = format!(
+        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.created_at,
+                u.email as owner_email, u.name as owner_name,
+                COUNT(DISTINCT o.id) as org_count,
+                COUNT(DISTINCT om.user_id) as total_members,
+                COALESCE(mc.links_created, 0) as links_created_this_month
+         FROM billing_accounts ba
+         LEFT JOIN users u ON u.id = ba.owner_user_id
+         LEFT JOIN organizations o ON o.billing_account_id = ba.id
+         LEFT JOIN org_members om ON om.org_id = o.id
+         LEFT JOIN monthly_counters mc ON mc.billing_account_id = ba.id AND mc.year_month = ?
+         {}
+         GROUP BY ba.id
+         ORDER BY ba.created_at DESC
+         LIMIT ? OFFSET ?",
+        where_sql
+    );
+
+    let stmt = db.prepare(&query_sql);
+    let results = stmt.bind(&bind_values_with_limit)?.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+
+    let accounts: Vec<BillingAccountWithStats> = rows
+        .iter()
+        .filter_map(|row| {
+            Some(BillingAccountWithStats {
+                id: row["id"].as_str()?.to_string(),
+                owner_user_id: row["owner_user_id"].as_str()?.to_string(),
+                owner_email: row["owner_email"].as_str()?.to_string(),
+                owner_name: row["owner_name"].as_str().map(|s| s.to_string()),
+                tier: row["tier"].as_str()?.to_string(),
+                org_count: row["org_count"].as_f64()? as i64,
+                total_members: row["total_members"].as_f64()? as i64,
+                links_created_this_month: row["links_created_this_month"].as_f64()? as i64,
+                created_at: row["created_at"].as_f64()? as i64,
+            })
+        })
+        .collect();
+
+    Ok((accounts, total))
+}
+
+/// Get detailed view of a single billing account with all orgs and users.
+pub async fn get_billing_account_details(
+    db: &D1Database,
+    billing_account_id: &str,
+) -> Result<Option<BillingAccountDetails>> {
+    // Get billing account
+    let account = match get_billing_account(db, billing_account_id).await? {
+        Some(acc) => acc,
+        None => return Ok(None),
+    };
+
+    // Get owner user
+    let owner_stmt = db.prepare("SELECT * FROM users WHERE id = ?1");
+    let owner = owner_stmt
+        .bind(&[account.owner_user_id.clone().into()])?
+        .first::<User>(None)
+        .await?;
+
+    let owner = match owner {
+        Some(u) => u,
+        None => return Ok(None),
+    };
+
+    // Get all organizations with member and link counts
+    let orgs_stmt = db.prepare(
+        "SELECT o.id, o.name, o.slug, o.created_at,
+                COUNT(DISTINCT om.user_id) as member_count,
+                COUNT(DISTINCT l.id) as link_count
+         FROM organizations o
+         LEFT JOIN org_members om ON om.org_id = o.id
+         LEFT JOIN links l ON l.org_id = o.id AND l.status = 'active'
+         WHERE o.billing_account_id = ?1
+         GROUP BY o.id
+         ORDER BY o.created_at ASC",
+    );
+    let orgs_result = orgs_stmt.bind(&[billing_account_id.into()])?.all().await?;
+    let orgs_rows = orgs_result.results::<serde_json::Value>()?;
+    let organizations: Vec<OrgWithMembersCount> = orgs_rows
+        .iter()
+        .filter_map(|row| {
+            Some(OrgWithMembersCount {
+                id: row["id"].as_str()?.to_string(),
+                name: row["name"].as_str()?.to_string(),
+                slug: row["slug"].as_str()?.to_string(),
+                member_count: row["member_count"].as_f64()? as i64,
+                link_count: row["link_count"].as_f64()? as i64,
+                created_at: row["created_at"].as_f64()? as i64,
+            })
+        })
+        .collect();
+
+    // Get usage stats for current month
+    let current_month = chrono::Utc::now().format("%Y-%m").to_string();
+    let counter =
+        get_monthly_counter_for_billing_account(db, billing_account_id, &current_month).await?;
+
+    let tier =
+        crate::models::Tier::from_str_value(&account.tier).unwrap_or(crate::models::Tier::Free);
+    let limits = tier.limits();
+
+    let usage = UsageStats {
+        links_created_this_month: counter,
+        max_links_per_month: limits.max_links_per_month,
+        year_month: current_month,
+    };
+
+    Ok(Some(BillingAccountDetails {
+        account,
+        owner,
+        organizations,
+        usage,
+    }))
+}
+
+/// Update billing account tier (admin only).
+/// This will affect all organizations linked to this billing account.
+pub async fn update_billing_account_tier(
+    db: &D1Database,
+    billing_account_id: &str,
+    new_tier: &str,
+) -> Result<()> {
+    // Update billing account tier
+    let stmt = db.prepare("UPDATE billing_accounts SET tier = ?1 WHERE id = ?2");
+    stmt.bind(&[new_tier.into(), billing_account_id.into()])?
+        .run()
+        .await?;
+
+    // Update all organizations linked to this billing account
+    let org_stmt = db.prepare("UPDATE organizations SET tier = ?1 WHERE billing_account_id = ?2");
+    org_stmt
+        .bind(&[new_tier.into(), billing_account_id.into()])?
+        .run()
+        .await?;
+
+    Ok(())
 }

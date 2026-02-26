@@ -11,6 +11,9 @@ import type {
 	LinkReportWithLink,
 	AdminReportsResponse,
 	UpdateReportStatusRequest,
+	BillingAccountWithStats,
+	BillingAccountDetails,
+	ListBillingAccountsResponse,
 } from "$lib/types/api";
 
 export interface AdminUsersResponse {
@@ -18,6 +21,7 @@ export interface AdminUsersResponse {
 	total: number;
 	page: number;
 	limit: number;
+	org_tiers: Record<string, string>;
 }
 
 export interface UpdateUserRoleRequest {
@@ -271,5 +275,61 @@ export const adminApi = {
 	 */
 	async getPendingReportsCount(): Promise<{ count: number; }> {
 		return apiClient.get<{ count: number; }>('/api/admin/reports/pending/count');
+	},
+
+	/**
+	 * List all billing accounts (admin only)
+	 * @param page - Page number (default: 1)
+	 * @param limit - Number of accounts per page (default: 50)
+	 * @param search - Optional email search filter
+	 * @param tier - Optional tier filter
+	 * @returns Paginated list of billing accounts with stats
+	 */
+	async listBillingAccounts(
+		page: number = 1,
+		limit: number = 50,
+		search?: string,
+		tier?: string
+	): Promise<ListBillingAccountsResponse> {
+		const params = new URLSearchParams({
+			page: page.toString(),
+			limit: limit.toString()
+		});
+		if (search) params.set('search', search);
+		if (tier) params.set('tier', tier);
+		return apiClient.get<ListBillingAccountsResponse>(`/api/admin/billing-accounts?${params}`);
+	},
+
+	/**
+	 * Get billing account details (admin only)
+	 * @param id - Billing account ID
+	 * @returns Detailed billing account view with orgs and usage
+	 */
+	async getBillingAccount(id: string): Promise<BillingAccountDetails> {
+		return apiClient.get<BillingAccountDetails>(`/api/admin/billing-accounts/${id}`);
+	},
+
+	/**
+	 * Update billing account tier (admin only)
+	 * @param id - Billing account ID
+	 * @param tier - New tier ('free', 'pro', 'business', or 'unlimited')
+	 * @returns Success response
+	 */
+	async updateBillingAccountTier(id: string, tier: string): Promise<{ success: boolean; message: string; tier: string; }> {
+		return apiClient.request<{ success: boolean; message: string; tier: string; }>(`/api/admin/billing-accounts/${id}/tier`, {
+			method: 'PUT',
+			body: JSON.stringify({ tier })
+		});
+	},
+
+	/**
+	 * Reset billing account counter for current month (admin only)
+	 * @param id - Billing account ID
+	 * @returns Success response
+	 */
+	async resetBillingAccountCounter(id: string): Promise<{ success: boolean; message: string; year_month: string; }> {
+		return apiClient.request<{ success: boolean; message: string; year_month: string; }>(`/api/admin/billing-accounts/${id}/reset-counter`, {
+			method: 'POST'
+		});
 	}
 };

@@ -151,7 +151,7 @@ pub(crate) fn add_cors_headers(
         let _ = headers.set("Access-Control-Allow-Origin", &origin_value);
         let _ = headers.set(
             "Access-Control-Allow-Methods",
-            "GET, POST, PUT, DELETE, OPTIONS",
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS",
         );
         let _ = headers.set(
             "Access-Control-Allow-Headers",
@@ -297,6 +297,16 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/users/:id", handle_cors_preflight)
         .options_async("/api/admin/settings", handle_cors_preflight)
         .options_async("/api/admin/orgs/:id/tier", handle_cors_preflight)
+        .options_async("/api/admin/billing-accounts", handle_cors_preflight)
+        .options_async("/api/admin/billing-accounts/:id", handle_cors_preflight)
+        .options_async(
+            "/api/admin/billing-accounts/:id/tier",
+            handle_cors_preflight,
+        )
+        .options_async(
+            "/api/admin/billing-accounts/:id/reset-counter",
+            handle_cors_preflight,
+        )
         .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
         .options_async("/api/admin/links", handle_cors_preflight)
         .options_async("/api/admin/links/:id", handle_cors_preflight)
@@ -311,6 +321,21 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/tags", handle_cors_preflight)
         .options_async("/api/fetch-title", handle_cors_preflight)
         .options_async("/api/version", handle_cors_preflight)
+        .options_async("/api/orgs", handle_cors_preflight)
+        .options_async("/api/orgs/:id", handle_cors_preflight)
+        .options_async("/api/orgs/:id/members/:user_id", handle_cors_preflight)
+        .options_async("/api/orgs/:id/invitations", handle_cors_preflight)
+        .options_async(
+            "/api/orgs/:id/invitations/:invitation_id",
+            handle_cors_preflight,
+        )
+        .options_async(
+            "/api/orgs/:id/invitations/:invitation_id/resend",
+            handle_cors_preflight,
+        )
+        .options_async("/api/auth/switch-org", handle_cors_preflight)
+        .options_async("/api/invite/:token", handle_cors_preflight)
+        .options_async("/api/invite/:token/accept", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/providers", router::handle_list_auth_providers)
         .get_async("/api/auth/github", router::handle_github_login)
@@ -379,10 +404,59 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/admin/reports/pending/count",
             router::handle_admin_get_pending_reports_count,
         )
+        // Admin billing account routes
+        .get_async(
+            "/api/admin/billing-accounts",
+            router::handle_admin_list_billing_accounts,
+        )
+        .get_async(
+            "/api/admin/billing-accounts/:id",
+            router::handle_admin_get_billing_account,
+        )
+        .put_async(
+            "/api/admin/billing-accounts/:id/tier",
+            router::handle_admin_update_billing_account_tier,
+        )
+        .post_async(
+            "/api/admin/billing-accounts/:id/reset-counter",
+            router::handle_admin_reset_billing_account_counter,
+        )
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)
         // Tags route
         .get_async("/api/tags", router::handle_get_org_tags)
+        // Org management routes
+        .get_async("/api/orgs", crate::api::orgs::handle_list_user_orgs)
+        .post_async("/api/orgs", crate::api::orgs::handle_create_org)
+        .get_async("/api/orgs/:id", crate::api::orgs::handle_get_org)
+        .patch_async("/api/orgs/:id", crate::api::orgs::handle_update_org)
+        .delete_async("/api/orgs/:id", crate::api::orgs::handle_delete_org)
+        .delete_async(
+            "/api/orgs/:id/members/:user_id",
+            crate::api::orgs::handle_remove_member,
+        )
+        .post_async(
+            "/api/orgs/:id/invitations",
+            crate::api::orgs::handle_create_invitation,
+        )
+        .delete_async(
+            "/api/orgs/:id/invitations/:invitation_id",
+            crate::api::orgs::handle_revoke_invitation,
+        )
+        .post_async(
+            "/api/orgs/:id/invitations/:invitation_id/resend",
+            crate::api::orgs::handle_resend_invitation,
+        )
+        .post_async("/api/auth/switch-org", crate::api::orgs::handle_switch_org)
+        // Invite routes (GET is public, POST requires auth)
+        .get_async(
+            "/api/invite/:token",
+            crate::api::orgs::handle_get_invite_info,
+        )
+        .post_async(
+            "/api/invite/:token/accept",
+            crate::api::orgs::handle_accept_invite,
+        )
         // Title fetch route (public, can be called by anyone)
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)

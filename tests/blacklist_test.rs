@@ -1,5 +1,4 @@
 use reqwest::StatusCode;
-use uuid;
 
 mod common;
 use common::*;
@@ -138,10 +137,7 @@ async fn test_prevent_duplicate_blacklist() {
     let auth_client = authenticated_client();
 
     // Generate a unique URL for this test
-    let unique_url = format!(
-        "http://duplicate-test-{}.com",
-        uuid::Uuid::new_v4().to_string()
-    );
+    let unique_url = format!("http://duplicate-test-{}.com", uuid::Uuid::new_v4());
 
     // The URL will be normalized to add a trailing slash, so we need to use the normalized version for comparison
     let normalized_url = format!("{}/", unique_url);

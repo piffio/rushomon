@@ -11,6 +11,8 @@ export interface User {
 	suspended_at: number | null;
 	suspension_reason: string | null;
 	suspended_by: string | null;
+	billing_account_id?: string | null;
+	billing_account_tier?: string | null;
 }
 
 export type LinkStatus = 'active' | 'disabled' | 'blocked';
@@ -213,6 +215,110 @@ export interface UpdateReportStatusRequest {
 
 export interface AdminLinksResponse {
 	links: AdminLink[];
+	total: number;
+	page: number;
+	limit: number;
+}
+
+// ─── Org Management Types ─────────────────────────────────────────────────────
+
+export interface OrgWithRole {
+	id: string;
+	name: string;
+	tier: string;
+	role: 'owner' | 'member';
+	joined_at: number;
+}
+
+export interface OrgMember {
+	user_id: string;
+	email: string;
+	name: string | null;
+	avatar_url: string | null;
+	role: 'owner' | 'member';
+	joined_at: number;
+}
+
+export interface OrgInvitation {
+	id: string;
+	org_id: string;
+	invited_by: string;
+	email: string;
+	role: string;
+	created_at: number;
+	expires_at: number;
+	accepted_at: number | null;
+}
+
+export interface OrgDetails {
+	org: {
+		id: string;
+		name: string;
+		tier: string;
+		created_at: number;
+		role: 'owner' | 'member';
+	};
+	members: OrgMember[];
+	pending_invitations: OrgInvitation[];
+}
+
+export interface InviteInfo {
+	valid: boolean;
+	reason?: string;
+	org_name?: string;
+	invited_by?: string;
+	email?: string;
+	expires_at?: number;
+}
+
+export interface ListOrgsResponse {
+	orgs: OrgWithRole[];
+	current_org_id: string;
+}
+
+// ─── Billing Account Types ────────────────────────────────────────────────────
+
+export interface BillingAccountWithStats {
+	id: string;
+	owner_user_id: string;
+	owner_email: string;
+	owner_name: string | null;
+	tier: string;
+	org_count: number;
+	total_members: number;
+	links_created_this_month: number;
+	created_at: number;
+}
+
+export interface OrgWithMembersCount {
+	id: string;
+	name: string;
+	slug: string;
+	member_count: number;
+	link_count: number;
+	created_at: number;
+}
+
+export interface UsageStats {
+	links_created_this_month: number;
+	max_links_per_month: number | null;
+	year_month: string;
+}
+
+export interface BillingAccountDetails {
+	account: {
+		id: string;
+		owner_user_id: string;
+		tier: string;
+		created_at: number;
+	};
+	owner: User;
+	organizations: OrgWithMembersCount[];
+	usage: UsageStats;
+}
+
+export interface ListBillingAccountsResponse {
+	accounts: BillingAccountWithStats[];
 	total: number;
 	page: number;
 	limit: number;

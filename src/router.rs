@@ -284,33 +284,47 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         return Ok(response);
     }
 
-    // Tier-based link creation limit
+    // Tier-based link creation limit (enforced at billing account level)
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let org = db::get_org_by_id(&db, org_id)
-        .await?
-        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
-    // Get tier limits for this org (used for both link limit and custom code checks)
-    let tier = Tier::from_str_value(&org.tier);
+    // Get billing account for this org
+    let billing_account = db::get_billing_account_for_org(&db, org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
+
+    // Get tier limits from billing account (not org)
+    let tier = Tier::from_str_value(&billing_account.tier);
     let limits = tier.as_ref().map(|t| t.limits());
 
     // Check link creation limit for this tier
+    // Quota is shared across all orgs in the billing account
     if let Some(ref tier_limits) = limits
         && let Some(max_links) = tier_limits.max_links_per_month
     {
         let now = chrono::Utc::now();
         let year_month = format!("{}-{:02}", now.year(), now.month());
 
-        // Try to increment the counter - this will fail if limit reached
-        let can_create = db::increment_monthly_counter(&db, org_id, &year_month, max_links).await?;
+        // Try to increment the counter at billing account level
+        let can_create = db::increment_monthly_counter_for_billing_account(
+            &db,
+            &billing_account.id,
+            &year_month,
+            max_links,
+        )
+        .await?;
 
         if !can_create {
-            let current_count = db::get_monthly_counter(&db, org_id, &year_month).await?;
-            let remaining = max_links - current_count;
+            let current_count =
+                db::get_monthly_counter_for_billing_account(&db, &billing_account.id, &year_month)
+                    .await?;
+            let remaining = max_links.saturating_sub(current_count);
             let message = if remaining > 0 {
-                format!("You can create {} more short links this month.", remaining)
+                format!(
+                    "You can create {} more short links this month across all organizations.",
+                    remaining
+                )
             } else {
-                "You have reached your monthly link limit. Upgrade your plan to create more links."
+                "You have reached your monthly link limit across all organizations. Upgrade your plan to create more links."
                     .to_string()
             };
             return Response::error(message, 403);
@@ -1065,8 +1079,8 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    // Handle OAuth callback - returns both access and refresh tokens
-    let (user, _org, tokens) =
+    // Handle OAuth callback - returns both access and refresh tokens, plus optional redirect
+    let (user, _org, tokens, redirect) =
         match auth::oauth::handle_oauth_callback(&req, code, state, &kv, &db, &ctx.env).await {
             Ok(result) => result,
             Err(e) => {
@@ -1120,7 +1134,12 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
         auth::session::create_refresh_cookie_with_scheme(&tokens.refresh_token, scheme);
 
     // Redirect to frontend WITHOUT token in URL (cookies set automatically)
-    let redirect_url = format!("{}/auth/callback", frontend_url);
+    // Use stored redirect from OAuth state if present, otherwise default to auth callback
+    let redirect_url = if let Some(redirect_path) = redirect {
+        format!("{}{}", frontend_url, redirect_path)
+    } else {
+        format!("{}/auth/callback", frontend_url)
+    };
 
     // Build redirect response with both cookies
     let headers = Headers::new();
@@ -1201,13 +1220,23 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
         .await?
         .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
-    let tier = Tier::from_str_value(&org.tier).unwrap_or(Tier::Free);
+    // Get billing account for usage tracking
+    let billing_account_id = org
+        .billing_account_id
+        .as_ref()
+        .ok_or_else(|| Error::RustError("Organization has no billing account".to_string()))?;
+    let billing_account = db::get_billing_account(&db, billing_account_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Billing account not found".to_string()))?;
+
+    let tier = Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
     let limits = tier.limits();
 
-    // Use the new monthly counter system for efficiency
+    // Use billing account monthly counter for efficiency
     let now = chrono::Utc::now();
     let year_month = format!("{}-{:02}", now.year(), now.month());
-    let links_created_this_month = db::get_monthly_counter(&db, org_id, &year_month).await?;
+    let links_created_this_month =
+        db::get_monthly_counter_for_billing_account(&db, &billing_account.id, &year_month).await?;
 
     let usage = serde_json::json!({
         "tier": tier.as_str(),
@@ -1447,7 +1476,7 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
     let offset = (page - 1) * limit;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let users = db::get_all_users(&db, limit, offset).await?;
+    let users = db::get_all_users_with_billing_info(&db, limit, offset).await?;
     let total = db::get_user_count(&db).await?;
     let org_tiers_vec = db::get_all_org_tiers(&db).await?;
     let org_tiers: std::collections::HashMap<String, String> = org_tiers_vec.into_iter().collect();
@@ -1723,20 +1752,31 @@ pub async fn handle_admin_reset_monthly_counter(
         Err(_) => return Response::error("Database not available", 500),
     };
 
-    // Reset the monthly counter to 0
-    match db::reset_monthly_counter(&db, &org_id).await {
+    // Get the organization's billing account ID
+    let billing_account_id = match db::get_org_billing_account(&db, &org_id).await? {
+        Some(id) => id,
+        None => return Response::error("Organization has no billing account", 500),
+    };
+
+    let now = chrono::Utc::now();
+    let year_month = format!("{}-{:02}", now.year(), now.month());
+
+    // Reset the monthly counter for the billing account
+    match db::reset_monthly_counter_for_billing_account(&db, &billing_account_id, &year_month).await
+    {
         Ok(_) => {
             console_log!(
                 "{}",
                 serde_json::json!({
                     "event": "admin_reset_counter_success",
                     "org_id": org_id,
+                    "billing_account_id": billing_account_id,
                     "level": "info"
                 })
             );
             Response::from_json(&serde_json::json!({
                 "success": true,
-                "message": "Monthly counter reset successfully"
+                "message": "Monthly counter reset for billing account"
             }))
         }
         Err(e) => {
@@ -1745,6 +1785,7 @@ pub async fn handle_admin_reset_monthly_counter(
                 serde_json::json!({
                     "event": "admin_reset_counter_failed",
                     "org_id": org_id,
+                    "billing_account_id": billing_account_id,
                     "error": e.to_string(),
                     "level": "error"
                 })
@@ -2607,6 +2648,239 @@ pub async fn handle_admin_get_pending_reports_count(
                 })
             );
             Response::error("Failed to get pending reports count", 500)
+        }
+    }
+}
+
+/// Handle listing all billing accounts: GET /api/admin/billing-accounts (admin only)
+pub async fn handle_admin_list_billing_accounts(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let url = req.url()?;
+
+    // Parse query parameters
+    let page = url
+        .query()
+        .and_then(|q| extract_query_param(q, "page").ok())
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(1);
+    let limit = url
+        .query()
+        .and_then(|q| extract_query_param(q, "limit").ok())
+        .and_then(|l| l.parse().ok())
+        .unwrap_or(50);
+    let search = url
+        .query()
+        .and_then(|q| extract_query_param(q, "search").ok());
+    let tier_filter = url
+        .query()
+        .and_then(|q| extract_query_param(q, "tier").ok());
+
+    match db::list_billing_accounts_for_admin(
+        &db,
+        page,
+        limit,
+        search.as_deref(),
+        tier_filter.as_deref(),
+    )
+    .await
+    {
+        Ok((accounts, total)) => Response::from_json(&serde_json::json!({
+            "accounts": accounts,
+            "total": total,
+            "page": page,
+            "limit": limit,
+        })),
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "list_billing_accounts_failed",
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to list billing accounts", 500)
+        }
+    }
+}
+
+/// Handle getting billing account details: GET /api/admin/billing-accounts/:id (admin only)
+pub async fn handle_admin_get_billing_account(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let billing_account_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing billing account ID".to_string()))?;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::get_billing_account_details(&db, billing_account_id).await {
+        Ok(Some(details)) => Response::from_json(&details),
+        Ok(None) => Response::error("Billing account not found", 404),
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "get_billing_account_failed",
+                    "billing_account_id": billing_account_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to get billing account details", 500)
+        }
+    }
+}
+
+/// Handle updating billing account tier: PUT /api/admin/billing-accounts/:id/tier (admin only)
+pub async fn handle_admin_update_billing_account_tier(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let billing_account_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing billing account ID".to_string()))?;
+
+    #[derive(serde::Deserialize)]
+    struct UpdateTierRequest {
+        tier: String,
+    }
+
+    let body: UpdateTierRequest = match req.json().await {
+        Ok(b) => b,
+        Err(_) => return Response::error("Invalid request body", 400),
+    };
+
+    // Validate tier value
+    if !matches!(
+        body.tier.as_str(),
+        "free" | "pro" | "business" | "unlimited"
+    ) {
+        return Response::error(
+            "Invalid tier. Must be: free, pro, business, or unlimited",
+            400,
+        );
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::update_billing_account_tier(&db, billing_account_id, &body.tier).await {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "billing_account_tier_updated",
+                    "billing_account_id": billing_account_id,
+                    "new_tier": body.tier,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "Billing account tier updated successfully",
+                "tier": body.tier
+            }))
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "update_billing_account_tier_failed",
+                    "billing_account_id": billing_account_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to update billing account tier", 500)
+        }
+    }
+}
+
+/// Handle resetting billing account counter: POST /api/admin/billing-accounts/:id/reset-counter (admin only)
+pub async fn handle_admin_reset_billing_account_counter(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let billing_account_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing billing account ID".to_string()))?;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    let current_month = chrono::Utc::now().format("%Y-%m").to_string();
+
+    match db::reset_monthly_counter_for_billing_account(&db, billing_account_id, &current_month)
+        .await
+    {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "billing_account_counter_reset",
+                    "billing_account_id": billing_account_id,
+                    "year_month": current_month,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "Counter reset successfully",
+                "year_month": current_month
+            }))
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "reset_billing_account_counter_failed",
+                    "billing_account_id": billing_account_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to reset counter", 500)
         }
     }
 }

@@ -5,6 +5,7 @@
 	type Module =
 		| "dashboard"
 		| "users"
+		| "billing"
 		| "links"
 		| "blacklist"
 		| "reports"
@@ -36,6 +37,13 @@
 			>
 				<span class="nav-icon">👥</span>
 				<span class="nav-label">Users</span>
+			</button>
+			<button
+				class="nav-item {activeModule === 'billing' ? 'active' : ''}"
+				onclick={() => navigateTo("billing")}
+			>
+				<span class="nav-icon">💳</span>
+				<span class="nav-label">Billing Accounts</span>
 			</button>
 			<button
 				class="nav-item {activeModule === 'links' ? 'active' : ''}"
