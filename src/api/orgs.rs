@@ -6,6 +6,17 @@ use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::*;
 
+/// Get the effective tier for an organization by looking up its billing account.
+async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tier {
+    if let Some(ref billing_account_id) = org.billing_account_id
+        && let Ok(Some(billing_account)) = db::get_billing_account(db, billing_account_id).await
+    {
+        return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
+    }
+    // Organization should always have a billing account after migration
+    Tier::Free
+}
+
 // ─── GET /api/orgs ─────────────────────────────────────────────────────────
 /// List all organizations the current user belongs to
 pub async fn handle_list_user_orgs(req: Request, ctx: RouteContext<()>) -> Result<Response> {
@@ -17,8 +28,36 @@ pub async fn handle_list_user_orgs(req: Request, ctx: RouteContext<()>) -> Resul
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let orgs = db::get_user_orgs(&db, &user_ctx.user_id).await?;
 
+    // Add tier information to each org by looking up billing account
+    let mut orgs_with_tier = Vec::new();
+    for org in orgs {
+        let tier = if let Some(org_details) = db::get_org_by_id(&db, &org.id).await? {
+            if let Some(ref billing_account_id) = org_details.billing_account_id {
+                if let Ok(Some(billing_account)) =
+                    db::get_billing_account(&db, billing_account_id).await
+                {
+                    billing_account.tier
+                } else {
+                    "free".to_string()
+                }
+            } else {
+                "free".to_string()
+            }
+        } else {
+            "free".to_string()
+        };
+
+        orgs_with_tier.push(serde_json::json!({
+            "id": org.id,
+            "name": org.name,
+            "tier": tier,
+            "role": org.role,
+            "joined_at": org.joined_at,
+        }));
+    }
+
     Response::from_json(&serde_json::json!({
-        "orgs": orgs,
+        "orgs": orgs_with_tier,
         "current_org_id": user_ctx.org_id,
     }))
 }
@@ -172,11 +211,15 @@ pub async fn handle_switch_org(mut req: Request, ctx: RouteContext<()>) -> Resul
     let access_cookie = auth::session::create_access_cookie_with_scheme(&new_access_token, scheme);
 
     let member_info = member.unwrap();
+
+    // Get tier from billing account for API response
+    let tier = get_org_tier(&db, &org).await;
+
     let mut response = Response::from_json(&serde_json::json!({
         "org": {
             "id": org.id,
             "name": org.name,
-            "tier": org.tier,
+            "tier": tier.as_str(),
             "role": member_info.role,
         },
     }))?;
@@ -212,6 +255,9 @@ pub async fn handle_get_org(req: Request, ctx: RouteContext<()>) -> Result<Respo
 
     let members = db::get_org_members(&db, &org_id).await?;
 
+    // Get tier from billing account for API response
+    let tier = get_org_tier(&db, &org).await;
+
     // Owners and admins see pending invitations
     let pending_invitations = if member.role == "owner" || member.role == "admin" {
         db::list_org_invitations(&db, &org_id).await?
@@ -223,7 +269,7 @@ pub async fn handle_get_org(req: Request, ctx: RouteContext<()>) -> Result<Respo
         "org": {
             "id": org.id,
             "name": org.name,
-            "tier": org.tier,
+            "tier": tier.as_str(),
             "created_at": org.created_at,
             "role": member.role,
         },
@@ -279,7 +325,18 @@ pub async fn handle_update_org(mut req: Request, ctx: RouteContext<()>) -> Resul
         .await?
         .ok_or_else(|| Error::RustError("Organization not found after update".to_string()))?;
 
-    Response::from_json(&serde_json::json!({ "org": updated_org }))
+    // Get tier from billing account for API response
+    let tier = get_org_tier(&db, &updated_org).await;
+
+    Response::from_json(&serde_json::json!({
+        "org": {
+            "id": updated_org.id,
+            "name": updated_org.name,
+            "tier": tier.as_str(),
+            "created_at": updated_org.created_at,
+            "billing_account_id": updated_org.billing_account_id,
+        }
+    }))
 }
 
 // ─── DELETE /api/orgs/:id/members/:user_id ──────────────────────────────────
@@ -380,12 +437,12 @@ pub async fn handle_create_invitation(mut req: Request, ctx: RouteContext<()>) -
         None => return Response::error("Organization not found", 404),
     }
 
-    // Get org and its tier limits
+    // Get org and check tier limits from billing account
     let org = db::get_org_by_id(&db, &org_id)
         .await?
         .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
-    let tier = Tier::from_str_value(&org.tier).unwrap_or(Tier::Free);
+    let tier = get_org_tier(&db, &org).await;
     let limits = tier.limits();
 
     // Check member limits if tier has them
@@ -747,11 +804,14 @@ pub async fn handle_accept_invite(req: Request, ctx: RouteContext<()>) -> Result
     let access_cookie = auth::session::create_access_cookie_with_scheme(&new_access_token, scheme);
 
     // Return JSON response with org info
+    // Get tier from billing account for API response
+    let tier = get_org_tier(&db, &_org).await;
+
     let mut response = Response::from_json(&serde_json::json!({
         "org": {
             "id": _org.id,
             "name": _org.name,
-            "tier": _org.tier,
+            "tier": tier.as_str(),
             "role": invitation.role,
         },
     }))?;

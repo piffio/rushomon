@@ -193,17 +193,16 @@ pub async fn create_default_org(
     let billing_account = create_billing_account(db, user_id, &tier).await?;
 
     let stmt = db.prepare(
-        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier, billing_account_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO organizations (id, name, slug, created_at, created_by, billing_account_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     );
 
     stmt.bind(&[
         org_id.clone().into(),
-        org_name.into(),
+        org_name.to_string().into(),
         slug.clone().into(),
         (now as f64).into(),
         user_id.into(),
-        tier.clone().into(),
         billing_account.id.clone().into(),
     ])?
     .run()
@@ -215,7 +214,6 @@ pub async fn create_default_org(
         slug,
         created_at: now,
         created_by: user_id.to_string(),
-        tier,
         billing_account_id: Some(billing_account.id),
     })
 }
@@ -235,7 +233,7 @@ pub async fn get_user_by_id(db: &D1Database, user_id: &str) -> Result<Option<Use
 /// Get organization by ID
 pub async fn get_org_by_id(db: &D1Database, org_id: &str) -> Result<Option<Organization>> {
     let stmt = db.prepare(
-        "SELECT id, name, slug, created_at, created_by, tier, billing_account_id
+        "SELECT id, name, slug, created_at, created_by, billing_account_id
          FROM organizations
          WHERE id = ?1",
     );
@@ -769,6 +767,23 @@ pub async fn get_setting(db: &D1Database, key: &str) -> Result<Option<String>> {
     }
 }
 
+/// Get all settings as a HashMap
+pub async fn get_all_settings(
+    db: &D1Database,
+) -> Result<std::collections::HashMap<String, String>> {
+    let stmt = db.prepare("SELECT key, value FROM settings");
+    let results = stmt.all().await?;
+    let rows = results.results::<serde_json::Value>()?;
+
+    let mut settings = std::collections::HashMap::new();
+    for row in rows {
+        if let (Some(key), Some(value)) = (row["key"].as_str(), row["value"].as_str()) {
+            settings.insert(key.to_string(), value.to_string());
+        }
+    }
+    Ok(settings)
+}
+
 /// Set a setting value (upsert)
 pub async fn set_setting(db: &D1Database, key: &str, value: &str) -> Result<()> {
     let now = now_timestamp();
@@ -998,44 +1013,6 @@ pub async fn get_link_total_clicks_in_range(
     }
 }
 
-/// Get all settings as a list of (key, value) pairs
-pub async fn get_all_settings(db: &D1Database) -> Result<Vec<(String, String)>> {
-    let stmt = db.prepare("SELECT key, value FROM settings ORDER BY key");
-    let results = stmt.all().await?;
-
-    let rows = results.results::<serde_json::Value>()?;
-    let settings = rows
-        .iter()
-        .filter_map(|row| {
-            let key = row["key"].as_str()?.to_string();
-            let value = row["value"].as_str()?.to_string();
-            Some((key, value))
-        })
-        .collect();
-
-    Ok(settings)
-}
-
-/// Get the monthly counter for an organization
-/// DEPRECATED: Use get_monthly_counter_for_billing_account instead
-#[allow(dead_code)]
-pub async fn get_monthly_counter(db: &D1Database, org_id: &str, year_month: &str) -> Result<i64> {
-    let stmt = db.prepare(
-        "SELECT links_created FROM monthly_counters
-         WHERE org_id = ?1 AND year_month = ?2",
-    );
-
-    let result = stmt
-        .bind(&[org_id.into(), year_month.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    match result {
-        Some(val) => Ok(val["links_created"].as_f64().unwrap_or(0.0) as i64),
-        None => Ok(0),
-    }
-}
-
 /// Increment monthly counter with limit check
 /// Returns true if increment succeeded, false if limit reached
 /// DEPRECATED: Use increment_monthly_counter_for_billing_account instead
@@ -1118,21 +1095,6 @@ pub async fn backfill_monthly_counters(_db: &D1Database) -> Result<i64> {
     // This function is reserved for future use to migrate existing data
     // For now, we rely on lazy creation in increment_monthly_counter
     Ok(0)
-}
-
-/// Get all organization tiers as a map of org_id -> tier (admin only)
-pub async fn get_all_org_tiers(db: &D1Database) -> Result<Vec<(String, String)>> {
-    let stmt = db.prepare("SELECT id, tier FROM organizations");
-    let results = stmt.all().await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    let mut tiers = Vec::new();
-    for row in rows {
-        if let (Some(id), Some(tier)) = (row["id"].as_str(), row["tier"].as_str()) {
-            tiers.push((id.to_string(), tier.to_string()));
-        }
-    }
-    Ok(tiers)
 }
 
 /// Suspend a user
@@ -1974,7 +1936,7 @@ use crate::models::{OrgInvitation, OrgMember, OrgMemberWithUser, OrgWithRole};
 /// and auto-inserts the missing membership row to self-heal.
 pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWithRole>> {
     let stmt = db.prepare(
-        "SELECT o.id, o.name, o.tier, m.role, m.joined_at
+        "SELECT o.id, o.name, m.role, m.joined_at
          FROM organizations o
          JOIN org_members m ON o.id = m.org_id
          WHERE m.user_id = ?1
@@ -1988,7 +1950,6 @@ pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWith
             Some(OrgWithRole {
                 id: row["id"].as_str()?.to_string(),
                 name: row["name"].as_str()?.to_string(),
-                tier: row["tier"].as_str()?.to_string(),
                 role: row["role"].as_str()?.to_string(),
                 joined_at: row["joined_at"].as_f64()? as i64,
             })
@@ -2034,7 +1995,6 @@ pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWith
     Ok(vec![OrgWithRole {
         id: org.id,
         name: org.name,
-        tier: org.tier,
         role: "owner".to_string(),
         joined_at,
     }])
@@ -2224,8 +2184,8 @@ pub async fn create_organization(
     let now = now_timestamp();
 
     let stmt = db.prepare(
-        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier)
-         VALUES (?1, ?2, ?3, ?4, ?5, 'free')",
+        "INSERT INTO organizations (id, name, slug, created_at, created_by)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
     );
     stmt.bind(&[
         org_id.clone().into(),
@@ -2243,7 +2203,6 @@ pub async fn create_organization(
         slug,
         created_at: now,
         created_by: created_by.to_string(),
-        tier: "free".to_string(),
         billing_account_id: None, // Old orgs don't have billing accounts
     })
 }
@@ -2658,14 +2617,9 @@ pub async fn create_organization_with_billing_account(
     let slug = generate_unique_slug(db, org_name).await?;
     let now = now_timestamp();
 
-    // Get tier from billing account
-    let billing_account = get_billing_account(db, billing_account_id)
-        .await?
-        .ok_or_else(|| Error::RustError("Billing account not found".to_string()))?;
-
     let stmt = db.prepare(
-        "INSERT INTO organizations (id, name, slug, created_at, created_by, tier, billing_account_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO organizations (id, name, slug, created_at, created_by, billing_account_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     );
 
     stmt.bind(&[
@@ -2674,7 +2628,6 @@ pub async fn create_organization_with_billing_account(
         slug.clone().into(),
         (now as f64).into(),
         created_by.into(),
-        billing_account.tier.clone().into(),
         billing_account_id.into(),
     ])?
     .run()
@@ -2686,7 +2639,6 @@ pub async fn create_organization_with_billing_account(
         slug,
         created_at: now,
         created_by: created_by.to_string(),
-        tier: billing_account.tier,
         billing_account_id: Some(billing_account_id.to_string()),
     })
 }
@@ -2924,11 +2876,8 @@ pub async fn update_billing_account_tier(
         .await?;
 
     // Update all organizations linked to this billing account
-    let org_stmt = db.prepare("UPDATE organizations SET tier = ?1 WHERE billing_account_id = ?2");
-    org_stmt
-        .bind(&[new_tier.into(), billing_account_id.into()])?
-        .run()
-        .await?;
+    // Note: organizations no longer have tier column, so no update needed
+    // The tier is now read directly from the billing account
 
     Ok(())
 }

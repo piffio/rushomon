@@ -126,10 +126,6 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
             // Stop if we've created 15 links (the expected limit)
             if links_created >= 15 {
-                println!(
-                    "Successfully created {} links (reached expected limit)",
-                    links_created
-                );
                 break;
             }
         }
@@ -271,8 +267,6 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         "Error message should mention upgrade: {}",
         error_text
     );
-
-    println!("Free tier correctly blocked from creating custom short codes");
 
     // Upgrade to unlimited tier
     let upgrade_response = client

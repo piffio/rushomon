@@ -703,26 +703,34 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
         })
         .unwrap_or(now);
 
-    // Check tier-based analytics limits
+    // Check tier-based analytics limits from billing account
     let org = db::get_org_by_id(&db, org_id)
         .await?
         .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
+    // Get tier from billing account (all orgs should have billing accounts after migration)
+    let tier = if let Some(ref billing_account_id) = org.billing_account_id {
+        db::get_billing_account(&db, billing_account_id)
+            .await?
+            .and_then(|ba| Tier::from_str_value(&ba.tier))
+            .unwrap_or(Tier::Free)
+    } else {
+        Tier::Free
+    };
+
     let mut analytics_gated = false;
     let mut gated_reason = None;
 
-    if let Some(tier) = Tier::from_str_value(&org.tier) {
-        let limits = tier.limits();
+    let limits = tier.limits();
 
-        // Enforce analytics retention window — clamp start date
-        if let Some(retention_days) = limits.analytics_retention_days {
-            let retention_start = now - retention_days * 24 * 60 * 60;
-            if start < retention_start {
-                start = retention_start;
-                if !analytics_gated {
-                    analytics_gated = true;
-                    gated_reason = Some("retention_limited".to_string());
-                }
+    // Enforce analytics retention window — clamp start date
+    if let Some(retention_days) = limits.analytics_retention_days {
+        let retention_start = now - retention_days * 24 * 60 * 60;
+        if start < retention_start {
+            start = retention_start;
+            if !analytics_gated {
+                analytics_gated = true;
+                gated_reason = Some("retention_limited".to_string());
             }
         }
     }
@@ -1478,15 +1486,12 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let users = db::get_all_users_with_billing_info(&db, limit, offset).await?;
     let total = db::get_user_count(&db).await?;
-    let org_tiers_vec = db::get_all_org_tiers(&db).await?;
-    let org_tiers: std::collections::HashMap<String, String> = org_tiers_vec.into_iter().collect();
 
     Response::from_json(&serde_json::json!({
         "users": users,
         "total": total,
         "page": page,
         "limit": limit,
-        "org_tiers": org_tiers,
     }))
 }
 
@@ -1714,11 +1719,8 @@ pub async fn handle_admin_update_org_tier(
 
     db::update_billing_account_tier(&db, &billing_account_id, &tier_str).await?;
 
-    // Return updated org
-    let updated_org = Organization {
-        tier: tier_str,
-        ..org
-    };
+    // Return updated org (tier comes from billing account)
+    let updated_org = Organization { ..org };
 
     Response::from_json(&updated_org)
 }

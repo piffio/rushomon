@@ -35,7 +35,6 @@ pub struct OrgInvitation {
 pub struct OrgWithRole {
     pub id: String,
     pub name: String,
-    pub tier: String,
     pub role: String,
     pub joined_at: i64,
 }
