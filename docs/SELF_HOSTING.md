@@ -375,6 +375,11 @@ ALLOWED_ORIGINS = "https://myapp.com,https://api.myapp.com"  # CORS allowed orig
 # KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
 # Set to "true" to re-enable KV-based rate limiting for specific use cases
 ENABLE_KV_RATE_LIMITING = "false"
+
+# Email (Mailgun) — required for team member invitation emails
+MAILGUN_DOMAIN = "mg.myapp.com"       # Your Mailgun sending domain
+MAILGUN_BASE_URL = "https://api.mailgun.net"  # Or https://api.eu.mailgun.net for EU region
+MAILGUN_FROM = "invites@mg.myapp.com"  # From address for invitation emails
 ```
 
 Replace the placeholder values:
@@ -385,6 +390,23 @@ Replace the placeholder values:
 - `api.myapp.com` — your API domain/subdomain (must match OAuth callback URL)
 - `myapp.com` — your main web domain
 - Adjust `ALLOWED_ORIGINS` to match your domain setup
+- Set Mailgun values to match your [Mailgun account](https://www.mailgun.com/) configuration (see Step 3c)
+
+---
+
+## Step 3c: Set Up Mailgun (Optional — Required for Team Invitations)
+
+Team invitation emails are sent via [Mailgun](https://www.mailgun.com/). If you don't plan to use team invitations, you can skip this step.
+
+1. Sign up at [mailgun.com](https://www.mailgun.com/) (free Flex plan works for low volume)
+2. Add and verify your sending domain (e.g., `mg.myapp.com`) — Mailgun provides DNS records to add
+3. Once the domain is verified, find your:
+   - **API Key** — under your profile → API Keys (starts with `key-`)
+   - **Domain** — the verified sending domain (e.g., `mg.myapp.com`)
+4. Use the `MAILGUN_DOMAIN`, `MAILGUN_BASE_URL`, and `MAILGUN_FROM` vars in `wrangler.toml` (Step 4)
+5. Store the API key as a secret (Step 5)
+
+> **Note**: If `MAILGUN_API_KEY` is not set, the invitation endpoint will still create the invitation record but email delivery will silently fail. The inviter will see a warning in the API response.
 
 ---
 
@@ -409,6 +431,9 @@ openssl rand -base64 32
 
 # Then store it:
 wrangler secret put JWT_SECRET -c wrangler.toml
+
+# Mailgun API key (from Step 3c) — required for team invitation emails
+wrangler secret put MAILGUN_API_KEY -c wrangler.toml
 ```
 
 **Security Requirements**:
