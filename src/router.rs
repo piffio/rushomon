@@ -1706,8 +1706,13 @@ pub async fn handle_admin_update_org_tier(
         None => return Response::error("Organization not found", 404),
     };
 
-    // Update tier
-    db::set_org_tier(&db, &org_id, &tier_str).await?;
+    // Update billing account tier instead of organization tier
+    let billing_account_id = match org.billing_account_id.clone() {
+        Some(id) => id,
+        None => return Response::error("Organization has no billing account", 400),
+    };
+
+    db::update_billing_account_tier(&db, &billing_account_id, &tier_str).await?;
 
     // Return updated org
     let updated_org = Organization {

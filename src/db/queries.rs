@@ -1134,13 +1134,6 @@ pub async fn get_all_org_tiers(db: &D1Database) -> Result<Vec<(String, String)>>
     Ok(tiers)
 }
 
-/// Update an organization's tier (admin only)
-pub async fn set_org_tier(db: &D1Database, org_id: &str, tier: &str) -> Result<()> {
-    let stmt = db.prepare("UPDATE organizations SET tier = ?1 WHERE id = ?2");
-    stmt.bind(&[tier.into(), org_id.into()])?.run().await?;
-    Ok(())
-}
-
 /// Suspend a user
 pub async fn suspend_user(
     db: &D1Database,

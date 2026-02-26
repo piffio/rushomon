@@ -515,5 +515,5 @@ async fn test_admin_reset_counter_admin_access() {
 
     let body: serde_json::Value = response.json().await.unwrap();
     assert!(body["success"].as_bool().unwrap_or(false));
-    assert_eq!(body["message"], "Monthly counter reset successfully");
+    assert_eq!(body["message"], "Monthly counter reset for billing account");
 }
