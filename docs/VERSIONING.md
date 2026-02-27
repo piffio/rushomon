@@ -81,12 +81,96 @@ console.log(getVersionInfo());
 
 ## Release Workflow
 
-1. **Development**: Work on `main` branch
-2. **Release**: Run `make release` or manual steps:
-   - `make version-bump-patch` (or minor/major)
-   - `make version-tag`
-   - `git push && git push --tags`
-3. **Deployment**: GitHub Actions deploy from `main` automatically
+Rushomon uses a multi-stage deployment pipeline:
+
+### Development Phase
+
+1. **Create feature branch**:
+   ```bash
+   git checkout -b feat/my-feature
+   ```
+
+2. **Develop and commit**:
+   ```bash
+   git add .
+   git commit -m "Add feature"
+   ```
+
+3. **Create Pull Request**:
+   ```bash
+   git push origin feat/my-feature
+   ```
+   - Ephemeral environment created for testing
+   - Review and test changes
+
+4. **Merge to main**:
+   - After approval, merge PR to main
+   - Staging deployment triggered automatically
+
+### Staging Validation
+
+When you push to `main`:
+1. Tests run automatically
+2. On success, staging environment is deployed
+3. Database backup created before deployment
+4. Changes go live at staging URL
+
+**Validate on staging**:
+- Test all new features thoroughly
+- Verify database migrations applied correctly
+- Check OAuth flows work
+- Test on multiple devices/browsers
+
+### Production Release
+
+When staging validation is complete:
+
+1. **Bump version** (on main branch):
+   ```bash
+   make version-bump-patch  # 0.1.0 → 0.1.1
+   # or
+   make version-bump-minor  # 0.1.0 → 0.2.0
+   # or
+   make version-bump-major  # 0.1.0 → 1.0.0
+   ```
+
+2. **Push changes and tags**:
+   ```bash
+   git push origin main
+   git push origin --tags
+   ```
+
+3. **Production deployment** triggers automatically:
+   - Triggered by the version tag (e.g., `v0.2.0`)
+   - Deploys to production environment
+   - Smoke tests run automatically
+
+**Quick release** (combines bump + tag + push):
+```bash
+make release
+```
+
+### Deployment Pipeline Summary
+
+```
+Development → Pull Request → Main → Staging → Tag → Production
+                   ↓           ↓        ↓        ↓
+              Ephemeral    Staging  Validate  Prod
+```
+
+- **Ephemeral**: Created per PR, destroyed when closed
+- **Staging**: Deployed on push to main (after tests)
+- **Production**: Deployed on version tags only
+
+### Important Notes
+
+- **Production** only deploys on release tags (v*.*.*)
+- **Never** push directly to production without staging validation
+- **Always** test on staging before creating a release tag
+- Create **backups** before major releases:
+  ```bash
+  ./scripts/backup.sh -c wrangler.production.toml -r rushomon-backups
+  ```
 
 ## Self-Hosting Updates
 

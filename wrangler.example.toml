@@ -37,6 +37,13 @@ database_id = "your-database-id-here"
 # Environment variables (non-sensitive)
 [vars]
 GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"
+GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+GITHUB_USER_URL = "https://api.github.com/user"
+GOOGLE_CLIENT_ID = "your-google-oauth-client-id"
+GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 DOMAIN = "yourdomain.com"
 FRONTEND_URL = "http://localhost:5173"
 # KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
@@ -56,4 +63,5 @@ not_found_handling = "none"
 # Secrets (sensitive values - set via wrangler secret put)
 # Run these commands to set secrets:
 # wrangler secret put GITHUB_CLIENT_SECRET
+# wrangler secret put GOOGLE_CLIENT_SECRET
 # wrangler secret put JWT_SECRET (use a random 32+ character string)
