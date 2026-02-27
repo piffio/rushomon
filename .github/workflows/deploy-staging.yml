@@ -117,6 +117,60 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate wrangler staging config
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: |
+          cat > wrangler.staging.toml << 'EOF'
+          name = "rushomon-staging"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2026-02-10"
+          upload_source_maps = true
+
+          # Observability configuration
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_name = "rushomon"
+          database_id = "${{ env.D1_DATABASE_ID }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_NAMESPACE_ID }}"
+
+          [assets]
+          directory = "./frontend/build"
+          binding = "ASSETS"
+          run_worker_first = true
+          not_found_handling = "none"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ env.GH_CLIENT_ID }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
+          GOOGLE_CLIENT_ID = "${{ env.GOOGLE_CLIENT_ID }}"
+          GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+          GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+          GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
+          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
+          ENABLE_KV_RATE_LIMITING = "false"
+          EOF
+
+          echo "✅ Generated wrangler.staging.toml"
+
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
