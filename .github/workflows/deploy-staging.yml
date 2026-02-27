@@ -107,7 +107,7 @@ jobs:
           echo "Creating backup: $BACKUP_FILE"
 
           # Use the generated wrangler config for backup
-          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
 
           echo "backup_file=$BACKUP_FILE" >> $GITHUB_OUTPUT
 
