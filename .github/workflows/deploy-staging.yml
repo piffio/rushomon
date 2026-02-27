@@ -12,6 +12,9 @@ on:
   # Manual trigger for testing
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Use staging environment for secrets
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
