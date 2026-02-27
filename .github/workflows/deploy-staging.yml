@@ -40,10 +40,6 @@ jobs:
       - name: Install wrangler
         run: npm install -g wrangler
 
-      - name: Authenticate with Cloudflare
-        run: |
-          wrangler whoami || echo "Not authenticated"
-
       - name: Generate wrangler staging config
         env:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
