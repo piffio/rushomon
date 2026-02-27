@@ -40,32 +40,72 @@ jobs:
       - name: Install wrangler
         run: npm install -g wrangler
 
-      - name: Authenticate with Cloudflare
+      - name: Generate wrangler staging config
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         run: |
-          wrangler whoami || echo "Not authenticated"
+          cat > wrangler.staging.toml << 'EOF'
+          name = "rushomon-staging"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2026-02-10"
+          upload_source_maps = true
+
+          # Observability configuration
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_name = "rushomon"
+          database_id = "${{ env.D1_DATABASE_ID }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_NAMESPACE_ID }}"
+
+          [assets]
+          directory = "./frontend/build"
+          binding = "ASSETS"
+          run_worker_first = true
+          not_found_handling = "none"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ env.GH_CLIENT_ID }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
+          GOOGLE_CLIENT_ID = "${{ env.GOOGLE_CLIENT_ID }}"
+          GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+          GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+          GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
+          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
+          ENABLE_KV_RATE_LIMITING = "false"
+          EOF
+
+          echo "✅ Generated wrangler.staging.toml"
 
       - name: Create backup
         id: backup
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          BACKUP_FILE="staging_backup_deployment_${TIMESTAMP}.sql.gz"
+          BACKUP_FILE="staging_backup_deployment_${TIMESTAMP}.sql"
 
           echo "Creating backup: $BACKUP_FILE"
 
-          # Create temporary config file for backup script
-          cat > staging_backup_config.yaml <<EOF
-          cloudflare:
-            account_id: "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          # Use the generated wrangler config for backup
+          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
 
-          deployment:
-            environment_name: "staging"
-            worker_name: "rushomon-staging"
-          EOF
-
-          # Use the tested backup script
-          ./scripts/backup.sh -c staging_backup_config.yaml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
-
-          echo "backup_file=$BACKUP_FILE" >> $GITHUB_OUTPUT
+          echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy to Staging
@@ -76,6 +116,60 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate wrangler staging config
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        run: |
+          cat > wrangler.staging.toml << 'EOF'
+          name = "rushomon-staging"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2026-02-10"
+          upload_source_maps = true
+
+          # Observability configuration
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_name = "rushomon"
+          database_id = "${{ env.D1_DATABASE_ID }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_NAMESPACE_ID }}"
+
+          [assets]
+          directory = "./frontend/build"
+          binding = "ASSETS"
+          run_worker_first = true
+          not_found_handling = "none"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ env.GH_CLIENT_ID }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
+          GOOGLE_CLIENT_ID = "${{ env.GOOGLE_CLIENT_ID }}"
+          GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+          GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+          GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
+          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
+          ENABLE_KV_RATE_LIMITING = "false"
+          EOF
+
+          echo "✅ Generated wrangler.staging.toml"
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -105,60 +199,9 @@ jobs:
       - name: Build frontend
         working-directory: ./frontend
         env:
-          PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN_STAGING }}
-          PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN_STAGING }}
+          PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN }}
+          PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
         run: npm run build
-
-      - name: Generate wrangler config
-        run: |
-          cat > wrangler.staging.toml <<EOF
-          name = "rushomon-staging"
-          main = "build/worker/shim.mjs"
-          compatibility_date = "2026-02-10"
-          upload_source_maps = true
-
-          [observability]
-          enabled = true
-          head_sampling_rate = 1
-
-          [observability.traces]
-          enabled = true
-          head_sampling_rate = 0.1
-
-          [[d1_databases]]
-          binding = "rushomon"
-          database_id = "${{ secrets.D1_DATABASE_ID_STAGING }}"
-
-          [[kv_namespaces]]
-          binding = "URL_MAPPINGS"
-          id = "${{ secrets.KV_NAMESPACE_ID_STAGING }}"
-
-          [assets]
-          directory = "./frontend/build"
-          binding = "ASSETS"
-          run_worker_first = true
-          not_found_handling = "none"
-
-          [vars]
-          GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID_STAGING }}"
-          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
-          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
-          GITHUB_USER_URL = "https://api.github.com/user"
-          DOMAIN = "${{ secrets.API_DOMAIN_STAGING }}"
-          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN_STAGING }}"
-          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN_STAGING }},https://${{ secrets.API_DOMAIN_STAGING }}"
-          ENABLE_KV_RATE_LIMITING = "false"
-          EOF
-
-          # Add Google OAuth if configured
-          if [ -n "${{ secrets.GOOGLE_CLIENT_ID_STAGING }}" ]; then
-            cat >> wrangler.staging.toml <<EOF
-          GOOGLE_CLIENT_ID = "${{ secrets.GOOGLE_CLIENT_ID_STAGING }}"
-          GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-          GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-          GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
-          EOF
-          fi
 
       - name: Apply database migrations
         run: |
@@ -166,13 +209,13 @@ jobs:
 
       - name: Set Worker secrets
         run: |
-          echo "${{ secrets.GH_CLIENT_SECRET_STAGING }}" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
+          echo "${{ secrets.GH_CLIENT_SECRET }}" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
 
-          if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET_STAGING }}" ]; then
-            echo "${{ secrets.GOOGLE_CLIENT_SECRET_STAGING }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.staging.toml
+          if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
+            echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.staging.toml
           fi
 
-          echo "${{ secrets.JWT_SECRET_STAGING }}" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
+          echo "${{ secrets.JWT_SECRET }}" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
 
       - name: Deploy to Cloudflare
         run: |
@@ -180,7 +223,7 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          STAGING_URL="https://${{ secrets.WEB_DOMAIN_STAGING }}"
+          STAGING_URL="https://${{ secrets.WEB_DOMAIN }}"
 
           echo "Testing root endpoint..."
           if ! curl -sf --max-time 10 "$STAGING_URL/" >/dev/null; then
@@ -208,7 +251,7 @@ jobs:
           Deployment Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
           Commit: ${{ github.sha }}
           Branch: ${{ github.ref_name }}
-          URL: https://${{ secrets.WEB_DOMAIN_STAGING }}
+          URL: https://${{ secrets.WEB_DOMAIN }}
           EOF
 
           cat deployment-info.txt

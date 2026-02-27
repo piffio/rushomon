@@ -182,8 +182,8 @@ export_database() {
       exit 1
     }
   else
-    # Normal mode, save to file
-    wrangler d1 export "$db_name" --remote --output "$output_file" --config "$config_file" || {
+    # Normal mode, save to file (hide download URL but preserve errors)
+    wrangler d1 export "$db_name" --remote --output "$output_file" --config "$config_file" 2>&1 | grep -v "You can also download your export from the following URL" || {
       log_error "Database export failed"
       exit 1
     }
