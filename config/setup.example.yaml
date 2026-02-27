@@ -1,0 +1,117 @@
+# Rushomon Setup Configuration Example
+# Copy this file to setup.yaml and customize for your deployment
+
+# Cloudflare configuration
+cloudflare:
+  # Your Cloudflare account ID (found in dashboard)
+  # Get it by running: wrangler whoami
+  account_id: "your-account-id-here"
+
+# Domain configuration
+domains:
+  # Strategy: single, multi, or custom
+  # - single: All services on one domain (simplest)
+  # - multi: Separate domains for each service (recommended)
+  # - custom: Custom subdomain configuration
+  strategy: "multi"
+
+  # Main domain for web interface
+  main: "myapp.com"
+
+  # API domain (can be same as main for single domain strategy)
+  api: "api.myapp.com"
+
+  # Short link redirect domain
+  redirect: "go.myapp.com"
+
+# OAuth provider configuration
+oauth:
+  # GitHub OAuth (recommended, widely used)
+  github:
+    enabled: true
+    client_id: "Iv1.abc123..."
+    # Secret can be environment variable or inline (environment variable recommended)
+    # Set GITHUB_CLIENT_SECRET environment variable before running setup
+    client_secret: "${GITHUB_CLIENT_SECRET}"
+
+  # Google OAuth (optional)
+  google:
+    enabled: false
+    client_id: ""
+    # Set GOOGLE_CLIENT_SECRET environment variable if enabled
+    client_secret: "${GOOGLE_CLIENT_SECRET}"
+
+# Deployment configuration
+deployment:
+  # Environment name (used for resource naming)
+  # Common values: production, staging, development
+  # Self-hosters typically use "production"
+  # Rushomon project uses "staging" for staging environment
+  environment_name: "production"
+
+  # Worker name (will be visible in Cloudflare dashboard)
+  # Format: rushomon-{environment_name}
+  worker_name: "rushomon-production"
+
+  # Save generated wrangler.toml file to repository
+  # Set to false if you don't want to commit the config
+  save_config: true
+
+# Secrets configuration
+secrets:
+  # JWT secret for session management (minimum 32 characters)
+  # Generate with: openssl rand -base64 32
+  # Store in environment variable JWT_SECRET
+  jwt_secret: "${JWT_SECRET}"
+
+# Advanced options
+advanced:
+  # Enable KV-based rate limiting
+  # Note: This costs money on Cloudflare (KV writes)
+  # Cloudflare's built-in rate limiting is recommended instead
+  enable_kv_rate_limiting: false
+
+  # R2 bucket name for automatic backups (optional)
+  # If specified, backups will be stored in this bucket
+  # Leave empty to skip R2 backups
+  r2_backup_bucket: ""
+
+# Example configurations for different scenarios:
+
+# Example 1: Single domain deployment (simplest)
+# domains:
+#   strategy: "single"
+#   main: "rushomon.example.com"
+#   api: "rushomon.example.com"
+#   redirect: "rushomon.example.com"
+
+# Example 2: Multi-domain deployment (recommended)
+# domains:
+#   strategy: "multi"
+#   main: "rushomon.example.com"
+#   api: "api.rushomon.example.com"
+#   redirect: "go.rushomon.example.com"
+
+# Example 3: Custom subdomain deployment
+# domains:
+#   strategy: "custom"
+#   main: "app.mycompany.com"
+#   api: "rushomon-api.mycompany.com"
+#   redirect: "links.mycompany.com"
+
+# Example 4: Staging environment configuration
+# deployment:
+#   environment_name: "staging"
+#   worker_name: "rushomon-staging"
+# domains:
+#   main: "staging.rushomon.example.com"
+#   api: "staging.rushomon.example.com"
+#   redirect: "staging.rushomon.example.com"
+
+# Usage:
+# 1. Copy this file: cp config/setup.example.yaml config/setup.yaml
+# 2. Edit config/setup.yaml with your values
+# 3. Set environment variables for secrets:
+#    export GITHUB_CLIENT_SECRET="your-secret"
+#    export JWT_SECRET="your-jwt-secret"
+# 4. Run setup: ./scripts/setup.sh --config config/setup.yaml

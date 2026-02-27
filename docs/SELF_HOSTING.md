@@ -1,6 +1,180 @@
 # Self-Hosting Rushomon
 
-Step-by-step guide to deploy your own Rushomon URL shortener instance on Cloudflare. This guide covers manual setup — for automated CI/CD, see the GitHub Actions workflow in `.github/workflows/deploy-production.yml` as a source of inspiration for setting up your own.
+Step-by-step guide to deploy your own Rushomon URL shortener instance on Cloudflare.
+
+## Quick Setup (Recommended)
+
+The fastest way to deploy Rushomon is using our **automated setup script**. However, you must complete the prerequisites below **before** running the script.
+
+### Prerequisites (Complete These First)
+
+Before running the setup script, you need to prepare:
+
+#### 1. Install Required Tools
+
+```bash
+# wrangler CLI (for Cloudflare deployment)
+# You can use homebrew on MacOs or npm on other platforms
+
+brew install wrangler # on MacOS
+npm install -g wrangler # on other platforms
+
+# jq (for JSON parsing in setup scripts)
+brew install jq # on MacOS
+apt-get install jq # on Ubuntu/Debian
+# For other platforms: https://stedolan.github.io/jq/download/
+
+# Rust toolchain (for backend compilation)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh # on all platforms
+brew install rustup # alternative on MacOS
+
+rustup target add wasm32-unknown-unknown
+
+# worker-build (for Worker compilation)
+cargo install worker-build
+
+# Node.js 20+ (for frontend build)
+# Use your system's package manager, NVM or https://nodejs.org/
+node --version # Check the version after installation
+```
+
+#### 2. Authenticate with Cloudflare
+
+```bash
+wrangler login
+```
+
+This opens your browser to authenticate. Verify it worked:
+
+```bash
+wrangler whoami
+```
+
+#### 3. Add Domain(s) to Cloudflare
+
+If you already have a domain setup in Cloudflare, you can skip this part.
+If you're setting up a new domain for it, then follow the next steps.
+
+⚠️ **IMPORTANT**: Your domain(s) must be added to Cloudflare and have **Active** status before running the setup script.
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Click **Add a site** → enter your domain (e.g., `myapp.com`)
+3. Select the **Free** plan
+4. Update your domain registrar's nameservers to Cloudflare's nameservers
+5. Wait for status to become **Active** (usually takes a few minutes, max 24 hours)
+
+**For subdomains**: If using `api.myapp.com`, you only need to add the parent domain `myapp.com` to Cloudflare.
+
+**For separate short domain**: If using a different domain for short links (e.g., `short.com`), add it as a separate site.
+
+Verify in the Cloudflare dashboard that your domain is active and has the correct nameservers configured.
+
+#### 4. Create OAuth Application(s)
+
+**You must have at least ONE OAuth provider configured.** You can choose GitHub, Google, or both.
+
+**Option A: GitHub OAuth (Recommended)**
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click **OAuth Apps** → **New OAuth App**
+3. Fill in:
+   - **Application name**: `Rushomon` (or your preferred name)
+   - **Homepage URL**: `https://myapp.com` (your main domain)
+   - **Authorization callback URL**: `https://myapp.com/api/auth/callback` (or your API domain)
+4. Click **Register application**
+5. Save the **Client ID** (you'll enter this in the setup script)
+6. Click **Generate a new client secret** and save the **Client Secret** securely
+
+**Option B: Google OAuth (Optional)**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Select or create a project
+3. Click **Create Credentials** → **OAuth client ID**
+4. Configure OAuth consent screen if prompted:
+   - User Type: **External**
+   - App name: `Rushomon`
+   - Scopes: `openid`, `email`, `profile`
+5. Create OAuth 2.0 Client ID:
+   - Application type: **Web application**
+   - **Authorized redirect URIs**: `https://myapp.com/api/auth/callback` (or your API domain)
+6. Click **Create** and save both **Client ID** and **Client Secret**
+
+⚠️ **Important**: Never commit OAuth secrets to version control. The setup script will prompt you for these securely, and you might want to store them in a secure password manager.
+
+### Running the Setup Script
+
+Once all prerequisites are complete, run:
+
+```bash
+./scripts/setup.sh
+```
+
+The interactive wizard will guide you through:
+- ✓ Domain configuration (single or multi-domain)
+- ✓ OAuth credential entry (GitHub and/or Google)
+- ✓ Cloudflare resource creation (D1 database, KV namespace)
+- ✓ JWT secret generation
+- ✓ Backend and frontend compilation
+- ✓ Database migrations
+- ✓ Worker deployment
+- ✓ Smoke tests
+
+### Using a Configuration File (Non-Interactive)
+
+For automated/repeatable deployments:
+
+```bash
+# Copy the example
+cp config/setup.example.yaml config/production.yaml
+
+# Edit with your values
+vim config/production.yaml
+
+# Set secrets as environment variables
+export GITHUB_CLIENT_SECRET="your-github-secret"
+export GOOGLE_CLIENT_SECRET="your-google-secret"  # Optional
+export JWT_SECRET="$(openssl rand -base64 32)"
+
+# Run setup
+./scripts/setup.sh --config config/production.yaml
+```
+
+### After Setup Completes
+
+The script will display a summary with your deployment URLs. You still need to:
+
+1. **Configure custom domains** in Cloudflare Dashboard:
+   - Go to **Workers & Pages** → Your worker → **Settings** → **Domains**
+   - Add your custom domain(s) (the script will remind you)
+
+2. **Configure rate limiting** (recommended):
+   - See [Step 8](#step-8-configure-rate-limiting-important) below for setup instructions
+
+3. **Test your deployment**:
+   ```bash
+   # Should return your landing page
+   curl https://myapp.com/
+
+   # Should return 401 (authentication required)
+   curl https://myapp.com/api/links
+   ```
+
+4. **Sign in and upgrade your admin account**:
+   - Visit your domain and sign in with OAuth
+   - The first user becomes the admin automatically
+   - Go to `/admin` and upgrade yourself to "unlimited" tier
+
+5. **Turn off signup** (optional):
+   - Go to `https://myapp.com/admin/settings`
+   - Turn off **Allow new sign ups** to prevent other people to create accounts on your instance.
+
+For more details on the setup script, see [scripts/README.md](../scripts/README.md).
+
+---
+
+## Manual Setup
+
+If you prefer manual setup or need to troubleshoot, follow the detailed steps below. The automated script performs these same steps automatically.
 
 ## Prerequisites
 
@@ -714,3 +888,50 @@ This returns version information including the current version, build timestamp,
 - Check Cloudflare KV usage dashboard
 - Consider using Cloudflare rate limiting instead
 - Monitor KV write operations in analytics
+
+### Setup Script Issues
+
+If you encounter issues with the automated setup script:
+
+**Script fails to authenticate**:
+```bash
+# Re-authenticate with Cloudflare
+wrangler logout
+wrangler login
+```
+
+**Missing prerequisites**:
+```bash
+# Install all prerequisites
+npm install -g wrangler
+cargo install worker-build
+```
+
+**Configuration file not loading**:
+```bash
+# Verify YAML syntax
+cat config/production.yaml
+
+# Install yq for better YAML parsing (optional but recommended)
+brew install yq  # macOS
+snap install yq  # Linux
+```
+
+**Deployment validation fails**:
+```bash
+# Run setup in dry-run mode to check configuration
+./scripts/setup.sh --config config/production.yaml --dry-run
+
+# Check wrangler configuration
+wrangler whoami
+wrangler d1 list
+wrangler kv namespace list
+```
+
+**Want to update existing deployment**:
+```bash
+# Use update mode to modify existing resources
+./scripts/setup.sh --config config/production.yaml --update
+```
+
+For more troubleshooting help with the setup script, see [scripts/README.md](../scripts/README.md).

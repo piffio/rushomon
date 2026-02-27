@@ -1,0 +1,234 @@
+name: Deploy to Staging
+
+on:
+  # Automatic deployment after tests pass on main branch
+  workflow_run:
+    workflows: ["Test"]
+    types:
+      - completed
+    branches:
+      - main
+
+  # Manual trigger for testing
+  workflow_dispatch:
+
+# Use staging environment for secrets
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  backup:
+    name: Backup Database
+    runs-on: ubuntu-latest
+    # Only run if tests passed (or manual trigger)
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Authenticate with Cloudflare
+        run: |
+          wrangler whoami || echo "Not authenticated"
+
+      - name: Create backup
+        id: backup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="staging_backup_deployment_${TIMESTAMP}.sql.gz"
+
+          echo "Creating backup: $BACKUP_FILE"
+
+          # Create temporary config file for backup script
+          cat > staging_backup_config.yaml <<EOF
+          cloudflare:
+            account_id: "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+
+          deployment:
+            environment_name: "staging"
+            worker_name: "rushomon-staging"
+          EOF
+
+          # Use the tested backup script
+          ./scripts/backup.sh -c staging_backup_config.yaml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+
+          echo "backup_file=$BACKUP_FILE" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: backup
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Install worker-build
+        run: cargo install worker-build
+
+      - name: Build backend
+        run: worker-build --release
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        env:
+          PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN_STAGING }}
+          PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN_STAGING }}
+        run: npm run build
+
+      - name: Generate wrangler config
+        run: |
+          cat > wrangler.staging.toml <<EOF
+          name = "rushomon-staging"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2026-02-10"
+          upload_source_maps = true
+
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_id = "${{ secrets.D1_DATABASE_ID_STAGING }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ secrets.KV_NAMESPACE_ID_STAGING }}"
+
+          [assets]
+          directory = "./frontend/build"
+          binding = "ASSETS"
+          run_worker_first = true
+          not_found_handling = "none"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ secrets.GH_CLIENT_ID_STAGING }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
+          DOMAIN = "${{ secrets.API_DOMAIN_STAGING }}"
+          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN_STAGING }}"
+          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN_STAGING }},https://${{ secrets.API_DOMAIN_STAGING }}"
+          ENABLE_KV_RATE_LIMITING = "false"
+          EOF
+
+          # Add Google OAuth if configured
+          if [ -n "${{ secrets.GOOGLE_CLIENT_ID_STAGING }}" ]; then
+            cat >> wrangler.staging.toml <<EOF
+          GOOGLE_CLIENT_ID = "${{ secrets.GOOGLE_CLIENT_ID_STAGING }}"
+          GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+          GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+          GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          EOF
+          fi
+
+      - name: Apply database migrations
+        run: |
+          wrangler d1 migrations apply rushomon --remote --config wrangler.staging.toml
+
+      - name: Set Worker secrets
+        run: |
+          echo "${{ secrets.GH_CLIENT_SECRET_STAGING }}" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
+
+          if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET_STAGING }}" ]; then
+            echo "${{ secrets.GOOGLE_CLIENT_SECRET_STAGING }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.staging.toml
+          fi
+
+          echo "${{ secrets.JWT_SECRET_STAGING }}" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
+
+      - name: Deploy to Cloudflare
+        run: |
+          wrangler deploy --config wrangler.staging.toml
+
+      - name: Run smoke tests
+        run: |
+          STAGING_URL="https://${{ secrets.WEB_DOMAIN_STAGING }}"
+
+          echo "Testing root endpoint..."
+          if ! curl -sf --max-time 10 "$STAGING_URL/" >/dev/null; then
+            echo "Error: Root endpoint not responding"
+            exit 1
+          fi
+
+          echo "Testing API authentication..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${STAGING_URL}/api/links")
+          if [ "$STATUS" != "401" ]; then
+            echo "Warning: Expected 401, got $STATUS"
+          fi
+
+          echo "Testing OAuth redirect..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${STAGING_URL}/api/auth/github")
+          if [ "$STATUS" != "302" ]; then
+            echo "Warning: Expected 302 for OAuth, got $STATUS"
+          fi
+
+          echo "All smoke tests passed!"
+
+      - name: Store deployment info
+        run: |
+          cat > deployment-info.txt <<EOF
+          Deployment Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          URL: https://${{ secrets.WEB_DOMAIN_STAGING }}
+          EOF
+
+          cat deployment-info.txt
+
+      - name: Upload deployment info
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-deployment-info
+          path: deployment-info.txt
+          retention-days: 90
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+
+    steps:
+      - name: Check deployment status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "Staging deployment succeeded"
+          else
+            echo "Staging deployment failed"
+            exit 1
+          fi
