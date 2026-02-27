@@ -98,14 +98,14 @@ jobs:
         id: backup
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          BACKUP_FILE="staging_backup_deployment_${TIMESTAMP}.sql.gz"
+          BACKUP_FILE="staging_backup_deployment_${TIMESTAMP}.sql"
 
           echo "Creating backup: $BACKUP_FILE"
 
           # Use the generated wrangler config for backup
-          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
 
-          echo "backup_file=$BACKUP_FILE" >> $GITHUB_OUTPUT
+          echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy to Staging
