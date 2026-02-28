@@ -171,6 +171,9 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) =>
+				e.key === "Escape" && (confirmingSignupToggle = false)}
 		>
 			<div class="modal-header">
 				<h3>
@@ -370,28 +373,6 @@
 	}
 
 	.tier-select:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Number Input */
-	.number-input {
-		padding: 0.5rem 0.75rem;
-		border: 1px solid #e2e8f0;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		font-family: inherit;
-		width: 100px;
-		text-align: center;
-	}
-
-	.number-input:focus {
-		outline: none;
-		border-color: #3b82f6;
-		box-shadow: 0 0 0 2px #3b82f6;
-	}
-
-	.number-input:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}

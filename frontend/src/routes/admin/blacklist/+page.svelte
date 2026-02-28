@@ -213,7 +213,14 @@
 		onclick={() => (showAddModal = false)}
 		onkeydown={(e) => e.key === "Enter" && (showAddModal = false)}
 	>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && (showAddModal = false)}
+		>
 			<div class="modal-header">
 				<h2>Add Destination to Blacklist</h2>
 				<button
@@ -288,7 +295,14 @@
 		onclick={() => (showRemoveModal = false)}
 		onkeydown={(e) => e.key === "Enter" && (showRemoveModal = false)}
 	>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && (showRemoveModal = false)}
+		>
 			<div class="modal-header">
 				<h2>Remove Destination</h2>
 				<button

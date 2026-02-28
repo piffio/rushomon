@@ -209,13 +209,18 @@
 	<div
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
 		onclick={handleBackdropClick}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="modal-title"
+		role="button"
+		tabindex="0"
+		onkeydown={(e) => e.key === "Enter" && handleClose()}
 	>
 		<div
 			class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
 			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="modal-title"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && handleClose()}
 		>
 			<!-- Modal Header -->
 			<div

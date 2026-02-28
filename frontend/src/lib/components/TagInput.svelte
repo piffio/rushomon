@@ -114,11 +114,8 @@
 	<!-- Tag pills + input -->
 	<div
 		class="flex flex-wrap gap-1.5 min-h-[42px] w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus-within:border-orange-500 transition-colors bg-white cursor-text"
-		onclick={() => inputEl?.focus()}
-		onkeydown={(e) => e.key === "Enter" && inputEl?.focus()}
 		role="group"
 		aria-label="Tags"
-		tabindex="-1"
 	>
 		{#each tags as tag (tag)}
 			<span

@@ -293,6 +293,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeDialog()}
 		>
 			<div class="modal-header">
 				<h3>Report Link: {reportingLink}</h3>
@@ -302,8 +304,12 @@
 			</div>
 			<div class="modal-body">
 				<div class="form-group">
-					<label>Reason for Report</label>
-					<select bind:value={reason} class="form-select">
+					<label for="report-reason">Reason for Report</label>
+					<select
+						id="report-reason"
+						bind:value={reason}
+						class="form-select"
+					>
 						<option value="">Select a reason</option>
 						{#each reportReasons as reasonOption}
 							<option value={reasonOption.value}
@@ -313,7 +319,7 @@
 					</select>
 				</div>
 				<div class="form-group">
-					<label
+					<label for="reporter-email"
 						>Your Email {currentUser
 							? "(authenticated)"
 							: "(optional)"}</label
@@ -325,6 +331,7 @@
 						</div>
 					{:else}
 						<input
+							id="reporter-email"
 							type="email"
 							bind:value={reporterEmail}
 							placeholder="your@email.com"
