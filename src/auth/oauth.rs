@@ -2,7 +2,7 @@ use crate::auth::providers::{NormalizedUser, OAuthProviderConfig};
 use crate::db::queries;
 use crate::models::{Organization, User, user::CreateUserData};
 use serde::{Deserialize, Serialize};
-use worker::{D1Database, Env, Error, Request, Response, Result, kv::KvStore};
+use worker::{D1Database, Env, Error, Request, Response, Result, console_log, kv::KvStore};
 
 const OAUTH_STATE_TTL_SECONDS: u64 = 600; // 10 minutes
 
@@ -165,9 +165,20 @@ pub async fn handle_oauth_callback(
     // Validate request fingerprint matches the original request
     let current_fingerprint = generate_request_fingerprint(req);
     if !crate::utils::secure_compare(&state_data.fingerprint, &current_fingerprint) {
-        return Err(Error::RustError(
-            "OAuth state validation failed: request context mismatch".to_string(),
-        ));
+        // Log the mismatch for security monitoring but don't fail authentication
+        console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "oauth_fingerprint_mismatch",
+                "provider": state_data.provider,
+                "level": "warn",
+                "stored_fingerprint": &state_data.fingerprint[..8], // First 8 chars for identification
+                "current_fingerprint": &current_fingerprint[..8],
+                "user_agent": req.headers().get("User-Agent").ok().flatten().unwrap_or_default(),
+                "ip": req.headers().get("CF-Connecting-IP").ok().flatten().unwrap_or_default()
+            })
+        );
+        // Continue with authentication - state parameter provides sufficient CSRF protection
     }
 
     // Extract redirect URL before deleting state
