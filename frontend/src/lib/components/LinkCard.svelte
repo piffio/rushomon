@@ -10,11 +10,13 @@
 		onDelete,
 		onEdit,
 		onTagClick,
+		onShowQR,
 	}: {
 		link: Link;
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
 		onTagClick?: (tag: string) => void;
+		onShowQR?: (link: Link) => void;
 	} = $props();
 
 	const TAG_COLORS = [
@@ -143,6 +145,61 @@
 					/>
 				</svg>
 			</a>
+
+			<!-- QR Code Button -->
+			<button
+				onclick={() => onShowQR?.(link)}
+				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+				title="Show QR code"
+			>
+				<svg
+					class="w-4 h-4"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<rect
+						x="3"
+						y="3"
+						width="7"
+						height="7"
+						rx="1"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+					/>
+					<rect
+						x="14"
+						y="3"
+						width="7"
+						height="7"
+						rx="1"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+					/>
+					<rect
+						x="14"
+						y="14"
+						width="7"
+						height="7"
+						rx="1"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+					/>
+					<rect
+						x="3"
+						y="14"
+						width="7"
+						height="7"
+						rx="1"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+					/>
+				</svg>
+			</button>
 
 			<!-- Edit Button -->
 			<button

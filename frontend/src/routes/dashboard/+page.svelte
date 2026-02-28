@@ -2,6 +2,7 @@
 	import Header from "$lib/components/Header.svelte";
 	import LinkList from "$lib/components/LinkList.svelte";
 	import LinkModal from "$lib/components/LinkModal.svelte";
+	import QRCodeModal from "$lib/components/QRCodeModal.svelte";
 	import Pagination from "$lib/components/Pagination.svelte";
 	import SearchFilterBar from "$lib/components/SearchFilterBar.svelte";
 	import { linksApi, tagsApi } from "$lib/api/links";
@@ -31,6 +32,8 @@
 	let error = $state<string>("");
 	let editingLink = $state<Link | null>(null);
 	let isModalOpen = $state(false);
+	let selectedQRLink = $state<Link | null>(null);
+	let isQRModalOpen = $state(false);
 	let usage = $state<UsageResponse | null>(null);
 
 	// Filter states - initialize from data props
@@ -253,6 +256,16 @@
 		}
 	}
 
+	function handleShowQR(link: Link) {
+		selectedQRLink = link;
+		isQRModalOpen = true;
+	}
+
+	function handleCloseQR() {
+		isQRModalOpen = false;
+		selectedQRLink = null;
+	}
+
 	function handleTagClick(tag: string) {
 		if (!selectedTags.includes(tag)) {
 			selectedTags = [...selectedTags, tag];
@@ -432,6 +445,7 @@
 					onDelete={handleDelete}
 					onEdit={handleEdit}
 					onTagClick={handleTagClick}
+					onShowQR={handleShowQR}
 				/>
 			</div>
 
@@ -453,6 +467,13 @@
 				bind:isOpen={isModalOpen}
 				{usage}
 				on:saved={handleLinkSaved}
+			/>
+
+			<!-- QR Code Modal -->
+			<QRCodeModal
+				link={selectedQRLink}
+				isOpen={isQRModalOpen}
+				onClose={handleCloseQR}
 			/>
 		</main>
 	{:else}

@@ -9,6 +9,7 @@
 		onDelete,
 		onEdit,
 		onTagClick,
+		onShowQR,
 	}: {
 		links: Link[];
 		loading?: boolean;
@@ -16,6 +17,7 @@
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
 		onTagClick?: (tag: string) => void;
+		onShowQR?: (link: Link) => void;
 	} = $props();
 </script>
 
@@ -65,7 +67,7 @@
 		<!-- Links Grid -->
 		<div class="space-y-4">
 			{#each links as link (link.id)}
-				<LinkCard {link} {onDelete} {onEdit} {onTagClick} />
+				<LinkCard {link} {onDelete} {onEdit} {onTagClick} {onShowQR} />
 			{/each}
 		</div>
 	{/if}
