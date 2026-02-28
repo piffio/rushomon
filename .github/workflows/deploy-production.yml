@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: production-deploy
@@ -29,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '20'
 
@@ -104,7 +103,7 @@ jobs:
           echo "Creating backup: $BACKUP_FILE"
 
           # Use the generated wrangler config for backup
-          ./scripts/backup.sh -c wrangler.production.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+          ./scripts/backup.sh --config wrangler.production.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
 
           echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_OUTPUT
 
@@ -225,7 +224,7 @@ jobs:
       - name: Apply D1 Migrations
         run: |
           echo "📋 Applying D1 migrations to production database..."
-          wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
+          wrangler d1 migrations apply rushomon --remote --config wrangler.production.toml
           echo "✅ Production migrations applied successfully"
 
       - name: Set Worker Secrets
@@ -236,15 +235,15 @@ jobs:
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "🔐 Setting Worker secrets..."
-          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.production.toml
-          echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET -c wrangler.production.toml
-          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.production.toml
+          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.production.toml
+          echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.production.toml
+          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.production.toml
           echo "✅ Secrets configured securely"
 
       - name: Deploy Worker
         run: |
           echo "🚀 Deploying worker to production..."
-          wrangler deploy -c wrangler.production.toml
+          wrangler deploy --config wrangler.production.toml
           echo "✅ Worker deployed successfully"
 
   smoke-tests:
