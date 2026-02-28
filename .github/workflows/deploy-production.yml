@@ -10,21 +10,110 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
 jobs:
-  deploy-unified-worker:
-    name: Deploy Unified Worker (UI + API + Redirects)
+  backup:
+    name: Backup Database
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '20'
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Generate wrangler production config
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+
+        run: |
+          cat > wrangler.production.toml << 'EOF'
+          name = "rushomon-production"
+          main = "build/worker/shim.mjs"
+          compatibility_date = "2026-02-10"
+          workers_dev = false
+          upload_source_maps = true
+
+          # Observability configuration
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+
+          [observability.traces]
+          enabled = true
+          head_sampling_rate = 0.1
+
+          [[d1_databases]]
+          binding = "rushomon"
+          database_name = "rushomon"
+          database_id = "${{ env.D1_DATABASE_ID }}"
+
+          [[kv_namespaces]]
+          binding = "URL_MAPPINGS"
+          id = "${{ env.KV_NAMESPACE_ID }}"
+
+          [assets]
+          directory = "./frontend/build"
+          binding = "ASSETS"
+          run_worker_first = true
+          not_found_handling = "none"
+
+          [vars]
+          GITHUB_CLIENT_ID = "${{ env.GH_CLIENT_ID }}"
+          GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+          GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+          GITHUB_USER_URL = "https://api.github.com/user"
+          GOOGLE_CLIENT_ID = "${{ env.GOOGLE_CLIENT_ID }}"
+          GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+          GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+          GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
+          ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
+          ENABLE_KV_RATE_LIMITING = "false"
+          EOF
+
+          echo "✅ Generated wrangler.production.toml"
+
+      - name: Create backup
+        id: backup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="production_backup_deployment_${TIMESTAMP}.sql"
+
+          echo "Creating backup: $BACKUP_FILE"
+
+          # Use the generated wrangler config for backup
+          ./scripts/backup.sh --config wrangler.production.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+
+          echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    needs: backup
     environment:
       name: production
-      url: https://rushomon.cc
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -132,43 +221,35 @@ jobs:
           echo "✅ Generated wrangler.production.toml"
 
       - name: Apply D1 Migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "📋 Applying D1 migrations to production database..."
-          wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
+          wrangler d1 migrations apply rushomon --remote --config wrangler.production.toml
           echo "✅ Production migrations applied successfully"
 
       - name: Set Worker Secrets
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "🔐 Setting Worker secrets..."
-          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.production.toml
-          echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET -c wrangler.production.toml
-          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.production.toml
+          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.production.toml
+          echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.production.toml
+          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.production.toml
           echo "✅ Secrets configured securely"
 
       - name: Deploy Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "🚀 Deploying worker to production..."
-          wrangler deploy -c wrangler.production.toml
+          wrangler deploy --config wrangler.production.toml
           echo "✅ Worker deployed successfully"
 
   smoke-tests:
     name: Production Smoke Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: deploy-unified-worker
+    needs: deploy
     environment:
       name: production
 

@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
 # Use staging environment for secrets
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -30,10 +34,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '20'
 
@@ -51,6 +55,7 @@ jobs:
           name = "rushomon-staging"
           main = "build/worker/shim.mjs"
           compatibility_date = "2026-02-10"
+          workers_dev = false
           upload_source_maps = true
 
           # Observability configuration
@@ -103,19 +108,21 @@ jobs:
           echo "Creating backup: $BACKUP_FILE"
 
           # Use the generated wrangler config for backup
-          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+          ./scripts/backup.sh --config wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
 
           echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy to Staging
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: backup
-    environment: staging
+    environment:
+      name: staging
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Generate wrangler staging config
         env:
@@ -128,6 +135,7 @@ jobs:
           name = "rushomon-staging"
           main = "build/worker/shim.mjs"
           compatibility_date = "2026-02-10"
+          workers_dev = false
           upload_source_maps = true
 
           # Observability configuration
@@ -172,16 +180,28 @@ jobs:
           echo "✅ Generated wrangler.staging.toml"
 
       - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
-          cache: true
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: '.'
+
+      - name: Cache npm
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Install wrangler
         run: npm install -g wrangler
@@ -208,19 +228,32 @@ jobs:
           wrangler d1 migrations apply rushomon --remote --config wrangler.staging.toml
 
       - name: Set Worker secrets
+        env:
+          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
-          echo "${{ secrets.GH_CLIENT_SECRET }}" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
+          echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
 
-          if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
-            echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.staging.toml
+          if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+            echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.staging.toml
           fi
 
-          echo "${{ secrets.JWT_SECRET }}" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
+          echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
 
       - name: Deploy to Cloudflare
         run: |
           wrangler deploy --config wrangler.staging.toml
 
+  smoke-tests:
+    name: Staging Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: deploy
+    environment:
+      name: staging
+
+    steps:
       - name: Run smoke tests
         run: |
           STAGING_URL="https://${{ secrets.WEB_DOMAIN }}"
@@ -244,37 +277,3 @@ jobs:
           fi
 
           echo "All smoke tests passed!"
-
-      - name: Store deployment info
-        run: |
-          cat > deployment-info.txt <<EOF
-          Deployment Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          Commit: ${{ github.sha }}
-          Branch: ${{ github.ref_name }}
-          URL: https://${{ secrets.WEB_DOMAIN }}
-          EOF
-
-          cat deployment-info.txt
-
-      - name: Upload deployment info
-        uses: actions/upload-artifact@v4
-        with:
-          name: staging-deployment-info
-          path: deployment-info.txt
-          retention-days: 90
-
-  notify:
-    name: Notify Deployment Status
-    runs-on: ubuntu-latest
-    needs: deploy
-    if: always()
-
-    steps:
-      - name: Check deployment status
-        run: |
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "Staging deployment succeeded"
-          else
-            echo "Staging deployment failed"
-            exit 1
-          fi
