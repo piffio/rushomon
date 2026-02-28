@@ -91,6 +91,9 @@ jobs:
           GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
           GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
           GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          MAILGUN_DOMAIN = "${{ secrets.MAILGUN_DOMAIN }}"
+          MAILGUN_BASE_URL = "${{ secrets.MAILGUN_BASE_URL }}"
+          MAILGUN_FROM = "${{ secrets.MAILGUN_FROM }}"
           DOMAIN = "${{ secrets.API_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
@@ -171,6 +174,9 @@ jobs:
           GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
           GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
           GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          MAILGUN_DOMAIN = "${{ secrets.MAILGUN_DOMAIN }}"
+          MAILGUN_BASE_URL = "${{ secrets.MAILGUN_BASE_URL }}"
+          MAILGUN_FROM = "${{ secrets.MAILGUN_FROM }}"
           DOMAIN = "${{ secrets.API_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
@@ -232,6 +238,7 @@ jobs:
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         run: |
           echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
 
@@ -240,6 +247,8 @@ jobs:
           fi
 
           echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
+          echo "$MAILGUN_API_KEY" | wrangler secret put MAILGUN_API_KEY --config wrangler.staging.toml
+          echo "✅ Secrets configured securely"
 
       - name: Deploy to Cloudflare
         run: |

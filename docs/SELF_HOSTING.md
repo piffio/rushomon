@@ -112,6 +112,7 @@ Once all prerequisites are complete, run:
 The interactive wizard will guide you through:
 - ✓ Domain configuration (single or multi-domain)
 - ✓ OAuth credential entry (GitHub and/or Google)
+- ✓ Mailgun email setup (team invitations - optional)
 - ✓ Cloudflare resource creation (D1 database, KV namespace)
 - ✓ JWT secret generation
 - ✓ Backend and frontend compilation
@@ -726,13 +727,18 @@ As an admin, you can:
 | `FRONTEND_URL` | Main web interface URL (with protocol) | `https://myapp.com` |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins | `https://myapp.com,https://api.myapp.com` |
 | `ENABLE_KV_RATE_LIMITING` | Enable KV-based rate limiting (default: false) | `false` |
+| `MAILGUN_DOMAIN` | Mailgun sending domain (team invitations) | `mg.myapp.com` |
+| `MAILGUN_BASE_URL` | Mailgun API base URL | `https://api.mailgun.net` |
+| `MAILGUN_FROM` | From address for invitation emails | `invites@mg.myapp.com` |
 
 ### Worker Secrets (set via `wrangler secret put`)
 
 | Secret | Description |
 |--------|-------------|
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App client secret |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth App client secret (if enabled) |
 | `JWT_SECRET` | JWT signing key (32+ random characters) |
+| `MAILGUN_API_KEY` | Mailgun API key (team invitations) |
 
 ### Frontend Build-Time Variables
 
