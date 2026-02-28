@@ -91,6 +91,32 @@ pub async fn create_test_link_expect_error(url: &str, title: Option<&str>) -> St
     format!("Status: {}, Response: {}", status, text)
 }
 
+/// Get the primary org ID for the test user.
+/// Uses GET /api/orgs and returns the first org where the user is an owner.
+/// This is more reliable than GET /api/auth/me which reads from KV and can
+/// return a stale org_id if switch-org was called by a parallel test.
+pub async fn get_primary_test_org_id() -> String {
+    let client = authenticated_client();
+    let response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .expect("Failed to call /api/orgs");
+
+    let body: Value = response
+        .json()
+        .await
+        .expect("Failed to parse /api/orgs response");
+    let orgs = body["orgs"].as_array().expect("orgs should be an array");
+
+    // Return the first org where the user is owner — this is the primary/initial org
+    orgs.iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .and_then(|o| o["id"].as_str())
+        .expect("Test user should have at least one owned org")
+        .to_string()
+}
+
 /// Generate a unique short code for testing
 /// Uses timestamp to avoid collisions between test runs
 pub fn unique_short_code(prefix: &str) -> String {

@@ -18,23 +18,25 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 - **OAuth Authentication**: GitHub and Google OAuth with secure JWT sessions, provider opt-in via env vars, and account linking across providers
 - **Instance Admin**: First user becomes admin; admin dashboard for user management and settings
 - **Signup Control**: Admins can disable new signups to lock down the instance
-- **Multi-tenant Ready**: Organization/team model from day one
+- **Multi-Organization Support**: Users can create and belong to multiple organizations, with seamless context switching
+- **Team Invitations**: Invite team members by email with role-based access (owner/admin/member); invitation lifecycle management (create, resend, revoke, accept)
+- **Billing Accounts**: Tier limits enforced at billing account level, decoupled from individual organizations
 - **Self-hostable**: Run on your own custom domain, with straightforward deployment in Cloudflare's free tier
 - **Abuse Reporting**: Users can report abusive links
 - **Tagging**: Links can be tagged for better organization and filtering
 - **Link Status Management**: Active/Disabled/Deleted states with soft delete functionality
-- **Usage Tracking & Limits**: Monthly counters with tier-based limits (free/unlimited tiers)
+- **Usage Tracking & Limits**: Monthly counters with tier-based limits (free/unlimited tiers) at the billing account level
 - **Advanced Security**: Destination blacklist and user suspension capabilities
 - **Admin Moderation**: Link review workflow and comprehensive abuse report management
 - **Title Fetching**: Automatic title extraction for URLs during link creation
 - **Rate Limiting**: Comprehensive IP, user, and session-based rate limiting
 - **Instance Settings**: Configurable admin settings including signup control and default tiers
+- **Email Notifications**: Transactional email via Mailgun for team invitations
 
 ## Planned Features
 
 - **Analytics aggregation**: Advanced queries and dashboard UI
 - **More OAuth providers**: GitLab and other providers beyond GitHub/Google
-- **Team/organization management**: Enhanced collaborative features and permissions
 - **QR Codes Generation**: Generate QR codes for links
 - **Bulk link operations**: Import/export and batch management
 - **Custom domains per organization**: Organization-specific branded domains
@@ -154,6 +156,9 @@ wrangler d1 migrations apply rushomon --remote
 
    # Store it:
    wrangler secret put JWT_SECRET
+
+   # Store Mailgun API key (required for team invitation emails)
+   wrangler secret put MAILGUN_API_KEY
    ```
 
    🔒 **Important**: Production secrets are stored via Cloudflare Workers Secrets API and are never visible in your codebase or dashboard.
@@ -298,7 +303,10 @@ npm run build
 
 ### D1 Tables
 
-- **organizations**: Multi-tenant org structure with tier system
+- **organizations**: Multi-tenant org structure; users can belong to multiple orgs
+- **org_members**: Junction table linking users to organizations with roles (owner/admin/member)
+- **org_invitations**: Pending email invitations with expiry and acceptance tracking
+- **billing_accounts**: Billing tier (free/unlimited) enforced at account level, shared across orgs
 - **users**: OAuth user accounts with suspension support
 - **links**: Link metadata with status, tags, and click tracking
 - **analytics_events**: Detailed click tracking with geo data
@@ -306,7 +314,7 @@ npm run build
 - **destination_blacklist**: Blocked URLs/domains for security
 - **link_reports**: User-reported abusive links with review workflow
 - **link_tags**: Many-to-many relationship for link organization
-- **monthly_counters**: Usage tracking for tier limits
+- **monthly_counters**: Usage tracking for tier limits at billing account level
 
 ### KV Storage
 

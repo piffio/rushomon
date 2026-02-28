@@ -63,6 +63,7 @@ The setup script handles:
 - ✓ Prerequisites checking (wrangler, Node.js, Rust, worker-build)
 - ✓ Domain configuration (single, multi, or custom strategy)
 - ✓ OAuth provider setup (GitHub, Google)
+- ✓ Mailgun email setup (team invitations)
 - ✓ Cloudflare resource creation (D1 database, KV namespace)
 - ✓ Wrangler configuration generation
 - ✓ Backend and frontend build
@@ -115,6 +116,67 @@ export JWT_SECRET="$(openssl rand -base64 32)"
 # Deploy
 ./scripts/setup.sh --config config/staging.yaml
 ```
+
+### Example: Production Setup with Mailgun
+
+```bash
+# Create production config with Mailgun
+cat > config/production.yaml <<EOF
+domains:
+  strategy: "multi"
+  main: "myapp.com"
+  api: "api.myapp.com"
+  redirect: "go.myapp.com"
+
+deployment:
+  environment_name: "production"
+  worker_name: "rushomon-production"
+
+oauth:
+  github:
+    enabled: true
+    client_id: "Iv1.abc123..."
+    client_secret: "\${GITHUB_CLIENT_SECRET}"
+
+mailgun:
+  domain: "mg.myapp.com"
+  base_url: "https://api.mailgun.net"
+  from: "invites@mg.myapp.com"
+  api_key: "\${MAILGUN_API_KEY}"
+EOF
+
+# Set secrets
+export GITHUB_CLIENT_SECRET="your-production-secret"
+export JWT_SECRET="$(openssl rand -base64 32)"
+export MAILGUN_API_KEY="key-your-mailgun-api-key"
+
+# Deploy
+./scripts/setup.sh --config config/production.yaml
+```
+
+### MAILGUN Configuration
+
+**Optional** - Required only for team invitation emails.
+
+**Setup Process:**
+1. Sign up at [mailgun.com](https://www.mailgun.com/) (free Flex plan works)
+2. Add and verify your sending domain (e.g., `mg.myapp.com`)
+3. Create an API key (starts with `key-`)
+4. Configure during setup or in config file
+
+**Config File Variables:**
+```yaml
+mailgun:
+  domain: "mg.myapp.com"           # Verified sending domain
+  base_url: "https://api.mailgun.net"  # Or EU: https://api.eu.mailgun.net
+  from: "invites@mg.myapp.com"    # From address for emails
+  api_key: "${MAILGUN_API_KEY}"   # API key secret
+```
+
+**Environment Variables:**
+- `MAILGUN_API_KEY`: Your Mailgun API key (starts with `key-`)
+
+**Note**: If Mailgun is not configured, team invitations will be created but email delivery will fail silently.
 
 ## Backup Script
 
@@ -376,6 +438,12 @@ oauth:
     client_id: "Iv1.abc123..."
     client_secret: "${GITHUB_CLIENT_SECRET}"
 
+mailgun:
+  domain: "mg.myapp.com"
+  base_url: "https://api.mailgun.net"
+  from: "invites@mg.myapp.com"
+  api_key: "${MAILGUN_API_KEY}"
+
 deployment:
   environment_name: "production"
   worker_name: "rushomon-production"
@@ -388,6 +456,7 @@ secrets:
 - `GITHUB_CLIENT_SECRET`: GitHub OAuth secret
 - `GOOGLE_CLIENT_SECRET`: Google OAuth secret (if enabled)
 - `JWT_SECRET`: JWT signing secret
+- `MAILGUN_API_KEY`: Mailgun API key (for team invitations)
 
 **Generate JWT secret**:
 ```bash

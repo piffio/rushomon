@@ -39,3 +39,15 @@ GOOGLE_CLIENT_SECRET=your-dev-google-client-secret-here
 # OR:
 #   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 JWT_SECRET=your-dev-jwt-secret-minimum-32-characters-here
+
+# ─── Email (Mailgun) ──────────────────────────────────────────────────────────
+# Required for sending organization member invitations.
+# Sign up at: https://www.mailgun.com/
+# MAILGUN_API_KEY: Your Mailgun private API key (starts with "key-")
+# MAILGUN_DOMAIN: The sending domain you configured in Mailgun (e.g. mg.yourdomain.com)
+# MAILGUN_FROM: The "From" address for invitation emails
+# MAILGUN_BASE_URL: The base URL for Mailgun API (e.g. https://api.mailgun.net)
+MAILGUN_API_KEY=your-mailgun-api-key-here
+MAILGUN_DOMAIN=mg.yourdomain.com
+MAILGUN_FROM=invites@mg.yourdomain.com
+MAILGUN_BASE_URL=https://api.mailgun.net

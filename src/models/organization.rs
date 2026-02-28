@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+/// Organization (team/tenant) model.
+///
+/// Tier limits are enforced at the billing account level via `billing_account.tier`.
+/// The organization is linked to a billing account which contains the authoritative tier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Organization {
     pub id: String,
@@ -7,7 +11,9 @@ pub struct Organization {
     pub slug: String,
     pub created_at: i64,
     pub created_by: String,
-    pub tier: String,
+    /// Link to the billing account that owns this organization.
+    /// Tier limits are enforced at the billing account level.
+    pub billing_account_id: Option<String>,
 }
 
 impl Organization {

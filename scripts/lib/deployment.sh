@@ -90,6 +90,15 @@ ALLOWED_ORIGINS = "https://${MAIN_DOMAIN},https://${API_DOMAIN}"
 ENABLE_KV_RATE_LIMITING = "${ENABLE_KV_RATE_LIMITING:-false}"
 EOF
 
+  # Add Mailgun configuration if enabled
+  if [ -n "$MAILGUN_DOMAIN" ]; then
+    cat >> "$output_file" <<EOF
+MAILGUN_DOMAIN = "${MAILGUN_DOMAIN}"
+MAILGUN_BASE_URL = "${MAILGUN_BASE_URL}"
+MAILGUN_FROM = "${MAILGUN_FROM}"
+EOF
+  fi
+
   # Add custom domain routes
   info "Adding custom domain routes for ${DOMAIN_STRATEGY:-single} domain strategy..."
 
@@ -297,6 +306,15 @@ set_worker_secrets() {
     return 1
   fi
 
+  # Set Mailgun API key (if configured)
+  if [ -n "$MAILGUN_API_KEY" ]; then
+    echo "$MAILGUN_API_KEY" | wrangler secret put MAILGUN_API_KEY --config "$config_file" || {
+      error "Failed to set MAILGUN_API_KEY"
+      return 1
+    }
+    success "  - MAILGUN_API_KEY set"
+  fi
+
   success "Worker secrets configured"
   return 0
 }
@@ -403,7 +421,7 @@ show_deployment_summary() {
   echo "  - D1 Database:    ${D1_DATABASE_ID}"
   echo "  - KV Namespace:   ${KV_NAMESPACE_ID}"
   echo ""
-  echo -e "${GREEN}OAuth Providers:${NC}"
+  echo -e "${GREEN}OAuth & Email Providers:${NC}"
 
   if [ "$GITHUB_ENABLED" = true ]; then
     echo "  - GitHub OAuth:   Enabled"
@@ -415,6 +433,12 @@ show_deployment_summary() {
     echo "  - Google OAuth:   Enabled"
   else
     echo "  - Google OAuth:   Disabled"
+  fi
+
+  if [ -n "$MAILGUN_DOMAIN" ]; then
+    echo "  - Mailgun:        Enabled (team invitations)"
+  else
+    echo "  - Mailgun:        Disabled"
   fi
 
   echo ""

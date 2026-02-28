@@ -220,6 +220,9 @@ jobs:
           GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
           GITHUB_USER_URL = "https://api.github.com/user"
           GOOGLE_CLIENT_ID = "${{ secrets.GOOGLE_CLIENT_ID }}"
+          MAILGUN_DOMAIN = "${{ secrets.MAILGUN_DOMAIN }}"
+          MAILGUN_BASE_URL = "${{ secrets.MAILGUN_BASE_URL }}"
+          MAILGUN_FROM = "${{ secrets.MAILGUN_FROM }}"
           DOMAIN = "rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           FRONTEND_URL = "https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
@@ -262,11 +265,13 @@ jobs:
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml
           echo "$JWT_SECRET" | wrangler secret put JWT_SECRET -c wrangler.ephemeral.toml
           echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET -c wrangler.ephemeral.toml
+          echo "$MAILGUN_API_KEY" | wrangler secret put MAILGUN_API_KEY -c wrangler.ephemeral.toml
 
       - name: Deploy to Ephemeral Environment
         env:

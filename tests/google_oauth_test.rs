@@ -20,8 +20,6 @@ async fn test_auth_providers_lists_enabled_providers() {
     let body: serde_json::Value = response.json().await.unwrap();
     let providers = body["providers"].as_array().unwrap();
 
-    println!("Enabled providers: {:?}", providers);
-
     // Both GitHub and Google should be listed (both configured in test .dev.vars)
     let names: Vec<&str> = providers
         .iter()
@@ -64,11 +62,6 @@ async fn test_google_login_redirects_to_provider() {
         .expect("Expected Location header")
         .to_str()
         .unwrap();
-
-    println!(
-        "Google OAuth redirect: {}",
-        &location[..location.len().min(120)]
-    );
 
     // Should redirect to our mock Google authorize endpoint
     assert!(
@@ -122,8 +115,6 @@ async fn test_google_oauth_full_flow() {
         .unwrap()
         .to_string();
 
-    println!("Google OAuth state: {}...", &state[..state.len().min(20)]);
-
     // Step 3: Construct callback URL with mock Google code
     let mock_code = format!("mock-google-code-{}", state);
     let callback_url = format!(
@@ -135,7 +126,6 @@ async fn test_google_oauth_full_flow() {
     let callback_response = client.get(&callback_url).send().await.unwrap();
 
     let status = callback_response.status();
-    println!("Callback response status: {}", status);
 
     // Should be a redirect (302) to the frontend with cookies set
     assert_eq!(
@@ -156,8 +146,6 @@ async fn test_google_oauth_full_flow() {
         has_access_cookie,
         "Callback should set rushomon_access cookie for Google OAuth flow"
     );
-
-    println!("✅ Google OAuth full flow completed successfully");
 }
 
 /// Test that Google OAuth account linking works: signing in via Google with an email
@@ -194,6 +182,4 @@ async fn test_google_oauth_account_linking_via_email() {
         StatusCode::FOUND,
         "Google login should redirect"
     );
-
-    println!("✅ Both providers correctly redirect to their OAuth flows");
 }

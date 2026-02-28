@@ -165,15 +165,17 @@ configure_google_oauth() {
   return 0
 }
 
-# Configure all OAuth providers
+# Configure all OAuth providers and email services
 configure_oauth() {
   echo ""
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${GREEN}OAuth Provider Configuration${NC}"
+  echo -e "${GREEN}Authentication & Email Configuration${NC}"
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
   echo "Rushomon requires at least one OAuth provider for authentication."
   echo "You can enable GitHub, Google, or both."
+  echo ""
+  echo "Mailgun is optional and only needed for team invitation emails."
   echo ""
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
@@ -186,6 +188,11 @@ configure_oauth() {
   # Configure Google OAuth (optional)
   configure_google_oauth
 
+  echo ""
+
+  # Configure Mailgun (optional)
+  configure_mailgun
+
   # Validate at least one provider is enabled
   if [ "$GITHUB_ENABLED" = false ] && [ "$GOOGLE_ENABLED" = false ]; then
     error "At least one OAuth provider must be enabled"
@@ -194,7 +201,7 @@ configure_oauth() {
   fi
 
   echo ""
-  success "OAuth configuration complete"
+  success "Authentication configuration complete"
 
   if [ "$GITHUB_ENABLED" = true ]; then
     info "  - GitHub OAuth: Enabled"
@@ -202,6 +209,12 @@ configure_oauth() {
 
   if [ "$GOOGLE_ENABLED" = true ]; then
     info "  - Google OAuth: Enabled"
+  fi
+
+  if [ -n "$MAILGUN_DOMAIN" ]; then
+    info "  - Mailgun: Enabled (team invitations)"
+  else
+    info "  - Mailgun: Disabled (team invitations unavailable)"
   fi
 
   return 0
@@ -302,11 +315,118 @@ validate_oauth_config() {
   return 0
 }
 
+# Show Mailgun setup instructions
+show_mailgun_instructions() {
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}Mailgun Setup (Optional - Required for Team Invitations)${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo "Mailgun is used for sending team invitation emails. If you don't plan to use"
+  echo "team invitations, you can skip this step."
+  echo ""
+  echo "Follow these steps to configure Mailgun:"
+  echo ""
+  echo -e "1. Sign up at: ${CYAN}https://www.mailgun.com/${NC}"
+  echo "   - The free Flex plan works for low volume"
+  echo ""
+  echo -e "2. Add and verify your sending domain:"
+  echo "   - Go to Domains → Add Domain"
+  echo -e "   - Enter your domain (e.g., ${YELLOW}mg.yourdomain.com${NC})"
+  echo "   - Mailgun will provide DNS records to add"
+  echo "   - Wait for domain verification"
+  echo ""
+  echo -e "3. Find your API credentials:"
+  echo "   - Go to API Keys → Create API Key"
+  echo "   - Copy the ${GREEN}API Key${NC} (starts with 'key-')"
+  echo "   - Note your verified ${GREEN}sending domain${NC}"
+  echo ""
+  echo -e "4. Choose your Mailgun region:"
+  echo "   - US: https://api.mailgun.net"
+  echo "   - EU: https://api.eu.mailgun.net"
+  echo ""
+  echo -e "${YELLOW}Important:${NC} Keep your API key secure. Never commit it to version control."
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  read -p "Press Enter once you've reviewed the Mailgun setup..."
+}
+
+# Configure Mailgun interactively
+configure_mailgun() {
+  info "Configuring Mailgun for team invitation emails..."
+
+  if ! prompt_yes_no "Enable Mailgun for team invitation emails?" "n"; then
+    export MAILGUN_DOMAIN=""
+    export MAILGUN_BASE_URL=""
+    export MAILGUN_FROM=""
+    export MAILGUN_API_KEY=""
+    return 0
+  fi
+
+  show_mailgun_instructions
+
+  # Prompt for Mailgun domain
+  while true; do
+    export MAILGUN_DOMAIN=$(prompt_input "Mailgun sending domain" "mg.${MAIN_DOMAIN}")
+    
+    if [ -n "$MAILGUN_DOMAIN" ]; then
+      break
+    fi
+    warning "Mailgun domain cannot be empty"
+  done
+
+  # Prompt for Mailgun base URL
+  echo ""
+  echo "Choose your Mailgun region:"
+  echo -e "  ${CYAN}1${NC}. US region (https://api.mailgun.net)"
+  echo -e "  ${CYAN}2${NC}. EU region (https://api.eu.mailgun.net)"
+  echo ""
+  read -p "Selection [1-2]: " region_choice
+
+  case $region_choice in
+    1)
+      export MAILGUN_BASE_URL="https://api.mailgun.net"
+      ;;
+    2)
+      export MAILGUN_BASE_URL="https://api.eu.mailgun.net"
+      ;;
+    *)
+      warning "Invalid selection, using US region"
+      export MAILGUN_BASE_URL="https://api.mailgun.net"
+      ;;
+  esac
+
+  # Prompt for from address
+  while true; do
+    local default_from="invites@${MAILGUN_DOMAIN}"
+    export MAILGUN_FROM=$(prompt_input "From address for invitation emails" "$default_from")
+    
+    if [[ "$MAILGUN_FROM" == *"@"*"."* ]]; then
+      break
+    fi
+    warning "Please enter a valid email address"
+  done
+
+  # Prompt for API key
+  while true; do
+    export MAILGUN_API_KEY=$(prompt_secret "Mailgun API Key")
+    
+    if [[ "$MAILGUN_API_KEY" == key-* ]]; then
+      break
+    fi
+    warning "Mailgun API keys start with 'key-'"
+  done
+
+  success "Mailgun configured"
+  return 0
+}
+
 # Show OAuth configuration summary
 show_oauth_summary() {
   echo ""
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${GREEN}OAuth Configuration Summary${NC}"
+  echo -e "${GREEN}Authentication & Email Configuration Summary${NC}"
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
 
@@ -321,6 +441,17 @@ show_oauth_summary() {
     echo -e "${GREEN}Google OAuth:${NC} Enabled"
     echo "  Client ID: $GOOGLE_CLIENT_ID"
     echo "  Callback URL: https://${API_DOMAIN}/api/auth/callback"
+    echo ""
+  fi
+
+  if [ -n "$MAILGUN_DOMAIN" ]; then
+    echo -e "${GREEN}Mailgun:${NC} Enabled"
+    echo "  Domain: $MAILGUN_DOMAIN"
+    echo "  Base URL: $MAILGUN_BASE_URL"
+    echo "  From: $MAILGUN_FROM"
+    echo ""
+  else
+    echo -e "${YELLOW}Mailgun:${NC} Disabled (team invitations unavailable)"
     echo ""
   fi
 

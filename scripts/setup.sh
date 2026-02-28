@@ -52,6 +52,10 @@ export GOOGLE_ENABLED=false
 export GOOGLE_CLIENT_ID=""
 export GOOGLE_CLIENT_SECRET=""
 export JWT_SECRET=""
+export MAILGUN_DOMAIN=""
+export MAILGUN_BASE_URL=""
+export MAILGUN_FROM=""
+export MAILGUN_API_KEY=""
 export ENABLE_KV_RATE_LIMITING=false
 export R2_BACKUP_BUCKET=""
 export SAVE_CONFIG=true
@@ -388,9 +392,10 @@ show_configuration_summary() {
   echo "  - API:      ${API_DOMAIN}"
   echo "  - Redirect: ${REDIRECT_DOMAIN}"
   echo ""
-  echo -e "${YELLOW}OAuth:${NC}"
+  echo -e "${YELLOW}OAuth & Email:${NC}"
   echo "  - GitHub:   $([ "$GITHUB_ENABLED" = true ] && echo "Enabled" || echo "Disabled")"
   echo "  - Google:   $([ "$GOOGLE_ENABLED" = true ] && echo "Enabled" || echo "Disabled")"
+  echo "  - Mailgun:  $([ -n "$MAILGUN_DOMAIN" ] && echo "Enabled" || echo "Disabled")"
   echo ""
   echo -e "${YELLOW}Options:${NC}"
   echo "  - KV Rate Limiting: $([ "$ENABLE_KV_RATE_LIMITING" = true ] && echo "Enabled" || echo "Disabled")"

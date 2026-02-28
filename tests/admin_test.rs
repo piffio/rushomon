@@ -70,10 +70,11 @@ async fn test_admin_suspend_user() {
     let users = users_body["users"].as_array().unwrap();
 
     // Find a user that's not the test user and not an admin
+    let test_user_id = get_test_user_id();
     let target_user = users.iter().find(|u| {
         let user_id = u["id"].as_str().unwrap_or("");
         let role = u["role"].as_str().unwrap_or("");
-        user_id != "test-user-id" && role == "member"
+        user_id != test_user_id && role == "member"
     });
 
     if target_user.is_none() {
@@ -515,5 +516,5 @@ async fn test_admin_reset_counter_admin_access() {
 
     let body: serde_json::Value = response.json().await.unwrap();
     assert!(body["success"].as_bool().unwrap_or(false));
-    assert_eq!(body["message"], "Monthly counter reset successfully");
+    assert_eq!(body["message"], "Monthly counter reset for billing account");
 }

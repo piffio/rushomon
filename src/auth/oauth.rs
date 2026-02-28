@@ -51,6 +51,8 @@ pub struct OAuthState {
     pub fingerprint: String,
     /// Provider name that initiated this OAuth flow ("github" | "google")
     pub provider: String,
+    /// Optional redirect URL after successful authentication
+    pub redirect: Option<String>,
 }
 
 /// OAuth callback result with both access and refresh tokens
@@ -76,12 +78,20 @@ pub async fn initiate_oauth(
     // Generate request fingerprint to bind state to original request context
     let fingerprint = generate_request_fingerprint(req);
 
-    // Store state with fingerprint and provider in KV with TTL
+    // Extract redirect parameter from request URL if present
+    let redirect = req.url().ok().and_then(|url| {
+        url.query_pairs()
+            .find(|(k, _)| k == "redirect")
+            .map(|(_, v)| v.to_string())
+    });
+
+    // Store state with fingerprint, provider, and redirect in KV with TTL
     let state_data = OAuthState {
         state: state.clone(),
         created_at: now,
         fingerprint,
         provider: provider.name.to_string(),
+        redirect,
     };
 
     let key = format!("oauth_state:{}", state);
@@ -127,7 +137,7 @@ pub async fn handle_oauth_callback(
     kv: &KvStore,
     db: &D1Database,
     env: &Env,
-) -> Result<(User, Organization, OAuthTokens)> {
+) -> Result<(User, Organization, OAuthTokens, Option<String>)> {
     // Validate state from KV
     let key = format!("oauth_state:{}", state);
     let stored_state = kv.get(&key).text().await?;
@@ -159,6 +169,9 @@ pub async fn handle_oauth_callback(
             "OAuth state validation failed: request context mismatch".to_string(),
         ));
     }
+
+    // Extract redirect URL before deleting state
+    let redirect = state_data.redirect.clone();
 
     // Delete state after validation (one-time use)
     kv.delete(&key).await?;
@@ -248,6 +261,7 @@ pub async fn handle_oauth_callback(
             access_token,
             refresh_token,
         },
+        redirect,
     ))
 }
 
@@ -351,18 +365,23 @@ async fn create_or_get_user(
             format!("{}'s Organization", email_prefix)
         });
 
+    // Create organization first (with temp user ID)
     let temp_user_id = uuid::Uuid::new_v4().to_string();
     let org = queries::create_default_org(db, &temp_user_id, &org_name).await?;
 
+    // Now create the user with the actual org_id
     let create_data = CreateUserData {
-        email: normalized_user.email,
-        name: normalized_user.name,
-        avatar_url: normalized_user.avatar_url,
-        oauth_provider: normalized_user.provider,
-        oauth_id: normalized_user.provider_id,
+        email: normalized_user.email.clone(),
+        name: normalized_user.name.clone(),
+        avatar_url: normalized_user.avatar_url.clone(),
+        oauth_provider: normalized_user.provider.clone(),
+        oauth_id: normalized_user.provider_id.clone(),
     };
-
     let user = queries::create_or_update_user(db, create_data, &org.id).await?;
+
+    // Update the billing account owner to the actual user ID
+    queries::update_billing_account_owner(db, org.billing_account_id.as_ref().unwrap(), &user.id)
+        .await?;
 
     Ok((user, org))
 }

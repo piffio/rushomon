@@ -44,6 +44,9 @@ jobs:
           KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
           GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          MAILGUN_BASE_URL: ${{ secrets.MAILGUN_BASE_URL }}
+          MAILGUN_FROM: ${{ secrets.MAILGUN_FROM }}
 
         run: |
           cat > wrangler.production.toml << 'EOF'
@@ -86,6 +89,9 @@ jobs:
           GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
           GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
           GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          MAILGUN_DOMAIN = "${{ env.MAILGUN_DOMAIN }}"
+          MAILGUN_BASE_URL = "${{ env.MAILGUN_BASE_URL }}"
+          MAILGUN_FROM = "${{ env.MAILGUN_FROM }}"
           DOMAIN = "${{ secrets.API_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
@@ -172,6 +178,9 @@ jobs:
           GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          MAILGUN_BASE_URL: ${{ secrets.MAILGUN_BASE_URL }}
+          MAILGUN_FROM: ${{ secrets.MAILGUN_FROM }}
         run: |
           cat > wrangler.production.toml << 'EOF'
           name = "rushomon-production"
@@ -213,6 +222,9 @@ jobs:
           GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
           GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
           GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+          MAILGUN_DOMAIN = "${{ env.MAILGUN_DOMAIN }}"
+          MAILGUN_BASE_URL = "${{ env.MAILGUN_BASE_URL }}"
+          MAILGUN_FROM = "${{ env.MAILGUN_FROM }}"
           DOMAIN = "${{ secrets.API_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
@@ -231,12 +243,14 @@ jobs:
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "🔐 Setting Worker secrets..."
           echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.production.toml
           echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.production.toml
           echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.production.toml
+          echo "$MAILGUN_API_KEY" | wrangler secret put MAILGUN_API_KEY --config wrangler.production.toml
           echo "✅ Secrets configured securely"
 
       - name: Deploy Worker

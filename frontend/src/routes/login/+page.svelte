@@ -98,8 +98,13 @@
 				<div class="flex flex-col gap-3">
 					{#each providers as provider}
 						{@const icon = getProviderIcon(provider.name)}
+						{@const redirect =
+							$page.url.searchParams.get("redirect")}
 						<a
-							href={authApi.getProviderLoginUrl(provider.name)}
+							href={authApi.getProviderLoginUrl(
+								provider.name,
+								redirect ?? undefined,
+							)}
 							class="flex items-center justify-center gap-3 w-full px-4 py-3 rounded-xl border font-medium text-sm transition-all duration-150
 								{provider.name === 'github'
 								? 'bg-gray-900 hover:bg-gray-800 text-white border-gray-900'

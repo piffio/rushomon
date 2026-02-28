@@ -41,9 +41,13 @@ export const authApi = {
 	 * Get the login URL for a specific OAuth provider.
 	 * Browser should be redirected to this URL (not fetched via XHR).
 	 */
-	getProviderLoginUrl(providerName: string): string {
+	getProviderLoginUrl(providerName: string, redirect?: string): string {
 		const baseUrl = apiClient['baseUrl'];
-		return `${baseUrl}/api/auth/${providerName}`;
+		const url = new URL(`${baseUrl}/api/auth/${providerName}`);
+		if (redirect) {
+			url.searchParams.set('redirect', redirect);
+		}
+		return url.toString();
 	},
 
 	/**

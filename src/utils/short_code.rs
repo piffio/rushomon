@@ -8,8 +8,13 @@ const SHORT_CODE_LENGTH: usize = 6;
 /// Combinations: 62^6 = 56,800,235,584 (56.8 billion)
 /// Collision probability: < 0.01% at 1M links
 pub fn generate_short_code() -> String {
+    generate_short_code_with_length(SHORT_CODE_LENGTH)
+}
+
+/// Generate a random base62 short code with custom length
+pub fn generate_short_code_with_length(length: usize) -> String {
     let mut rng = rand::rng();
-    (0..SHORT_CODE_LENGTH)
+    (0..length)
         .map(|_| {
             let idx = rng.random_range(0..BASE62_CHARS.len());
             BASE62_CHARS[idx] as char
