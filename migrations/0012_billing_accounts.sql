@@ -19,14 +19,16 @@ CREATE INDEX IF NOT EXISTS idx_billing_accounts_owner ON billing_accounts(owner_
 CREATE INDEX IF NOT EXISTS idx_billing_accounts_tier ON billing_accounts(tier);
 
 -- Backfill: Create billing account for each existing organization
--- Each org gets its own billing account initially (1:1 mapping)
+-- Get the owner from org_members (backfilled in 0011) instead of created_by
+-- because created_by contains temporary UUIDs from the user creation flow
 INSERT INTO billing_accounts (id, owner_user_id, tier, created_at)
 SELECT
-  'ba_' || id,  -- Prefix to distinguish from org IDs
-  created_by,
-  tier,
-  created_at
-FROM organizations;
+  'ba_' || o.id,
+  om.user_id,  -- Use actual user ID from org_members, not the temp ID in created_by
+  o.tier,
+  o.created_at
+FROM organizations o
+INNER JOIN org_members om ON om.org_id = o.id AND om.role = 'owner';
 
 -- Add billing_account_id to organizations
 ALTER TABLE organizations ADD COLUMN billing_account_id TEXT;
