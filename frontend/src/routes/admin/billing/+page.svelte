@@ -28,7 +28,7 @@
 
 		// Check if there's a hash in the URL to expand a specific account
 		const hash = window.location.hash.slice(1); // Remove the # character
-		if (hash && hash.startsWith('ba_')) {
+		if (hash && hash.startsWith("ba_")) {
 			expandedId = hash;
 			// Load details for this account
 			if (!accountDetails[hash]) {
@@ -37,7 +37,7 @@
 					const details = await adminApi.getBillingAccount(hash);
 					accountDetails[hash] = details;
 				} catch (err) {
-					console.error('Failed to load account from hash:', err);
+					console.error("Failed to load account from hash:", err);
 				} finally {
 					detailsLoading = null;
 				}
@@ -46,7 +46,10 @@
 			setTimeout(() => {
 				const element = document.getElementById(`account-${hash}`);
 				if (element) {
-					element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					element.scrollIntoView({
+						behavior: "smooth",
+						block: "start",
+					});
 				}
 			}, 100);
 		}
@@ -139,7 +142,8 @@
 			await adminApi.resetBillingAccountCounter(confirmingReset);
 			// Reload details to show updated usage
 			if (expandedId === confirmingReset) {
-				const details = await adminApi.getBillingAccount(confirmingReset);
+				const details =
+					await adminApi.getBillingAccount(confirmingReset);
 				accountDetails[confirmingReset] = details;
 			}
 			await loadAccounts();
@@ -311,8 +315,7 @@
 											{details.usage
 												.links_created_this_month} /
 											{details.usage
-												.max_links_per_month ??
-												"∞"} links
+												.max_links_per_month ?? "∞"} links
 										</div>
 										{#if details.usage.max_links_per_month}
 											{@const percentage =
@@ -433,6 +436,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && cancelTierChange()}
 		>
 			<div class="modal-header">
 				<h3>Change Billing Account Tier</h3>
@@ -448,7 +453,8 @@
 				<div class="tier-options">
 					{#each ["free", "pro", "business", "unlimited"] as tier}
 						<button
-							class="tier-option {tier === confirmingTierChange.currentTier
+							class="tier-option {tier ===
+							confirmingTierChange.currentTier
 								? 'current'
 								: ''} {getTierBadgeClass(tier)}"
 							onclick={() => confirmTierChange(tier)}
@@ -490,6 +496,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && cancelReset()}
 		>
 			<div class="modal-header">
 				<h3>Reset Counter?</h3>
@@ -501,8 +509,8 @@
 				<p>
 					Are you sure you want to <strong
 						>reset the monthly counter</strong
-					> for this billing account? This will set the links created
-					count to 0 for the current month.
+					> for this billing account? This will set the links created count
+					to 0 for the current month.
 				</p>
 				<p class="warning">
 					This action is typically used for testing purposes only.

@@ -576,8 +576,21 @@
 
 <!-- Block URL Modal -->
 {#if showBlockUrlModal && selectedReport}
-	<div class="modal-overlay" onclick={closeModal}>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="0"
+		onclick={closeModal}
+		onkeydown={(e) => e.key === "Enter" && closeModal()}
+	>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeModal()}
+		>
 			<div class="modal-header">
 				<h3 class="modal-title">Block URL</h3>
 			</div>
@@ -606,8 +619,21 @@
 
 <!-- Block Domain Modal -->
 {#if showBlockDomainModal && selectedReport}
-	<div class="modal-overlay" onclick={closeModal}>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="0"
+		onclick={closeModal}
+		onkeydown={(e) => e.key === "Enter" && closeModal()}
+	>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeModal()}
+		>
 			<div class="modal-header">
 				<h3 class="modal-title">Block Domain</h3>
 			</div>
@@ -636,8 +662,21 @@
 
 <!-- Disable Link Modal -->
 {#if showDisableModal && selectedReport}
-	<div class="modal-overlay" onclick={closeModal}>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="0"
+		onclick={closeModal}
+		onkeydown={(e) => e.key === "Enter" && closeModal()}
+	>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeModal()}
+		>
 			<div class="modal-header">
 				<h3 class="modal-title">Disable Link</h3>
 			</div>
@@ -666,8 +705,21 @@
 
 <!-- Dismiss Modal -->
 {#if showDismissModal && selectedReport}
-	<div class="modal-overlay" onclick={closeModal}>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="0"
+		onclick={closeModal}
+		onkeydown={(e) => e.key === "Enter" && closeModal()}
+	>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeModal()}
+		>
 			<div class="modal-header">
 				<h3 class="modal-title">Dismiss Report</h3>
 			</div>
@@ -679,10 +731,11 @@
 					{selectedReport.link.short_code}
 				</p>
 				<div class="form-group">
-					<label class="form-label"
+					<label class="form-label" for="dismissal-reason"
 						>Reason for dismissal (optional)</label
 					>
 					<textarea
+						id="dismissal-reason"
 						class="form-textarea"
 						bind:value={actionReason}
 						placeholder="Explain why this report is being dismissed..."

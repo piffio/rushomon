@@ -455,6 +455,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && cancelRoleChange()}
 		>
 			<div class="modal-header">
 				<h3>
@@ -519,6 +521,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && cancelTierChange()}
 		>
 			<div class="modal-header">
 				<h3>
@@ -582,6 +586,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && cancelSuspend()}
 		>
 			<div class="modal-header">
 				<h3>Suspend User?</h3>
@@ -624,6 +630,8 @@
 {#if activeDropdown}
 	<div
 		class="dropdown-overlay"
+		role="button"
+		tabindex="0"
 		onclick={closeDropdown}
 		onkeydown={(e) => e.key === "Enter" && closeDropdown()}
 	></div>
@@ -650,38 +658,6 @@
 		margin: 0;
 		color: #64748b;
 		font-size: 1rem;
-	}
-
-	.info-notice {
-		display: flex;
-		gap: 0.75rem;
-		padding: 1rem;
-		background: #eff6ff;
-		border: 1px solid #bfdbfe;
-		border-radius: 8px;
-		margin-bottom: 2rem;
-	}
-
-	.info-icon {
-		font-size: 1.25rem;
-		flex-shrink: 0;
-	}
-
-	.info-content {
-		flex: 1;
-		color: #1e40af;
-		font-size: 0.875rem;
-		line-height: 1.5;
-	}
-
-	.info-content a {
-		color: #1e40af;
-		font-weight: 600;
-		text-decoration: underline;
-	}
-
-	.info-content a:hover {
-		color: #1e3a8a;
 	}
 
 	.loading,

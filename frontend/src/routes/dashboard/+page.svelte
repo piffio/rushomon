@@ -34,19 +34,23 @@
 	let usage = $state<UsageResponse | null>(null);
 
 	// Filter states - initialize from data props
-	let search = $state<string>((data as any).initialSearch || "");
-	let status = $state<"all" | "active" | "disabled">(
-		(data as any).initialStatus || "all",
-	);
+	let search = $state<string>("");
+	let status = $state<"all" | "active" | "disabled">("all");
 	let sort = $state<"created" | "updated" | "clicks" | "title" | "code">(
-		(data as any).initialSort || "created",
+		"created",
 	);
-	let selectedTags = $state<string[]>(
-		(data as any).initialTags
-			? (data as any).initialTags.split(",").filter(Boolean)
-			: [],
-	);
+	let selectedTags = $state<string[]>([]);
 	let availableTags = $state<TagWithCount[]>([]);
+
+	// Initialize from data props using derived
+	$effect(() => {
+		search = (data as any).initialSearch || "";
+		status = (data as any).initialStatus || "all";
+		sort = (data as any).initialSort || "created";
+		selectedTags = (data as any).initialTags
+			? (data as any).initialTags.split(",").filter(Boolean)
+			: [];
+	});
 
 	onMount(async () => {
 		try {

@@ -28,7 +28,7 @@
 		visible: false,
 	});
 
-	const totalPages = Math.ceil(total / 50);
+	const totalPages = $derived(Math.ceil(total / 50));
 
 	onMount(() => {
 		loadLinks();
@@ -417,6 +417,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeConfirm()}
 		>
 			<div class="modal-header">
 				<h3>Delete Link?</h3>
@@ -460,6 +462,8 @@
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && closeConfirm()}
 		>
 			<div class="modal-header">
 				<h3>
@@ -473,21 +477,23 @@
 			</div>
 			<div class="modal-body">
 				<div class="form-group">
-					<label
+					<label for="block-destination"
 						>Destination {blockMatchType === "domain"
 							? "Domain"
 							: "URL"}</label
 					>
 					<input
-						type="url"
+						id="block-destination"
+						type="text"
 						bind:value={blockDestination}
 						readonly
 						class="form-input"
 					/>
 				</div>
 				<div class="form-group">
-					<label>Match Type</label>
+					<label for="block-match-type">Match Type</label>
 					<input
+						id="block-match-type"
 						type="text"
 						value={blockMatchType === "domain"
 							? "Domain (blocks all URLs from this domain)"
@@ -497,8 +503,9 @@
 					/>
 				</div>
 				<div class="form-group">
-					<label>Reason</label>
+					<label for="block-reason">Reason</label>
 					<textarea
+						id="block-reason"
 						bind:value={blockReason}
 						placeholder="Reason for blocking..."
 						class="form-textarea"
@@ -528,6 +535,8 @@
 {#if activeDropdown}
 	<div
 		class="dropdown-overlay"
+		role="button"
+		tabindex="0"
 		onclick={closeDropdown}
 		onkeydown={(e) => e.key === "Enter" && closeDropdown()}
 	></div>
