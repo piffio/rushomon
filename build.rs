@@ -5,7 +5,7 @@ use std::process::Command;
 fn set_build_info() {
     // Set build timestamp
     let timestamp = Command::new("date")
-        .args(&["-u", "+%Y-%m-%dT%H:%M:%SZ"])
+        .args(["-u", "+%Y-%m-%dT%H:%M:%SZ"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
@@ -14,7 +14,7 @@ fn set_build_info() {
 
     // Set git commit
     let git_commit = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
