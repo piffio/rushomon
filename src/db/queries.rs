@@ -1013,90 +1013,6 @@ pub async fn get_link_total_clicks_in_range(
     }
 }
 
-/// Increment monthly counter with limit check
-/// Returns true if increment succeeded, false if limit reached
-/// DEPRECATED: Use increment_monthly_counter_for_billing_account instead
-#[allow(dead_code)]
-pub async fn increment_monthly_counter(
-    db: &D1Database,
-    org_id: &str,
-    year_month: &str,
-    max_links: i64,
-) -> Result<bool> {
-    let now = now_timestamp();
-
-    // Atomic approach: Try to insert/update only if under limit
-    // This prevents race conditions where multiple requests could bypass the limit
-
-    // First, ensure the row exists (idempotent operation)
-    let init_stmt = db.prepare(
-        "INSERT INTO monthly_counters (org_id, year_month, links_created, updated_at)
-         VALUES (?1, ?2, 0, ?3)
-         ON CONFLICT(org_id, year_month) DO NOTHING",
-    );
-    init_stmt
-        .bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
-        .run()
-        .await?;
-
-    // Now atomically increment only if below limit
-    // The WHERE clause ensures we only increment if current count < max_links
-    let stmt = db.prepare(
-        "UPDATE monthly_counters
-         SET links_created = links_created + 1, updated_at = ?1
-         WHERE org_id = ?2 AND year_month = ?3 AND links_created < ?4",
-    );
-
-    let result = stmt
-        .bind(&[
-            (now as f64).into(),
-            org_id.into(),
-            year_month.into(),
-            (max_links as f64).into(),
-        ])?
-        .run()
-        .await?;
-
-    // Check if the update actually modified a row
-    // If changes == 0, it means the limit was already reached (WHERE clause prevented update)
-    let changes = result.meta()?.and_then(|m| m.changes).unwrap_or(0);
-
-    Ok(changes > 0)
-}
-
-/// Reset monthly counter for an organization to 0
-/// DEPRECATED: Use reset_monthly_counter_for_billing_account instead
-#[allow(dead_code)]
-pub async fn reset_monthly_counter(db: &D1Database, org_id: &str) -> Result<()> {
-    let now = now_timestamp();
-
-    // Get current year-month
-    let year_month = chrono::Utc::now().format("%Y-%m").to_string();
-
-    // Reset the counter to 0
-    let stmt = db.prepare(
-        "INSERT INTO monthly_counters (org_id, year_month, links_created, updated_at)
-         VALUES (?1, ?2, 0, ?3)
-         ON CONFLICT(org_id, year_month) DO UPDATE SET
-           links_created = 0,
-           updated_at = ?3",
-    );
-
-    stmt.bind(&[org_id.into(), year_month.into(), (now as f64).into()])?
-        .run()
-        .await?;
-
-    Ok(())
-}
-
-/// Backfill monthly counters for existing organizations for the current month
-#[allow(dead_code)]
-pub async fn backfill_monthly_counters(_db: &D1Database) -> Result<i64> {
-    // This function is reserved for future use to migrate existing data
-    // For now, we rely on lazy creation in increment_monthly_counter
-    Ok(0)
-}
-
 /// Suspend a user
 pub async fn suspend_user(
     db: &D1Database,
@@ -2268,9 +2184,8 @@ pub async fn delete_organization(db: &D1Database, org_id: &str) -> Result<()> {
     let stmt = db.prepare("DELETE FROM org_members WHERE org_id = ?1");
     stmt.bind(&[org_id.into()])?.run().await?;
 
-    // Delete monthly counters
-    let stmt = db.prepare("DELETE FROM monthly_counters WHERE org_id = ?1");
-    stmt.bind(&[org_id.into()])?.run().await?;
+    // Note: monthly_counters is at billing account level, not per-org
+    // Do NOT delete monthly_counters here - they're shared across all orgs in billing account
 
     // Delete the organization
     let stmt = db.prepare("DELETE FROM organizations WHERE id = ?1");
