@@ -16,6 +16,10 @@ concurrency:
   group: production-deploy
   cancel-in-progress: false
 
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
 jobs:
   backup:
     name: Backup Database
@@ -219,9 +223,6 @@ jobs:
           echo "✅ Generated wrangler.production.toml"
 
       - name: Apply D1 Migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "📋 Applying D1 migrations to production database..."
           wrangler d1 migrations apply rushomon --remote -c wrangler.production.toml
@@ -229,8 +230,6 @@ jobs:
 
       - name: Set Worker Secrets
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -243,9 +242,6 @@ jobs:
           echo "✅ Secrets configured securely"
 
       - name: Deploy Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "🚀 Deploying worker to production..."
           wrangler deploy -c wrangler.production.toml
