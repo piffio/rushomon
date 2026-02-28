@@ -34,10 +34,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '20'
 
@@ -108,7 +108,7 @@ jobs:
           echo "Creating backup: $BACKUP_FILE"
 
           # Use the generated wrangler config for backup
-          ./scripts/backup.sh -c wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
+          ./scripts/backup.sh --config wrangler.staging.toml -o "$BACKUP_FILE" -z -r ${{ secrets.R2_BACKUP_BUCKET_NAME }}
 
           echo "backup_file=${BACKUP_FILE}.gz" >> $GITHUB_OUTPUT
 
@@ -117,11 +117,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: backup
-    environment: staging
+    environment:
+      name: staging
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Generate wrangler staging config
         env:
@@ -179,16 +180,28 @@ jobs:
           echo "✅ Generated wrangler.staging.toml"
 
       - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
-          cache: true
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: '.'
+
+      - name: Cache npm
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Install wrangler
         run: npm install -g wrangler
