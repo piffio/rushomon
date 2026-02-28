@@ -279,38 +279,6 @@
 									/>
 								</svg>
 								<span class="text-gray-700"
-									>Device-based routing</span
-								>
-							</li>
-							<li class="flex items-start">
-								<svg
-									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
-									fill="currentColor"
-									viewBox="0 0 20 20"
-								>
-									<path
-										fill-rule="evenodd"
-										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-								<span class="text-gray-700"
-									>Password protection</span
-								>
-							</li>
-							<li class="flex items-start">
-								<svg
-									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
-									fill="currentColor"
-									viewBox="0 0 20 20"
-								>
-									<path
-										fill-rule="evenodd"
-										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-								<span class="text-gray-700"
 									>Email support (48h)</span
 								>
 							</li>
@@ -428,7 +396,39 @@
 									/>
 								</svg>
 								<span class="text-gray-700"
-									>10 team members</span
+									>20 team members</span
+								>
+							</li>
+							<li class="flex items-start">
+								<svg
+									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+									fill="currentColor"
+									viewBox="0 0 20 20"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+								<span class="text-gray-700"
+									>Device-based routing</span
+								>
+							</li>
+							<li class="flex items-start">
+								<svg
+									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+									fill="currentColor"
+									viewBox="0 0 20 20"
+								>
+									<path
+										fill-rule="evenodd"
+										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+								<span class="text-gray-700"
+									>Password protection</span
 								>
 							</li>
 							<li class="flex items-start">
@@ -487,6 +487,36 @@
 							now to get early access to paid features and special
 							founder pricing when we launch.
 						</p>
+
+						<!-- Founder Pricing Info -->
+						<div
+							class="bg-white rounded-lg p-4 mb-4 border border-orange-100"
+						>
+							<h4 class="font-semibold text-orange-600 mb-2">
+								🎉 Founder Pricing
+							</h4>
+							<p class="text-sm text-gray-600 mb-2">
+								First 100 paying users get lifetime discounts:
+							</p>
+							<div
+								class="flex flex-col sm:flex-row gap-2 justify-center text-sm"
+							>
+								<span class="font-medium text-gray-900"
+									>Pro: <span
+										class="line-through text-gray-500"
+										>$9</span
+									> $5/mo</span
+								>
+								<span class="text-gray-400">·</span>
+								<span class="font-medium text-gray-900"
+									>Business: <span
+										class="line-through text-gray-500"
+										>$29</span
+									> $19/mo</span
+								>
+							</div>
+						</div>
+
 						<div
 							class="flex flex-col sm:flex-row gap-4 justify-center"
 						>

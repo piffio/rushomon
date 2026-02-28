@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "chart.js": "^4.5.1",
+    "qrcode": "^1.5.4",
     "ua-parser-js": "^2.0.9"
   },
   "devDependencies": {
@@ -11,6 +12,7 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tailwindcss/postcss": "^4.2.1",
     "@tailwindcss/typography": "^0.5.19",
+    "@types/qrcode": "^1.5.6",
     "@types/ua-parser-js": "^0.7.39",
     "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",
