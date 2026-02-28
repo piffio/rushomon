@@ -201,13 +201,8 @@
 			canDelete = ownedOrgs.length > 1;
 
 			// Get link count from usage API
-			const usageRes = await fetch("http://localhost:8787/api/usage", {
-				credentials: "include",
-			});
-			if (usageRes.ok) {
-				const usage = await usageRes.json();
-				linkCount = usage.links_created_this_month || 0;
-			}
+			const usage = await orgsApi.getUsage();
+			linkCount = usage.usage?.links_created_this_month || 0;
 		} catch (e) {
 			canDelete = false;
 		}

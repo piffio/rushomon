@@ -5,6 +5,7 @@ import type {
 	OrgWithRole,
 	OrgInvitation,
 	InviteInfo,
+	UsageResponse,
 } from '$lib/types/api';
 
 export const orgsApi = {
@@ -67,5 +68,9 @@ export const orgsApi = {
 			`/api/orgs/${org_id}`,
 			{ action, target_org_id },
 		);
+	},
+
+	async getUsage(): Promise<UsageResponse> {
+		return apiClient.get<UsageResponse>('/api/usage');
 	},
 };
