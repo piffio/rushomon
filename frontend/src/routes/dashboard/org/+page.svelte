@@ -173,7 +173,10 @@
 	}
 
 	const isOwner = $derived(orgDetails?.org.role === "owner");
-	const isUnlimited = $derived(orgDetails?.org.tier === "unlimited");
+	// Business tier only allows team members (up to 20)
+	const canInviteMembers = $derived(
+		["business", "unlimited"].includes(orgDetails?.org.tier ?? ""),
+	);
 
 	// Delete organization
 	let showDeleteModal = $state(false);
@@ -429,7 +432,7 @@
 				</ul>
 			</div>
 
-			<!-- Invite Card (owner + unlimited only) -->
+			<!-- Invite Card (owner only) -->
 			{#if isOwner}
 				<div
 					class="bg-white rounded-xl border border-gray-200 p-6 mb-6"
@@ -438,12 +441,12 @@
 						Invite Members
 					</h2>
 
-					{#if !isUnlimited}
+					{#if !canInviteMembers}
 						<div
 							class="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2 text-sm text-amber-800"
 						>
 							Inviting members requires the <strong
-								>Unlimited plan</strong
+								>Business plan</strong
 							>. Upgrade to collaborate with your team.
 						</div>
 					{:else}

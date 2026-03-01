@@ -74,7 +74,29 @@
 	}
 
 	const currentOrg = $derived(orgs.find((o) => o.id === currentOrgId));
-	const canCreateOrg = $derived(currentOrg?.tier === "unlimited");
+	const canCreateOrg = $derived(() => {
+		if (!currentOrg || !orgs) return false;
+		// Business tier allows up to 3 organizations
+		const tier = currentOrg.tier;
+		if (tier === "business" || tier === "unlimited") {
+			const ownedOrgs = orgs.filter((o) => o.role === "owner");
+			return ownedOrgs.length < 3;
+		}
+		return false;
+	});
+	const ownedOrgCount = $derived(() => {
+		if (!orgs) return 0;
+		return orgs.filter((o) => o.role === "owner").length;
+	});
+	const isBusinessTier = $derived(() => {
+		if (!currentOrg) return false;
+		return (
+			currentOrg.tier === "business" || currentOrg.tier === "unlimited"
+		);
+	});
+	const hasReachedOrgLimit = $derived(() => {
+		return isBusinessTier() && ownedOrgCount() >= 3;
+	});
 
 	function openCreateOrg() {
 		showCreateOrg = true;
@@ -284,7 +306,7 @@
 									</ul>
 									<div class="border-t border-gray-100 py-1">
 										<!-- Create Organization -->
-										{#if canCreateOrg}
+										{#if canCreateOrg()}
 											<button
 												onclick={openCreateOrg}
 												class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -303,10 +325,41 @@
 													/>
 												</svg>
 												Create Organization
+												<span
+													class="ml-auto text-xs text-gray-500"
+													>{ownedOrgCount()}/3</span
+												>
 											</button>
-										{:else}
+										{:else if hasReachedOrgLimit()}
 											<div
-												class="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 cursor-default select-none"
+												class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 cursor-default select-none"
+											>
+												<svg
+													class="w-4 h-4"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+													/>
+												</svg>
+												<span
+													>{ownedOrgCount()}/3
+													organizations created</span
+												>
+											</div>
+										{:else}
+											<button
+												onclick={() => {
+													orgSwitcherOpen = false;
+													window.location.href =
+														"/pricing";
+												}}
+												class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
 											>
 												<svg
 													class="w-4 h-4"
@@ -324,9 +377,9 @@
 												<span>Create Organization</span>
 												<span
 													class="ml-auto text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium"
-													>Unlimited</span
+													>Business</span
 												>
-											</div>
+											</button>
 										{/if}
 										<!-- Organization Settings -->
 										<button

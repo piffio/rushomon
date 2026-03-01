@@ -1,8 +1,10 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import { authApi } from "$lib/api/auth";
+	import { orgsApi } from "$lib/api/orgs";
 	import { apiClient } from "$lib/api/client";
 	import type { PageData } from "./$types";
+	import type { OrgWithRole } from "$lib/types/api";
 
 	let { data }: { data: PageData } = $props();
 
@@ -14,10 +16,14 @@
 		git_commit: "unknown",
 	});
 
+	// User organizations
+	let userOrgs = $state<OrgWithRole[]>([]);
+	let orgsLoading = $state(true);
+
 	// Helper for version API URL
 	const versionApiUrl = `${apiClient["baseUrl"]}/api/version`;
 
-	// Load version info on mount
+	// Load version info and orgs on mount
 	$effect(() => {
 		apiClient
 			.get<{
@@ -33,7 +39,24 @@
 				console.error("Failed to load version info:", err);
 				versionInfo.version = "Error";
 			});
+
+		// Load user organizations
+		orgsApi
+			.listMyOrgs()
+			.then((res) => {
+				userOrgs = res.orgs;
+			})
+			.catch((err) => {
+				console.error("Failed to load organizations:", err);
+			})
+			.finally(() => {
+				orgsLoading = false;
+			});
 	});
+
+	function formatDate(ts: number): string {
+		return new Date(ts * 1000).toLocaleDateString();
+	}
 
 	async function handleLogout() {
 		try {
@@ -128,22 +151,89 @@
 							>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-600">Role</span>
-							<span class="text-gray-900 font-medium"
-								>{data.user.role === "admin"
-									? "Administrator"
-									: "Member"}</span
-							>
-						</div>
-						<div class="flex justify-between">
 							<span class="text-gray-600">Joined</span>
 							<span class="text-gray-900 font-medium"
-								>{new Date(
-									data.user.created_at * 1000,
-								).toLocaleDateString()}</span
+								>{formatDate(data.user.created_at)}</span
 							>
 						</div>
 					</div>
+				</div>
+
+				<!-- Organizations Section -->
+				<div
+					class="mt-6 bg-white rounded-2xl border-2 border-gray-200 p-6"
+				>
+					<h3 class="font-semibold text-gray-900 mb-4">
+						Your Organizations
+					</h3>
+					{#if orgsLoading}
+						<div
+							class="flex items-center gap-2 text-sm text-gray-500"
+						>
+							<svg
+								class="animate-spin h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								></circle>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+								></path>
+							</svg>
+							Loading organizations...
+						</div>
+					{:else if userOrgs.length === 0}
+						<p class="text-sm text-gray-500">
+							You don't belong to any organizations yet.
+						</p>
+					{:else}
+						<div class="space-y-3">
+							{#each userOrgs as org}
+								<div
+									class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+								>
+									<div class="flex items-center gap-3">
+										<span
+											class="w-8 h-8 rounded-md bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold"
+										>
+											{org.name.charAt(0).toUpperCase()}
+										</span>
+										<div>
+											<p
+												class="text-sm font-medium text-gray-900"
+											>
+												{org.name}
+											</p>
+											<p
+												class="text-xs text-gray-500 capitalize"
+											>
+												{org.role}
+											</p>
+										</div>
+									</div>
+									<span
+										class="text-xs px-2 py-0.5 rounded-full capitalize {org.tier ===
+										'free'
+											? 'bg-gray-100 text-gray-600'
+											: org.tier === 'pro'
+												? 'bg-blue-100 text-blue-700'
+												: 'bg-amber-100 text-amber-700'}"
+									>
+										{org.tier}
+									</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			{/if}
 

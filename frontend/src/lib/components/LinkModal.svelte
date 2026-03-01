@@ -212,7 +212,7 @@
 		role="button"
 		tabindex="0"
 		onkeydown={(e) => {
-			if (e.key === " " || e.key === "Spacebar") {
+			if (e.key === "Escape") {
 				e.preventDefault();
 				handleClose();
 			}
