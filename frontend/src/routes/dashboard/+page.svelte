@@ -368,8 +368,8 @@
 					> active
 				</span>
 
-				<!-- Free tier usage inline -->
-				{#if usage && usage.tier === "free" && usage.limits.max_links_per_month}
+				<!-- Usage counter for tiers with limits -->
+				{#if usage && usage.limits.max_links_per_month}
 					<span class="text-gray-300 hidden sm:inline">·</span>
 					<span class="flex items-center gap-2 text-sm">
 						<span class="text-gray-500">This month:</span>
@@ -398,11 +398,13 @@
 								>Limit reached</span
 							>
 						{/if}
-						<a
-							href="/pricing"
-							class="text-xs text-orange-600 hover:text-orange-700 font-medium"
-							>Upgrade →</a
-						>
+						{#if usage.tier === "free"}
+							<a
+								href="/pricing"
+								class="text-xs text-orange-600 hover:text-orange-700 font-medium"
+								>Upgrade →</a
+							>
+						{/if}
 					</span>
 				{/if}
 			</div>

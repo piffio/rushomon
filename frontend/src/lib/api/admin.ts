@@ -94,10 +94,10 @@ export const adminApi = {
 	/**
 	 * Update an organization's tier (admin only)
 	 * @param orgId - Organization UUID
-	 * @param tier - New tier ('free' or 'unlimited')
+	 * @param tier - New tier ('free', 'pro', 'business', or 'unlimited')
 	 * @returns Updated Organization object
 	 */
-	async updateOrgTier(orgId: string, tier: 'free' | 'unlimited'): Promise<{ id: string; tier: string; }> {
+	async updateOrgTier(orgId: string, tier: string): Promise<{ id: string; tier: string; }> {
 		return apiClient.request<{ id: string; tier: string; }>(`/api/admin/orgs/${orgId}/tier`, {
 			method: 'PUT',
 			body: JSON.stringify({ tier })

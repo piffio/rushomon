@@ -42,6 +42,20 @@
 
 	let { data } = $props();
 
+	// Get tier from page data
+	const tier = $derived(data.tier || "free");
+
+	// Helper to check if user has access to a tier level
+	function hasTierAccess(requiredTier: string): boolean {
+		const tierLevels: Record<string, number> = {
+			free: 0,
+			pro: 1,
+			business: 2,
+			unlimited: 3,
+		};
+		return tierLevels[tier] >= tierLevels[requiredTier];
+	}
+
 	const SHORT_LINK_BASE =
 		PUBLIC_VITE_SHORT_LINK_BASE_URL ||
 		PUBLIC_VITE_API_BASE_URL ||
@@ -55,23 +69,60 @@
 	);
 
 	const timeRanges = [
-		{ label: "Last 7 days", value: 7 },
-		{ label: "Last 30 days", value: 30 },
-		{ label: "Last 90 days", value: 90 },
-		{ label: "All time", value: 0 },
+		{ label: "Last 7 days", value: 7, minTier: "free" },
+		{ label: "Last 30 days", value: 30, minTier: "pro" },
+		{ label: "Last 90 days", value: 90, minTier: "pro" },
+		{ label: "Last year", value: 365, minTier: "pro" },
+		{ label: "All time", value: 0, minTier: "business" },
 	];
 
-	function selectTimeRange(value: number) {
+	// Track which locked button was clicked for popover
+	let lockedPopoverOpen = $state<string | null>(null);
+
+	// Close popover when clicking outside
+	function handleGlobalClick(event: MouseEvent) {
+		const target = event.target as Element;
+		if (!target.closest(".relative")) {
+			lockedPopoverOpen = null;
+		}
+	}
+
+	onMount(() => {
+		document.addEventListener("click", handleGlobalClick);
+	});
+
+	onDestroy(() => {
+		document.removeEventListener("click", handleGlobalClick);
+	});
+
+	function selectTimeRange(range: (typeof timeRanges)[0]) {
+		// If locked, show popover instead of navigating
+		if (!hasTierAccess(range.minTier)) {
+			lockedPopoverOpen = range.label;
+			return;
+		}
+
 		const params = new URLSearchParams($page.url.searchParams);
-		if (value === 7) {
+		if (range.value === 7) {
 			params.delete("days");
 		} else {
-			params.set("days", value.toString());
+			params.set("days", range.value.toString());
 		}
 		const query = params.toString();
 		goto(`${$page.url.pathname}${query ? `?${query}` : ""}`, {
 			invalidateAll: true,
 		});
+	}
+
+	function closePopover() {
+		lockedPopoverOpen = null;
+	}
+
+	function getUpsellMessage(range: (typeof timeRanges)[0]): string {
+		if (range.minTier === "business") {
+			return "Upgrade to Business for unlimited analytics history";
+		}
+		return `Upgrade to ${range.minTier.charAt(0).toUpperCase() + range.minTier.slice(1)} to access ${range.label.toLowerCase()} analytics`;
 	}
 
 	// Country code to emoji flag
@@ -480,19 +531,114 @@
 			</div>
 
 			<!-- Time Range Selector -->
-			<div class="flex items-center gap-2 mb-6">
+			<div
+				class="time-range-grid flex items-center gap-2 mb-6 flex-wrap relative md:flex-row"
+			>
 				{#each timeRanges as range}
-					<button
-						onclick={() => selectTimeRange(range.value)}
-						class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {days ===
-						range.value
-							? 'bg-orange-600 text-white'
-							: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}"
-					>
-						{range.label}
-					</button>
+					{@const isLocked = !hasTierAccess(range.minTier)}
+					{@const isSelected = days === range.value}
+					<div class="relative">
+						<button
+							onclick={() => selectTimeRange(range)}
+							class="time-range-button px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 justify-center min-h-[44px] w-full {isSelected
+								? 'bg-orange-600 text-white'
+								: isLocked
+									? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-pointer hover:bg-gray-200'
+									: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}"
+						>
+							{range.label}
+							{#if isLocked}
+								<svg
+									class="w-3.5 h-3.5 flex-shrink-0"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+									/>
+								</svg>
+							{/if}
+						</button>
+
+						<!-- Upsell Popover -->
+						{#if lockedPopoverOpen === range.label}
+							<div class="absolute top-full left-0 mt-2 z-50">
+								<div
+									class="bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
+								>
+									<p class="text-sm text-gray-600 mb-2">
+										{getUpsellMessage(range)}
+									</p>
+									<div
+										class="flex items-center justify-between"
+									>
+										<a
+											href="/pricing"
+											class="text-sm font-medium text-orange-600 hover:text-orange-700"
+										>
+											View pricing →
+										</a>
+										<button
+											onclick={closePopover}
+											class="text-gray-400 hover:text-gray-600 p-1"
+											title="Close popover"
+										>
+											<svg
+												class="w-4 h-4"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M6 18L18 6M6 6l12 12"
+												/>
+											</svg>
+										</button>
+									</div>
+								</div>
+							</div>
+						{/if}
+					</div>
 				{/each}
 			</div>
+
+			<style>
+				/* Mobile: 2x3 grid layout */
+				.time-range-grid {
+					display: grid;
+					grid-template-columns: repeat(3, 1fr);
+					gap: 0.5rem;
+				}
+
+				/* Desktop: flex row */
+				@media (min-width: 768px) {
+					.time-range-grid {
+						display: flex;
+						flex-direction: row;
+						flex-wrap: wrap;
+						gap: 0.5rem;
+					}
+
+					.time-range-button {
+						width: auto;
+						min-width: fit-content;
+					}
+				}
+
+				/* Small mobile: adjust grid for better spacing */
+				@media (max-width: 380px) {
+					.time-range-grid {
+						grid-template-columns: repeat(2, 1fr);
+					}
+				}
+			</style>
 
 			<!-- Clicks Over Time Chart -->
 			<div class="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">

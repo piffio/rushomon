@@ -41,10 +41,10 @@ impl Tier {
                 max_members: Some(1),
                 max_orgs: Some(1),
             },
-            // Pro ($9): 3 users, 1 org, 1000 links/month, unlimited analytics
+            // Pro ($9): 3 users, 1 org, 1000 links/month, 1-year analytics
             Tier::Pro => TierLimits {
                 max_links_per_month: Some(1000),
-                analytics_retention_days: None,
+                analytics_retention_days: Some(365),
                 allow_custom_short_code: true,
                 max_members: Some(3),
                 max_orgs: Some(1),
@@ -126,7 +126,7 @@ mod tests {
     fn test_pro_tier_limits() {
         let limits = Tier::Pro.limits();
         assert_eq!(limits.max_links_per_month, Some(1000));
-        assert!(limits.analytics_retention_days.is_none());
+        assert_eq!(limits.analytics_retention_days, Some(365));
         assert!(limits.allow_custom_short_code);
         assert_eq!(limits.max_members, Some(3));
         assert_eq!(limits.max_orgs, Some(1));
