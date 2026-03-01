@@ -4,15 +4,25 @@
 	import { authApi } from "$lib/api/auth";
 	import { onMount } from "svelte";
 	import type { PageData } from "./$types";
+	import type { User } from "$lib/types/api";
 
 	let { data }: { data: PageData } = $props();
 
 	const loginUrl = authApi.getLoginUrl();
 
 	let mounted = $state(false);
+	let currentUser = $state<User | undefined>(undefined);
 
-	onMount(() => {
+	onMount(async () => {
 		mounted = true;
+		// Try to get user data on client side
+		try {
+			const user = await authApi.me();
+			currentUser = user;
+		} catch (error) {
+			// User not authenticated, that's fine for public pages
+			currentUser = undefined;
+		}
 	});
 </script>
 
@@ -25,7 +35,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-white flex flex-col">
-	<Header user={data.user} currentPage="landing" />
+	<Header user={currentUser} currentPage="landing" />
 
 	<main class="flex-1">
 		<section class="container mx-auto px-4 py-20 md:py-32">
