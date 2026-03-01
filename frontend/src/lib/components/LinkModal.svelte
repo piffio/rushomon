@@ -211,7 +211,12 @@
 		onclick={handleBackdropClick}
 		role="button"
 		tabindex="0"
-		onkeydown={(e) => e.key === "Enter" && handleClose()}
+		onkeydown={(e) => {
+			if (e.key === " " || e.key === "Spacebar") {
+				e.preventDefault();
+				handleClose();
+			}
+		}}
 	>
 		<div
 			class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
