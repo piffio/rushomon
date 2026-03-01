@@ -4,7 +4,7 @@
 	import type { User } from "$lib/types/api";
 
 	let { data } = $props();
-	let currentUser: User | undefined = $derived(data.user);
+	let currentUser: User | undefined = $derived(data.user || undefined);
 
 	let showReportDialog = $state(false);
 	let reportingLink = $state("");
@@ -324,7 +324,7 @@
 							? "(authenticated)"
 							: "(optional)"}</label
 					>
-					{#if currentUser}
+					{#if currentUser && currentUser.email}
 						<div class="authenticated-user-info">
 							<span class="user-email">{currentUser.email}</span>
 							<span class="user-badge">Logged in</span>
