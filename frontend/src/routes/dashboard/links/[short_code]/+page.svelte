@@ -71,7 +71,7 @@
 	// Reset loading state when data loads
 	$effect(() => {
 		if (data.analytics || data.link) {
-			isLoadingInterval = false;
+			loadingRange = null;
 		}
 	});
 
@@ -86,8 +86,8 @@
 	// Track which locked button was clicked for popover
 	let lockedPopoverOpen = $state<string | null>(null);
 
-	// Track loading state for interval switching
-	let isLoadingInterval = $state(false);
+	// Track which time range is currently loading
+	let loadingRange = $state<number | null>(null);
 
 	// Close popover when clicking outside
 	function handleGlobalClick(event: MouseEvent) {
@@ -112,8 +112,8 @@
 			return;
 		}
 
-		// Set loading state
-		isLoadingInterval = true;
+		// Set loading state for this specific range
+		loadingRange = range.value;
 
 		const params = new URLSearchParams($page.url.searchParams);
 		if (range.value === 7) {
@@ -553,16 +553,17 @@
 					<div class="relative">
 						<button
 							onclick={() => selectTimeRange(range)}
-							disabled={isLoadingInterval}
+							disabled={loadingRange !== null}
 							class="time-range-button px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 justify-center min-h-[44px] w-full {isSelected
 								? 'bg-orange-600 text-white'
 								: isLocked
 									? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-pointer hover:bg-gray-200'
-									: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'} {isLoadingInterval
+									: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'} {loadingRange !==
+							null
 								? 'opacity-60 cursor-not-allowed'
 								: ''}"
 						>
-							{#if isLoadingInterval && isSelected}
+							{#if loadingRange === range.value}
 								<svg
 									class="animate-spin h-4 w-4"
 									fill="none"

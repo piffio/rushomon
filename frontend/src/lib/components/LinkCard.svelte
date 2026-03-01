@@ -52,6 +52,7 @@
 
 	let showDeleteConfirm = $state(false);
 	let copySuccess = $state(false);
+	let analyticsLoading = $state(false);
 
 	async function copyToClipboard() {
 		try {
@@ -61,6 +62,12 @@
 		} catch (err) {
 			console.error("Failed to copy:", err);
 		}
+	}
+
+	function handleAnalyticsClick() {
+		analyticsLoading = true;
+		// Navigate to analytics page
+		window.location.href = `/dashboard/links/${link.short_code}`;
 	}
 
 	function formatDate(timestamp: number): string {
@@ -126,25 +133,50 @@
 			{/if}
 
 			<!-- Analytics Button -->
-			<a
-				href="/dashboard/links/{link.short_code}"
-				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+			<button
+				onclick={handleAnalyticsClick}
+				disabled={analyticsLoading}
+				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors {analyticsLoading
+					? 'opacity-60 cursor-not-allowed'
+					: ''}"
 				title="View analytics"
 			>
-				<svg
-					class="w-4 h-4"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-					/>
-				</svg>
-			</a>
+				{#if analyticsLoading}
+					<svg
+						class="animate-spin w-4 h-4"
+						fill="none"
+						viewBox="0 0 24 24"
+					>
+						<circle
+							class="opacity-25"
+							cx="12"
+							cy="12"
+							r="10"
+							stroke="currentColor"
+							stroke-width="4"
+						></circle>
+						<path
+							class="opacity-75"
+							fill="currentColor"
+							d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+						></path>
+					</svg>
+				{:else}
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+						/>
+					</svg>
+				{/if}
+			</button>
 
 			<!-- QR Code Button -->
 			<button
