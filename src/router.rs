@@ -1700,7 +1700,10 @@ pub async fn handle_admin_update_org_tier(
 
     // Validate tier value
     if Tier::from_str_value(&tier_str).is_none() {
-        return Response::error("Invalid tier. Must be 'free' or 'unlimited'", 400);
+        return Response::error(
+            "Invalid tier. Must be 'free', 'pro', 'business', or 'unlimited'",
+            400,
+        );
     }
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;

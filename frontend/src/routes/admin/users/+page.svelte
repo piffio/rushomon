@@ -22,6 +22,7 @@
 	let activeDropdown = $state<string | null>(null);
 	let confirmingSuspend = $state<string | null>(null);
 	let dropdownPosition = $state<{ top: number; right: number } | null>(null);
+	let selectedNewTier = $state<string>("");
 
 	onMount(async () => {
 		await loadUsers();
@@ -94,25 +95,26 @@
 		currentTier: string,
 	) {
 		confirmingTierChange = { userId, orgId, currentTier };
+		selectedNewTier = currentTier; // Pre-select current tier
 	}
 
 	async function confirmTierChange() {
-		if (!confirmingTierChange) return;
+		if (!confirmingTierChange || !selectedNewTier) return;
 
 		try {
 			tierLoading = true;
-			const newTier =
-				confirmingTierChange.currentTier === "unlimited"
-					? "free"
-					: "unlimited";
-			await adminApi.updateOrgTier(confirmingTierChange.orgId, newTier);
-			orgTiers[confirmingTierChange.orgId] = newTier;
+			await adminApi.updateOrgTier(
+				confirmingTierChange.orgId,
+				selectedNewTier,
+			);
+			orgTiers[confirmingTierChange.orgId] = selectedNewTier;
 		} catch (err) {
 			error = "Failed to update user tier";
 			console.error(err);
 		} finally {
 			tierLoading = false;
 			confirmingTierChange = null;
+			selectedNewTier = "";
 		}
 	}
 
@@ -525,28 +527,71 @@
 			onkeydown={(e) => e.key === "Escape" && cancelTierChange()}
 		>
 			<div class="modal-header">
-				<h3>
-					Change Tier to {confirmingTierChange.currentTier ===
-					"unlimited"
-						? "Free"
-						: "Unlimited"}?
-				</h3>
+				<h3>Change User Tier</h3>
 				<button class="modal-close" onclick={cancelTierChange}
 					>&times;</button
 				>
 			</div>
 			<div class="modal-body">
 				<p>
-					Are you sure you want to change this user's tier from <strong
-						>{confirmingTierChange.currentTier}</strong
+					Change tier for user <strong
+						>{confirmingTierChange.userId}</strong
 					>
-					to
-					<strong
-						>{confirmingTierChange.currentTier === "unlimited"
-							? "free"
-							: "unlimited"}</strong
-					>?
+					from <strong>{confirmingTierChange.currentTier}</strong> to:
 				</p>
+
+				<div class="form-group" style="margin-top: 1rem;">
+					<label for="tier-select">Select New Tier:</label>
+					<select
+						id="tier-select"
+						bind:value={selectedNewTier}
+						class="form-control"
+						style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+					>
+						<option value="free">Free</option>
+						<option value="pro">Pro</option>
+						<option value="business">Business</option>
+						<option value="unlimited">Unlimited</option>
+					</select>
+				</div>
+
+				<div
+					style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-size: 0.9rem;"
+				>
+					<strong>Tier Limits:</strong>
+					{#if selectedNewTier === "free"}
+						<ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+							<li>15 links/month</li>
+							<li>7-day analytics retention</li>
+							<li>No custom short codes</li>
+							<li>1 organization</li>
+						</ul>
+					{:else if selectedNewTier === "pro"}
+						<ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+							<li>1,000 links/month</li>
+							<li>Unlimited analytics</li>
+							<li>Custom short codes</li>
+							<li>1 organization</li>
+							<li>Basic QR codes</li>
+						</ul>
+					{:else if selectedNewTier === "business"}
+						<ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+							<li>10,000 links/month</li>
+							<li>Unlimited analytics</li>
+							<li>Custom short codes</li>
+							<li>3 organizations</li>
+							<li>20 team members</li>
+							<li>Device-based routing</li>
+							<li>Password protection</li>
+							<li>Advanced QR codes</li>
+						</ul>
+					{:else if selectedNewTier === "unlimited"}
+						<ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+							<li>No limits (self-hosted)</li>
+							<li>All features enabled</li>
+						</ul>
+					{/if}
+				</div>
 			</div>
 			<div class="modal-footer">
 				<button
@@ -559,12 +604,13 @@
 				<button
 					class="btn btn-primary"
 					onclick={confirmTierChange}
-					disabled={tierLoading}
+					disabled={tierLoading ||
+						selectedNewTier === confirmingTierChange.currentTier}
 				>
 					{#if tierLoading}
 						Updating...
 					{:else}
-						Change Tier
+						Change to {selectedNewTier}
 					{/if}
 				</button>
 			</div>
