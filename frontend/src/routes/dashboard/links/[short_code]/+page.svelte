@@ -68,6 +68,13 @@
 		link ? `${SHORT_LINK_BASE}/${link.short_code}` : "",
 	);
 
+	// Reset loading state when data loads
+	$effect(() => {
+		if (data.analytics || data.link) {
+			isLoadingInterval = false;
+		}
+	});
+
 	const timeRanges = [
 		{ label: "Last 7 days", value: 7, minTier: "free" },
 		{ label: "Last 30 days", value: 30, minTier: "pro" },
@@ -78,6 +85,9 @@
 
 	// Track which locked button was clicked for popover
 	let lockedPopoverOpen = $state<string | null>(null);
+
+	// Track loading state for interval switching
+	let isLoadingInterval = $state(false);
 
 	// Close popover when clicking outside
 	function handleGlobalClick(event: MouseEvent) {
@@ -101,6 +111,9 @@
 			lockedPopoverOpen = range.label;
 			return;
 		}
+
+		// Set loading state
+		isLoadingInterval = true;
 
 		const params = new URLSearchParams($page.url.searchParams);
 		if (range.value === 7) {
@@ -540,12 +553,36 @@
 					<div class="relative">
 						<button
 							onclick={() => selectTimeRange(range)}
+							disabled={isLoadingInterval}
 							class="time-range-button px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 justify-center min-h-[44px] w-full {isSelected
 								? 'bg-orange-600 text-white'
 								: isLocked
 									? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-pointer hover:bg-gray-200'
-									: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}"
+									: 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'} {isLoadingInterval
+								? 'opacity-60 cursor-not-allowed'
+								: ''}"
 						>
+							{#if isLoadingInterval && isSelected}
+								<svg
+									class="animate-spin h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
+								</svg>
+							{/if}
 							{range.label}
 							{#if isLocked}
 								<svg
