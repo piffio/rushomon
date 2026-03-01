@@ -190,12 +190,17 @@ main() {
         check_tool "cargo-clippy" true "$CLIPPY_INSTALL_MSG"
     fi
     
+    if [ "$SVELTE_CHECK_ENABLED" = true ] && [ "$SVELTE_CHECK_REQUIRED" = true ]; then
+        check_tool "node" "$NODE_REQUIRED" "$NODE_INSTALL_MSG"
+    fi
+
     echo ""
     
     # Run checks
     run_check "UNIT_TESTS_ENABLED" "UNIT_TESTS_COMMAND" "UNIT_TESTS_REQUIRED" "UNIT_TESTS_ERROR_MSG" "unit tests"
     run_check "CODE_FORMATTING_ENABLED" "CODE_FORMATTING_COMMAND" "CODE_FORMATTING_REQUIRED" "CODE_FORMATTING_ERROR_MSG" "code formatting"
     run_check "CLIPPY_ENABLED" "CLIPPY_COMMAND" "CLIPPY_REQUIRED" "CLIPPY_ERROR_MSG" "clippy linting"
+    run_check "SVELTE_CHECK_ENABLED" "SVELTE_CHECK_COMMAND" "SVELTE_CHECK_REQUIRED" "SVELTE_CHECK_ERROR_MSG" "Svelte/TypeScript checking"
     
     echo ""
     echo "✅ All enabled checks passed! Proceeding with commit..."
