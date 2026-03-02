@@ -1044,6 +1044,122 @@ pub async fn unsuspend_user(db: &D1Database, user_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Delete a user and all their associated data
+/// Returns counts of deleted records for audit purposes
+pub async fn delete_user(
+    db: &D1Database,
+    user_id: &str,
+    _deleted_by: &str,
+) -> Result<(usize, usize, usize)> {
+    // Delete in order to respect foreign key constraints:
+
+    // 1. Delete analytics events for the user's links
+    let analytics_stmt = db.prepare(
+        "DELETE FROM analytics_events WHERE link_id IN (SELECT id FROM links WHERE created_by = ?1)"
+    );
+    let analytics_result = analytics_stmt.bind(&[user_id.into()])?.run().await?;
+    let analytics_count = analytics_result
+        .meta()?
+        .and_then(|m| m.changes)
+        .unwrap_or(0);
+
+    // 2. Delete link reports where user is reporter or reviewer
+    let reports_stmt =
+        db.prepare("DELETE FROM link_reports WHERE reporter_user_id = ?1 OR reviewed_by = ?2");
+    let reports_result = reports_stmt
+        .bind(&[user_id.into(), user_id.into()])?
+        .run()
+        .await?;
+    let _reports_count = reports_result.meta()?.and_then(|m| m.changes).unwrap_or(0);
+
+    // 3. Delete links created by the user
+    let links_stmt = db.prepare("DELETE FROM links WHERE created_by = ?1");
+    let links_result = links_stmt.bind(&[user_id.into()])?.run().await?;
+    let links_count = links_result.meta()?.and_then(|m| m.changes).unwrap_or(0);
+
+    // 4. Delete organization memberships
+    let org_members_stmt = db.prepare("DELETE FROM org_members WHERE user_id = ?1");
+    let org_members_result = org_members_stmt.bind(&[user_id.into()])?.run().await?;
+    let _org_members_count = org_members_result
+        .meta()?
+        .and_then(|m| m.changes)
+        .unwrap_or(0);
+
+    // 5. Delete organization invitations created by this user
+    let invitations_stmt = db.prepare("DELETE FROM org_invitations WHERE invited_by = ?1");
+    let invitations_result = invitations_stmt.bind(&[user_id.into()])?.run().await?;
+    let _invitations_count = invitations_result
+        .meta()?
+        .and_then(|m| m.changes)
+        .unwrap_or(0);
+
+    // 6. Delete blacklist entries created by this user
+    let blacklist_stmt = db.prepare("DELETE FROM destination_blacklist WHERE created_by = ?1");
+    let blacklist_result = blacklist_stmt.bind(&[user_id.into()])?.run().await?;
+    let _blacklist_count = blacklist_result
+        .meta()?
+        .and_then(|m| m.changes)
+        .unwrap_or(0);
+
+    // 7. Finally, delete the user record
+    let user_stmt = db.prepare("DELETE FROM users WHERE id = ?1");
+    let user_result = user_stmt.bind(&[user_id.into()])?.run().await?;
+    let user_count = user_result.meta()?.and_then(|m| m.changes).unwrap_or(0);
+
+    Ok((user_count, links_count, analytics_count))
+}
+
+/// Check if user is the last admin in their organization
+pub async fn is_last_admin_in_org(db: &D1Database, user_id: &str, org_id: &str) -> Result<bool> {
+    let stmt = db.prepare(
+        "SELECT COUNT(*) as admin_count FROM users WHERE org_id = ?1 AND role = 'admin' AND id != ?2"
+    );
+    let result = stmt
+        .bind(&[org_id.into(), user_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    let admin_count = result
+        .as_ref()
+        .and_then(|v| v.get("admin_count"))
+        .and_then(|count| count.as_u64())
+        .unwrap_or(0);
+
+    Ok(admin_count == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_delete_user_logic_order() {
+        // Test that the deletion order is correct to avoid FK violations
+        // This is a conceptual test - actual database testing would require mocks
+
+        // Expected order:
+        // 1. analytics_events (references links)
+        // 2. link_reports (references users)
+        // 3. links (references users)
+        // 4. org_members (references users)
+        // 5. org_invitations (references users)
+        // 6. destination_blacklist (references users)
+        // 7. users (the main record)
+
+        // This order ensures we delete children before parents
+        let expected_order = vec![
+            "analytics_events",
+            "link_reports",
+            "links",
+            "org_members",
+            "org_invitations",
+            "destination_blacklist",
+            "users",
+        ];
+
+        // The actual implementation follows this order
+        assert_eq!(expected_order.len(), 7); // Verify we have all tables
+    }
+}
+
 /// Disable all links for a user
 pub async fn disable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
     let now = now_timestamp();

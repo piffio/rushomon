@@ -216,6 +216,18 @@ export const adminApi = {
 	},
 
 	/**
+	 * Delete a user (admin only)
+	 * @param id - User UUID
+	 * @returns Success message with deletion counts
+	 */
+	async deleteUser(id: string): Promise<{ success: boolean; message: string; deleted_user_count: number; deleted_links_count: number; deleted_analytics_count: number; }> {
+		return apiClient.request<{ success: boolean; message: string; deleted_user_count: number; deleted_links_count: number; deleted_analytics_count: number; }>(`/api/admin/users/${id}`, {
+			method: 'DELETE',
+			body: JSON.stringify({ confirmation: 'DELETE' })
+		});
+	},
+
+	/**
 	 * Submit an abuse report for a link (public endpoint, can be called by anyone)
 	 * @param linkId - Link UUID or short code
 	 * @param reason - Reason for the report

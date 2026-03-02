@@ -396,6 +396,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/admin/users/:id/unsuspend",
             router::handle_admin_unsuspend_user,
         )
+        .delete_async("/api/admin/users/:id", router::handle_admin_delete_user)
         // Admin report management routes
         .get_async("/api/admin/reports", router::handle_admin_get_reports)
         .get_async("/api/admin/reports/:id", router::handle_admin_get_report)

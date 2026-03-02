@@ -13,6 +13,10 @@
 		$page.url.searchParams.get("error") === "signups_disabled",
 	);
 
+	let emailAlreadyUsed = $derived(
+		$page.url.searchParams.get("error") === "email_already_used",
+	);
+
 	onMount(async () => {
 		try {
 			providers = await authApi.getProviders();
@@ -67,6 +71,22 @@
 					</p>
 					<p class="mt-1 text-red-600">
 						Contact the administrator if you need access.
+					</p>
+				</div>
+			{/if}
+
+			<!-- Email Already Used Error -->
+			{#if emailAlreadyUsed}
+				<div
+					class="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-xl mb-6 text-sm"
+				>
+					<p class="font-medium">
+						Email already in use with different login method
+					</p>
+					<p class="mt-1 text-yellow-700">
+						This email is already associated with an account using a
+						different login method. Please use the same login method
+						you originally used to sign in.
 					</p>
 				</div>
 			{/if}

@@ -127,3 +127,19 @@ pub fn unique_short_code(prefix: &str) -> String {
         .as_millis();
     format!("{}{}", prefix, timestamp % 100000)
 }
+
+/// Get admin JWT token for testing admin functionality
+/// Uses the existing test JWT from the integration test environment
+pub async fn get_admin_jwt(_client: &Client, _base_url: &str) -> String {
+    // For integration tests, we use the existing TEST_JWT
+    // The test environment sets up an admin user automatically
+    get_test_jwt()
+}
+
+/// Get regular user JWT token for testing user functionality
+/// Uses the existing test JWT (integration tests use admin user for simplicity)
+pub async fn get_user_jwt(_client: &Client, _base_url: &str) -> String {
+    // For integration tests, we use the same TEST_JWT
+    // In a real scenario, you'd create a separate user via OAuth
+    get_test_jwt()
+}

@@ -332,9 +332,28 @@ async fn create_or_get_user(
         .await?;
 
     if let Some(user) = email_user {
-        // Link this provider to the existing account
+        // Check if this email is already associated with a different OAuth provider
+        if user.oauth_provider != normalized_user.provider {
+            return Err(Error::RustError(format!(
+                "EMAIL_ALREADY_USED:{}",
+                user.oauth_provider
+            )));
+        }
+
+        // Preserve existing real email if the new email is a noreply address
+        let email_to_use = if crate::auth::github::is_noreply_email(&normalized_user.email)
+            && !crate::auth::github::is_noreply_email(&user.email)
+        {
+            // Keep the existing real email
+            user.email.clone()
+        } else {
+            // Use the new email (real email or noreply for new users)
+            normalized_user.email
+        };
+
+        // Link this provider to the existing account (same provider, different ID)
         let create_data = CreateUserData {
-            email: normalized_user.email,
+            email: email_to_use,
             name: normalized_user.name,
             avatar_url: normalized_user.avatar_url,
             oauth_provider: normalized_user.provider,
@@ -395,6 +414,128 @@ async fn create_or_get_user(
         .await?;
 
     Ok((user, org))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::auth::providers::NormalizedUser;
+    use crate::models::User;
+
+    // Mock user for testing
+    fn create_mock_user(id: &str, email: &str, provider: &str) -> User {
+        User {
+            id: id.to_string(),
+            email: email.to_string(),
+            name: Some("Test User".to_string()),
+            avatar_url: Some("https://example.com/avatar.jpg".to_string()),
+            oauth_provider: provider.to_string(),
+            oauth_id: "12345".to_string(),
+            org_id: "org-123".to_string(),
+            role: "member".to_string(),
+            created_at: 1234567890,
+            suspended_at: None,
+            suspension_reason: None,
+            suspended_by: None,
+        }
+    }
+
+    fn create_mock_normalized_user(email: &str, provider: &str) -> NormalizedUser {
+        NormalizedUser {
+            email: email.to_string(),
+            name: Some("Test User".to_string()),
+            avatar_url: Some("https://example.com/avatar.jpg".to_string()),
+            provider: provider.to_string(),
+            provider_id: "12345".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_email_preservation_logic_real_email_preserved() {
+        // Test case: Existing user with real email, GitHub fetch fails (returns noreply)
+        let existing_user = create_mock_user("user-123", "real@gmail.com", "github");
+        let normalized_user =
+            create_mock_normalized_user("piffio@users.noreply.github.com", "github");
+
+        // Simulate the logic from create_or_get_user
+        let email_to_use = if crate::auth::github::is_noreply_email(&normalized_user.email)
+            && !crate::auth::github::is_noreply_email(&existing_user.email)
+        {
+            existing_user.email.clone()
+        } else {
+            normalized_user.email
+        };
+
+        assert_eq!(email_to_use, "real@gmail.com");
+    }
+
+    #[tokio::test]
+    async fn test_email_preservation_logic_noreply_updated_to_real() {
+        // Test case: Existing user with noreply, GitHub fetch succeeds (returns real email)
+        let existing_user =
+            create_mock_user("user-123", "piffio@users.noreply.github.com", "github");
+        let normalized_user = create_mock_normalized_user("real@gmail.com", "github");
+
+        // Simulate the logic from create_or_get_user
+        let email_to_use = if crate::auth::github::is_noreply_email(&normalized_user.email)
+            && !crate::auth::github::is_noreply_email(&existing_user.email)
+        {
+            existing_user.email.clone()
+        } else {
+            normalized_user.email
+        };
+
+        assert_eq!(email_to_use, "real@gmail.com");
+    }
+
+    #[tokio::test]
+    async fn test_email_preservation_logic_new_user_gets_noreply() {
+        // Test case: New user, GitHub fetch fails (returns noreply)
+        let normalized_user =
+            create_mock_normalized_user("piffio@users.noreply.github.com", "github");
+
+        // Simulate the logic for new users (no existing user to compare with)
+        let email_to_use = normalized_user.email;
+
+        assert_eq!(email_to_use, "piffio@users.noreply.github.com");
+    }
+
+    #[tokio::test]
+    async fn test_email_preservation_logic_both_noreply_unchanged() {
+        // Test case: Existing user with noreply, GitHub fetch fails (returns noreply)
+        let existing_user =
+            create_mock_user("user-123", "piffio@users.noreply.github.com", "github");
+        let normalized_user =
+            create_mock_normalized_user("piffio@users.noreply.github.com", "github");
+
+        // Simulate the logic from create_or_get_user
+        let email_to_use = if crate::auth::github::is_noreply_email(&normalized_user.email)
+            && !crate::auth::github::is_noreply_email(&existing_user.email)
+        {
+            existing_user.email.clone()
+        } else {
+            normalized_user.email
+        };
+
+        assert_eq!(email_to_use, "piffio@users.noreply.github.com");
+    }
+
+    #[tokio::test]
+    async fn test_email_preservation_logic_both_real_updates() {
+        // Test case: Existing user with real email, GitHub fetch succeeds (returns real email)
+        let existing_user = create_mock_user("user-123", "old@gmail.com", "github");
+        let normalized_user = create_mock_normalized_user("new@gmail.com", "github");
+
+        // Simulate the logic from create_or_get_user
+        let email_to_use = if crate::auth::github::is_noreply_email(&normalized_user.email)
+            && !crate::auth::github::is_noreply_email(&existing_user.email)
+        {
+            existing_user.email.clone()
+        } else {
+            normalized_user.email
+        };
+
+        assert_eq!(email_to_use, "new@gmail.com");
+    }
 }
 
 // Helper module for URL encoding

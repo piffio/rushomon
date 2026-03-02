@@ -1105,6 +1105,21 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
                     headers.set("Location", &redirect_url)?;
                     return Ok(Response::empty()?.with_status(302).with_headers(headers));
                 }
+
+                // Check if email is already used by different provider
+                if error_msg.contains("EMAIL_ALREADY_USED") {
+                    let frontend_url = ctx
+                        .env
+                        .var("FRONTEND_URL")
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+
+                    let redirect_url = format!("{}/login?error=email_already_used", frontend_url);
+                    let headers = Headers::new();
+                    headers.set("Location", &redirect_url)?;
+                    return Ok(Response::empty()?.with_status(302).with_headers(headers));
+                }
+
                 return Err(e);
             }
         };
@@ -2312,6 +2327,70 @@ pub async fn handle_admin_unsuspend_user(req: Request, ctx: RouteContext<()>) ->
     Response::from_json(&serde_json::json!({
         "success": true,
         "message": "User unsuspended successfully"
+    }))
+}
+
+/// Handle deleting a user: DELETE /api/admin/users/:id (admin only)
+pub async fn handle_admin_delete_user(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let target_user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?
+        .to_string();
+
+    // Safety guard: Cannot delete self
+    if target_user_id == user_ctx.user_id {
+        return Response::error("Cannot delete your own account", 400);
+    }
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Get target user info for safety checks
+    let target_user = match db::get_user_by_id(&db, &target_user_id).await? {
+        Some(user) => user,
+        None => return Response::error("User not found", 404),
+    };
+
+    // Safety guard: Cannot delete the last admin in an organization
+    if target_user.role == "admin"
+        && db::is_last_admin_in_org(&db, &target_user_id, &target_user.org_id).await?
+    {
+        return Response::error("Cannot delete the last admin in an organization", 400);
+    }
+
+    // Parse request body for confirmation
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let confirmation = body.get("confirmation").and_then(|c| c.as_str());
+    if confirmation != Some("DELETE") {
+        return Response::error("Must provide 'confirmation': 'DELETE' in request body", 400);
+    }
+
+    // Delete user and all their data
+    let (user_count, links_count, analytics_count) =
+        db::delete_user(&db, &target_user_id, &user_ctx.user_id).await?;
+
+    if user_count == 0 {
+        return Response::error("Failed to delete user", 500);
+    }
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "User and all associated data deleted successfully",
+        "deleted_user_count": user_count,
+        "deleted_links_count": links_count,
+        "deleted_analytics_count": analytics_count
     }))
 }
 

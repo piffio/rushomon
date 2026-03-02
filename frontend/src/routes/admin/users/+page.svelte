@@ -21,6 +21,7 @@
 	let orgTiers = $state<Record<string, string>>({});
 	let activeDropdown = $state<string | null>(null);
 	let confirmingSuspend = $state<string | null>(null);
+	let confirmingDelete = $state<string | null>(null);
 	let dropdownPosition = $state<{ top: number; right: number } | null>(null);
 	let selectedNewTier = $state<string>("");
 
@@ -181,6 +182,30 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	async function handleDelete(userId: string) {
+		confirmingDelete = userId;
+	}
+
+	async function confirmDelete() {
+		if (!confirmingDelete) return;
+
+		try {
+			loading = true;
+			await adminApi.deleteUser(String(confirmingDelete));
+			await loadUsers(); // Reload to show updated user list
+		} catch (err) {
+			error = "Failed to delete user";
+			console.error(err);
+		} finally {
+			loading = false;
+			confirmingDelete = null;
+		}
+	}
+
+	function cancelDelete() {
+		confirmingDelete = null;
 	}
 
 	function getOrgTier(orgId: string): string {
@@ -404,6 +429,17 @@
 															Suspend User
 														</button>
 													{/if}
+													<button
+														class="dropdown-item delete"
+														onclick={() => {
+															handleDelete(
+																user.id,
+															);
+															closeDropdown();
+														}}
+													>
+														Delete User
+													</button>
 												</div>
 											{/if}
 										</div>
@@ -665,6 +701,70 @@
 						Suspending...
 					{:else}
 						Suspend User
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete Confirmation Modal -->
+{#if confirmingDelete}
+	<div
+		class="modal-backdrop"
+		role="button"
+		tabindex="0"
+		onclick={cancelDelete}
+		onkeydown={(e) => e.key === "Enter" && cancelDelete()}
+	>
+		<div
+			class="modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onkeydown={(e) => e.key === "Escape" && cancelDelete()}
+		>
+			<div class="modal-header">
+				<h3>Delete User?</h3>
+				<button class="modal-close" onclick={cancelDelete}
+					>&times;</button
+				>
+			</div>
+			<div class="modal-body">
+				<p>
+					Are you sure you want to <strong
+						>permanently delete this user</strong
+					>?
+				</p>
+				<p class="warning">
+					⚠️ This action cannot be undone. The following will be
+					permanently deleted:
+				</p>
+				<ul class="deletion-list">
+					<li>User account and profile information</li>
+					<li>All links created by this user</li>
+					<li>All analytics data for their links</li>
+					<li>Organization membership</li>
+				</ul>
+			</div>
+			<div class="modal-footer">
+				<button
+					class="btn btn-secondary"
+					onclick={cancelDelete}
+					disabled={loading}
+				>
+					Cancel
+				</button>
+				<button
+					class="btn btn-danger"
+					onclick={confirmDelete}
+					disabled={loading}
+				>
+					{#if loading}
+						Deleting...
+					{:else}
+						Delete Permanently
 					{/if}
 				</button>
 			</div>
@@ -998,8 +1098,30 @@
 		color: #d97706;
 	}
 
+	.dropdown-item.delete {
+		color: #dc2626;
+		border-top: 1px solid #e5e7eb;
+	}
+
 	.dropdown-item.success {
 		color: #059669;
+	}
+
+	/* Delete modal specific styles */
+	.warning {
+		color: #dc2626;
+		font-weight: 600;
+		margin: 1rem 0;
+	}
+
+	.deletion-list {
+		margin: 1rem 0;
+		padding-left: 1.5rem;
+		color: #6b7280;
+	}
+
+	.deletion-list li {
+		margin-bottom: 0.5rem;
 	}
 
 	.dropdown-overlay {
