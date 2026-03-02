@@ -243,6 +243,9 @@ jobs:
         env:
           PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
+          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_SANDBOX_ACCESS_TOKEN }}
+          POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_SANDBOX_WEBHOOK_SECRET }}
+          POLAR_SANDBOX: "true"
         run: npm run build
 
       - name: Apply database migrations

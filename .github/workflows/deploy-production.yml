@@ -173,6 +173,9 @@ jobs:
         env:
           PUBLIC_VITE_API_BASE_URL: https://${{ secrets.API_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
+          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
+          POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
+          POLAR_SANDBOX: "false"
         run: |
           echo "🔨 Building frontend for unified Worker deployment"
           echo "   API Base URL: https://${{ secrets.API_DOMAIN }}"
