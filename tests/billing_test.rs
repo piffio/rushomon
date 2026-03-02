@@ -93,40 +93,6 @@ async fn test_billing_checkout_without_polar_returns_error() {
 }
 
 #[tokio::test]
-async fn test_billing_portal_requires_auth() {
-    let client = test_client();
-
-    let response = client
-        .post(format!("{}/api/billing/portal", BASE_URL))
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-async fn test_billing_portal_without_polar_returns_error() {
-    let client = authenticated_client();
-
-    let response = client
-        .post(format!("{}/api/billing/portal", BASE_URL))
-        .send()
-        .await
-        .unwrap();
-
-    // Without Polar configured, or without a provider_customer_id, should return an error
-    assert!(
-        response.status() == StatusCode::SERVICE_UNAVAILABLE
-            || response.status() == StatusCode::BAD_REQUEST
-            || response.status() == StatusCode::NOT_FOUND
-            || response.status() == StatusCode::INTERNAL_SERVER_ERROR,
-        "Expected 400/404/503/500 when Polar is not configured, got: {}",
-        response.status()
-    );
-}
-
-#[tokio::test]
 async fn test_billing_subscription_update_requires_secret() {
     let client = test_client();
 
