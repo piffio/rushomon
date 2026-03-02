@@ -343,5 +343,18 @@ export const adminApi = {
 		return apiClient.request<{ success: boolean; message: string; year_month: string; }>(`/api/admin/billing-accounts/${id}/reset-counter`, {
 			method: 'POST'
 		});
-	}
+	},
+
+	/**
+	 * Update subscription status for a billing account (admin only)
+	 * @param id - Billing account ID
+	 * @param status - New subscription status ('active', 'canceled', etc.)
+	 * @returns Success response
+	 */
+	async updateSubscriptionStatus(id: string, status: string): Promise<{ success: boolean; message: string; subscription_id: string; new_status: string; }> {
+		return apiClient.request<{ success: boolean; message: string; subscription_id: string; new_status: string; }>(`/api/admin/billing-accounts/${id}/subscription`, {
+			method: 'PUT',
+			body: JSON.stringify({ status })
+		});
+	},
 };

@@ -2,6 +2,20 @@
 
 set -e
 
+# Parse command line arguments
+ENABLE_POLAR_CLI=false
+for arg in "$@"; do
+    case $arg in
+        --enable-polar-cli)
+            ENABLE_POLAR_CLI=true
+            shift
+            ;;
+        *)
+            # Unknown option
+            ;;
+    esac
+done
+
 # Ensure wrangler.toml exists (copy from example if missing)
 if [ ! -f "wrangler.toml" ] && [ -f "wrangler.example.toml" ]; then
     echo "📄 Creating wrangler.toml from wrangler.example.toml..."
@@ -11,6 +25,105 @@ fi
 echo "🚀 Starting Rushomon with GitHub OAuth..."
 echo "📍 Backend URL: http://localhost:8787"
 echo "📍 Frontend URL: http://localhost:5173"
+if [ "$ENABLE_POLAR_CLI" = true ]; then
+    echo "💳 Polar CLI: ENABLED"
+else
+    echo "💳 Polar CLI: DISABLED (use --enable-polar-cli to enable)"
+fi
+echo ""
+
+# Setup Polar CLI and webhook secret if enabled
+if [ "$ENABLE_POLAR_CLI" = true ]; then
+if command -v polar &> /dev/null; then
+    echo "⚡ Setting up Polar CLI for webhook forwarding..."
+    echo ""
+    echo "📝 Polar CLI will start interactively. Please:"
+    echo "   1. Select 'Sandbox' environment"
+    echo "   2. Select your organization"
+    echo "   3. Note the webhook secret when shown"
+    echo ""
+    echo "⌨️  Press Enter to continue..."
+    read -r
+
+    # Start Polar CLI in a separate terminal window
+    echo "🚀 Opening Polar CLI in separate terminal window..."
+    echo ""
+    echo "📋 In the new terminal window:"
+    echo "   1. Select 'Sandbox' environment (press Enter)"
+    echo "   2. Select your organization (press Enter)"
+    echo "   3. Copy the 'Secret xxxxxxxx' value"
+    echo "   4. Keep that terminal open (it will handle webhooks)"
+    echo ""
+    echo "⌨️  Press Enter to open the new terminal..."
+    read -r
+
+    # Check if running on macOS with Terminal.app
+    if command -v osascript &> /dev/null; then
+        # Use AppleScript to open new terminal window with Polar CLI
+        osascript -e "tell application \"Terminal\" to do script \"cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook\""
+        echo "✅ Opened Polar CLI in new Terminal window"
+    elif command -v gnome-terminal &> /dev/null; then
+        # Linux with GNOME Terminal
+        gnome-terminal -- bash -c "cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook; exec bash"
+        echo "✅ Opened Polar CLI in new terminal window"
+    elif command -v xterm &> /dev/null; then
+        # Fallback to xterm
+        xterm -e "cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook" &
+        echo "✅ Opened Polar CLI in new terminal window"
+    else
+        # Fallback: run in background with instructions
+        echo "⚠️  Cannot open new terminal window automatically"
+        echo "   Please run this manually in a separate terminal:"
+        echo "   cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook"
+        echo ""
+        echo "⌨️  Press Enter after you've started Polar CLI manually..."
+        read -r
+    fi
+
+    echo ""
+    echo "⏳ Waiting for you to complete Polar CLI setup in the other window..."
+    echo "   (Look for the 'Secret xxxxxxxx' line in the other terminal)"
+    echo ""
+    echo "🔑 Please enter the webhook secret shown in the other terminal:"
+    echo "   (It should be a long string like '6t3c8ce2247c493a3ade20uea4484d64')"
+    echo -n "Secret: "
+    read -r POLAR_SECRET
+
+    echo "✅ Using webhook secret: ${POLAR_SECRET:0:8}..."
+
+    # Update .dev.vars with the webhook secret
+    if [ -f ".dev.vars" ]; then
+        # Remove existing POLAR_WEBHOOK_SECRET line if present
+        sed -i '' '/^POLAR_WEBHOOK_SECRET=/d' .dev.vars
+    else
+        # Create .dev.vars if it doesn't exist
+        touch .dev.vars
+    fi
+
+    # Add the new webhook secret to .dev.vars
+    echo "POLAR_WEBHOOK_SECRET=$POLAR_SECRET" >> .dev.vars
+    echo "📝 Updated .dev.vars with webhook secret"
+
+    # Also update frontend .env file
+    if [ -f "frontend/.env" ]; then
+        # Remove existing INTERNAL_WEBHOOK_SECRET line if present
+        sed -i '' '/^INTERNAL_WEBHOOK_SECRET=/d' frontend/.env
+        # Add the new webhook secret
+        echo "INTERNAL_WEBHOOK_SECRET=$POLAR_SECRET" >> frontend/.env
+        echo "📝 Updated frontend/.env with webhook secret"
+    else
+        echo "⚠️  frontend/.env not found - please update it manually"
+    fi
+
+    echo "✅ Polar CLI is running in separate terminal for webhook forwarding"
+else
+    echo "⚠️  Polar CLI not found - webhook testing unavailable"
+    echo "   Install with: curl -fsSL https://polar.sh/install.sh | bash"
+fi
+else
+    echo "⏭️  Skipping Polar CLI setup (not enabled)"
+fi
+
 echo ""
 
 # Check if frontend dependencies are installed
@@ -74,6 +187,18 @@ for i in {1..30}; do
     sleep 1
 done
 
+# Show Polar CLI status if enabled
+if [ "$ENABLE_POLAR_CLI" = true ]; then
+    if [ ! -z "$POLAR_SETUP_PID" ] && ps -p $POLAR_SETUP_PID > /dev/null; then
+        echo "✅ Polar CLI is running for webhook testing!"
+        echo ""
+        echo "💳 Polar Webhook Info:"
+        echo "  Webhook endpoint: http://localhost:5173/api/billing/webhook"
+        echo "  Secret configured in .dev.vars"
+        echo ""
+    fi
+fi
+
 echo ""
 echo "🔗 OAuth Test URLs:"
 echo "  Initiate OAuth: http://localhost:8787/api/auth/github"
@@ -93,7 +218,7 @@ echo "🔍 Debug Commands:"
 echo "  Check session: curl -v -b cookies.txt http://localhost:8787/api/auth/me"
 echo "  Test protected: curl -v http://localhost:8787/api/links"
 echo ""
-echo "Press Ctrl+C to stop both services..."
+echo "Press Ctrl+C to stop all services..."
 
 # Cleanup function with port-based fallback and improved signal handling
 cleanup() {
@@ -103,6 +228,7 @@ cleanup() {
     # Initial graceful termination
     kill -TERM $WRANGLER_PID 2>/dev/null || true
     kill -TERM $FRONTEND_PID 2>/dev/null || true
+    # Note: Polar CLI is running in separate terminal, user needs to close it manually
 
     # Wait for graceful shutdown
     sleep 2
@@ -110,6 +236,7 @@ cleanup() {
     # Force kill if still running by PID
     kill -KILL $WRANGLER_PID 2>/dev/null || true
     kill -KILL $FRONTEND_PID 2>/dev/null || true
+    # Note: Polar CLI is running in separate terminal, user needs to close it manually
 
     # Fallback: kill by port to ensure complete cleanup
     echo "🔍 Checking for remaining processes on ports..."
@@ -121,6 +248,7 @@ cleanup() {
     pkill -f "wrangler dev" 2>/dev/null || true
     pkill -f "npm run dev" 2>/dev/null || true
     pkill -f "vite" 2>/dev/null || true
+    # Note: Polar CLI is running in separate terminal, user needs to close it manually
 
     echo "✅ All services stopped"
     exit 0
@@ -129,5 +257,5 @@ cleanup() {
 # Wait for interrupt (catch more signal types for better handling)
 trap cleanup INT TERM EXIT
 
-# Wait for both background processes
+# Wait for background processes (Polar CLI runs independently)
 wait $WRANGLER_PID $FRONTEND_PID

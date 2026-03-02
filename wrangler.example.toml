@@ -54,6 +54,21 @@ ENABLE_KV_RATE_LIMITING = "false"
 # Comma-separated list of allowed origins
 ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://your-frontend.pages.dev"
 
+# ─── Polar (optional, required for paid plans) ───────────────────────────────
+# Create an account at: https://polar.sh (sandbox: https://sandbox.polar.sh)
+# POLAR_ACCESS_TOKEN and POLAR_WEBHOOK_SECRET are secrets (see below)
+# INTERNAL_WEBHOOK_SECRET is a shared secret between SvelteKit and this Worker
+#
+# Product IDs: Polar Dashboard → Products → click ⋮ next to product → Copy Product ID
+POLAR_ORG_SLUG = "your-polar-org-slug"
+POLAR_FOUNDER_PRO_DISCOUNT_ID = "your-polar-founder-pro-discount-id"
+POLAR_FOUNDER_BUSINESS_DISCOUNT_ID = "your-polar-founder-business-discount-id"
+POLAR_PRO_MONTHLY_PRODUCT_ID = "your-polar-pro-monthly-product-id"
+POLAR_PRO_ANNUAL_PRODUCT_ID = "your-polar-pro-annual-product-id"
+POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "your-polar-business-monthly-product-id"
+POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "your-polar-business-annual-product-id"
+POLAR_SANDBOX = "false"
+
 [assets]
 directory = "./frontend/build"
 binding = "ASSETS"
@@ -65,3 +80,7 @@ not_found_handling = "none"
 # wrangler secret put GITHUB_CLIENT_SECRET
 # wrangler secret put GOOGLE_CLIENT_SECRET
 # wrangler secret put JWT_SECRET (use a random 32+ character string)
+#
+# ─── Polar secrets ───────────────────────────────────────────────────────────
+# wrangler secret put POLAR_ACCESS_TOKEN        (from Polar Dashboard → Settings → API)
+# wrangler secret put INTERNAL_WEBHOOK_SECRET   (generate: openssl rand -base64 32)

@@ -1,8 +1,10 @@
 {
   "dependencies": {
+    "@polar-sh/sveltekit": "^0.7.3",
     "chart.js": "^4.5.1",
     "qrcode": "^1.5.4",
-    "ua-parser-js": "^2.0.9"
+    "ua-parser-js": "^2.0.9",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^7.0.1",

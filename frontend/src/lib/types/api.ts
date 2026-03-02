@@ -315,6 +315,18 @@ export interface BillingAccountDetails {
 	owner: User;
 	organizations: OrgWithMembersCount[];
 	usage: UsageStats;
+	subscription?: {
+		id: string;
+		status: string;
+		plan: string;
+		interval: string;
+		amount_cents?: number;
+		currency?: string;
+		discount_name?: string;
+		current_period_end?: number;
+		current_period_start?: number;
+		cancel_at_period_end?: boolean;
+	};
 }
 
 export interface ListBillingAccountsResponse {

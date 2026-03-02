@@ -5,6 +5,7 @@ use worker::*;
 
 mod api;
 pub mod auth;
+mod billing;
 mod db;
 mod kv;
 mod middleware;
@@ -244,7 +245,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard" | "auth" | "settings" | "admin" | "404" | "login"
+                    "dashboard"
+                        | "auth"
+                        | "settings"
+                        | "admin"
+                        | "404"
+                        | "login"
+                        | "billing"
+                        | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -268,7 +276,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard" | "auth" | "settings" | "admin" | "404" | "login"
+                    "dashboard"
+                        | "auth"
+                        | "settings"
+                        | "admin"
+                        | "404"
+                        | "login"
+                        | "billing"
+                        | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -307,6 +322,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/admin/billing-accounts/:id/reset-counter",
             handle_cors_preflight,
         )
+        .options_async(
+            "/api/admin/billing-accounts/:id/subscription",
+            handle_cors_preflight,
+        )
         .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
         .options_async("/api/admin/links", handle_cors_preflight)
         .options_async("/api/admin/links/:id", handle_cors_preflight)
@@ -336,6 +355,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/auth/switch-org", handle_cors_preflight)
         .options_async("/api/invite/:token", handle_cors_preflight)
         .options_async("/api/invite/:token/accept", handle_cors_preflight)
+        .options_async("/api/billing/status", handle_cors_preflight)
+        .options_async("/api/billing/checkout", handle_cors_preflight)
+        .options_async("/api/billing/subscription-update", handle_cors_preflight)
+        .options_async("/api/settings", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/providers", router::handle_list_auth_providers)
         .get_async("/api/auth/github", router::handle_github_login)
@@ -422,10 +445,19 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/admin/billing-accounts/:id/reset-counter",
             router::handle_admin_reset_billing_account_counter,
         )
+        .put_async(
+            "/api/admin/billing-accounts/:id/subscription",
+            router::handle_admin_update_subscription_status,
+        )
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)
         // Tags route
         .get_async("/api/tags", router::handle_get_org_tags)
+        // Public settings route
+        .get_async(
+            "/api/settings",
+            crate::api::settings::handle_get_public_settings,
+        )
         // Org management routes
         .get_async("/api/orgs", crate::api::orgs::handle_list_user_orgs)
         .post_async("/api/orgs", crate::api::orgs::handle_create_org)
@@ -457,6 +489,20 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .post_async(
             "/api/invite/:token/accept",
             crate::api::orgs::handle_accept_invite,
+        )
+        // Billing routes
+        .get_async(
+            "/api/billing/status",
+            crate::api::billing::handle_get_status,
+        )
+        .post_async(
+            "/api/billing/checkout",
+            crate::api::billing::handle_create_checkout,
+        )
+        // Internal endpoint called by SvelteKit webhook handler after Polar signature verification
+        .post_async(
+            "/api/billing/subscription-update",
+            crate::api::billing::handle_subscription_update,
         )
         // Title fetch route (public, can be called by anyone)
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)

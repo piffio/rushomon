@@ -1,7 +1,7 @@
 import type { PageLoad } from './$types';
 import type { User } from "$lib/types/api";
 
-export const prerender = true;
+export const prerender = true; // Enable prerendering again
 
 export const load: PageLoad = async () => {
 	// For pre-rendered pricing page, we don't need user data

@@ -2974,6 +2974,96 @@ pub async fn handle_admin_reset_billing_account_counter(
     }
 }
 
+/// Handle updating subscription status: PUT /api/admin/billing-accounts/:id/subscription (admin only)
+pub async fn handle_admin_update_subscription_status(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let billing_account_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing billing account ID".to_string()))?;
+
+    let body: serde_json::Value = match req.json().await {
+        Ok(b) => b,
+        Err(_) => {
+            return Response::error("Invalid request body", 400);
+        }
+    };
+
+    let status = match body["status"].as_str() {
+        Some(s) => s.to_string(),
+        None => return Response::error("status is required", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Get the subscription for this billing account
+    match db::get_subscription_for_billing_account(&db, billing_account_id).await? {
+        Some(subscription) => {
+            let subscription_id = subscription["id"].as_str().unwrap_or("");
+
+            // Update subscription status
+            match db::update_subscription_status(
+                &db,
+                subscription_id,
+                &status,
+                chrono::Utc::now().timestamp(),
+            )
+            .await
+            {
+                Ok(_) => {
+                    console_log!(
+                        "{}",
+                        serde_json::json!({
+                            "event": "subscription_status_updated",
+                            "billing_account_id": billing_account_id,
+                            "subscription_id": subscription_id,
+                            "new_status": status,
+                            "admin_user_id": user_ctx.user_id,
+                            "level": "info"
+                        })
+                    );
+
+                    // Also update billing account tier if subscription is canceled
+                    if status == "canceled" {
+                        db::update_billing_account_tier(&db, billing_account_id, "free").await?;
+                    }
+
+                    Response::from_json(&serde_json::json!({
+                        "success": true,
+                        "message": "Subscription status updated successfully",
+                        "subscription_id": subscription_id,
+                        "new_status": status
+                    }))
+                }
+                Err(e) => {
+                    console_log!(
+                        "{}",
+                        serde_json::json!({
+                            "event": "update_subscription_status_failed",
+                            "billing_account_id": billing_account_id,
+                            "subscription_id": subscription_id,
+                            "error": e.to_string(),
+                            "level": "error"
+                        })
+                    );
+                    Response::error("Failed to update subscription status", 500)
+                }
+            }
+        }
+        None => Response::error("No subscription found for this billing account", 404),
+    }
+}
+
 /// Helper function to extract query parameters
 fn extract_query_param(query: &str, name: &str) -> Result<String> {
     query

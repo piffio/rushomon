@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import { orgsApi } from "$lib/api/orgs";
+	import { billingApi } from "$lib/api/billing";
 	import type { PageData } from "./$types";
 	import type {
 		OrgDetails,
@@ -8,12 +9,14 @@
 		OrgInvitation,
 		OrgWithRole,
 	} from "$lib/types/api";
+	import type { BillingStatus } from "$lib/api/billing";
 
 	let { data }: { data: PageData } = $props();
 
 	let orgDetails = $state<OrgDetails | null>(null);
 	let loading = $state(true);
 	let error = $state("");
+	let billingStatus = $state<BillingStatus | null>(null);
 
 	// Rename org
 	let editingName = $state(false);
@@ -51,6 +54,12 @@
 
 	$effect(() => {
 		loadOrg();
+		billingApi
+			.getStatus()
+			.then((s) => {
+				billingStatus = s;
+			})
+			.catch(() => {});
 	});
 
 	function startEditName() {
@@ -541,6 +550,34 @@
 					{/if}
 				</div>
 			{/if}
+
+			<!-- Plan & Billing -->
+			<div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+				<h2 class="text-lg font-semibold text-gray-900 mb-1">
+					Plan &amp; Billing
+				</h2>
+				<p class="text-xs text-gray-500 capitalize mb-4">
+					Current plan: <span class="font-medium text-gray-700"
+						>{orgDetails.org.tier}</span
+					>
+				</p>
+				{#if billingStatus?.is_billing_owner}
+					<p class="text-sm text-gray-600 mb-3">
+						You own the billing account for this organization.
+					</p>
+					<a
+						href="/billing"
+						class="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors"
+					>
+						Manage Billing &amp; Subscription
+					</a>
+				{:else}
+					<p class="text-sm text-gray-500">
+						Billing is managed by the owner of this billing account.
+						Contact them to change the plan.
+					</p>
+				{/if}
+			</div>
 
 			<!-- Danger Zone (owner only, multiple orgs) -->
 			{#if isOwner}

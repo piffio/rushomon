@@ -98,6 +98,14 @@ jobs:
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
           ENABLE_KV_RATE_LIMITING = "false"
+          POLAR_ORG_SLUG = "${{ secrets.POLAR_SANDBOX_ORG_SLUG }}"
+          POLAR_FOUNDER_PRO_DISCOUNT_ID = "${{ secrets.POLAR_SANDBOX_FOUNDER_PRO_DISCOUNT_ID }}"
+          POLAR_FOUNDER_BUSINESS_DISCOUNT_ID = "${{ secrets.POLAR_SANDBOX_FOUNDER_BUSINESS_DISCOUNT_ID }}"
+          POLAR_PRO_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_PRO_MONTHLY_PRODUCT_ID }}"
+          POLAR_PRO_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_PRO_ANNUAL_PRODUCT_ID }}"
+          POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_BUSINESS_MONTHLY_PRODUCT_ID }}"
+          POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_BUSINESS_ANNUAL_PRODUCT_ID }}"
+          POLAR_SANDBOX = "true"
           EOF
 
           echo "✅ Generated wrangler.staging.toml"
@@ -181,6 +189,14 @@ jobs:
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
           ENABLE_KV_RATE_LIMITING = "false"
+          POLAR_ORG_SLUG = "${{ secrets.POLAR_SANDBOX_ORG_SLUG }}"
+          POLAR_FOUNDER_PRO_DISCOUNT_ID = "${{ secrets.POLAR_SANDBOX_FOUNDER_PRO_DISCOUNT_ID }}"
+          POLAR_FOUNDER_BUSINESS_DISCOUNT_ID = "${{ secrets.POLAR_SANDBOX_FOUNDER_BUSINESS_DISCOUNT_ID }}"
+          POLAR_PRO_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_PRO_MONTHLY_PRODUCT_ID }}"
+          POLAR_PRO_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_PRO_ANNUAL_PRODUCT_ID }}"
+          POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_BUSINESS_MONTHLY_PRODUCT_ID }}"
+          POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_SANDBOX_BUSINESS_ANNUAL_PRODUCT_ID }}"
+          POLAR_SANDBOX = "true"
           EOF
 
           echo "✅ Generated wrangler.staging.toml"
@@ -239,6 +255,9 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_SANDBOX_ACCESS_TOKEN }}
+          POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
+          INTERNAL_WEBHOOK_SECRET: ${{ secrets.INTERNAL_WEBHOOK_SECRET }}
         run: |
           echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
 
@@ -248,6 +267,12 @@ jobs:
 
           echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.staging.toml
           echo "$MAILGUN_API_KEY" | wrangler secret put MAILGUN_API_KEY --config wrangler.staging.toml
+
+          if [ -n "$POLAR_ACCESS_TOKEN" ]; then
+            echo "$POLAR_ACCESS_TOKEN" | wrangler secret put POLAR_ACCESS_TOKEN --config wrangler.staging.toml
+            echo "$POLAR_WEBHOOK_SECRET" | wrangler secret put POLAR_WEBHOOK_SECRET --config wrangler.staging.toml
+            echo "$INTERNAL_WEBHOOK_SECRET" | wrangler secret put INTERNAL_WEBHOOK_SECRET --config wrangler.staging.toml
+          fi
           echo "✅ Secrets configured securely"
 
       - name: Deploy to Cloudflare

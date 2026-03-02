@@ -22,6 +22,11 @@
 	} | null>(null);
 	let tierLoading = $state(false);
 	let confirmingReset = $state<string | null>(null);
+	let confirmingSubscriptionUpdate = $state<{
+		accountId: string;
+		currentStatus: string;
+	} | null>(null);
+	let subscriptionLoading = $state(false);
 
 	onMount(async () => {
 		await loadAccounts();
@@ -158,6 +163,44 @@
 
 	function cancelReset() {
 		confirmingReset = null;
+	}
+
+	async function handleSubscriptionUpdate(
+		accountId: string,
+		newStatus: string,
+	) {
+		confirmingSubscriptionUpdate = { accountId, currentStatus: newStatus };
+	}
+
+	async function confirmSubscriptionUpdate() {
+		if (!confirmingSubscriptionUpdate) return;
+
+		try {
+			subscriptionLoading = true;
+			await adminApi.updateSubscriptionStatus(
+				confirmingSubscriptionUpdate.accountId,
+				confirmingSubscriptionUpdate.currentStatus,
+			);
+
+			// Reload account details
+			const details = await adminApi.getBillingAccount(
+				confirmingSubscriptionUpdate.accountId,
+			);
+			accountDetails[confirmingSubscriptionUpdate.accountId] = details;
+
+			// Reload accounts list to update tier if changed
+			await loadAccounts();
+		} catch (err) {
+			error = "Failed to update subscription";
+			console.error(err);
+		} finally {
+			subscriptionLoading = false;
+			confirmingSubscriptionUpdate = null;
+		}
+	}
+
+	function cancelSubscriptionUpdate() {
+		confirmingSubscriptionUpdate = null;
 	}
 
 	async function handlePageChange(page: number) {
@@ -335,6 +378,116 @@
 											</div>
 										{/if}
 									</div>
+								</div>
+
+								<!-- Subscription -->
+								<div class="section">
+									<h4>Subscription</h4>
+									{#if details.subscription}
+										{@const sub = details.subscription}
+										<div class="subscription-info">
+											<div class="info-grid">
+												<div class="info-item">
+													<span class="label"
+														>Status:</span
+													>
+													<span
+														class="value subscription-status {sub.status}"
+													>
+														{sub.status}
+													</span>
+												</div>
+												<div class="info-item">
+													<span class="label"
+														>Plan:</span
+													>
+													<span class="value"
+														>{sub.plan}</span
+													>
+												</div>
+												<div class="info-item">
+													<span class="label"
+														>Interval:</span
+													>
+													<span class="value"
+														>{sub.interval}</span
+													>
+												</div>
+												{#if sub.amount_cents}
+													<div class="info-item">
+														<span class="label"
+															>Price:</span
+														>
+														<span class="value">
+															€{(
+																sub.amount_cents /
+																100
+															).toFixed(
+																2,
+															)}/{sub.interval ===
+															"year"
+																? "year"
+																: "month"}
+														</span>
+													</div>
+												{/if}
+												{#if sub.discount_name}
+													<div class="info-item">
+														<span class="label"
+															>Discount:</span
+														>
+														<span
+															class="value discount"
+															>{sub.discount_name}</span
+														>
+													</div>
+												{/if}
+												{#if sub.current_period_end}
+													<div class="info-item">
+														<span class="label"
+															>Next Billing:</span
+														>
+														<span class="value"
+															>{formatDate(
+																sub.current_period_end,
+															)}</span
+														>
+													</div>
+												{/if}
+											</div>
+											<div class="subscription-actions">
+												{#if sub.status === "active"}
+													<button
+														class="btn btn-warning"
+														onclick={() =>
+															handleSubscriptionUpdate(
+																account.id,
+																"canceled",
+															)}
+														disabled={subscriptionLoading}
+													>
+														Terminate Subscription
+													</button>
+												{:else if sub.status === "canceled"}
+													<button
+														class="btn btn-secondary"
+														onclick={() =>
+															handleSubscriptionUpdate(
+																account.id,
+																"active",
+															)}
+														disabled={subscriptionLoading}
+													>
+														Reactivate Subscription
+													</button>
+												{/if}
+											</div>
+										</div>
+									{:else}
+										<p class="no-subscription">
+											No subscription found
+										</p>
+									{/if}
 								</div>
 
 								<!-- Organizations -->
@@ -533,6 +686,83 @@
 						Resetting...
 					{:else}
 						Reset Counter
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Subscription Update Modal -->
+{#if confirmingSubscriptionUpdate}
+	<div
+		class="modal-backdrop"
+		role="button"
+		tabindex="0"
+		onclick={cancelSubscriptionUpdate}
+		onkeydown={(e) => e.key === "Escape" && cancelSubscriptionUpdate()}
+	>
+		<div
+			class="modal"
+			role="dialog"
+			aria-modal="true"
+			tabindex="0"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.key === "Escape" && cancelSubscriptionUpdate()}
+		>
+			<div class="modal-header">
+				<h3>
+					{confirmingSubscriptionUpdate.currentStatus === "canceled"
+						? "Terminate"
+						: "Reactivate"} Subscription?
+				</h3>
+				<button class="modal-close" onclick={cancelSubscriptionUpdate}
+					>&times;</button
+				>
+			</div>
+			<div class="modal-body">
+				<p>
+					Are you sure you want to <strong
+						>{confirmingSubscriptionUpdate.currentStatus ===
+						"canceled"
+							? "terminate"
+							: "reactivate"}</strong
+					> this subscription?
+				</p>
+				{#if confirmingSubscriptionUpdate.currentStatus === "canceled"}
+					<p class="warning">
+						This will mark the subscription as canceled and update
+						the billing account to free tier.
+					</p>
+				{:else}
+					<p class="info">
+						This will mark the subscription as active again.
+					</p>
+				{/if}
+			</div>
+			<div class="modal-footer">
+				<button
+					class="btn btn-secondary"
+					onclick={cancelSubscriptionUpdate}
+					disabled={subscriptionLoading}
+				>
+					Cancel
+				</button>
+				<button
+					class="btn {confirmingSubscriptionUpdate.currentStatus ===
+					'canceled'
+						? 'btn-warning'
+						: 'btn-primary'}"
+					onclick={confirmSubscriptionUpdate}
+					disabled={subscriptionLoading}
+				>
+					{#if subscriptionLoading}
+						Updating...
+					{:else}
+						{confirmingSubscriptionUpdate.currentStatus ===
+						"canceled"
+							? "Terminate"
+							: "Reactivate"} Subscription
 					{/if}
 				</button>
 			</div>
@@ -1038,5 +1268,64 @@
 		border-radius: 6px;
 		box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
 		z-index: 1000;
+	}
+
+	/* Subscription Styles */
+	.subscription-info {
+		padding: 1rem;
+		background: #f8fafc;
+		border-radius: 6px;
+		border: 1px solid #e2e8f0;
+	}
+
+	.subscription-status {
+		padding: 0.25rem 0.75rem;
+		border-radius: 9999px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+	}
+
+	.subscription-status.active {
+		background: #dcfce7;
+		color: #166534;
+	}
+
+	.subscription-status.canceled {
+		background: #fef2f2;
+		color: #dc2626;
+	}
+
+	.subscription-status.inactive {
+		background: #f3f4f6;
+		color: #6b7280;
+	}
+
+	.discount {
+		color: #059669;
+		font-weight: 600;
+	}
+
+	.no-subscription {
+		color: #6b7280;
+		font-style: italic;
+		padding: 1rem;
+		text-align: center;
+		background: #f9fafb;
+		border-radius: 6px;
+		border: 1px dashed #d1d5db;
+	}
+
+	.subscription-actions {
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid #e2e8f0;
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.info {
+		color: #0369a1;
+		font-size: 0.875rem;
 	}
 </style>

@@ -96,6 +96,14 @@ jobs:
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
           ENABLE_KV_RATE_LIMITING = "false"
+          POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
+          POLAR_FOUNDER_PRO_DISCOUNT_ID = "${{ secrets.POLAR_FOUNDER_PRO_DISCOUNT_ID }}"
+          POLAR_FOUNDER_BUSINESS_DISCOUNT_ID = "${{ secrets.POLAR_FOUNDER_BUSINESS_DISCOUNT_ID }}"
+          POLAR_PRO_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_PRO_MONTHLY_PRODUCT_ID }}"
+          POLAR_PRO_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_PRO_ANNUAL_PRODUCT_ID }}"
+          POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_BUSINESS_MONTHLY_PRODUCT_ID }}"
+          POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_BUSINESS_ANNUAL_PRODUCT_ID }}"
+          POLAR_SANDBOX = "false"
           EOF
 
           echo "✅ Generated wrangler.production.toml"
@@ -228,6 +236,11 @@ jobs:
           DOMAIN = "${{ secrets.API_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
+          POLAR_PRO_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_PRO_MONTHLY_PRODUCT_ID }}"
+          POLAR_PRO_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_PRO_ANNUAL_PRODUCT_ID }}"
+          POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_BUSINESS_MONTHLY_PRODUCT_ID }}"
+          POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_BUSINESS_ANNUAL_PRODUCT_ID }}"
+          POLAR_SANDBOX = "false"
           EOF
 
           echo "✅ Generated wrangler.production.toml"
@@ -244,6 +257,9 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
+          POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
+          INTERNAL_WEBHOOK_SECRET: ${{ secrets.INTERNAL_WEBHOOK_SECRET }}
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "🔐 Setting Worker secrets..."
@@ -251,6 +267,11 @@ jobs:
           echo "$GOOGLE_CLIENT_SECRET" | wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.production.toml
           echo "$JWT_SECRET" | wrangler secret put JWT_SECRET --config wrangler.production.toml
           echo "$MAILGUN_API_KEY" | wrangler secret put MAILGUN_API_KEY --config wrangler.production.toml
+          if [ -n "$POLAR_ACCESS_TOKEN" ]; then
+            echo "$POLAR_ACCESS_TOKEN" | wrangler secret put POLAR_ACCESS_TOKEN --config wrangler.production.toml
+            echo "$POLAR_WEBHOOK_SECRET" | wrangler secret put POLAR_WEBHOOK_SECRET --config wrangler.production.toml
+            echo "$INTERNAL_WEBHOOK_SECRET" | wrangler secret put INTERNAL_WEBHOOK_SECRET --config wrangler.production.toml
+          fi
           echo "✅ Secrets configured securely"
 
       - name: Deploy Worker

@@ -326,6 +326,60 @@ configure_secrets() {
   echo ""
 }
 
+# Configure Polar (optional)
+configure_polar() {
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}Polar Billing Configuration (Optional)${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo "Polar enables paid plans (Pro / Business). Self-hosted instances"
+  echo "can skip this — all users will remain on the Free tier."
+  echo ""
+
+  if ! prompt_yes_no "Enable Polar billing?" "n"; then
+    info "Polar billing disabled — skipping"
+    echo ""
+    return
+  fi
+
+  echo ""
+  echo "Get your access token from: https://polar.sh/dashboard/settings/api"
+  echo "Use Sandbox environment for local development: https://sandbox.polar.sh"
+  echo ""
+
+  while true; do
+    export POLAR_ACCESS_TOKEN=$(prompt_secret "Polar access token (polar_oat_...)")
+    if [[ "$POLAR_ACCESS_TOKEN" == polar_oat_* ]]; then
+      break
+    fi
+    warning "Token must start with polar_oat_"
+  done
+
+  echo ""
+  echo "Webhook secret: Polar Dashboard → Settings → Webhooks → your endpoint → Secret"
+  while true; do
+    export POLAR_WEBHOOK_SECRET=$(prompt_secret "Polar webhook secret (any string)")
+    if [ ${#POLAR_WEBHOOK_SECRET} -ge 8 ]; then
+      break
+    fi
+    warning "Secret must be at least 8 characters"
+  done
+
+  echo ""
+  echo "Product IDs: Polar Dashboard → Products → <plan> → copy product ID"
+  echo "Press Enter to leave a product ID empty (plan will be unavailable)."
+  echo ""
+  export POLAR_PRO_MONTHLY_PRODUCT_ID=$(prompt_input "Pro Monthly product ID" "")
+  export POLAR_PRO_ANNUAL_PRODUCT_ID=$(prompt_input "Pro Annual product ID" "")
+  export POLAR_BUSINESS_MONTHLY_PRODUCT_ID=$(prompt_input "Business Monthly product ID" "")
+  export POLAR_BUSINESS_ANNUAL_PRODUCT_ID=$(prompt_input "Business Annual product ID" "")
+
+  export POLAR_ENABLED=true
+  success "Polar billing configured"
+  echo ""
+}
+
 # Configure deployment options
 configure_deployment_options() {
   echo ""
@@ -370,6 +424,9 @@ interactive_configuration() {
 
   # Configure secrets
   configure_secrets
+
+  # Configure Polar billing (optional)
+  configure_polar
 
   # Configure deployment options
   configure_deployment_options

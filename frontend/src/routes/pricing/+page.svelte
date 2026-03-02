@@ -2,6 +2,7 @@
 	import Header from "$lib/components/Header.svelte";
 	import Footer from "$lib/components/Footer.svelte";
 	import { authApi } from "$lib/api/auth";
+	import { billingApi } from "$lib/api/billing";
 	import { onMount } from "svelte";
 	import type { PageData } from "./$types";
 	import type { User } from "$lib/types/api";
@@ -12,17 +13,43 @@
 
 	let mounted = $state(false);
 	let currentUser = $state<User | undefined>(undefined);
+	let billingInterval = $state<"monthly" | "annual">("monthly");
+	let checkoutLoading = $state<string | null>(null);
+	let checkoutError = $state<string | null>(null);
 
-	onMount(async () => {
-		mounted = true;
-		// Try to get user data on client side
-		try {
-			const user = await authApi.me();
-			currentUser = user;
-		} catch (error) {
-			// User not authenticated, that's fine for public pages
-			currentUser = undefined;
+	async function startCheckout(priceEnvKey: "pro" | "business") {
+		if (!currentUser) {
+			window.location.href = loginUrl;
+			return;
 		}
+		const interval = billingInterval;
+		const key = `${priceEnvKey}_${interval}`; // Send human-readable key
+
+		checkoutLoading = key;
+		checkoutError = null;
+		try {
+			const { url } = await billingApi.createCheckout(key, interval);
+			window.location.href = url;
+		} catch (e: unknown) {
+			const msg =
+				e && typeof e === "object" && "message" in e
+					? String((e as { message: unknown }).message)
+					: "Failed to start checkout. Please try again.";
+			checkoutError = msg;
+			checkoutLoading = null;
+		}
+	}
+
+	onMount(() => {
+		mounted = true;
+		authApi
+			.me()
+			.then((user) => {
+				currentUser = user;
+			})
+			.catch(() => {
+				currentUser = undefined;
+			});
 	});
 </script>
 
@@ -46,6 +73,44 @@
 						? 'opacity-100 translate-y-0'
 						: 'opacity-0 translate-y-4'}"
 				>
+					<!-- Billing interval toggle -->
+					<div class="flex items-center justify-center gap-3 mb-8">
+						<span
+							class="text-sm font-medium {billingInterval ===
+							'monthly'
+								? 'text-gray-900'
+								: 'text-gray-400'}">Monthly</span
+						>
+						<button
+							onclick={() =>
+								(billingInterval =
+									billingInterval === "monthly"
+										? "annual"
+										: "monthly")}
+							class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {billingInterval ===
+							'annual'
+								? 'bg-orange-500'
+								: 'bg-gray-200'}"
+							aria-label="Toggle billing interval"
+						>
+							<span
+								class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform {billingInterval ===
+								'annual'
+									? 'translate-x-6'
+									: 'translate-x-1'}"
+							></span>
+						</button>
+						<span
+							class="text-sm font-medium {billingInterval ===
+							'annual'
+								? 'text-gray-900'
+								: 'text-gray-400'}"
+						>
+							Annual <span class="text-green-600 font-semibold"
+								>(2 months free)</span
+							>
+						</span>
+					</div>
 					<h2
 						class="text-4xl md:text-5xl font-bold text-gray-900 mb-6"
 					>
@@ -202,13 +267,22 @@
 						</div>
 
 						<div class="mb-8">
-							<span class="text-5xl font-bold text-gray-900"
-								>$9</span
-							>
-							<span class="text-gray-600">/month</span>
-							<div class="text-sm text-gray-500 mt-1">
-								or $90/year (2 months free)
-							</div>
+							{#if billingInterval === "monthly"}
+								<span class="text-5xl font-bold text-gray-900"
+									>$9</span
+								>
+								<span class="text-gray-600">/month</span>
+							{:else}
+								<span class="text-5xl font-bold text-gray-900"
+									>$90</span
+								>
+								<span class="text-gray-600">/year</span>
+								<div
+									class="text-sm text-green-600 font-medium mt-1"
+								>
+									$7.50/mo — 2 months free
+								</div>
+							{/if}
 						</div>
 
 						<ul class="space-y-3 mb-8">
@@ -217,13 +291,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Everything in Free</span
 								>
@@ -233,13 +306,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>1,000 links per month</span
 								>
@@ -249,13 +321,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>1-year analytics retention</span
 								>
@@ -265,13 +336,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Custom short codes</span
 								>
@@ -281,13 +351,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Email support (48h)</span
 								>
@@ -295,10 +364,16 @@
 						</ul>
 
 						<button
-							disabled
-							class="w-full px-6 py-3 bg-gray-100 text-gray-400 rounded-lg font-semibold cursor-not-allowed text-center"
+							onclick={() => startCheckout("pro")}
+							disabled={checkoutLoading ===
+								`pro_${billingInterval}`}
+							class="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed text-center"
 						>
-							Coming Soon
+							{checkoutLoading === `pro_${billingInterval}`
+								? "Redirecting…"
+								: currentUser
+									? "Upgrade to Pro"
+									: "Get Started"}
 						</button>
 					</div>
 
@@ -319,13 +394,22 @@
 						</div>
 
 						<div class="mb-8">
-							<span class="text-5xl font-bold text-gray-900"
-								>$29</span
-							>
-							<span class="text-gray-600">/month</span>
-							<div class="text-sm text-gray-500 mt-1">
-								or $290/year (2 months free)
-							</div>
+							{#if billingInterval === "monthly"}
+								<span class="text-5xl font-bold text-gray-900"
+									>$29</span
+								>
+								<span class="text-gray-600">/month</span>
+							{:else}
+								<span class="text-5xl font-bold text-gray-900"
+									>$290</span
+								>
+								<span class="text-gray-600">/year</span>
+								<div
+									class="text-sm text-green-600 font-medium mt-1"
+								>
+									$24.17/mo — 2 months free
+								</div>
+							{/if}
 						</div>
 
 						<ul class="space-y-3 mb-8">
@@ -334,13 +418,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Everything in Pro</span
 								>
@@ -350,13 +433,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>10,000 links per month</span
 								>
@@ -366,13 +448,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>3-year analytics retention</span
 								>
@@ -382,13 +463,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>3 organizations</span
 								>
@@ -398,13 +478,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>20 team members</span
 								>
@@ -414,13 +493,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Device-based routing</span
 								>
@@ -430,13 +508,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Password protection</span
 								>
@@ -446,13 +523,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>API access (future)</span
 								>
@@ -462,13 +538,12 @@
 									class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
 									fill="currentColor"
 									viewBox="0 0 20 20"
-								>
-									<path
+									><path
 										fill-rule="evenodd"
 										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
 										clip-rule="evenodd"
-									/>
-								</svg>
+									/></svg
+								>
 								<span class="text-gray-700"
 									>Priority support (24h)</span
 								>
@@ -476,13 +551,27 @@
 						</ul>
 
 						<button
-							disabled
-							class="w-full px-6 py-3 bg-gray-100 text-gray-400 rounded-lg font-semibold cursor-not-allowed text-center"
+							onclick={() => startCheckout("business")}
+							disabled={checkoutLoading ===
+								`business_${billingInterval}`}
+							class="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed text-center"
 						>
-							Coming Soon
+							{checkoutLoading === `business_${billingInterval}`
+								? "Redirecting…"
+								: currentUser
+									? "Upgrade to Business"
+									: "Get Started"}
 						</button>
 					</div>
 				</div>
+
+				{#if checkoutError}
+					<div
+						class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center"
+					>
+						{checkoutError}
+					</div>
+				{/if}
 
 				<!-- FAQ / Notes -->
 				<div class="text-center max-w-3xl mx-auto">
@@ -490,12 +579,11 @@
 						class="bg-orange-50 border border-orange-200 rounded-lg p-6"
 					>
 						<h3 class="text-lg font-semibold text-gray-900 mb-3">
-							🚀 Paid tiers coming soon!
+							🎉 Founder Pricing — Limited Spots!
 						</h3>
 						<p class="text-gray-700 mb-4">
-							We're currently in beta with the Free tier. Sign up
-							now to get early access to paid features and special
-							founder pricing when we launch.
+							First 100 paying users get a lifetime discount
+							automatically applied at checkout. No code needed.
 						</p>
 
 						<!-- Founder Pricing Info -->

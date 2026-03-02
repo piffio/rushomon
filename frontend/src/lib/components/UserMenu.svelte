@@ -6,9 +6,10 @@
 	interface Props {
 		user: User;
 		onLogout: () => Promise<void>;
+		showBilling?: boolean;
 	}
 
-	let { user, onLogout }: Props = $props();
+	let { user, onLogout, showBilling = false }: Props = $props();
 	let showMenu = $state(false);
 	let isLoggingOut = $state(false);
 
@@ -92,6 +93,15 @@
 			>
 				⚙️ Settings
 			</a>
+			{#if showBilling}
+				<a
+					href="/billing"
+					role="menuitem"
+					class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+				>
+					💳 Billing
+				</a>
+			{/if}
 			<a
 				href="https://github.com/piffio/rushomon"
 				target="_blank"

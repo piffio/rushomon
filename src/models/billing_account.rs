@@ -13,7 +13,7 @@ pub struct BillingAccount {
     pub id: String,
     pub owner_user_id: String,
     pub tier: String,
-    pub stripe_customer_id: Option<String>,
+    pub provider_customer_id: Option<String>,
     pub created_at: i64,
 }
 

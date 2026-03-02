@@ -2437,7 +2437,7 @@ pub async fn get_user_by_email(
 /// Get billing account by ID
 pub async fn get_billing_account(db: &D1Database, id: &str) -> Result<Option<BillingAccount>> {
     let stmt = db.prepare(
-        "SELECT id, owner_user_id, tier, stripe_customer_id, created_at
+        "SELECT id, owner_user_id, tier, provider_customer_id, created_at
          FROM billing_accounts
          WHERE id = ?1",
     );
@@ -2450,7 +2450,7 @@ pub async fn get_billing_account_for_org(
     org_id: &str,
 ) -> Result<Option<BillingAccount>> {
     let stmt = db.prepare(
-        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.stripe_customer_id, ba.created_at
+        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.provider_customer_id, ba.created_at
          FROM billing_accounts ba
          INNER JOIN organizations o ON o.billing_account_id = ba.id
          WHERE o.id = ?1",
@@ -2467,7 +2467,7 @@ pub async fn get_user_billing_account(
     user_id: &str,
 ) -> Result<Option<BillingAccount>> {
     let stmt = db.prepare(
-        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.stripe_customer_id, ba.created_at
+        "SELECT ba.id, ba.owner_user_id, ba.tier, ba.provider_customer_id, ba.created_at
          FROM billing_accounts ba
          INNER JOIN organizations o ON o.billing_account_id = ba.id
          INNER JOIN users u ON u.org_id = o.id
@@ -2505,7 +2505,7 @@ pub async fn create_billing_account(
         id,
         owner_user_id: owner_user_id.to_string(),
         tier: tier.to_string(),
-        stripe_customer_id: None,
+        provider_customer_id: None,
         created_at: now,
     })
 }
@@ -2708,6 +2708,7 @@ pub struct BillingAccountDetails {
     pub owner: User,
     pub organizations: Vec<OrgWithMembersCount>,
     pub usage: UsageStats,
+    pub subscription: Option<serde_json::Value>,
 }
 
 /// Usage stats for billing account
@@ -2885,11 +2886,15 @@ pub async fn get_billing_account_details(
         year_month: current_month,
     };
 
+    // Get subscription info
+    let subscription = get_subscription_for_billing_account(db, billing_account_id).await?;
+
     Ok(Some(BillingAccountDetails {
         account,
         owner,
         organizations,
         usage,
+        subscription,
     }))
 }
 
@@ -2910,5 +2915,160 @@ pub async fn update_billing_account_tier(
     // Note: organizations no longer have tier column, so no update needed
     // The tier is now read directly from the billing account
 
+    Ok(())
+}
+
+/// Update billing account provider customer ID.
+/// Called when a subscription is created to link the billing account to the Polar customer.
+pub async fn update_billing_account_provider_customer_id(
+    db: &D1Database,
+    billing_account_id: &str,
+    provider_customer_id: &str,
+) -> Result<()> {
+    let stmt = db.prepare("UPDATE billing_accounts SET provider_customer_id = ?1 WHERE id = ?2");
+    stmt.bind(&[provider_customer_id.into(), billing_account_id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+// ─── Billing / Subscription queries ──────────────────────────────────────────
+
+/// Look up a billing_account_id by its provider customer ID.
+/// Used in webhook handlers where we only have the customer ID from the billing provider.
+#[allow(dead_code)]
+pub async fn get_billing_account_id_by_provider_customer(
+    db: &D1Database,
+    provider_customer_id: &str,
+) -> Result<Option<String>> {
+    let stmt =
+        db.prepare("SELECT id FROM billing_accounts WHERE provider_customer_id = ?1 LIMIT 1");
+    let result = stmt
+        .bind(&[provider_customer_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["id"].as_str().map(|s| s.to_string())))
+}
+
+/// Get the current active subscription for a billing account.
+/// Returns the raw JSON row for flexibility.
+pub async fn get_subscription_for_billing_account(
+    db: &D1Database,
+    billing_account_id: &str,
+) -> Result<Option<serde_json::Value>> {
+    let stmt = db.prepare(
+        "SELECT id, billing_account_id, status, plan, interval,
+                provider_subscription_id, provider_customer_id, provider_price_id,
+                current_period_start, current_period_end,
+                cancel_at_period_end, canceled_at, created_at, updated_at,
+                amount_cents, currency, discount_name
+         FROM subscriptions
+         WHERE billing_account_id = ?1
+         ORDER BY created_at DESC
+         LIMIT 1",
+    );
+    stmt.bind(&[billing_account_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await
+}
+
+/// Insert or update a subscription record for a billing account.
+/// Uses provider_subscription_id as the unique key for upsert.
+#[allow(clippy::too_many_arguments)]
+pub async fn upsert_subscription(
+    db: &D1Database,
+    billing_account_id: &str,
+    provider_subscription_id: &str,
+    provider_customer_id: &str,
+    status: &str,
+    plan: &str,
+    interval: &str,
+    provider_price_id: &str,
+    current_period_start: i64,
+    current_period_end: i64,
+    cancel_at_period_end: bool,
+    amount_cents: Option<i64>,
+    currency: &str,
+    discount_name: Option<&str>,
+    now: i64,
+) -> Result<()> {
+    let sub_id = format!("sub_{}", crate::utils::generate_short_code_with_length(16));
+    let cancel_flag: i64 = if cancel_at_period_end { 1 } else { 0 };
+
+    let stmt = db.prepare(
+        "INSERT INTO subscriptions (
+           id, billing_account_id, status, plan, interval,
+           provider_subscription_id, provider_customer_id, provider_price_id,
+           current_period_start, current_period_end,
+           cancel_at_period_end, amount_cents, currency, discount_name,
+           created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)
+         ON CONFLICT(provider_subscription_id) DO UPDATE SET
+           status = excluded.status,
+           plan = excluded.plan,
+           interval = excluded.interval,
+           provider_price_id = excluded.provider_price_id,
+           current_period_start = excluded.current_period_start,
+           current_period_end = excluded.current_period_end,
+           cancel_at_period_end = excluded.cancel_at_period_end,
+           amount_cents = excluded.amount_cents,
+           currency = excluded.currency,
+           discount_name = excluded.discount_name,
+           updated_at = excluded.updated_at",
+    );
+    stmt.bind(&[
+        sub_id.into(),
+        billing_account_id.into(),
+        status.into(),
+        plan.into(),
+        interval.into(),
+        provider_subscription_id.into(),
+        provider_customer_id.into(),
+        provider_price_id.into(),
+        (current_period_start as f64).into(),
+        (current_period_end as f64).into(),
+        (cancel_flag as f64).into(),
+        (amount_cents.unwrap_or(0) as f64).into(),
+        currency.into(),
+        discount_name.unwrap_or("").into(),
+        (now as f64).into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Mark a subscription as canceled (from subscription.deleted / revoked event).
+pub async fn mark_subscription_canceled(
+    db: &D1Database,
+    provider_subscription_id: &str,
+    now: i64,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET status = 'canceled', canceled_at = ?1, updated_at = ?1
+         WHERE provider_subscription_id = ?2",
+    );
+    stmt.bind(&[(now as f64).into(), provider_subscription_id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Update subscription status (admin only).
+pub async fn update_subscription_status(
+    db: &D1Database,
+    subscription_id: &str,
+    status: &str,
+    now: i64,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET status = ?1, updated_at = ?2
+         WHERE id = ?3",
+    );
+    stmt.bind(&[status.into(), (now as f64).into(), subscription_id.into()])?
+        .run()
+        .await?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 pub mod analytics;
+pub mod billing;
 pub mod links;
 pub mod orgs;
+pub mod settings;
 pub mod title_fetch;
 pub mod version;
-
-// API modules - implemented in phases

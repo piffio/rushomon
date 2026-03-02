@@ -3,6 +3,7 @@
 	import UserMenu from "./UserMenu.svelte";
 	import { authApi } from "$lib/api/auth";
 	import { orgsApi } from "$lib/api/orgs";
+	import { billingApi } from "$lib/api/billing";
 	import type { User, OrgWithRole } from "$lib/types/api";
 
 	interface Props {
@@ -13,6 +14,7 @@
 	let { user, currentPage = "landing" }: Props = $props();
 	let mobileMenuOpen = $state(false);
 	let orgSwitcherOpen = $state(false);
+	let showBilling = $state(false);
 	let orgs = $state<OrgWithRole[]>([]);
 	let currentOrgId = $state<string>("");
 	let switchingOrg = $state(false);
@@ -51,6 +53,14 @@
 				.finally(() => {
 					orgsLoading = false;
 				});
+
+			billingApi
+				.getStatus()
+				.then((status) => {
+					showBilling =
+						status.is_billing_owner && status.tier !== "free";
+				})
+				.catch(() => {});
 		}
 	});
 
@@ -413,7 +423,7 @@
 						</div>
 					{/if}
 
-					<UserMenu {user} onLogout={handleLogout} />
+					<UserMenu {user} onLogout={handleLogout} {showBilling} />
 				{:else}
 					<!-- Unauthenticated: Show Sign In button -->
 					<a

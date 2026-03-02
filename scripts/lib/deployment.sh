@@ -99,6 +99,17 @@ MAILGUN_FROM = "${MAILGUN_FROM}"
 EOF
   fi
 
+  # Add Polar configuration if enabled
+  if [ "$POLAR_ENABLED" = true ] && [ -n "$POLAR_ACCESS_TOKEN" ]; then
+    cat >> "$output_file" <<EOF
+POLAR_PRO_MONTHLY_PRODUCT_ID = "${POLAR_PRO_MONTHLY_PRODUCT_ID:-}"
+POLAR_PRO_ANNUAL_PRODUCT_ID = "${POLAR_PRO_ANNUAL_PRODUCT_ID:-}"
+POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "${POLAR_BUSINESS_MONTHLY_PRODUCT_ID:-}"
+POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "${POLAR_BUSINESS_ANNUAL_PRODUCT_ID:-}"
+POLAR_SANDBOX = "${POLAR_SANDBOX:-true}"
+EOF
+  fi
+
   # Add custom domain routes
   info "Adding custom domain routes for ${DOMAIN_STRATEGY:-single} domain strategy..."
 
@@ -313,6 +324,23 @@ set_worker_secrets() {
       return 1
     }
     success "  - MAILGUN_API_KEY set"
+  fi
+
+  # Set Polar secrets (if enabled)
+  if [ "$POLAR_ENABLED" = true ] && [ -n "$POLAR_ACCESS_TOKEN" ]; then
+    echo "$POLAR_ACCESS_TOKEN" | wrangler secret put POLAR_ACCESS_TOKEN --config "$config_file" || {
+      error "Failed to set POLAR_ACCESS_TOKEN"
+      return 1
+    }
+    success "  - POLAR_ACCESS_TOKEN set"
+
+    if [ -n "$POLAR_WEBHOOK_SECRET" ]; then
+      echo "$POLAR_WEBHOOK_SECRET" | wrangler secret put INTERNAL_WEBHOOK_SECRET --config "$config_file" || {
+        error "Failed to set INTERNAL_WEBHOOK_SECRET"
+        return 1
+      }
+      success "  - INTERNAL_WEBHOOK_SECRET set"
+    fi
   fi
 
   success "Worker secrets configured"
