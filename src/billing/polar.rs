@@ -48,14 +48,6 @@ impl PolarClient {
         let status = resp.status_code();
         let json: serde_json::Value = resp.json().await?;
 
-        // Log the full response from Polar for debugging
-        worker::console_log!("[checkout] Polar API response status: {}", status);
-        worker::console_log!(
-            "[checkout] Polar API response body: {}",
-            serde_json::to_string_pretty(&json)
-                .unwrap_or_else(|_| "Failed to serialize response".to_string())
-        );
-
         if status >= 400 {
             let msg = json["detail"]
                 .as_str()
@@ -227,15 +219,6 @@ impl BillingProvider for PolarClient {
         {
             body["customer_id"] = serde_json::Value::String(cid.clone());
         }
-
-        // Log the full request being sent to Polar
-        worker::console_log!(
-            "[checkout] Sending request to Polar: {}",
-            serde_json::to_string_pretty(&body)
-                .unwrap_or_else(|_| "Failed to serialize".to_string())
-        );
-        worker::console_log!("[checkout] Polar API endpoint: {}", self.api_base());
-        worker::console_log!("[checkout] Using sandbox: {}", self.sandbox);
 
         let json = self.post_json("/v1/checkouts", &body).await?;
 
