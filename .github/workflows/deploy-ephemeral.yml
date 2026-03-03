@@ -263,13 +263,6 @@ jobs:
           POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
           INTERNAL_WEBHOOK_SECRET: ${{ secrets.INTERNAL_WEBHOOK_SECRET }}
           POLAR_SANDBOX: "true"
-          POLAR_ORG_SLUG: ${{ secrets.POLAR_ORG_SLUG }}
-          POLAR_FOUNDER_PRO_DISCOUNT_ID: ${{ secrets.POLAR_FOUNDER_PRO_DISCOUNT_ID }}
-          POLAR_FOUNDER_BUSINESS_DISCOUNT_ID: ${{ secrets.POLAR_FOUNDER_BUSINESS_DISCOUNT_ID }}
-          POLAR_PRO_MONTHLY_PRODUCT_ID: ${{ secrets.POLAR_PRO_MONTHLY_PRODUCT_ID }}
-          POLAR_PRO_ANNUAL_PRODUCT_ID: ${{ secrets.POLAR_PRO_ANNUAL_PRODUCT_ID }}
-          POLAR_BUSINESS_MONTHLY_PRODUCT_ID: ${{ secrets.POLAR_BUSINESS_MONTHLY_PRODUCT_ID }}
-          POLAR_BUSINESS_ANNUAL_PRODUCT_ID: ${{ secrets.POLAR_BUSINESS_ANNUAL_PRODUCT_ID }}
         run: |
           echo "🔨 Building frontend for unified Worker (ephemeral)"
           echo "   API Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
