@@ -67,8 +67,34 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         .as_str()
         .expect("Failed to get organization ID");
 
+    // Get all billing accounts and find the one for this org
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            // Find the billing account that belongs to this user
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
+    // Set billing account to free tier
     let tier_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "free"}))
         .send()
         .await
@@ -77,7 +103,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     assert_eq!(
         tier_response.status(),
         200,
-        "Failed to set organization to free tier"
+        "Failed to set billing account to free tier"
     );
 
     // Try to create links until we hit the limit or succeed
@@ -150,11 +176,33 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     );
 
     let user_info: serde_json::Value = user_response.json().await.unwrap();
-    let org_id = user_info["org_id"].as_str().unwrap();
 
-    // Use admin API to upgrade organization tier
+    // Get billing account ID again (same logic as before)
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user_info["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
+    // Use admin API to upgrade billing account tier
     let upgrade_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await
@@ -194,9 +242,12 @@ async fn test_free_tier_and_unlimited_tier_limits() {
             .await;
     }
 
-    // Reset organization back to unlimited tier for subsequent tests
+    // Reset billing account back to unlimited tier for subsequent tests
     let reset_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await
@@ -205,7 +256,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     assert_eq!(
         reset_response.status(),
         200,
-        "Failed to reset organization to unlimited tier"
+        "Failed to reset billing account to unlimited tier"
     );
 }
 
@@ -225,9 +276,34 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         .as_str()
         .expect("Failed to get organization ID");
 
-    // Set organization to free tier
+    // Get all billing accounts and find the one for this org
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            // Find the billing account that belongs to this user
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
+    // Set billing account to free tier
     let tier_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "free"}))
         .send()
         .await
@@ -236,7 +312,7 @@ async fn test_free_tier_cannot_create_custom_short_code() {
     assert_eq!(
         tier_response.status(),
         200,
-        "Failed to set organization to free tier"
+        "Failed to set billing account to free tier"
     );
 
     // Try to create a link with a custom short code (should fail with 403)
@@ -270,7 +346,10 @@ async fn test_free_tier_cannot_create_custom_short_code() {
 
     // Upgrade to unlimited tier
     let upgrade_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await
@@ -279,7 +358,7 @@ async fn test_free_tier_cannot_create_custom_short_code() {
     assert_eq!(
         upgrade_response.status(),
         200,
-        "Failed to upgrade organization to unlimited tier"
+        "Failed to upgrade billing account to unlimited tier"
     );
 
     // Now try to create a link with a custom short code (should succeed)
@@ -322,9 +401,12 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         "Should be able to delete the created link"
     );
 
-    // Reset organization back to unlimited tier for subsequent tests
+    // Reset billing account back to unlimited tier for subsequent tests
     let reset_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await
@@ -333,7 +415,7 @@ async fn test_free_tier_cannot_create_custom_short_code() {
     assert_eq!(
         reset_response.status(),
         200,
-        "Failed to reset organization to unlimited tier"
+        "Failed to reset billing account to unlimited tier"
     );
 }
 
@@ -353,9 +435,34 @@ async fn test_usage_api_includes_custom_code_flag() {
         .as_str()
         .expect("Failed to get organization ID");
 
+    // Get all billing accounts and find the one for this org
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            // Find the billing account that belongs to this user
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
     // Test on free tier
     let tier_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "free"}))
         .send()
         .await
@@ -364,7 +471,7 @@ async fn test_usage_api_includes_custom_code_flag() {
     assert_eq!(
         tier_response.status(),
         200,
-        "Failed to set organization to free tier"
+        "Failed to set billing account to free tier"
     );
 
     // Get usage info
@@ -389,7 +496,10 @@ async fn test_usage_api_includes_custom_code_flag() {
 
     // Upgrade to unlimited tier
     let upgrade_response = client
-        .put(format!("{}/api/admin/orgs/{}/tier", BASE_URL, org_id))
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
         .json(&json!({"tier": "unlimited"}))
         .send()
         .await
@@ -398,7 +508,7 @@ async fn test_usage_api_includes_custom_code_flag() {
     assert_eq!(
         upgrade_response.status(),
         200,
-        "Failed to upgrade organization to unlimited tier"
+        "Failed to upgrade billing account to unlimited tier"
     );
 
     // Get usage info again
