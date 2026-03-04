@@ -6,9 +6,9 @@ ALTER TABLE subscriptions ADD COLUMN amount_cents INTEGER;
 ALTER TABLE subscriptions ADD COLUMN currency TEXT DEFAULT 'eur';
 ALTER TABLE subscriptions ADD COLUMN discount_name TEXT;
 
--- Add founder pricing setting to settings table
+-- Add founder pricing setting to settings table (disabled by default)
 INSERT OR REPLACE INTO settings (key, value, updated_at) 
-VALUES ('founder_pricing_active', 'true', strftime('%s', 'now'));
+VALUES ('founder_pricing_active', 'false', strftime('%s', 'now'));
 
 -- Add indexes for new pricing fields (optional but useful for admin queries)
 CREATE INDEX IF NOT EXISTS idx_subscriptions_amount ON subscriptions(amount_cents);
