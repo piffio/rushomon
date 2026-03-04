@@ -1510,6 +1510,30 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
+/// Handle getting a single user: GET /api/admin/users/:id (admin only)
+pub async fn handle_admin_get_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let user = db::get_user_by_id(&db, user_id).await?;
+
+    match user {
+        Some(user) => Response::from_json(&user),
+        None => Response::error("User not found", 404),
+    }
+}
+
 /// Handle listing Polar discounts: GET /api/admin/discounts (admin only)
 pub async fn handle_admin_list_discounts(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {

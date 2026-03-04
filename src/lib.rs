@@ -460,6 +460,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         // Admin users routes
         .get_async("/api/admin/users", router::handle_admin_list_users)
+        .get_async("/api/admin/users/:id", router::handle_admin_get_user)
         .put_async(
             "/api/admin/users/:id",
             router::handle_admin_update_user_role,

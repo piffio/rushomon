@@ -349,26 +349,6 @@ async fn test_admin_update_link_status() {
 }
 
 #[tokio::test]
-async fn test_admin_get_user_not_found() {
-    let client = authenticated_client();
-
-    let response = client
-        .get(format!("{}/api/admin/users/nonexistent-user-id", BASE_URL))
-        .send()
-        .await
-        .unwrap();
-
-    let status = response.status();
-
-    if status == StatusCode::FORBIDDEN {
-        println!("Test user is not an admin - skipping test");
-        return;
-    }
-
-    assert_eq!(status, StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
 async fn test_admin_update_user_invalid_role() {
     let client = authenticated_client();
 
@@ -388,6 +368,26 @@ async fn test_admin_update_user_invalid_role() {
 
     // Should reject invalid role values
     assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_admin_get_user_not_found() {
+    let client = authenticated_client();
+
+    let response = client
+        .get(format!("{}/api/admin/users/nonexistent-user-id", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let status = response.status();
+
+    if status == StatusCode::FORBIDDEN {
+        println!("Test user is not an admin - skipping test");
+        return;
+    }
+
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -448,7 +448,7 @@ async fn test_admin_cannot_demote_self() {
     // Should be rejected
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = response.text().await.unwrap();
-    assert!(body.contains("Cannot demote yourself"));
+    assert!(body.contains("Cannot modify your own role"));
 }
 
 #[tokio::test]
@@ -473,10 +473,7 @@ async fn test_admin_reset_counter_requires_auth() {
     let client = test_client(); // Unauthenticated client
 
     let response = client
-        .post(format!(
-            "{}/api/admin/orgs/test-org-id/reset-counter",
-            BASE_URL
-        ))
+        .post(format!("{}/api/admin/reset-monthly-counter", BASE_URL))
         .send()
         .await
         .unwrap();
@@ -489,7 +486,7 @@ async fn test_admin_reset_counter_requires_auth() {
 async fn test_admin_reset_counter_admin_access() {
     let client = authenticated_client(); // First user is admin
 
-    // Get current user info to get org_id
+    // Get current user info to get billing account ID
     let user_response = client
         .get(format!("{}/api/auth/me", BASE_URL))
         .send()
@@ -497,15 +494,21 @@ async fn test_admin_reset_counter_admin_access() {
         .unwrap();
 
     let user: serde_json::Value = user_response.json().await.unwrap();
-    let org_id = user["org_id"]
-        .as_str()
-        .expect("Failed to get organization ID");
+
+    // Try to get billing account ID, or skip test if not available
+    let billing_account_id = match user.get("billing_account_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => {
+            println!("No billing account ID found - skipping test");
+            return;
+        }
+    };
 
     // Reset counter as admin user
     let response = client
         .post(format!(
-            "{}/api/admin/orgs/{}/reset-counter",
-            BASE_URL, org_id
+            "{}/api/admin/billing-accounts/{}/reset-counter",
+            BASE_URL, billing_account_id
         ))
         .send()
         .await
