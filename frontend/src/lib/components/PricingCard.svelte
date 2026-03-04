@@ -15,10 +15,14 @@
 	export let founderPricingActive = false;
 	export let checkoutLoading: string | null = null;
 	export let billingInterval = "monthly";
+	export let disabled = false;
 
 	const dispatch = createEventDispatcher();
 
 	function handleAction() {
+		// Don't do anything if button is disabled
+		if (disabled) return;
+
 		if (buttonHref) {
 			window.location.href = buttonHref;
 		} else {
@@ -88,10 +92,22 @@
 		{:else}
 			<!-- Placeholder for alignment when no founder pricing -->
 			<div class="mb-3 h-6" class:hidden={founderPricingActive}></div>
-			<div class="flex items-baseline justify-start gap-1">
-				<span class="text-5xl font-bold text-gray-900">€{price}</span>
-				<span class="text-gray-600 text-lg">/{interval}</span>
-			</div>
+			{#if disabled}
+				<!-- Paid tier not configured -->
+				<div class="flex items-baseline justify-start gap-1">
+					<span class="text-5xl font-bold text-gray-400">—</span>
+					<span class="text-gray-400 text-lg">/{interval}</span>
+				</div>
+				<div class="text-sm text-gray-400 mt-1">Coming soon</div>
+			{:else}
+				<!-- Free tier or configured paid tier -->
+				<div class="flex items-baseline justify-start gap-1">
+					<span class="text-5xl font-bold text-gray-900"
+						>€{price}</span
+					>
+					<span class="text-gray-600 text-lg">/{interval}</span>
+				</div>
+			{/if}
 		{/if}
 	</div>
 
@@ -121,8 +137,11 @@
 	<div class="pricing-action">
 		<button
 			onclick={handleAction}
-			disabled={checkoutLoading === `${tier}_${billingInterval}`}
-			class="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed text-center"
+			disabled={checkoutLoading === `${tier}_${billingInterval}` ||
+				disabled}
+			class="w-full px-6 py-3 rounded-lg font-semibold transition-all shadow-sm text-center {disabled
+				? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+				: 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed'}"
 		>
 			{checkoutLoading === `${tier}_${billingInterval}`
 				? "Redirecting…"

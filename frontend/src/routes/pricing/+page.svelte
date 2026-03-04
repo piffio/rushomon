@@ -214,6 +214,7 @@
 			billingInterval,
 			currentUser,
 			loginUrl,
+			products,
 		),
 	);
 
@@ -296,6 +297,18 @@
 				<!-- Pricing Cards -->
 				<div class="grid md:grid-cols-3 gap-8 mb-16 items-stretch">
 					{#each pricingTiers as tierConfig (tierConfig.tier)}
+						{@const resolvedButtonText =
+							typeof tierConfig.buttonText === "function"
+								? tierConfig.buttonText()
+								: tierConfig.buttonText}
+						{@const resolvedButtonHref =
+							typeof tierConfig.buttonHref === "function"
+								? tierConfig.buttonHref()
+								: tierConfig.buttonHref}
+						{@const resolvedDisabled =
+							typeof tierConfig.disabled === "function"
+								? tierConfig.disabled()
+								: (tierConfig.disabled ?? false)}
 						<PricingCard
 							tier={tierConfig.tier}
 							title={tierConfig.title}
@@ -305,8 +318,9 @@
 								: tierConfig.price}
 							interval={tierConfig.interval}
 							features={tierConfig.features}
-							buttonText={tierConfig.buttonText}
-							buttonHref={tierConfig.buttonHref}
+							buttonText={resolvedButtonText}
+							buttonHref={resolvedButtonHref}
+							disabled={resolvedDisabled}
 							isPopular={tierConfig.isPopular}
 							founderPrice={tierConfig.founderPrice?.()}
 							originalPrice={tierConfig.originalPrice?.()}
@@ -357,14 +371,14 @@
 						>
 							<span class="font-medium text-gray-900"
 								>Pro: <span class="line-through text-gray-500"
-									>$9</span
-								> $5/mo</span
+									>€9</span
+								> €5/mo</span
 							>
 							<span class="text-gray-400">·</span>
 							<span class="font-medium text-gray-900"
 								>Business: <span
-									class="line-through text-gray-500">$29</span
-								> $19/mo</span
+									class="line-through text-gray-500">€29</span
+								> €19/mo</span
 							>
 						</div>
 					</div>

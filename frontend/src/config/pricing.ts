@@ -5,11 +5,23 @@ export interface PricingTier {
 	price: number | (() => number);
 	interval: string;
 	features: string[];
-	buttonText: string;
-	buttonHref?: string;
+	buttonText: string | (() => string);
+	buttonHref?: string | (() => string | undefined);
 	isPopular: boolean;
 	founderPrice?: () => number;
 	originalPrice?: () => number;
+	disabled?: boolean | (() => boolean);
+}
+
+// Helper function to get actual price from database (not fallback)
+function getActualPrice(
+	plan: "pro" | "business",
+	interval: "monthly" | "annual",
+	products: any[]
+): number {
+	const settingKey = `product_${plan}_${interval}_id`;
+	const product = products.find((p: any) => p.id === settingKey);
+	return product?.price_amount || 0;
 }
 
 export const createPricingTiers = (
@@ -17,7 +29,8 @@ export const createPricingTiers = (
 	founderPrice: (tier: string, interval: string) => number,
 	billingInterval: string,
 	currentUser: any,
-	loginUrl: string
+	loginUrl: string,
+	products: any[]
 ): PricingTier[] => [
 		{
 			tier: 'free',
@@ -34,7 +47,8 @@ export const createPricingTiers = (
 			],
 			buttonText: 'Get Started Free',
 			buttonHref: loginUrl,
-			isPopular: false
+			isPopular: false,
+			disabled: false
 		},
 		{
 			tier: 'pro',
@@ -49,7 +63,21 @@ export const createPricingTiers = (
 				'Custom short codes',
 				'Email support'
 			],
-			buttonText: currentUser ? 'Upgrade to Pro' : 'Get Started',
+			buttonText: () => {
+				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
+				// If actual price is 0, plan isn't configured
+				return actualPrice === 0 ? 'Coming Soon' : (currentUser ? 'Upgrade to Pro' : 'Get Started');
+			},
+			buttonHref: () => {
+				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
+				// If actual price is 0, plan isn't configured, disable button
+				return actualPrice === 0 ? undefined : (currentUser ? undefined : loginUrl);
+			},
+			disabled: () => {
+				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
+				// Disabled when plan is not configured (actualPrice === 0)
+				return actualPrice === 0;
+			},
 			isPopular: true,
 			founderPrice: () => founderPrice('pro', billingInterval),
 			originalPrice: () => getDisplayPriceWithFallback('pro', billingInterval)
@@ -70,7 +98,21 @@ export const createPricingTiers = (
 				'Password protection',
 				'Priority support'
 			],
-			buttonText: currentUser ? 'Upgrade to Business' : 'Get Started',
+			buttonText: () => {
+				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
+				// If actual price is 0, plan isn't configured
+				return actualPrice === 0 ? 'Coming Soon' : (currentUser ? 'Upgrade to Business' : 'Get Started');
+			},
+			buttonHref: () => {
+				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
+				// If actual price is 0, plan isn't configured, disable button
+				return actualPrice === 0 ? undefined : (currentUser ? undefined : loginUrl);
+			},
+			disabled: () => {
+				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
+				// Disabled when plan is not configured (actualPrice === 0)
+				return actualPrice === 0;
+			},
 			isPopular: false,
 			founderPrice: () => founderPrice('business', billingInterval),
 			originalPrice: () => getDisplayPriceWithFallback('business', billingInterval)
