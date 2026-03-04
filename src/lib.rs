@@ -311,6 +311,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/users", handle_cors_preflight)
         .options_async("/api/admin/users/:id", handle_cors_preflight)
         .options_async("/api/admin/settings", handle_cors_preflight)
+        .options_async("/api/admin/discounts", handle_cors_preflight)
+        .options_async("/api/admin/products", handle_cors_preflight)
+        .options_async("/api/admin/products/sync", handle_cors_preflight)
+        .options_async("/api/admin/products/save", handle_cors_preflight)
         .options_async("/api/admin/orgs/:id/tier", handle_cors_preflight)
         .options_async("/api/admin/billing-accounts", handle_cors_preflight)
         .options_async("/api/admin/billing-accounts/:id", handle_cors_preflight)
@@ -357,6 +361,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/invite/:token/accept", handle_cors_preflight)
         .options_async("/api/billing/status", handle_cors_preflight)
         .options_async("/api/billing/checkout", handle_cors_preflight)
+        .options_async("/api/billing/pricing", handle_cors_preflight)
         .options_async("/api/billing/subscription-update", handle_cors_preflight)
         .options_async("/api/settings", handle_cors_preflight)
         // Auth routes (public)
@@ -381,18 +386,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .get_async("/api/links/:id", router::handle_get_link)
         .put_async("/api/links/:id", router::handle_update_link)
         .delete_async("/api/links/:id", router::handle_delete_link)
-        // Admin routes - admin authentication required
-        .get_async("/api/admin/users", router::handle_admin_list_users)
-        .get_async("/api/admin/users/:id", router::handle_admin_get_user)
-        .put_async("/api/admin/users/:id", router::handle_admin_update_user)
-        .get_async("/api/admin/settings", router::handle_admin_get_settings)
-        .put_async("/api/admin/settings", router::handle_admin_update_setting)
-        .put_async(
-            "/api/admin/orgs/:id/tier",
-            router::handle_admin_update_org_tier,
-        )
         .post_async(
-            "/api/admin/orgs/:id/reset-counter",
+            "/api/admin/reset-monthly-counter",
             router::handle_admin_reset_monthly_counter,
         )
         // Admin moderation routes
@@ -449,6 +444,26 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/admin/billing-accounts/:id/subscription",
             router::handle_admin_update_subscription_status,
         )
+        // Admin settings routes
+        .get_async("/api/admin/settings", router::handle_admin_get_settings)
+        .put_async("/api/admin/settings", router::handle_admin_update_setting)
+        // Admin discounts and products routes
+        .get_async("/api/admin/discounts", router::handle_admin_list_discounts)
+        .get_async("/api/admin/products", router::handle_admin_list_products)
+        .post_async(
+            "/api/admin/products/sync",
+            router::handle_admin_sync_products,
+        )
+        .post_async(
+            "/api/admin/products/save",
+            router::handle_admin_save_products,
+        )
+        // Admin users routes
+        .get_async("/api/admin/users", router::handle_admin_list_users)
+        .put_async(
+            "/api/admin/users/:id",
+            router::handle_admin_update_user_role,
+        )
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)
         // Tags route
@@ -495,6 +510,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/billing/status",
             crate::api::billing::handle_get_status,
         )
+        .get_async("/api/billing/pricing", router::handle_billing_pricing)
         .post_async(
             "/api/billing/checkout",
             crate::api::billing::handle_create_checkout,

@@ -61,12 +61,6 @@ MAILGUN_BASE_URL=https://api.mailgun.net
 # POLAR_WEBHOOK_SECRET: Set when creating a webhook in Polar Dashboard → Settings → Webhooks
 # POLAR_SANDBOX: Set to "true" for sandbox/staging, "false" for production
 # POLAR_ORG_SLUG: Your Polar organization slug (for admin deep links)
-# POLAR_FOUNDER_PRO_DISCOUNT_ID: Discount ID for Pro founder pricing (44% off, forever)
-# POLAR_FOUNDER_BUSINESS_DISCOUNT_ID: Discount ID for Business founder pricing (34% off, forever)
-# POLAR_PRO_MONTHLY_PRODUCT_ID = "your-polar-pro-monthly-product-id"
-# POLAR_PRO_ANNUAL_PRODUCT_ID  = "your-polar-pro-annual-product-id"
-# POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "your-polar-business-monthly-product-id"
-# POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "your-polar-business-annual-product-id"
 # INTERNAL_WEBHOOK_SECRET: A shared secret between SvelteKit frontend and this Worker
 #   Generate with: openssl rand -base64 32
 #

@@ -61,12 +61,6 @@ ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://your-fron
 #
 # Product IDs: Polar Dashboard → Products → click ⋮ next to product → Copy Product ID
 POLAR_ORG_SLUG = "your-polar-org-slug"
-POLAR_FOUNDER_PRO_DISCOUNT_ID = "your-polar-founder-pro-discount-id"
-POLAR_FOUNDER_BUSINESS_DISCOUNT_ID = "your-polar-founder-business-discount-id"
-POLAR_PRO_MONTHLY_PRODUCT_ID = "your-polar-pro-monthly-product-id"
-POLAR_PRO_ANNUAL_PRODUCT_ID = "your-polar-pro-annual-product-id"
-POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "your-polar-business-monthly-product-id"
-POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "your-polar-business-annual-product-id"
 POLAR_SANDBOX = "false"
 
 [assets]

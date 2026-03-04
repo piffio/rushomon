@@ -37,6 +37,50 @@ export interface UpdateSettingRequest {
 	value: string;
 }
 
+export interface Discount {
+	id: string;
+	name: string;
+	type: 'fixed' | 'percentage';
+	amount?: number; // For fixed amount discounts
+	basis_points?: number; // For percentage discounts (in hundredths of a percent)
+	currency?: string;
+	redemptions_count: number;
+	max_redemptions: number | null;
+	starts_at: string | null;
+	ends_at: string | null;
+	products?: Array<{
+		id: string;
+		name: string;
+		recurring_interval: string;
+		price_amount: number; // Price in cents
+		price_currency: string;
+	}>;
+}
+
+export interface DiscountsResponse {
+	items: Discount[];
+}
+
+export interface Product {
+	id: string;
+	name: string;
+	description: string | null;
+	prices: Array<{
+		id: string;
+		price_amount: number; // Price in cents
+		price_currency: string;
+		recurring_interval: string | null;
+		recurring_interval_count: number | null;
+	}>;
+	is_archived: boolean;
+	created_at: string;
+	modified_at: string | null;
+}
+
+export interface ProductsResponse {
+	items: Product[];
+}
+
 export const adminApi = {
 	/**
 	 * List all users on the instance (admin only)
@@ -97,6 +141,26 @@ export const adminApi = {
 	 * @param tier - New tier ('free', 'pro', 'business', or 'unlimited')
 	 * @returns Updated Organization object
 	 */
+	/**
+	 * List all available Polar discounts (admin only)
+	 * @returns List of discounts from Polar
+	 */
+	async listDiscounts(): Promise<DiscountsResponse> {
+		return apiClient.get<DiscountsResponse>('/api/admin/discounts');
+	},
+
+	async listProducts(): Promise<ProductsResponse> {
+		return apiClient.get<ProductsResponse>('/api/admin/products');
+	},
+
+	async syncProducts(): Promise<{ success: boolean; message: string; products_count: number; }> {
+		return apiClient.post<{ success: boolean; message: string; products_count: number; }>('/api/admin/products/sync');
+	},
+
+	async saveProducts(): Promise<{ success: boolean; message: string; products_count: number; }> {
+		return apiClient.post<{ success: boolean; message: string; products_count: number; }>('/api/admin/products/save');
+	},
+
 	async updateOrgTier(orgId: string, tier: string): Promise<{ id: string; tier: string; }> {
 		return apiClient.request<{ id: string; tier: string; }>(`/api/admin/orgs/${orgId}/tier`, {
 			method: 'PUT',

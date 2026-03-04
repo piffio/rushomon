@@ -3072,3 +3072,24 @@ pub async fn update_subscription_status(
         .await?;
     Ok(())
 }
+
+/// Get a cached product by price_id
+pub async fn get_cached_product_by_price_id(
+    db: &D1Database,
+    price_id: &str,
+) -> Result<Option<serde_json::Value>> {
+    let stmt = db.prepare(
+        "SELECT id, name, description, price_amount, price_currency,
+                recurring_interval, recurring_interval_count, is_archived,
+                polar_product_id, polar_price_id, created_at, updated_at
+         FROM cached_products
+         WHERE polar_price_id = ?1 AND is_archived = FALSE",
+    );
+
+    let result = stmt
+        .bind(&[price_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    Ok(result)
+}

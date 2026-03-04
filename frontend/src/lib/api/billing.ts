@@ -19,6 +19,7 @@ export interface BillingStatus {
 export interface CheckoutRequest {
 	price_id: string;
 	billing_interval: 'monthly' | 'annual';
+	coupon_id?: string;
 }
 
 export interface CheckoutResponse {
@@ -29,15 +30,41 @@ export interface PortalResponse {
 	url: string;
 }
 
+export interface ProductPrice {
+	id: string;
+	polar_product_id: string;
+	polar_price_id: string;
+	name: string;
+	price_amount: number;
+	price_currency: string;
+	recurring_interval: string | null;
+	recurring_interval_count: number | null;
+}
+
+export interface PricingResponse {
+	products: ProductPrice[];
+}
+
 export const billingApi = {
 	getStatus(): Promise<BillingStatus> {
 		return apiClient.get<BillingStatus>('/api/billing/status');
 	},
 
-	async createCheckout(price_key: string, billing_interval: 'monthly' | 'annual'): Promise<CheckoutResponse> {
-		const res = await apiClient.post<CheckoutResponse>('/api/billing/checkout', {
-			price_id: price_key
-		});
+	getPricing(): Promise<PricingResponse> {
+		return apiClient.get<PricingResponse>('/api/billing/pricing');
+	},
+
+	async createCheckout(price_key: string, billing_interval: 'monthly' | 'annual', coupon_id?: string): Promise<CheckoutResponse> {
+		const requestBody: CheckoutRequest = {
+			price_id: price_key,
+			billing_interval
+		};
+
+		if (coupon_id) {
+			requestBody.coupon_id = coupon_id;
+		}
+
+		const res = await apiClient.post<CheckoutResponse>('/api/billing/checkout', requestBody);
 
 		if (!res.url) {
 			throw new Error('No checkout URL returned');

@@ -3,7 +3,7 @@ use crate::db;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
-    Link, Organization, PaginatedResponse, PaginationMeta, Tier,
+    Link, PaginatedResponse, PaginationMeta, Tier,
     analytics::LinkAnalyticsResponse,
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
@@ -1510,8 +1510,8 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
-/// Handle getting a single user: GET /api/admin/users/:id (admin only)
-pub async fn handle_admin_get_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+/// Handle listing Polar discounts: GET /api/admin/discounts (admin only)
+pub async fn handle_admin_list_discounts(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
         Err(e) => return Ok(e.into_response()),
@@ -1521,21 +1521,25 @@ pub async fn handle_admin_get_user(req: Request, ctx: RouteContext<()>) -> Resul
         return Ok(e.into_response());
     }
 
-    let user_id = ctx
-        .param("id")
-        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?;
+    let polar = match crate::billing::polar::polar_client_from_env(&ctx.env) {
+        Ok(p) => p,
+        Err(_) => return Response::error("Billing not configured", 503),
+    };
 
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let user = db::get_user_by_id(&db, user_id).await?;
-
-    match user {
-        Some(user) => Response::from_json(&user),
-        None => Response::error("User not found", 404),
+    match polar.list_discounts().await {
+        Ok(discounts) => {
+            worker::console_log!("[admin/discounts] Polar API success: {:?}", discounts);
+            Response::from_json(&discounts)
+        }
+        Err(e) => {
+            worker::console_error!("[admin/discounts] Polar API error: {}", e);
+            Response::error("Failed to fetch discounts from Polar", 502)
+        }
     }
 }
 
-/// Handle updating a user's role: PUT /api/admin/users/:id (admin only)
-pub async fn handle_admin_update_user(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+/// Handle listing Polar products: GET /api/admin/products (admin only)
+pub async fn handle_admin_list_products(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
         Err(e) => return Ok(e.into_response()),
@@ -1545,56 +1549,275 @@ pub async fn handle_admin_update_user(mut req: Request, ctx: RouteContext<()>) -
         return Ok(e.into_response());
     }
 
-    let target_user_id = ctx
-        .param("id")
-        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?
-        .to_string();
+    let polar = match crate::billing::polar::polar_client_from_env(&ctx.env) {
+        Ok(p) => p,
+        Err(_) => return Response::error("Billing not configured", 503),
+    };
+    let products = polar.list_products().await?;
 
-    // Parse request body
-    let body: serde_json::Value = match req.json().await {
-        Ok(body) => body,
-        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    Response::from_json(&products)
+}
+
+/// Handle getting pricing information: GET /api/billing/pricing (public)
+pub async fn handle_billing_pricing(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Fetch pricing from local database based on configured product IDs
+    let db = &ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
+
+    // Get configured product IDs from settings
+    let settings_map = match crate::db::queries::get_all_settings(db).await {
+        Ok(s) => s,
+        Err(e) => {
+            worker::console_error!("Failed to fetch settings for pricing: {}", e);
+            return Response::error("Failed to fetch pricing configuration", 500);
+        }
     };
 
-    let new_role = match body.get("role").and_then(|r| r.as_str()) {
-        Some(role) if role == "admin" || role == "member" => role.to_string(),
-        Some(_) => return Response::error("Invalid role. Must be 'admin' or 'member'", 400),
-        None => return Response::error("Missing 'role' field", 400),
-    };
+    // Helper to get setting value
+    let get_setting = |key: &str| -> String { settings_map.get(key).cloned().unwrap_or_default() };
 
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let mut products = Vec::new();
 
-    // Verify target user exists
-    let target_user = match db::get_user_by_id(&db, &target_user_id).await? {
-        Some(user) => user,
-        None => return Response::error("User not found", 404),
-    };
+    // Helper function to fetch product from cached_products table
+    async fn get_cached_product(
+        db: &worker::d1::D1Database,
+        product_id: &str,
+    ) -> Option<serde_json::Value> {
+        if product_id.is_empty() {
+            return None;
+        }
 
-    // Prevent self-demotion
-    if target_user_id == user_ctx.user_id && new_role == "member" {
-        return Response::error("Cannot demote yourself", 400);
-    }
+        // Query the cached_products table
+        let stmt = db.prepare(
+            "SELECT id, name, description, price_amount, price_currency,
+                    recurring_interval, recurring_interval_count, is_archived,
+                    polar_product_id, polar_price_id
+             FROM cached_products
+             WHERE polar_product_id = ?1 AND is_archived = FALSE",
+        );
 
-    // Prevent demoting the last admin
-    if target_user.role == "admin" && new_role == "member" {
-        let admin_count = db::get_admin_count(&db).await?;
-        if admin_count <= 1 {
-            return Response::error(
-                "Cannot demote the last admin. Promote another user first.",
-                400,
-            );
+        if let Ok(Some(result)) = stmt
+            .bind(&[product_id.into()])
+            .unwrap()
+            .first::<serde_json::Value>(None)
+            .await
+        {
+            Some(serde_json::json!({
+                "id": result.get("polar_product_id").unwrap_or(&serde_json::Value::String(product_id.to_string())),
+                "polar_product_id": result.get("polar_product_id").unwrap_or(&serde_json::Value::String(product_id.to_string())),
+                "polar_price_id": result.get("polar_price_id").unwrap_or(&serde_json::Value::String(product_id.to_string())),
+                "name": result.get("name").unwrap_or(&serde_json::Value::String("Unknown".to_string())),
+                "price_amount": result.get("price_amount").unwrap_or(&serde_json::Value::Number(serde_json::Number::from(0))),
+                "price_currency": result.get("price_currency").unwrap_or(&serde_json::Value::String("EUR".to_string())),
+                "recurring_interval": result.get("recurring_interval"),
+                "recurring_interval_count": result.get("recurring_interval_count")
+            }))
+        } else {
+            None
         }
     }
 
-    // Update role
-    db::update_user_role(&db, &target_user_id, &new_role).await?;
+    // Add Pro Monthly
+    if let Some(mut entry) = get_cached_product(db, &get_setting("product_pro_monthly_id")).await {
+        if let Some(obj) = entry.as_object_mut() {
+            obj.insert(
+                "id".to_string(),
+                serde_json::Value::String("product_pro_monthly_id".to_string()),
+            );
+        }
+        products.push(entry);
+    }
 
-    // Return updated user
-    let updated_user = db::get_user_by_id(&db, &target_user_id)
-        .await?
-        .ok_or_else(|| Error::RustError("User not found after update".to_string()))?;
+    // Add Pro Annual
+    if let Some(mut entry) = get_cached_product(db, &get_setting("product_pro_annual_id")).await {
+        if let Some(obj) = entry.as_object_mut() {
+            obj.insert(
+                "id".to_string(),
+                serde_json::Value::String("product_pro_annual_id".to_string()),
+            );
+        }
+        products.push(entry);
+    }
 
-    Response::from_json(&updated_user)
+    // Add Business Monthly
+    if let Some(mut entry) =
+        get_cached_product(db, &get_setting("product_business_monthly_id")).await
+    {
+        if let Some(obj) = entry.as_object_mut() {
+            obj.insert(
+                "id".to_string(),
+                serde_json::Value::String("product_business_monthly_id".to_string()),
+            );
+        }
+        products.push(entry);
+    }
+
+    // Add Business Annual
+    if let Some(mut entry) =
+        get_cached_product(db, &get_setting("product_business_annual_id")).await
+    {
+        if let Some(obj) = entry.as_object_mut() {
+            obj.insert(
+                "id".to_string(),
+                serde_json::Value::String("product_business_annual_id".to_string()),
+            );
+        }
+        products.push(entry);
+    }
+
+    Response::from_json(&serde_json::json!({
+        "products": products
+    }))
+}
+
+/// Handle syncing products from Polar: POST /api/admin/products/sync (admin only)
+pub async fn handle_admin_sync_products(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let polar = match crate::billing::polar::polar_client_from_env(&ctx.env) {
+        Ok(p) => p,
+        Err(_) => return Response::error("Billing not configured", 503),
+    };
+
+    match polar.list_products().await {
+        Ok(products) => {
+            let response = serde_json::json!({
+                "success": true,
+                "message": "Products fetched successfully",
+                "products_count": products["items"].as_array().map(|arr| arr.len()).unwrap_or(0)
+            });
+
+            Response::from_json(&response)
+        }
+        Err(_) => Response::error("Failed to fetch products from Polar", 502),
+    }
+}
+
+/// Handle saving complete product configuration: POST /api/admin/products/save (admin only)
+pub async fn handle_admin_save_products(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let polar = match crate::billing::polar::polar_client_from_env(&ctx.env) {
+        Ok(p) => p,
+        Err(_) => return Response::error("Billing not configured", 503),
+    };
+
+    // Fetch products from Polar
+    let products = match polar.list_products().await {
+        Ok(p) => p,
+        Err(e) => {
+            worker::console_error!("Failed to fetch products from Polar: {}", e);
+            return Response::error("Failed to fetch products from Polar", 502);
+        }
+    };
+
+    // Cache products in database
+    let db = &ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
+
+    if let Err(e) = cache_products_from_polar(db, &products).await {
+        worker::console_error!("Failed to cache products: {}", e);
+        return Response::error("Failed to cache products", 500);
+    }
+
+    let response = serde_json::json!({
+        "success": true,
+        "message": "Products configuration saved and cached successfully",
+        "products_count": products["items"].as_array().map(|arr| arr.len()).unwrap_or(0)
+    });
+
+    Response::from_json(&response)
+}
+
+/// Cache products from Polar API into local database
+async fn cache_products_from_polar(
+    db: &worker::d1::D1Database,
+    products: &serde_json::Value,
+) -> Result<()> {
+    if let Some(items) = products.get("items").and_then(|i| i.as_array()) {
+        // Clear existing cached products
+        let delete_stmt = db.prepare("DELETE FROM cached_products");
+        delete_stmt.run().await?;
+
+        // Insert each product with its prices
+        for product in items {
+            let product_id = product.get("id").and_then(|i| i.as_str()).unwrap_or("");
+            let product_name = product.get("name").and_then(|n| n.as_str()).unwrap_or("");
+            let product_description = product
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("");
+
+            // Extract prices array from the product
+            if let Some(prices) = product.get("prices").and_then(|p| p.as_array()) {
+                for price in prices {
+                    let price_amount: i32 = price
+                        .get("price_amount")
+                        .and_then(|p| p.as_i64())
+                        .unwrap_or(0) as i32;
+                    let price_currency: String = price
+                        .get("price_currency")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("EUR")
+                        .to_string();
+                    let price_id: String = price
+                        .get("id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    // Handle nullable values properly
+                    let recurring_interval_val =
+                        price.get("recurring_interval").and_then(|i| i.as_str());
+                    let recurring_interval_count_val = price
+                        .get("recurring_interval_count")
+                        .and_then(|c| c.as_i64());
+
+                    // Insert into cached_products table
+                    let insert_stmt = db.prepare(
+                        "INSERT INTO cached_products (
+                            id, name, description, price_amount, price_currency,
+                            recurring_interval, recurring_interval_count, is_archived,
+                            polar_product_id, polar_price_id, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    );
+
+                    let now = worker::Date::now().to_string();
+                    insert_stmt
+                        .bind(&[
+                            price_id.clone().into(),
+                            product_name.into(),
+                            product_description.into(),
+                            (price_amount as f64).into(),
+                            price_currency.into(),
+                            recurring_interval_val.unwrap_or("").into(),
+                            (recurring_interval_count_val.unwrap_or(1) as f64).into(), // default to 1
+                            false.into(), // is_archived as boolean
+                            product_id.into(),
+                            price_id.into(),
+                            now.clone().into(), // created_at
+                            now.into(),         // updated_at
+                        ])?
+                        .run()
+                        .await?;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Handle getting all settings: GET /api/admin/settings (admin only)
@@ -1667,6 +1890,28 @@ pub async fn handle_admin_update_setting(
                 );
             }
         }
+        "founder_pricing_active" => {
+            if value != "true" && value != "false" {
+                return Response::error(
+                    "Invalid value for 'founder_pricing_active'. Must be 'true' or 'false'",
+                    400,
+                );
+            }
+        }
+        "active_discount_pro_monthly"
+        | "active_discount_pro_annual"
+        | "active_discount_business_monthly"
+        | "active_discount_business_annual"
+        | "active_discount_amount_pro_monthly"
+        | "active_discount_amount_pro_annual"
+        | "active_discount_amount_business_monthly"
+        | "active_discount_amount_business_annual"
+        | "product_pro_monthly_id"
+        | "product_pro_annual_id"
+        | "product_business_monthly_id"
+        | "product_business_annual_id" => {
+            // Any string is valid (discount UUID / product UUID / amount in cents, or empty string to clear)
+        }
         _ => return Response::error(format!("Unknown setting: {}", key), 400),
     }
 
@@ -1681,66 +1926,6 @@ pub async fn handle_admin_update_setting(
         .collect();
 
     Response::from_json(&serde_json::Value::Object(settings_map))
-}
-
-/// Handle updating an organization's tier: PUT /api/admin/orgs/:id/tier (admin only)
-pub async fn handle_admin_update_org_tier(
-    mut req: Request,
-    ctx: RouteContext<()>,
-) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
-
-    if let Err(e) = auth::require_admin(&user_ctx) {
-        return Ok(e.into_response());
-    }
-
-    let org_id = ctx
-        .param("id")
-        .ok_or_else(|| Error::RustError("Missing org ID".to_string()))?
-        .to_string();
-
-    // Parse request body
-    let body: serde_json::Value = match req.json().await {
-        Ok(body) => body,
-        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
-    };
-
-    let tier_str = match body.get("tier").and_then(|t| t.as_str()) {
-        Some(t) => t.to_string(),
-        None => return Response::error("Missing 'tier' field", 400),
-    };
-
-    // Validate tier value
-    if Tier::from_str_value(&tier_str).is_none() {
-        return Response::error(
-            "Invalid tier. Must be 'free', 'pro', 'business', or 'unlimited'",
-            400,
-        );
-    }
-
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-
-    // Verify org exists
-    let org = match db::get_org_by_id(&db, &org_id).await? {
-        Some(org) => org,
-        None => return Response::error("Organization not found", 404),
-    };
-
-    // Update billing account tier instead of organization tier
-    let billing_account_id = match org.billing_account_id.clone() {
-        Some(id) => id,
-        None => return Response::error("Organization has no billing account", 400),
-    };
-
-    db::update_billing_account_tier(&db, &billing_account_id, &tier_str).await?;
-
-    // Return updated org (tier comes from billing account)
-    let updated_org = Organization { ..org };
-
-    Response::from_json(&updated_org)
 }
 
 /// Handle resetting monthly counter: POST /api/admin/orgs/:id/reset-counter (admin only)
@@ -2392,6 +2577,125 @@ pub async fn handle_admin_delete_user(mut req: Request, ctx: RouteContext<()>) -
         "deleted_links_count": links_count,
         "deleted_analytics_count": analytics_count
     }))
+}
+
+/// Handle updating user role: PUT /api/admin/users/:id (admin only)
+pub async fn handle_admin_update_user_role(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let target_user_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing user ID".to_string()))?
+        .to_string();
+
+    // Safety guard: Cannot modify own role
+    if target_user_id == user_ctx.user_id {
+        return Response::error("Cannot modify your own role", 400);
+    }
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+    };
+
+    let new_role = match body.get("role").and_then(|v| v.as_str()) {
+        Some(role) => {
+            if role != "admin" && role != "member" {
+                return Response::error("Role must be 'admin' or 'member'", 400);
+            }
+            role.to_string()
+        }
+        None => return Response::error("Missing 'role' field", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Get target user info for safety checks
+    let target_user = match db::get_user_by_id(&db, &target_user_id).await? {
+        Some(user) => user,
+        None => return Response::error("User not found", 404),
+    };
+
+    // Safety guard: Cannot demote the last admin
+    if new_role == "member" && target_user.role == "admin" {
+        let admin_count = match db::get_admin_count(&db).await {
+            Ok(count) => count,
+            Err(e) => {
+                console_log!("Error checking admin count: {}", e);
+                return Response::error("Failed to verify admin count", 500);
+            }
+        };
+
+        if admin_count <= 1 {
+            return Response::error("Cannot demote the last admin user", 400);
+        }
+    }
+
+    // Update user role
+    match db::update_user_role(&db, &target_user_id, &new_role).await {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "user_role_updated",
+                    "target_user_id": target_user_id,
+                    "old_role": target_user.role,
+                    "new_role": new_role,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+
+            // Get updated user data
+            let updated_user = match db::get_user_by_id(&db, &target_user_id).await {
+                Ok(Some(user)) => Ok(user),
+                Ok(None) => Err(Error::RustError(
+                    "Failed to retrieve updated user".to_string(),
+                )),
+                Err(e) => Err(e),
+            }?;
+
+            Ok(Response::from_json(&serde_json::json!({
+                "id": updated_user.id,
+                "email": updated_user.email,
+                "name": updated_user.name,
+                "avatar_url": updated_user.avatar_url,
+                "oauth_provider": updated_user.oauth_provider,
+                "oauth_id": updated_user.oauth_id,
+                "org_id": updated_user.org_id,
+                "role": updated_user.role,
+                "created_at": updated_user.created_at,
+                "suspended_at": updated_user.suspended_at,
+                "suspension_reason": updated_user.suspension_reason,
+                "suspended_by": updated_user.suspended_by,
+            }))?)
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "user_role_update_failed",
+                    "target_user_id": target_user_id,
+                    "new_role": new_role,
+                    "error": e.to_string(),
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to update user role", 500)
+        }
+    }
 }
 
 /// Handle abuse report submission: POST /api/reports/links

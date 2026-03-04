@@ -105,46 +105,69 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     let body: serde_json::Value = match req.json().await {
         Ok(b) => b,
         Err(_) => {
+            console_error!("[checkout] Invalid request body");
             return Response::error("Invalid request body", 400);
         }
     };
 
-    let price_key = match body["price_id"].as_str() {
-        Some(p) => p.to_string(),
-        None => return Response::error("price_id is required", 400),
+    let polar_product_id = match body["price_id"].as_str() {
+        Some(p) => {
+            console_log!("[checkout] Received product_id: {}", p);
+            p.to_string()
+        }
+        None => {
+            console_error!("[checkout] price_id is required");
+            return Response::error("price_id is required", 400);
+        }
     };
 
-    let coupon_id = body["coupon_id"].as_str().map(|s| s.to_string());
+    let coupon_id = body["coupon_id"].as_str().map(|s| {
+        console_log!("[checkout] Received coupon_id: {}", s);
+        s.to_string()
+    });
 
-    let catalog = match product_catalog_from_env(&ctx.env) {
-        Ok(p) => p,
-        Err(_) => return Response::error("Billing not configured", 503),
-    };
-
-    let price_id = match catalog.resolve_product_id(&price_key) {
-        Some(id) => id.to_string(),
-        None => return Response::error("Invalid price_id", 400),
-    };
-
+    console_log!("[checkout] Initializing Polar client...");
     let polar = match polar_client_from_env(&ctx.env) {
-        Ok(s) => s,
-        Err(_) => return Response::error("Billing not configured", 503),
+        Ok(s) => {
+            console_log!("[checkout] Polar client initialized successfully");
+            s
+        }
+        Err(e) => {
+            console_error!("[checkout] Failed to initialize Polar client: {}", e);
+            return Response::error("Billing not configured", 503);
+        }
     };
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Get or create billing account for user
+    console_log!(
+        "[checkout] Getting billing account for user: {}",
+        user_ctx.user_id
+    );
     let billing_account = match db::get_user_billing_account(&db, &user_ctx.user_id).await? {
-        Some(ba) => ba,
+        Some(ba) => {
+            console_log!("[checkout] Found existing billing account: {}", ba.id);
+            ba
+        }
         None => {
             // Auto-create billing account and org for new users
-            console_log!("Creating billing account for user: {}", user_ctx.user_id);
+            console_log!(
+                "[checkout] Creating billing account for user: {}",
+                user_ctx.user_id
+            );
             let org = db::create_default_org(&db, &user_ctx.user_id, "Personal").await?;
             match db::get_billing_account(&db, org.billing_account_id.as_deref().unwrap_or(""))
                 .await?
             {
-                Some(ba) => ba,
-                None => return Response::error("Failed to create billing account", 500),
+                Some(ba) => {
+                    console_log!("[checkout] Created billing account: {}", ba.id);
+                    ba
+                }
+                None => {
+                    console_error!("[checkout] Failed to create billing account");
+                    return Response::error("Failed to create billing account", 500);
+                }
             }
         }
     };
@@ -159,17 +182,30 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     let params = crate::billing::types::CreateCheckoutSessionParams {
         billing_account_id: billing_account.id.clone(),
         customer_id: billing_account.provider_customer_id.clone(),
-        price_id,
+        price_id: polar_product_id,
         success_url,
         cancel_url,
         coupon_id,
         client_reference_id: billing_account.id.clone(),
     };
 
+    console_log!(
+        "[checkout] Creating checkout session with params: billing_account_id={}, product_id={}, coupon_id={:?}",
+        params.billing_account_id,
+        params.price_id,
+        params.coupon_id
+    );
+
     match polar.create_checkout_session(params).await {
-        Ok(session) => Response::from_json(&serde_json::json!({ "url": session.url })),
+        Ok(session) => {
+            console_log!(
+                "[checkout] Checkout session created successfully: {}",
+                session.url
+            );
+            Response::from_json(&serde_json::json!({ "url": session.url }))
+        }
         Err(e) => {
-            worker::console_error!("[checkout] Polar API error: {}", e);
+            console_error!("[checkout] Polar API error: {}", e);
             Response::error("Failed to create checkout session", 500)
         }
     }
@@ -220,18 +256,33 @@ pub async fn handle_subscription_update(
             let currency = body["currency"].as_str().unwrap_or("usd");
             let discount_name = body["discount"]["name"].as_str();
 
-            let polar = match polar_client_from_env(&ctx.env) {
-                Ok(p) => p,
-                Err(_) => return Response::error("Billing not configured", 503),
-            };
-
-            let (plan, resolved_interval) = if let Ok(catalog) = product_catalog_from_env(&ctx.env)
-            {
-                let price_map = build_price_map(&polar, &catalog).await;
-                plan_from_price_id(&price_id, &price_map)
-            } else {
-                ("free".to_string(), interval)
-            };
+            let (plan, resolved_interval) =
+                match db::get_cached_product_by_price_id(&db, &price_id).await {
+                    Ok(Some(product)) => {
+                        // Extract plan from product name or recurring_interval
+                        let product_name = product["name"].as_str().unwrap_or("");
+                        let plan_name = if product_name.contains("Pro") {
+                            "pro"
+                        } else if product_name.contains("Business") {
+                            "business"
+                        } else {
+                            "free"
+                        };
+                        let interval = product["recurring_interval"].as_str().unwrap_or("month");
+                        (plan_name.to_string(), interval.to_string())
+                    }
+                    Ok(None) => {
+                        console_error!(
+                            "[subscription_update] Product not found for price_id: {}",
+                            price_id
+                        );
+                        ("free".to_string(), interval)
+                    }
+                    Err(e) => {
+                        console_error!("[subscription_update] Failed to lookup product: {}", e);
+                        ("free".to_string(), interval)
+                    }
+                };
 
             let actual_billing_account_id = if !billing_account_id.is_empty() {
                 billing_account_id

@@ -1,6 +1,6 @@
 use super::provider::BillingProvider;
 use super::types::{CheckoutSession, CreateCheckoutSessionParams};
-use worker::{Fetch, Headers, Method, Request, RequestInit, Result};
+use worker::*;
 
 const POLAR_API_BASE: &str = "https://api.polar.sh";
 const POLAR_SANDBOX_BASE: &str = "https://sandbox-api.polar.sh";
@@ -97,6 +97,15 @@ impl PolarClient {
 
     /// Fetches the first non-archived price ID for a given product ID.
     /// Each of our products has exactly one price; this returns its UUID.
+    pub async fn list_discounts(&self) -> Result<serde_json::Value> {
+        self.get_json("/v1/discounts?limit=100").await
+    }
+
+    /// List all products from Polar
+    pub async fn list_products(&self) -> Result<serde_json::Value> {
+        self.get_json("/v1/products?limit=100").await
+    }
+
     pub async fn fetch_price_id_for_product(&self, product_id: &str) -> Result<String> {
         let json = self
             .get_json(&format!("/v1/products/{}", product_id))
@@ -131,24 +140,6 @@ pub struct ProductCatalog {
 }
 
 impl ProductCatalog {
-    /// Resolve a human-readable key (e.g. "pro_monthly") to the Polar Product ID.
-    pub fn resolve_product_id<'a>(&'a self, key: &'a str) -> Option<&'a str> {
-        match key {
-            "pro_monthly" => Some(&self.pro_monthly),
-            "pro_annual" => Some(&self.pro_annual),
-            "business_monthly" => Some(&self.business_monthly),
-            "business_annual" => Some(&self.business_annual),
-            id if id == self.pro_monthly
-                || id == self.pro_annual
-                || id == self.business_monthly
-                || id == self.business_annual =>
-            {
-                Some(key)
-            }
-            _ => None,
-        }
-    }
-
     /// Resolve a Polar Price ID (received in webhooks) to (plan, interval).
     /// Requires the price IDs to have been pre-fetched via `build_price_map`.
     pub fn plan_from_price_id(
@@ -212,6 +203,13 @@ impl BillingProvider for PolarClient {
             },
             "external_customer_id": params.client_reference_id,
         });
+
+        // Add discount if provided
+        if let Some(ref discount_id) = params.coupon_id
+            && !discount_id.is_empty()
+        {
+            body["discount_id"] = serde_json::Value::String(discount_id.clone());
+        }
 
         // If a customer already exists in Polar, pre-fill them
         if let Some(ref cid) = params.customer_id
