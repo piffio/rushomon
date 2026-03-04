@@ -142,9 +142,7 @@
 		try {
 			pricingLoading = true;
 			// Use the same pricing endpoint as the public pricing page
-			const response = await fetch(
-				"http://localhost:8787/api/billing/pricing",
-			);
+			const response = await fetch("/api/billing/pricing");
 			if (!response.ok) {
 				throw new Error("Failed to fetch pricing data");
 			}

@@ -18,7 +18,8 @@
 	// Generate QR code when modal opens
 	$effect(() => {
 		if (isOpen && link && canvas) {
-			shortUrl = `${window.location.origin.replace("localhost:8787", "localhost:5173")}/${link.short_code}`;
+			// Use the current origin for QR codes - this will work in all environments
+			shortUrl = `${window.location.origin}/${link.short_code}`;
 			generateQR();
 		}
 	});
