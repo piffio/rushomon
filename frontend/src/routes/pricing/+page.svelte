@@ -75,12 +75,6 @@
 
 	// Founder pricing state
 	let founderPricingActive = $state(false);
-	let discountIds = $state({
-		pro_monthly: "",
-		pro_annual: "",
-		business_monthly: "",
-		business_annual: "",
-	});
 	let discountAmounts = $state({
 		pro_monthly: 0,
 		pro_annual: 0,
@@ -118,23 +112,12 @@
 		try {
 			const settings = await apiClient.get<{
 				founder_pricing_active: boolean;
-				active_discount_pro_monthly: string;
-				active_discount_pro_annual: string;
-				active_discount_business_monthly: string;
-				active_discount_business_annual: string;
 				active_discount_amount_pro_monthly: number;
 				active_discount_amount_pro_annual: number;
 				active_discount_amount_business_monthly: number;
 				active_discount_amount_business_annual: number;
 			}>("/api/settings");
 			founderPricingActive = settings.founder_pricing_active || false;
-			discountIds.pro_monthly =
-				settings.active_discount_pro_monthly || "";
-			discountIds.pro_annual = settings.active_discount_pro_annual || "";
-			discountIds.business_monthly =
-				settings.active_discount_business_monthly || "";
-			discountIds.business_annual =
-				settings.active_discount_business_annual || "";
 			discountAmounts.pro_monthly =
 				settings.active_discount_amount_pro_monthly || 0;
 			discountAmounts.pro_annual =
@@ -158,35 +141,18 @@
 			});
 	});
 
-	async function startCheckout(priceEnvKey: "pro" | "business") {
+	async function startCheckout(plan: "pro" | "business") {
 		if (!currentUser) {
 			window.location.href = loginUrl;
 			return;
 		}
 		const interval = billingInterval;
-		const settingKey = `product_${priceEnvKey}_${interval}_id`;
+		const planKey = `${plan}_${interval}`; // e.g., "pro_monthly"
 
-		// Find the product from pricing data
-		const product = products.find((p) => p.id === settingKey);
-		if (!product) {
-			checkoutError = "Product not found. Please contact support.";
-			return;
-		}
-
-		// Determine coupon ID based on the active discount for this slot
-		const key = `${priceEnvKey}_${interval}`;
-		const couponId = founderPricingActive
-			? discountIds[key as keyof typeof discountIds] || undefined
-			: undefined;
-
-		checkoutLoading = key;
+		checkoutLoading = planKey;
 		checkoutError = null;
 		try {
-			const { url } = await billingApi.createCheckout(
-				product.polar_product_id,
-				interval,
-				couponId,
-			);
+			const { url } = await billingApi.createCheckout(planKey);
 			window.location.href = url;
 		} catch (e: unknown) {
 			const msg =

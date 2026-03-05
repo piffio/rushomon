@@ -2,9 +2,9 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { PUBLIC_VITE_API_BASE_URL } from '$env/static/public';
 
-// Price ID mapping from human-readable keys to UUIDs
-// These map to the price IDs configured in the worker via environment variables
-const PRICE_KEY_MAP: Record<string, string> = {
+// Plan mapping from human-readable keys to UUIDs
+// These map to the plan keys configured in the worker
+const PLAN_KEY_MAP: Record<string, string> = {
 	'pro_monthly': 'pro_monthly',
 	'pro_annual': 'pro_annual',
 	'business_monthly': 'business_monthly',
@@ -18,10 +18,10 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	const body = await event.request.json().catch(() => ({}));
-	const products = body.products as string | undefined;
+	const plan = body.plan as string | undefined;
 
-	if (!products || !PRICE_KEY_MAP[products]) {
-		throw error(400, `Invalid products key. Valid keys are: ${Object.keys(PRICE_KEY_MAP).join(', ')}`);
+	if (!plan || !PLAN_KEY_MAP[plan]) {
+		throw error(400, `Invalid plan. Valid plans are: ${Object.keys(PLAN_KEY_MAP).join(', ')}`);
 	}
 
 	const workerBase = PUBLIC_VITE_API_BASE_URL;
@@ -36,7 +36,7 @@ export const POST: RequestHandler = async (event) => {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${jwtToken}`
 		},
-		body: JSON.stringify({ price_id: products })
+		body: JSON.stringify({ plan })
 	});
 
 	if (!workerRes.ok) {

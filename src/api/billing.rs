@@ -110,21 +110,72 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
         }
     };
 
-    let polar_product_id = match body["price_id"].as_str() {
+    let plan = match body["plan"].as_str() {
         Some(p) => {
-            console_log!("[checkout] Received product_id: {}", p);
+            console_log!("[checkout] Received plan: {}", p);
             p.to_string()
         }
         None => {
-            console_error!("[checkout] price_id is required");
-            return Response::error("price_id is required", 400);
+            console_error!("[checkout] plan is required");
+            return Response::error("plan is required", 400);
         }
     };
 
-    let coupon_id = body["coupon_id"].as_str().map(|s| {
-        console_log!("[checkout] Received coupon_id: {}", s);
-        s.to_string()
-    });
+    // Validate plan name and map to product ID setting key
+    let product_id_key = match plan.as_str() {
+        "pro_monthly" => "product_pro_monthly_id",
+        "pro_annual" => "product_pro_annual_id",
+        "business_monthly" => "product_business_monthly_id",
+        "business_annual" => "product_business_annual_id",
+        _ => {
+            console_error!("[checkout] Invalid plan: {}", plan);
+            return Response::error("Invalid plan", 400);
+        }
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Get all settings in a single query
+    let settings = db::get_all_settings(&db).await?;
+
+    // Look up product ID securely from settings
+    let polar_product_id = match settings.get(product_id_key) {
+        Some(id) => {
+            console_log!("[checkout] Found product_id for {}: {}", plan, id);
+            id.clone()
+        }
+        None => {
+            console_error!("[checkout] Product ID not found for plan: {}", plan);
+            return Response::error("Plan not configured", 503);
+        }
+    };
+
+    // Look up discount ID from settings if founder pricing is active
+    let coupon_id = if settings
+        .get("founder_pricing_active")
+        .map(|v| v == "true")
+        .unwrap_or(false)
+    {
+        let discount_key = match plan.as_str() {
+            "pro_monthly" => "active_discount_pro_monthly",
+            "pro_annual" => "active_discount_pro_annual",
+            "business_monthly" => "active_discount_business_monthly",
+            "business_annual" => "active_discount_business_annual",
+            _ => "",
+        };
+
+        let discount_id = settings.get(discount_key).cloned().unwrap_or_default();
+        if !discount_id.is_empty() {
+            console_log!("[checkout] Using discount_id for {}: {}", plan, discount_id);
+            Some(discount_id)
+        } else {
+            console_log!("[checkout] No discount configured for {}", plan);
+            None
+        }
+    } else {
+        console_log!("[checkout] Founder pricing not active, no discount applied");
+        None
+    };
 
     console_log!("[checkout] Initializing Polar client...");
     let polar = match polar_client_from_env(&ctx.env) {
@@ -137,8 +188,6 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
             return Response::error("Billing not configured", 503);
         }
     };
-
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Get or create billing account for user
     console_log!(

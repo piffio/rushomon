@@ -17,9 +17,7 @@ export interface BillingStatus {
 }
 
 export interface CheckoutRequest {
-	price_id: string;
-	billing_interval: 'monthly' | 'annual';
-	coupon_id?: string;
+	plan: string; // e.g., "pro_monthly", "business_annual"
 }
 
 export interface CheckoutResponse {
@@ -54,15 +52,10 @@ export const billingApi = {
 		return apiClient.get<PricingResponse>('/api/billing/pricing');
 	},
 
-	async createCheckout(price_key: string, billing_interval: 'monthly' | 'annual', coupon_id?: string): Promise<CheckoutResponse> {
+	async createCheckout(plan: string): Promise<CheckoutResponse> {
 		const requestBody: CheckoutRequest = {
-			price_id: price_key,
-			billing_interval
+			plan
 		};
-
-		if (coupon_id) {
-			requestBody.coupon_id = coupon_id;
-		}
 
 		const res = await apiClient.post<CheckoutResponse>('/api/billing/checkout', requestBody);
 
