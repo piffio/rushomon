@@ -1551,10 +1551,7 @@ pub async fn handle_admin_list_discounts(req: Request, ctx: RouteContext<()>) ->
     };
 
     match polar.list_discounts().await {
-        Ok(discounts) => {
-            worker::console_log!("[admin/discounts] Polar API success: {:?}", discounts);
-            Response::from_json(&discounts)
-        }
+        Ok(discounts) => Response::from_json(&discounts),
         Err(e) => {
             worker::console_error!("[admin/discounts] Polar API error: {}", e);
             Response::error("Failed to fetch discounts from Polar", 502)

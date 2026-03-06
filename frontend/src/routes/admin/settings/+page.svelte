@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { adminApi, type Discount, type Product } from "$lib/api/admin";
+	import { billingApi } from "$lib/api/billing";
 
 	let settings = $state<Record<string, string>>({});
 	let loading = $state(false);
@@ -45,13 +46,13 @@
 		business_annual: "",
 	});
 
-	// Product IDs from environment variables
-	const PRODUCT_IDS = {
-		pro_monthly: "9e05359c-7abe-4a40-93b4-c681468f1e8b",
-		pro_annual: "3ad2de6f-0919-4318-b951-cbcb22767ce9",
-		business_monthly: "76725f5c-edba-45e6-a700-63d7f1e75a2d",
-		business_annual: "225f9b73-7364-4ff2-83e3-c787983ad2aa",
-	};
+	// Product IDs - will be populated from loaded products
+	let PRODUCT_IDS = $state({
+		pro_monthly: "",
+		pro_annual: "",
+		business_monthly: "",
+		business_annual: "",
+	});
 
 	// Filter discounts for a specific product
 	function getDiscountsForSlot(slot: keyof typeof PRODUCT_IDS): Discount[] {
@@ -129,6 +130,14 @@
 			// Store initial values to track changes
 			initialProductSlots = { ...productSlots };
 
+			// Populate PRODUCT_IDS from database settings
+			PRODUCT_IDS = {
+				pro_monthly: productSlots.pro_monthly,
+				pro_annual: productSlots.pro_annual,
+				business_monthly: productSlots.business_monthly,
+				business_annual: productSlots.business_annual,
+			};
+
 			// Load current pricing data
 			await loadCurrentPricing();
 		} catch (err) {
@@ -141,12 +150,8 @@
 	async function loadCurrentPricing() {
 		try {
 			pricingLoading = true;
-			// Use the same pricing endpoint as the public pricing page
-			const response = await fetch("/api/billing/pricing");
-			if (!response.ok) {
-				throw new Error("Failed to fetch pricing data");
-			}
-			const data = await response.json();
+			// Use the billing API to get pricing data from backend
+			const data = await billingApi.getPricing();
 			currentPricing = data.products || [];
 		} catch (err) {
 			console.error("Failed to load current pricing:", err);
@@ -162,8 +167,6 @@
 			discountsLoading = true;
 			discountsError = "";
 			const res = await adminApi.listDiscounts();
-			console.log("Polar API response:", res);
-			console.log("Discounts items:", res.items);
 			discounts = res.items || [];
 		} catch (err) {
 			console.error("Failed to load discounts:", err);
@@ -179,12 +182,6 @@
 			productsLoading = true;
 			productsError = "";
 			const res = await adminApi.listProducts();
-			console.log("Polar Products API response:", res);
-			console.log("Products items:", res.items);
-			if (res.items && res.items.length > 0) {
-				console.log("First product structure:", res.items[0]);
-				console.log("First product prices:", res.items[0].prices);
-			}
 			products = res.items || [];
 		} catch (err) {
 			console.error("Failed to load products:", err);
