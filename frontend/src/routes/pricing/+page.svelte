@@ -8,7 +8,7 @@
 	import { onMount } from "svelte";
 	import type { PageData } from "./$types";
 	import type { User } from "$lib/types/api";
-	import type { ProductPrice } from "$lib/api/billing";
+	import type { ProductPrice, BillingStatus } from "$lib/api/billing";
 	import { createPricingTiers, type PricingTier } from "../../config/pricing";
 
 	let { data }: { data: PageData } = $props();
@@ -25,6 +25,11 @@
 	let products = $state<ProductPrice[]>([]);
 	let pricingLoading = $state(true);
 	let pricingError = $state<string | null>(null);
+
+	// Billing status for logged-in users
+	let billingStatus = $state<BillingStatus | null>(null);
+	let billingLoading = $state(true);
+	let billingError = $state<string | null>(null);
 
 	// Helper function to get price by plan and interval
 	function getPrice(
@@ -133,11 +138,26 @@
 		mounted = true;
 		authApi
 			.me()
-			.then((user) => {
+			.then(async (user) => {
 				currentUser = user;
+
+				// Fetch billing status for logged-in users
+				if (user) {
+					try {
+						billingStatus = await billingApi.getStatus();
+					} catch (error) {
+						console.warn("Failed to fetch billing status:", error);
+						billingError = "Failed to load billing information";
+					} finally {
+						billingLoading = false;
+					}
+				} else {
+					billingLoading = false;
+				}
 			})
 			.catch(() => {
 				currentUser = undefined;
+				billingLoading = false;
 			});
 	});
 
@@ -164,6 +184,24 @@
 		}
 	}
 
+	async function openPortal() {
+		if (!currentUser) return;
+
+		checkoutLoading = "portal";
+		checkoutError = null;
+		try {
+			const { url } = await billingApi.createPortal();
+			window.location.href = url;
+		} catch (e: unknown) {
+			const msg =
+				e && typeof e === "object" && "message" in e
+					? String((e as { message: unknown }).message)
+					: "Failed to open billing portal. Please try again.";
+			checkoutError = msg;
+			checkoutLoading = null;
+		}
+	}
+
 	// Compute pricing tiers reactively
 	let pricingTiers = $derived(
 		createPricingTiers(
@@ -181,8 +219,24 @@
 			currentUser,
 			loginUrl,
 			products,
+			billingStatus,
+			openPortal,
 		),
 	);
+
+	// Helper function to determine tier hierarchy
+	function getTierHierarchy(tier: string): number {
+		switch (tier) {
+			case "free":
+				return 0;
+			case "pro":
+				return 1;
+			case "business":
+				return 2;
+			default:
+				return 0;
+		}
+	}
 
 	// Handle checkout events from PricingCard components
 	function handleCheckout(event: CustomEvent<{ tier: string }>) {
@@ -248,6 +302,69 @@
 							>
 						</span>
 					</div>
+					{#if currentUser && billingStatus}
+						<div
+							class="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-xl"
+						>
+							<p class="text-lg text-blue-900 font-medium mb-2">
+								Hi {currentUser.name ||
+									currentUser.email.split("@")[0]}, you're on
+								the
+								<span class="font-bold text-blue-700"
+									>{billingStatus.tier}</span
+								> plan
+							</p>
+							{#if billingStatus.subscription_status === "active" && billingStatus.current_period_end}
+								<p class="text-blue-700">
+									{billingStatus.cancel_at_period_end
+										? "Expires on"
+										: "Renews on"}
+									{new Date(
+										billingStatus.current_period_end * 1000,
+									).toLocaleDateString()}
+								</p>
+							{/if}
+						</div>
+					{/if}
+
+					{#if currentUser && billingStatus && billingStatus.amount_cents}
+						<div
+							class="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-lg"
+						>
+							<h3 class="font-semibold text-gray-900 mb-2">
+								Current Plan Summary
+							</h3>
+							<div
+								class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm"
+							>
+								<div>
+									<span class="text-gray-600">Plan:</span>
+									<span class="font-medium text-gray-900 ml-2"
+										>{billingStatus.tier}</span
+									>
+								</div>
+								<div>
+									<span class="text-gray-600">Billing:</span>
+									<span
+										class="font-medium text-gray-900 ml-2"
+									>
+										€{billingStatus.amount_cents /
+											100}/{billingStatus.interval ||
+											"month"}
+									</span>
+								</div>
+								<div>
+									<span class="text-gray-600">Status:</span>
+									<span
+										class="font-medium text-gray-900 ml-2 capitalize"
+										>{billingStatus.subscription_status ||
+											"Active"}</span
+									>
+								</div>
+							</div>
+						</div>
+					{/if}
+
 					<h2
 						class="text-4xl md:text-5xl font-bold text-gray-900 mb-6"
 					>
@@ -275,6 +392,29 @@
 							typeof tierConfig.disabled === "function"
 								? tierConfig.disabled()
 								: (tierConfig.disabled ?? false)}
+						{@const isCurrentPlan =
+							(billingStatus &&
+								billingStatus.tier?.toLowerCase() ===
+									tierConfig.tier.toLowerCase()) ||
+							undefined}
+						{@const isUpgrade =
+							(billingStatus &&
+								getTierHierarchy(
+									billingStatus.tier.toLowerCase(),
+								) <
+									getTierHierarchy(
+										tierConfig.tier.toLowerCase(),
+									)) ||
+							undefined}
+						{@const isDowngrade =
+							(billingStatus &&
+								getTierHierarchy(
+									billingStatus.tier.toLowerCase(),
+								) >
+									getTierHierarchy(
+										tierConfig.tier.toLowerCase(),
+									)) ||
+							undefined}
 						<PricingCard
 							tier={tierConfig.tier}
 							title={tierConfig.title}
@@ -293,7 +433,11 @@
 							{founderPricingActive}
 							{checkoutLoading}
 							{billingInterval}
+							{isCurrentPlan}
+							{isUpgrade}
+							{isDowngrade}
 							on:checkout={handleCheckout}
+							on:portal={() => openPortal()}
 						/>
 					{/each}
 				</div>
@@ -307,7 +451,7 @@
 					</div>
 				{/if}
 			</div>
-			<!-- max-w-5tl container ends -->
+			<!-- max-w-5xl container ends -->
 
 			<!-- FAQ / Notes -->
 			<div class="text-center max-w-3xl mx-auto px-4">

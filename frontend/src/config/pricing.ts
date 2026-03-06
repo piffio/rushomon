@@ -24,13 +24,47 @@ function getActualPrice(
 	return product?.price_amount || 0;
 }
 
+// Helper function to determine tier hierarchy
+function getTierHierarchy(tier: string): number {
+	switch (tier) {
+		case 'free': return 0;
+		case 'pro': return 1;
+		case 'business': return 2;
+		default: return 0;
+	}
+}
+
+// Helper function to check if a tier is the current plan
+function isCurrentPlan(tier: string, billingStatus: any): boolean {
+	if (!billingStatus || !billingStatus.tier) return false;
+	return billingStatus.tier.toLowerCase() === tier.toLowerCase();
+}
+
+// Helper function to check if a tier is an upgrade
+function isUpgrade(tier: string, billingStatus: any): boolean {
+	if (!billingStatus || !billingStatus.tier) return true; // No current plan, everything is an upgrade
+	const currentTier = getTierHierarchy(billingStatus.tier.toLowerCase());
+	const targetTier = getTierHierarchy(tier.toLowerCase());
+	return targetTier > currentTier;
+}
+
+// Helper function to check if a tier is a downgrade
+function isDowngrade(tier: string, billingStatus: any): boolean {
+	if (!billingStatus || !billingStatus.tier) return false;
+	const currentTier = getTierHierarchy(billingStatus.tier.toLowerCase());
+	const targetTier = getTierHierarchy(tier.toLowerCase());
+	return targetTier < currentTier;
+}
+
 export const createPricingTiers = (
 	getDisplayPriceWithFallback: (tier: string, interval: string) => number,
 	founderPrice: (tier: string, interval: string) => number,
 	billingInterval: string,
 	currentUser: any,
 	loginUrl: string,
-	products: any[]
+	products: any[],
+	billingStatus: any,
+	openPortal: () => void
 ): PricingTier[] => [
 		{
 			tier: 'free',
@@ -45,10 +79,20 @@ export const createPricingTiers = (
 				'QR code generation',
 				'Community support (GitHub)'
 			],
-			buttonText: 'Get Started Free',
-			buttonHref: loginUrl,
-			isPopular: false,
-			disabled: false
+			buttonText: () => {
+				if (!currentUser) return 'Get Started Free';
+				if (isCurrentPlan('free', billingStatus)) return 'Your Current Plan';
+				if (isDowngrade('free', billingStatus)) return 'Keep Current Plan';
+				return 'Downgrade to Free';
+			},
+			buttonHref: () => {
+				if (!currentUser) return loginUrl;
+				if (isCurrentPlan('free', billingStatus)) return undefined; // Disabled
+				if (isDowngrade('free', billingStatus)) return undefined; // Disabled
+				return undefined; // Downgrades not implemented yet
+			},
+			disabled: false, // Free tier is never disabled
+			isPopular: false
 		},
 		{
 			tier: 'pro',
@@ -66,17 +110,28 @@ export const createPricingTiers = (
 			buttonText: () => {
 				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
 				// If actual price is 0, plan isn't configured
-				return actualPrice === 0 ? 'Coming Soon' : (currentUser ? 'Upgrade to Pro' : 'Get Started');
+				if (actualPrice === 0) return 'Coming Soon';
+
+				if (!currentUser) return 'Get Started';
+				if (isCurrentPlan('pro', billingStatus)) return 'Manage Subscription';
+				if (isDowngrade('pro', billingStatus)) return 'Keep Current Plan';
+				if (isUpgrade('pro', billingStatus)) return 'Upgrade to Pro';
+				return 'Get Started';
 			},
 			buttonHref: () => {
 				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
 				// If actual price is 0, plan isn't configured, disable button
-				return actualPrice === 0 ? undefined : (currentUser ? undefined : loginUrl);
+				if (actualPrice === 0) return undefined;
+
+				if (!currentUser) return loginUrl;
+				if (isCurrentPlan('pro', billingStatus)) return undefined; // Use portal action
+				if (isDowngrade('pro', billingStatus)) return undefined; // Disabled
+				return undefined; // Use checkout action
 			},
 			disabled: () => {
 				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
-				// Disabled when plan is not configured (actualPrice === 0)
-				return actualPrice === 0;
+				// Disabled when plan is not configured (actualPrice === 0) or is downgrade
+				return actualPrice === 0 || isDowngrade('pro', billingStatus);
 			},
 			isPopular: true,
 			founderPrice: () => founderPrice('pro', billingInterval),
@@ -101,17 +156,28 @@ export const createPricingTiers = (
 			buttonText: () => {
 				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
 				// If actual price is 0, plan isn't configured
-				return actualPrice === 0 ? 'Coming Soon' : (currentUser ? 'Upgrade to Business' : 'Get Started');
+				if (actualPrice === 0) return 'Coming Soon';
+
+				if (!currentUser) return 'Get Started';
+				if (isCurrentPlan('business', billingStatus)) return 'Manage Subscription';
+				if (isDowngrade('business', billingStatus)) return 'Keep Current Plan';
+				if (isUpgrade('business', billingStatus)) return 'Upgrade to Business';
+				return 'Get Started';
 			},
 			buttonHref: () => {
 				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
 				// If actual price is 0, plan isn't configured, disable button
-				return actualPrice === 0 ? undefined : (currentUser ? undefined : loginUrl);
+				if (actualPrice === 0) return undefined;
+
+				if (!currentUser) return loginUrl;
+				if (isCurrentPlan('business', billingStatus)) return undefined; // Use portal action
+				if (isDowngrade('business', billingStatus)) return undefined; // Disabled
+				return undefined; // Use checkout action
 			},
 			disabled: () => {
 				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
-				// Disabled when plan is not configured (actualPrice === 0)
-				return actualPrice === 0;
+				// Disabled when plan is not configured (actualPrice === 0) or is downgrade
+				return actualPrice === 0 || isDowngrade('business', billingStatus);
 			},
 			isPopular: false,
 			founderPrice: () => founderPrice('business', billingInterval),

@@ -16,6 +16,9 @@
 	export let checkoutLoading: string | null = null;
 	export let billingInterval = "monthly";
 	export let disabled = false;
+	export let isCurrentPlan = false;
+	export let isUpgrade = false;
+	export let isDowngrade = false;
 
 	const dispatch = createEventDispatcher();
 
@@ -25,6 +28,8 @@
 
 		if (buttonHref) {
 			window.location.href = buttonHref;
+		} else if (isCurrentPlan) {
+			dispatch("portal", { tier });
 		} else {
 			dispatch("checkout", { tier });
 		}
@@ -32,12 +37,46 @@
 </script>
 
 <div
-	class="border {isPopular
-		? 'border-2 border-orange-500'
-		: 'border-gray-200'} rounded-2xl p-8 relative transition-all duration-700 h-full pricing-grid"
-	class:shadow-lg={isPopular}
+	class="border rounded-2xl p-8 relative transition-all duration-700 h-full pricing-grid {isCurrentPlan
+		? 'border-2 border-green-500 bg-green-50'
+		: isPopular
+			? 'border-2 border-orange-500'
+			: isDowngrade
+				? 'border-gray-300 bg-gray-50 opacity-75'
+				: 'border-gray-200'}"
+	class:shadow-lg={isPopular || isCurrentPlan}
 >
-	{#if isPopular}
+	{#if isCurrentPlan}
+		<div class="absolute -top-4 left-1/2 transform -translate-x-1/2">
+			<span
+				class="bg-green-500 text-white px-4 py-1 rounded-full text-sm font-semibold flex items-center gap-1"
+			>
+				<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+					<path
+						fill-rule="evenodd"
+						d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+				Your Plan
+			</span>
+		</div>
+	{:else if isUpgrade}
+		<div class="absolute -top-4 left-1/2 transform -translate-x-1/2">
+			<span
+				class="bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-semibold flex items-center gap-1"
+			>
+				<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+					<path
+						fill-rule="evenodd"
+						d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+				Upgrade
+			</span>
+		</div>
+	{:else if isPopular}
 		<div class="absolute -top-4 left-1/2 transform -translate-x-1/2">
 			<span
 				class="bg-orange-500 text-white px-4 py-1 rounded-full text-sm font-semibold"
@@ -55,7 +94,7 @@
 
 	<!-- Price -->
 	<div class="pricing-price">
-		{#if founderPricingActive && founderPrice}
+		{#if tier !== "free" && founderPricingActive && founderPrice}
 			{#if billingInterval === "monthly"}
 				<div class="flex items-baseline justify-start gap-1">
 					<span class="text-5xl font-bold text-orange-600"
@@ -103,9 +142,11 @@
 				<!-- Free tier or configured paid tier -->
 				<div class="flex items-baseline justify-start gap-1">
 					<span class="text-5xl font-bold text-gray-900"
-						>€{price}</span
+						>{tier === "free" ? "0" : price}</span
 					>
-					<span class="text-gray-600 text-lg">/{interval}</span>
+					<span class="text-gray-600 text-lg"
+						>/{tier === "free" ? "month" : interval}</span
+					>
 				</div>
 			{/if}
 		{/if}
@@ -138,13 +179,21 @@
 		<button
 			onclick={handleAction}
 			disabled={checkoutLoading === `${tier}_${billingInterval}` ||
+				checkoutLoading === "portal" ||
 				disabled}
 			class="w-full px-6 py-3 rounded-lg font-semibold transition-all shadow-sm text-center {disabled
 				? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-				: 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed'}"
+				: isCurrentPlan
+					? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-md'
+					: isUpgrade
+						? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 hover:shadow-md'
+						: 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-md'}"
 		>
-			{checkoutLoading === `${tier}_${billingInterval}`
-				? "Redirecting…"
+			{checkoutLoading === `${tier}_${billingInterval}` ||
+			checkoutLoading === "portal"
+				? isCurrentPlan
+					? "Opening Portal…"
+					: "Redirecting…"
 				: buttonText}
 		</button>
 	</div>
