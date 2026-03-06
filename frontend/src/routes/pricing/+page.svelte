@@ -415,6 +415,16 @@
 										tierConfig.tier.toLowerCase(),
 									)) ||
 							undefined}
+						{@const usePortalForUpgrade =
+							(billingStatus &&
+								billingStatus.tier?.toLowerCase() !== "free" &&
+								getTierHierarchy(
+									billingStatus.tier.toLowerCase(),
+								) <
+									getTierHierarchy(
+										tierConfig.tier.toLowerCase(),
+									)) ||
+							undefined}
 						<PricingCard
 							tier={tierConfig.tier}
 							title={tierConfig.title}
@@ -436,6 +446,7 @@
 							{isCurrentPlan}
 							{isUpgrade}
 							{isDowngrade}
+							{usePortalForUpgrade}
 							on:checkout={handleCheckout}
 							on:portal={() => openPortal()}
 						/>

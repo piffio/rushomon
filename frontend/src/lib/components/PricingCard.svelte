@@ -19,6 +19,7 @@
 	export let isCurrentPlan = false;
 	export let isUpgrade = false;
 	export let isDowngrade = false;
+	export let usePortalForUpgrade = false;
 
 	const dispatch = createEventDispatcher();
 
@@ -29,6 +30,8 @@
 		if (buttonHref) {
 			window.location.href = buttonHref;
 		} else if (isCurrentPlan) {
+			dispatch("portal", { tier });
+		} else if (isUpgrade && usePortalForUpgrade) {
 			dispatch("portal", { tier });
 		} else {
 			dispatch("checkout", { tier });

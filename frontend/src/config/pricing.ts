@@ -56,6 +56,11 @@ function isDowngrade(tier: string, billingStatus: any): boolean {
 	return targetTier < currentTier;
 }
 
+// Helper function to check if user is on free plan
+function isOnFreePlan(billingStatus: any): boolean {
+	return !billingStatus || billingStatus.tier?.toLowerCase() === 'free';
+}
+
 export const createPricingTiers = (
 	getDisplayPriceWithFallback: (tier: string, interval: string) => number,
 	founderPrice: (tier: string, interval: string) => number,
@@ -115,7 +120,9 @@ export const createPricingTiers = (
 				if (!currentUser) return 'Get Started';
 				if (isCurrentPlan('pro', billingStatus)) return 'Manage Subscription';
 				if (isDowngrade('pro', billingStatus)) return 'Keep Current Plan';
-				if (isUpgrade('pro', billingStatus)) return 'Upgrade to Pro';
+				if (isUpgrade('pro', billingStatus)) {
+					return isOnFreePlan(billingStatus) ? 'Upgrade to Pro' : 'Upgrade to Pro';
+				}
 				return 'Get Started';
 			},
 			buttonHref: () => {
@@ -126,6 +133,10 @@ export const createPricingTiers = (
 				if (!currentUser) return loginUrl;
 				if (isCurrentPlan('pro', billingStatus)) return undefined; // Use portal action
 				if (isDowngrade('pro', billingStatus)) return '/dashboard'; // Redirect to dashboard
+				if (isUpgrade('pro', billingStatus)) {
+					// Free users use checkout, paid users use portal
+					return isOnFreePlan(billingStatus) ? undefined : undefined;
+				}
 				return undefined; // Use checkout action
 			},
 			disabled: () => {
@@ -161,7 +172,9 @@ export const createPricingTiers = (
 				if (!currentUser) return 'Get Started';
 				if (isCurrentPlan('business', billingStatus)) return 'Manage Subscription';
 				if (isDowngrade('business', billingStatus)) return 'Keep Current Plan';
-				if (isUpgrade('business', billingStatus)) return 'Upgrade to Business';
+				if (isUpgrade('business', billingStatus)) {
+					return isOnFreePlan(billingStatus) ? 'Upgrade to Business' : 'Upgrade to Business';
+				}
 				return 'Get Started';
 			},
 			buttonHref: () => {
@@ -172,6 +185,10 @@ export const createPricingTiers = (
 				if (!currentUser) return loginUrl;
 				if (isCurrentPlan('business', billingStatus)) return undefined; // Use portal action
 				if (isDowngrade('business', billingStatus)) return '/dashboard'; // Redirect to dashboard
+				if (isUpgrade('business', billingStatus)) {
+					// Free users use checkout, paid users use portal
+					return isOnFreePlan(billingStatus) ? undefined : undefined;
+				}
 				return undefined; // Use checkout action
 			},
 			disabled: () => {
