@@ -231,10 +231,6 @@ jobs:
         env:
           PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
-          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
-          POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
-          INTERNAL_WEBHOOK_SECRET: ${{ secrets.INTERNAL_WEBHOOK_SECRET }}
-          POLAR_SANDBOX: "true"
         run: npm run build
 
       - name: Apply database migrations
@@ -249,7 +245,6 @@ jobs:
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
           POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
           POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
-          INTERNAL_WEBHOOK_SECRET: ${{ secrets.INTERNAL_WEBHOOK_SECRET }}
         run: |
           echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET --config wrangler.staging.toml
 
@@ -263,7 +258,6 @@ jobs:
           if [ -n "$POLAR_ACCESS_TOKEN" ]; then
             echo "$POLAR_ACCESS_TOKEN" | wrangler secret put POLAR_ACCESS_TOKEN --config wrangler.staging.toml
             echo "$POLAR_WEBHOOK_SECRET" | wrangler secret put POLAR_WEBHOOK_SECRET --config wrangler.staging.toml
-            echo "$INTERNAL_WEBHOOK_SECRET" | wrangler secret put INTERNAL_WEBHOOK_SECRET --config wrangler.staging.toml
           fi
           echo "✅ Secrets configured securely"
 

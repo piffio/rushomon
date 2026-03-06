@@ -58,12 +58,8 @@ MAILGUN_BASE_URL=https://api.mailgun.net
 #   https://sandbox.polar.sh
 #
 # POLAR_ACCESS_TOKEN: Generate at Polar Dashboard → Settings → API
-# POLAR_WEBHOOK_SECRET: Set when creating a webhook in Polar Dashboard → Settings → Webhooks
 # POLAR_SANDBOX: Set to "true" for sandbox/staging, "false" for production
 # POLAR_ORG_SLUG: Your Polar organization slug (for admin deep links)
-# INTERNAL_WEBHOOK_SECRET: A shared secret between SvelteKit frontend and this Worker
-#   Generate with: openssl rand -base64 32
 #
 # Leave all POLAR_* vars empty/unset to disable billing (self-hosted mode).
-# NOTE: POLAR_ACCESS_TOKEN and POLAR_WEBHOOK_SECRET are worker secrets (not vars)
-# NOTE: INTERNAL_WEBHOOK_SECRET is a worker secret set via: wrangler secret put INTERNAL_WEBHOOK_SECRET
+# NOTE: POLAR_ACCESS_TOKEN is a worker secret (not var)

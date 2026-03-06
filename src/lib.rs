@@ -362,7 +362,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/billing/status", handle_cors_preflight)
         .options_async("/api/billing/checkout", handle_cors_preflight)
         .options_async("/api/billing/pricing", handle_cors_preflight)
-        .options_async("/api/billing/subscription-update", handle_cors_preflight)
+        .options_async("/api/billing/webhook", handle_cors_preflight)
+        .options_async("/api/billing/portal", handle_cors_preflight)
         .options_async("/api/settings", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/providers", router::handle_list_auth_providers)
@@ -516,11 +517,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/billing/checkout",
             crate::api::billing::handle_create_checkout,
         )
-        // Internal endpoint called by SvelteKit webhook handler after Polar signature verification
-        .post_async(
-            "/api/billing/subscription-update",
-            crate::api::billing::handle_subscription_update,
-        )
+        .post_async("/api/billing/webhook", crate::api::billing::handle_webhook)
+        .post_async("/api/billing/portal", crate::api::billing::handle_portal)
         // Title fetch route (public, can be called by anyone)
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)

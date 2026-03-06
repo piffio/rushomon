@@ -93,7 +93,89 @@ async fn test_billing_checkout_without_polar_returns_error() {
 }
 
 #[tokio::test]
-async fn test_billing_subscription_update_requires_secret() {
+async fn test_billing_webhook_rejects_missing_signature() {
+    let client = test_client();
+
+    let response = client
+        .post(format!("{}/api/billing/webhook", BASE_URL))
+        .json(&serde_json::json!({"type": "subscription.active", "data": {}}))
+        .send()
+        .await
+        .unwrap();
+
+    // Without the webhook-signature header the endpoint must reject with 401 or 503
+    // (503 when POLAR_WEBHOOK_SECRET is not configured in the test environment)
+    assert!(
+        response.status() == StatusCode::UNAUTHORIZED
+            || response.status() == StatusCode::SERVICE_UNAVAILABLE,
+        "Webhook without signature should be rejected, got: {}",
+        response.status()
+    );
+}
+
+#[tokio::test]
+async fn test_billing_webhook_rejects_invalid_signature() {
+    let client = test_client();
+
+    let response = client
+        .post(format!("{}/api/billing/webhook", BASE_URL))
+        .header(
+            "webhook-signature",
+            "sha256=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+        )
+        .json(&serde_json::json!({"type": "subscription.active", "data": {}}))
+        .send()
+        .await
+        .unwrap();
+
+    // With a bogus signature the endpoint must reject with 401 or 503
+    // (503 when POLAR_WEBHOOK_SECRET is not configured in the test environment)
+    assert!(
+        response.status() == StatusCode::UNAUTHORIZED
+            || response.status() == StatusCode::SERVICE_UNAVAILABLE,
+        "Webhook with invalid signature should be rejected, got: {}",
+        response.status()
+    );
+}
+
+#[tokio::test]
+async fn test_billing_portal_requires_auth() {
+    let client = test_client();
+
+    let response = client
+        .post(format!("{}/api/billing/portal", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "Portal endpoint should require authentication"
+    );
+}
+
+#[tokio::test]
+async fn test_billing_portal_without_subscription_returns_error() {
+    let client = authenticated_client();
+
+    let response = client
+        .post(format!("{}/api/billing/portal", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    // Authenticated but no subscription/customer_id – expect 400 or 503
+    assert!(
+        response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::SERVICE_UNAVAILABLE,
+        "Portal without subscription should return 400 or 503, got: {}",
+        response.status()
+    );
+}
+
+#[tokio::test]
+async fn test_billing_subscription_update_endpoint_removed() {
     let client = test_client();
 
     let response = client
@@ -103,12 +185,10 @@ async fn test_billing_subscription_update_requires_secret() {
         .await
         .unwrap();
 
-    // Without the X-Internal-Secret header the endpoint should reject
-    assert!(
-        response.status() == StatusCode::UNAUTHORIZED
-            || response.status() == StatusCode::SERVICE_UNAVAILABLE,
-        "subscription-update without secret should be rejected, got: {}",
-        response.status()
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "Old subscription-update endpoint should be gone (404)"
     );
 }
 

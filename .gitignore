@@ -34,3 +34,7 @@ frontend/.vercel
 .vscode
 *.swp
 *.swo
+
+# Backup files
+*.back
+*.backup

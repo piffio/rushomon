@@ -106,6 +106,26 @@ impl PolarClient {
         self.get_json("/v1/products?limit=100").await
     }
 
+    /// Creates a Polar Customer Portal session and returns the portal URL.
+    pub async fn create_customer_portal_session(
+        &self,
+        customer_id: &str,
+        return_url: &str,
+    ) -> Result<String> {
+        let body = serde_json::json!({
+            "customer_id": customer_id,
+            "return_url": return_url,
+        });
+
+        let json = self.post_json("/v1/customer-sessions", &body).await?;
+
+        let portal_url = json["customer_portal_url"].as_str().ok_or_else(|| {
+            worker::Error::RustError("Missing customer_portal_url in response".to_string())
+        })?;
+
+        Ok(portal_url.to_string())
+    }
+
     pub async fn fetch_price_id_for_product(&self, product_id: &str) -> Result<String> {
         let json = self
             .get_json(&format!("/v1/products/{}", product_id))

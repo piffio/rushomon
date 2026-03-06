@@ -67,19 +67,12 @@ export const billingApi = {
 	},
 
 	async createPortal(): Promise<PortalResponse> {
-		const response = await fetch('/api/billing/portal', {
-			method: 'POST',
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-		});
+		const res = await apiClient.post<PortalResponse>('/api/billing/portal', {});
 
-		if (!response.ok) {
-			const error = await response.text();
-			throw new Error(error || 'Failed to create portal session');
+		if (!res.url) {
+			throw new Error('No portal URL returned');
 		}
 
-		return response.json() as Promise<PortalResponse>;
+		return { url: res.url };
 	}
 };

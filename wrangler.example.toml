@@ -56,8 +56,7 @@ ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://your-fron
 
 # ─── Polar (optional, required for paid plans) ───────────────────────────────
 # Create an account at: https://polar.sh (sandbox: https://sandbox.polar.sh)
-# POLAR_ACCESS_TOKEN and POLAR_WEBHOOK_SECRET are secrets (see below)
-# INTERNAL_WEBHOOK_SECRET is a shared secret between SvelteKit and this Worker
+# POLAR_ACCESS_TOKEN is a secret (see below)
 #
 # Product IDs: Polar Dashboard → Products → click ⋮ next to product → Copy Product ID
 POLAR_ORG_SLUG = "your-polar-org-slug"

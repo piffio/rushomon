@@ -5,7 +5,7 @@ pub mod time;
 pub mod url_normalization;
 pub mod validation;
 
-pub use crypto::secure_compare;
+pub use crypto::{secure_compare, verify_polar_webhook_signature};
 pub use short_code::{generate_short_code, generate_short_code_with_length};
 pub use time::now_timestamp;
 pub use url_normalization::normalize_url_for_blacklist;

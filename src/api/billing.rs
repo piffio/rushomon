@@ -4,8 +4,7 @@ use crate::billing::polar::{
 };
 use crate::billing::provider::BillingProvider;
 use crate::db;
-use crate::utils::now_timestamp;
-use subtle::ConstantTimeEq;
+use crate::utils::{now_timestamp, verify_polar_webhook_signature};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -30,7 +29,6 @@ pub async fn handle_get_status(req: Request, ctx: RouteContext<()>) -> Result<Re
         Some(ba) => ba,
         None => {
             // Auto-create billing account and org for new users
-            console_log!("Creating billing account for user: {}", user_ctx.user_id);
             let org = db::create_default_org(&db, &user_ctx.user_id, "Personal").await?;
             match db::get_billing_account(&db, org.billing_account_id.as_deref().unwrap_or(""))
                 .await?
@@ -111,10 +109,7 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     };
 
     let plan = match body["plan"].as_str() {
-        Some(p) => {
-            console_log!("[checkout] Received plan: {}", p);
-            p.to_string()
-        }
+        Some(p) => p,
         None => {
             console_error!("[checkout] plan is required");
             return Response::error("plan is required", 400);
@@ -122,7 +117,7 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     };
 
     // Validate plan name and map to product ID setting key
-    let product_id_key = match plan.as_str() {
+    let product_id_key = match plan {
         "pro_monthly" => "product_pro_monthly_id",
         "pro_annual" => "product_pro_annual_id",
         "business_monthly" => "product_business_monthly_id",
@@ -140,10 +135,7 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
 
     // Look up product ID securely from settings
     let polar_product_id = match settings.get(product_id_key) {
-        Some(id) => {
-            console_log!("[checkout] Found product_id for {}: {}", plan, id);
-            id.clone()
-        }
+        Some(id) => id.clone(),
         None => {
             console_error!("[checkout] Product ID not found for plan: {}", plan);
             return Response::error("Plan not configured", 503);
@@ -156,7 +148,7 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
         .map(|v| v == "true")
         .unwrap_or(false)
     {
-        let discount_key = match plan.as_str() {
+        let discount_key = match plan {
             "pro_monthly" => "active_discount_pro_monthly",
             "pro_annual" => "active_discount_pro_annual",
             "business_monthly" => "active_discount_business_monthly",
@@ -166,23 +158,16 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
 
         let discount_id = settings.get(discount_key).cloned().unwrap_or_default();
         if !discount_id.is_empty() {
-            console_log!("[checkout] Using discount_id for {}: {}", plan, discount_id);
             Some(discount_id)
         } else {
-            console_log!("[checkout] No discount configured for {}", plan);
             None
         }
     } else {
-        console_log!("[checkout] Founder pricing not active, no discount applied");
         None
     };
 
-    console_log!("[checkout] Initializing Polar client...");
     let polar = match polar_client_from_env(&ctx.env) {
-        Ok(s) => {
-            console_log!("[checkout] Polar client initialized successfully");
-            s
-        }
+        Ok(s) => s,
         Err(e) => {
             console_error!("[checkout] Failed to initialize Polar client: {}", e);
             return Response::error("Billing not configured", 503);
@@ -190,29 +175,15 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     };
 
     // Get or create billing account for user
-    console_log!(
-        "[checkout] Getting billing account for user: {}",
-        user_ctx.user_id
-    );
     let billing_account = match db::get_user_billing_account(&db, &user_ctx.user_id).await? {
-        Some(ba) => {
-            console_log!("[checkout] Found existing billing account: {}", ba.id);
-            ba
-        }
+        Some(ba) => ba,
         None => {
             // Auto-create billing account and org for new users
-            console_log!(
-                "[checkout] Creating billing account for user: {}",
-                user_ctx.user_id
-            );
             let org = db::create_default_org(&db, &user_ctx.user_id, "Personal").await?;
             match db::get_billing_account(&db, org.billing_account_id.as_deref().unwrap_or(""))
                 .await?
             {
-                Some(ba) => {
-                    console_log!("[checkout] Created billing account: {}", ba.id);
-                    ba
-                }
+                Some(ba) => ba,
                 None => {
                     console_error!("[checkout] Failed to create billing account");
                     return Response::error("Failed to create billing account", 500);
@@ -238,21 +209,8 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
         client_reference_id: billing_account.id.clone(),
     };
 
-    console_log!(
-        "[checkout] Creating checkout session with params: billing_account_id={}, product_id={}, coupon_id={:?}",
-        params.billing_account_id,
-        params.price_id,
-        params.coupon_id
-    );
-
     match polar.create_checkout_session(params).await {
-        Ok(session) => {
-            console_log!(
-                "[checkout] Checkout session created successfully: {}",
-                session.url
-            );
-            Response::from_json(&serde_json::json!({ "url": session.url }))
-        }
+        Ok(session) => Response::from_json(&serde_json::json!({ "url": session.url })),
         Err(e) => {
             console_error!("[checkout] Polar API error: {}", e);
             Response::error("Failed to create checkout session", 500)
@@ -260,55 +218,144 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     }
 }
 
-// ─── POST /api/billing/subscription-update ──────────────────────────────────
-/// Internal endpoint called by the SvelteKit webhook handler after verifying the
-/// Polar webhook signature. Authenticated with a shared INTERNAL_WEBHOOK_SECRET.
-pub async fn handle_subscription_update(
-    mut req: Request,
-    ctx: RouteContext<()>,
-) -> Result<Response> {
-    let expected_secret = match ctx.env.secret("INTERNAL_WEBHOOK_SECRET") {
+// ─── POST /api/billing/webhook ───────────────────────────────────────────────
+/// Receives Polar webhook events, verifies the HMAC-SHA256 signature, and
+/// processes subscription state changes directly in the database.
+///
+/// Error handling strategy:
+///   - 401 (no retry): invalid or missing signature
+///   - 400 (no retry): malformed / unprocessable payload
+///   - 503 (retry):   transient infrastructure failures (DB, Polar API)
+///   - 200:           event processed successfully or intentionally skipped
+pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // ── 1. Verify signature ──────────────────────────────────────────────────
+    let webhook_secret = match ctx.env.secret("POLAR_WEBHOOK_SECRET") {
         Ok(s) => s.to_string(),
-        Err(_) => return Response::error("Internal endpoint not configured", 503),
+        Err(_) => {
+            console_error!("[webhook] POLAR_WEBHOOK_SECRET not configured");
+            return Response::error("Webhook not configured", 503);
+        }
     };
 
-    let provided = req.headers().get("X-Internal-Secret")?.unwrap_or_default();
+    let signature = match req.headers().get("webhook-signature")? {
+        Some(s) => s,
+        None => {
+            console_error!("[webhook] Missing webhook-signature header");
+            return Response::error("Missing signature", 401);
+        }
+    };
 
-    let secrets_match: bool = provided.as_bytes().ct_eq(expected_secret.as_bytes()).into();
-    if !secrets_match {
-        return Response::error("Unauthorized", 401);
+    let webhook_id = match req.headers().get("webhook-id")? {
+        Some(s) => s,
+        None => {
+            console_error!("[webhook] Missing webhook-id header");
+            return Response::error("Missing webhook-id header", 401);
+        }
+    };
+
+    let webhook_timestamp = match req.headers().get("webhook-timestamp")? {
+        Some(s) => s,
+        None => {
+            console_error!("[webhook] Missing webhook-timestamp header");
+            return Response::error("Missing webhook-timestamp header", 401);
+        }
+    };
+
+    // Read the raw body bytes for signature verification before parsing as JSON
+    let body_bytes = match req.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            console_error!("[webhook] Failed to read request body: {}", e);
+            return Response::error("Failed to read request body", 503);
+        }
+    };
+
+    match verify_polar_webhook_signature(
+        &body_bytes,
+        &webhook_id,
+        &webhook_timestamp,
+        &signature,
+        &webhook_secret,
+    ) {
+        Ok(true) => {}
+        Ok(false) => {
+            console_error!("[webhook] Signature verification failed");
+            return Response::error("Invalid signature", 401);
+        }
+        Err(e) => {
+            console_error!("[webhook] Signature verification error: {}", e);
+            return Response::error("Invalid signature", 401);
+        }
     }
 
-    let body: serde_json::Value = match req.json().await {
+    // ── 2. Parse JSON payload ────────────────────────────────────────────────
+    let body: serde_json::Value = match serde_json::from_slice(&body_bytes) {
         Ok(b) => b,
-        Err(_) => return Response::error("Invalid request body", 400),
+        Err(e) => {
+            console_error!("[webhook] Invalid JSON payload: {}", e);
+            return Response::error("Invalid payload", 400);
+        }
     };
 
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    // Polar wraps events: { "type": "subscription.active", "data": { ... } }
+    let event_type = match body["type"].as_str() {
+        Some(t) => t.to_string(),
+        None => {
+            console_error!("[webhook] Missing event type in payload");
+            return Response::error("Missing event type", 400);
+        }
+    };
 
-    let event_type = body["event_type"].as_str().unwrap_or("");
+    let data = &body["data"];
+
+    // ── 3. Get DB – failure is transient, let Polar retry ────────────────────
+    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("[webhook] DB binding unavailable: {}", e);
+            return Response::error("Service temporarily unavailable", 503);
+        }
+    };
+
     let now = now_timestamp();
 
-    match event_type {
-        "subscription_activated" | "subscription_created" => {
-            let subscription_id = body["subscription_id"].as_str().unwrap_or("").to_string();
-            let customer_id = body["customer_id"].as_str().unwrap_or("").to_string();
-            let billing_account_id = body["billing_account_id"]
+    // ── 4. Dispatch on event type ────────────────────────────────────────────
+    match event_type.as_str() {
+        "subscription.active" | "subscription.created" => {
+            let subscription_id = data["id"].as_str().unwrap_or("").to_string();
+            let customer_id = data["customer_id"].as_str().unwrap_or("").to_string();
+            // external_id is our internal billing_account_id
+            let billing_account_id = data["customer"]["external_id"]
                 .as_str()
                 .unwrap_or("")
                 .to_string();
-            let price_id = body["price_id"].as_str().unwrap_or("").to_string();
-            let interval = body["interval"].as_str().unwrap_or("month").to_string();
+            let price_id = data["prices"]
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|p| p["id"].as_str())
+                .unwrap_or("")
+                .to_string();
+            let interval = data["recurringInterval"]
+                .as_str()
+                .unwrap_or("month")
+                .to_string();
+            let amount_cents = data["amount"].as_i64();
+            let currency = data["currency"].as_str().unwrap_or("usd");
+            let discount_name = data["discount"]["name"].as_str();
 
-            // Extract pricing data from webhook payload
-            let amount_cents = body["amount"].as_i64(); // Actual amount charged (post-discount)
-            let currency = body["currency"].as_str().unwrap_or("usd");
-            let discount_name = body["discount"]["name"].as_str();
+            if billing_account_id.is_empty() {
+                console_error!(
+                    "[webhook] {} missing billing_account_id (externalId). customer_id={}",
+                    event_type,
+                    customer_id
+                );
+                // Permanent data issue – don't retry
+                return Response::error("Missing billing account ID", 400);
+            }
 
             let (plan, resolved_interval) =
                 match db::get_cached_product_by_price_id(&db, &price_id).await {
                     Ok(Some(product)) => {
-                        // Extract plan from product name or recurring_interval
                         let product_name = product["name"].as_str().unwrap_or("");
                         let plan_name = if product_name.contains("Pro") {
                             "pro"
@@ -317,35 +364,23 @@ pub async fn handle_subscription_update(
                         } else {
                             "free"
                         };
-                        let interval = product["recurring_interval"].as_str().unwrap_or("month");
-                        (plan_name.to_string(), interval.to_string())
+                        let ri = product["recurring_interval"].as_str().unwrap_or("month");
+                        (plan_name.to_string(), ri.to_string())
                     }
                     Ok(None) => {
-                        console_error!(
-                            "[subscription_update] Product not found for price_id: {}",
-                            price_id
-                        );
+                        console_error!("[webhook] Product not found for price_id: {}", price_id);
                         ("free".to_string(), interval)
                     }
                     Err(e) => {
-                        console_error!("[subscription_update] Failed to lookup product: {}", e);
-                        ("free".to_string(), interval)
+                        console_error!("[webhook] DB error looking up product: {}", e);
+                        // Transient DB failure – let Polar retry
+                        return Response::error("Service temporarily unavailable", 503);
                     }
                 };
 
-            let actual_billing_account_id = if !billing_account_id.is_empty() {
-                billing_account_id
-            } else {
-                console_error!(
-                    "No billing account ID provided in webhook. Customer ID: {}",
-                    customer_id
-                );
-                return Response::error("No billing account ID provided", 400);
-            };
-
-            db::upsert_subscription(
+            if let Err(e) = db::upsert_subscription(
                 &db,
-                &actual_billing_account_id,
+                &billing_account_id,
                 &subscription_id,
                 &customer_id,
                 "active",
@@ -360,35 +395,66 @@ pub async fn handle_subscription_update(
                 discount_name,
                 now,
             )
-            .await?;
-            db::update_billing_account_tier(&db, &actual_billing_account_id, &plan).await?;
+            .await
+            {
+                console_error!("[webhook] DB error upserting subscription: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
+            }
 
-            // Store the Polar customer ID on the billing account for portal access
-            db::update_billing_account_provider_customer_id(
+            if let Err(e) = db::update_billing_account_tier(&db, &billing_account_id, &plan).await {
+                console_error!("[webhook] DB error updating billing tier: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
+            }
+
+            if let Err(e) = db::update_billing_account_provider_customer_id(
                 &db,
-                &actual_billing_account_id,
+                &billing_account_id,
                 &customer_id,
             )
-            .await?;
+            .await
+            {
+                console_error!("[webhook] DB error storing customer_id: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
+            }
         }
-        "subscription_updated" => {
-            let subscription_id = body["subscription_id"].as_str().unwrap_or("").to_string();
-            let customer_id = body["customer_id"].as_str().unwrap_or("").to_string();
-            let billing_account_id = body["billing_account_id"]
+
+        "subscription.updated" | "subscription.uncanceled" => {
+            let subscription_id = data["id"].as_str().unwrap_or("").to_string();
+            let customer_id = data["customer_id"].as_str().unwrap_or("").to_string();
+            let billing_account_id = data["customer"]["external_id"]
                 .as_str()
                 .unwrap_or("")
                 .to_string();
-            let status = body["status"].as_str().unwrap_or("active");
-            let price_id = body["price_id"].as_str().unwrap_or("").to_string();
-            let interval = body["interval"].as_str().unwrap_or("month");
-            let current_period_start = body["current_period_start"].as_i64().unwrap_or(0);
-            let current_period_end = body["current_period_end"].as_i64().unwrap_or(0);
-            let cancel_at_period_end = body["cancel_at_period_end"].as_bool().unwrap_or(false);
+            let status = data["status"].as_str().unwrap_or("active");
+            let price_id = data["prices"]
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|p| p["id"].as_str())
+                .unwrap_or("")
+                .to_string();
+            let interval = data["recurringInterval"].as_str().unwrap_or("month");
+            let current_period_start = data["currentPeriodStart"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp())
+                .unwrap_or(0);
+            let current_period_end = data["currentPeriodEnd"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp())
+                .unwrap_or(0);
+            let cancel_at_period_end = data["cancelAtPeriodEnd"].as_bool().unwrap_or(false);
+            let amount_cents = data["amount"].as_i64();
+            let currency = data["currency"].as_str().unwrap_or("usd");
+            let discount_name = data["discount"]["name"].as_str();
 
-            // Extract pricing data from webhook payload
-            let amount_cents = body["amount"].as_i64();
-            let currency = body["currency"].as_str().unwrap_or("usd");
-            let discount_name = body["discount"]["name"].as_str();
+            if billing_account_id.is_empty() {
+                console_error!(
+                    "[webhook] subscription.updated missing billing_account_id. customer_id={}",
+                    customer_id
+                );
+                return Response::error("Missing billing account ID", 400);
+            }
 
             let polar = match polar_client_from_env(&ctx.env) {
                 Ok(p) => p,
@@ -403,19 +469,9 @@ pub async fn handle_subscription_update(
                 ("free".to_string(), interval.to_string())
             };
 
-            let actual_billing_account_id = if !billing_account_id.is_empty() {
-                billing_account_id
-            } else {
-                console_error!(
-                    "No billing account ID provided in subscription_updated webhook. Customer ID: {}",
-                    customer_id
-                );
-                return Response::error("No billing account ID provided", 400);
-            };
-
-            db::upsert_subscription(
+            if let Err(e) = db::upsert_subscription(
                 &db,
-                &actual_billing_account_id,
+                &billing_account_id,
                 &subscription_id,
                 &customer_id,
                 status,
@@ -430,39 +486,109 @@ pub async fn handle_subscription_update(
                 discount_name,
                 now,
             )
-            .await?;
-            db::update_billing_account_tier(&db, &actual_billing_account_id, &plan).await?;
+            .await
+            {
+                console_error!("[webhook] DB error upserting subscription: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
+            }
+
+            if let Err(e) = db::update_billing_account_tier(&db, &billing_account_id, &plan).await {
+                console_error!("[webhook] DB error updating billing tier: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
+            }
         }
-        "subscription_canceled" | "subscription_revoked" => {
-            let subscription_id = body["subscription_id"].as_str().unwrap_or("").to_string();
-            let customer_id = body["customer_id"].as_str().unwrap_or("").to_string();
-            let billing_account_id = body["billing_account_id"]
+
+        "subscription.canceled" | "subscription.revoked" => {
+            let subscription_id = data["id"].as_str().unwrap_or("").to_string();
+            let customer_id = data["customerId"].as_str().unwrap_or("").to_string();
+            let billing_account_id = data["customer"]["externalId"]
                 .as_str()
                 .unwrap_or("")
                 .to_string();
 
-            console_log!(
-                "Processing subscription cancellation: subscription_id={}, billing_account_id={}, customer_id={}",
-                subscription_id,
-                billing_account_id,
-                customer_id
-            );
-
-            if !billing_account_id.is_empty() {
-                db::mark_subscription_canceled(&db, &subscription_id, now).await?;
-                db::update_billing_account_tier(&db, &billing_account_id, "free").await?;
-                console_log!(
-                    "Successfully marked subscription as canceled and updated billing account to free"
-                );
-            } else {
+            if billing_account_id.is_empty() {
                 console_error!(
-                    "No billing account ID provided in webhook for subscription cancellation. Customer ID: {}",
+                    "[webhook] {} missing billing_account_id. customer_id={}",
+                    event_type,
                     customer_id
                 );
+                return Response::error("Missing billing account ID", 400);
+            }
+
+            if let Err(e) = db::mark_subscription_canceled(&db, &subscription_id, now).await {
+                console_error!("[webhook] DB error canceling subscription: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
+            }
+
+            if let Err(e) = db::update_billing_account_tier(&db, &billing_account_id, "free").await
+            {
+                console_error!("[webhook] DB error downgrading tier: {}", e);
+                return Response::error("Service temporarily unavailable", 503);
             }
         }
-        _ => {}
+
+        other => {
+            console_warn!("[webhook] Unhandled event type: {} – acknowledging", other);
+        }
     }
 
     Response::from_json(&serde_json::json!({ "received": true }))
+}
+
+// ─── POST /api/billing/portal ─────────────────────────────────────────────────
+/// Generates a Polar Customer Portal URL for the authenticated user.
+/// The frontend receives the URL and redirects the user.
+pub async fn handle_portal(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(c) => c,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let polar = match polar_client_from_env(&ctx.env) {
+        Ok(p) => p,
+        Err(_) => return Response::error("Billing not configured", 503),
+    };
+
+    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("[portal] DB binding unavailable: {}", e);
+            return Response::error("Service temporarily unavailable", 503);
+        }
+    };
+
+    let billing_account = match db::get_user_billing_account(&db, &user_ctx.user_id).await? {
+        Some(ba) => ba,
+        None => {
+            return Response::error("No billing account found", 400);
+        }
+    };
+
+    let customer_id = match billing_account.provider_customer_id {
+        Some(ref id) if !id.is_empty() => id.clone(),
+        _ => {
+            console_error!(
+                "[portal] No Polar customer_id for billing_account: {}",
+                billing_account.id
+            );
+            return Response::error(
+                "No billing account found. Please create a subscription first.",
+                400,
+            );
+        }
+    };
+
+    let frontend_url = get_frontend_url(&ctx.env);
+    let return_url = format!("{}/billing", frontend_url);
+
+    match polar
+        .create_customer_portal_session(&customer_id, &return_url)
+        .await
+    {
+        Ok(portal_url) => Response::from_json(&serde_json::json!({ "url": portal_url })),
+        Err(e) => {
+            console_error!("[portal] Polar API error: {}", e);
+            Response::error("Failed to create portal session", 500)
+        }
+    }
 }
