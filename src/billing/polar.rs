@@ -125,89 +125,6 @@ impl PolarClient {
 
         Ok(portal_url.to_string())
     }
-
-    pub async fn fetch_price_id_for_product(&self, product_id: &str) -> Result<String> {
-        let json = self
-            .get_json(&format!("/v1/products/{}", product_id))
-            .await?;
-
-        let prices = json["prices"].as_array().ok_or_else(|| {
-            worker::Error::RustError(format!("No prices array for product {}", product_id))
-        })?;
-
-        let price_id = prices
-            .iter()
-            .find(|p| !p["is_archived"].as_bool().unwrap_or(false))
-            .and_then(|p| p["id"].as_str())
-            .ok_or_else(|| {
-                worker::Error::RustError(format!(
-                    "No active price found for product {}",
-                    product_id
-                ))
-            })?;
-
-        Ok(price_id.to_string())
-    }
-}
-
-/// Maps human-readable plan keys to Polar Product IDs (configured via env vars).
-/// At runtime these are used to look up the actual Price IDs via the Polar API.
-pub struct ProductCatalog {
-    pub pro_monthly: String,
-    pub pro_annual: String,
-    pub business_monthly: String,
-    pub business_annual: String,
-}
-
-impl ProductCatalog {
-    /// Resolve a Polar Price ID (received in webhooks) to (plan, interval).
-    /// Requires the price IDs to have been pre-fetched via `build_price_map`.
-    pub fn plan_from_price_id(
-        price_id: &str,
-        price_map: &std::collections::HashMap<String, (&'static str, &'static str)>,
-    ) -> (String, String) {
-        if let Some((plan, interval)) = price_map.get(price_id) {
-            (plan.to_string(), interval.to_string())
-        } else {
-            ("free".to_string(), "".to_string())
-        }
-    }
-}
-
-/// Fetch price IDs for all configured products and build a price_id → (plan, interval) map.
-/// This is called once per webhook request to resolve the price_id from Polar webhooks.
-pub async fn build_price_map(
-    polar: &PolarClient,
-    catalog: &ProductCatalog,
-) -> std::collections::HashMap<String, (&'static str, &'static str)> {
-    let mut map = std::collections::HashMap::new();
-
-    let entries: &[(&str, &'static str, &'static str)] = &[
-        (&catalog.pro_monthly, "pro", "month"),
-        (&catalog.pro_annual, "pro", "year"),
-        (&catalog.business_monthly, "business", "month"),
-        (&catalog.business_annual, "business", "year"),
-    ];
-
-    for (product_id, plan, interval) in entries {
-        match polar.fetch_price_id_for_product(product_id).await {
-            Ok(price_id) => {
-                map.insert(price_id, (*plan, *interval));
-            }
-            Err(e) => {
-                worker::console_error!("Failed to fetch price for product {}: {}", product_id, e);
-            }
-        }
-    }
-
-    map
-}
-
-pub fn plan_from_price_id(
-    price_id: &str,
-    price_map: &std::collections::HashMap<String, (&'static str, &'static str)>,
-) -> (String, String) {
-    ProductCatalog::plan_from_price_id(price_id, price_map)
 }
 
 impl BillingProvider for PolarClient {
@@ -258,39 +175,6 @@ impl BillingProvider for PolarClient {
             customer_id,
         })
     }
-}
-
-pub fn product_catalog_from_env(env: &worker::Env) -> Result<ProductCatalog> {
-    Ok(ProductCatalog {
-        pro_monthly: env
-            .var("POLAR_PRO_MONTHLY_PRODUCT_ID")
-            .map(|v| v.to_string())
-            .map_err(|_| {
-                worker::Error::RustError("POLAR_PRO_MONTHLY_PRODUCT_ID not configured".to_string())
-            })?,
-        pro_annual: env
-            .var("POLAR_PRO_ANNUAL_PRODUCT_ID")
-            .map(|v| v.to_string())
-            .map_err(|_| {
-                worker::Error::RustError("POLAR_PRO_ANNUAL_PRODUCT_ID not configured".to_string())
-            })?,
-        business_monthly: env
-            .var("POLAR_BUSINESS_MONTHLY_PRODUCT_ID")
-            .map(|v| v.to_string())
-            .map_err(|_| {
-                worker::Error::RustError(
-                    "POLAR_BUSINESS_MONTHLY_PRODUCT_ID not configured".to_string(),
-                )
-            })?,
-        business_annual: env
-            .var("POLAR_BUSINESS_ANNUAL_PRODUCT_ID")
-            .map(|v| v.to_string())
-            .map_err(|_| {
-                worker::Error::RustError(
-                    "POLAR_BUSINESS_ANNUAL_PRODUCT_ID not configured".to_string(),
-                )
-            })?,
-    })
 }
 
 pub fn polar_client_from_env(env: &worker::Env) -> Result<PolarClient> {

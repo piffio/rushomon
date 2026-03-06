@@ -135,8 +135,9 @@
 						</p>
 						<div class="flex items-center gap-3">
 							<p class="text-2xl font-bold text-gray-900">
-								{tierLabels[billingStatus.tier] ??
-									billingStatus.tier}
+								{tierLabels[
+									billingStatus.tier?.toLowerCase()
+								] ?? billingStatus.tier}
 							</p>
 							{#if billingStatus.subscription_status}
 								{@const s =
@@ -200,7 +201,7 @@
 					</div>
 
 					<div class="flex-shrink-0">
-						{#if billingStatus.tier !== "free" && billingStatus.subscription_status !== "canceled"}
+						{#if billingStatus.tier?.toLowerCase() !== "free" && billingStatus.subscription_status !== "canceled"}
 							<button
 								onclick={openPortal}
 								disabled={portalLoading}
@@ -210,7 +211,7 @@
 									? "Loading…"
 									: "Manage Subscription"}
 							</button>
-						{:else if billingStatus.tier === "free"}
+						{:else if billingStatus.tier?.toLowerCase() === "free"}
 							<a
 								href="/pricing"
 								class="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors whitespace-nowrap"
@@ -278,7 +279,7 @@
 			{/if}
 
 			<!-- Actions (paid plans only) -->
-			{#if billingStatus.tier !== "free" && billingStatus.subscription_status !== "canceled"}
+			{#if billingStatus.tier?.toLowerCase() !== "free" && billingStatus.subscription_status !== "canceled"}
 				<div
 					class="bg-white rounded-2xl border border-gray-200 p-6 mb-5"
 				>

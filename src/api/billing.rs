@@ -1,7 +1,5 @@
 use crate::auth;
-use crate::billing::polar::{
-    build_price_map, plan_from_price_id, polar_client_from_env, product_catalog_from_env,
-};
+use crate::billing::polar::polar_client_from_env;
 use crate::billing::provider::BillingProvider;
 use crate::db;
 use crate::utils::{now_timestamp, verify_polar_webhook_signature};
@@ -456,18 +454,30 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 return Response::error("Missing billing account ID", 400);
             }
 
-            let polar = match polar_client_from_env(&ctx.env) {
-                Ok(p) => p,
-                Err(_) => return Response::error("Billing not configured", 503),
-            };
-
-            let (plan, resolved_interval) = if let Ok(catalog) = product_catalog_from_env(&ctx.env)
-            {
-                let price_map = build_price_map(&polar, &catalog).await;
-                plan_from_price_id(&price_id, &price_map)
-            } else {
-                ("free".to_string(), interval.to_string())
-            };
+            let (plan, resolved_interval) =
+                match db::get_cached_product_by_price_id(&db, &price_id).await {
+                    Ok(Some(product)) => {
+                        let product_name = product["name"].as_str().unwrap_or("");
+                        let plan_name = if product_name.contains("Pro") {
+                            "pro"
+                        } else if product_name.contains("Business") {
+                            "business"
+                        } else {
+                            "free"
+                        };
+                        let ri = product["recurring_interval"].as_str().unwrap_or("month");
+                        (plan_name.to_string(), ri.to_string())
+                    }
+                    Ok(None) => {
+                        console_error!("[webhook] Product not found for price_id: {}", price_id);
+                        ("free".to_string(), interval.to_string())
+                    }
+                    Err(e) => {
+                        console_error!("[webhook] DB error looking up product: {}", e);
+                        // Transient DB failure – let Polar retry
+                        return Response::error("Service temporarily unavailable", 503);
+                    }
+                };
 
             if let Err(e) = db::upsert_subscription(
                 &db,
