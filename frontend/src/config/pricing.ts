@@ -87,8 +87,8 @@ export const createPricingTiers = (
 			},
 			buttonHref: () => {
 				if (!currentUser) return loginUrl;
-				if (isCurrentPlan('free', billingStatus)) return undefined; // Disabled
-				if (isDowngrade('free', billingStatus)) return undefined; // Disabled
+				if (isCurrentPlan('free', billingStatus)) return undefined; // Use portal action
+				if (isDowngrade('free', billingStatus)) return '/dashboard'; // Redirect to dashboard
 				return undefined; // Downgrades not implemented yet
 			},
 			disabled: false, // Free tier is never disabled
@@ -125,13 +125,13 @@ export const createPricingTiers = (
 
 				if (!currentUser) return loginUrl;
 				if (isCurrentPlan('pro', billingStatus)) return undefined; // Use portal action
-				if (isDowngrade('pro', billingStatus)) return undefined; // Disabled
+				if (isDowngrade('pro', billingStatus)) return '/dashboard'; // Redirect to dashboard
 				return undefined; // Use checkout action
 			},
 			disabled: () => {
 				const actualPrice = getActualPrice('pro', billingInterval as "monthly" | "annual", products);
-				// Disabled when plan is not configured (actualPrice === 0) or is downgrade
-				return actualPrice === 0 || isDowngrade('pro', billingStatus);
+				// Disabled when plan is not configured (actualPrice === 0)
+				return actualPrice === 0;
 			},
 			isPopular: true,
 			founderPrice: () => founderPrice('pro', billingInterval),
@@ -171,13 +171,13 @@ export const createPricingTiers = (
 
 				if (!currentUser) return loginUrl;
 				if (isCurrentPlan('business', billingStatus)) return undefined; // Use portal action
-				if (isDowngrade('business', billingStatus)) return undefined; // Disabled
+				if (isDowngrade('business', billingStatus)) return '/dashboard'; // Redirect to dashboard
 				return undefined; // Use checkout action
 			},
 			disabled: () => {
 				const actualPrice = getActualPrice('business', billingInterval as "monthly" | "annual", products);
-				// Disabled when plan is not configured (actualPrice === 0) or is downgrade
-				return actualPrice === 0 || isDowngrade('business', billingStatus);
+				// Disabled when plan is not configured (actualPrice === 0)
+				return actualPrice === 0;
 			},
 			isPopular: false,
 			founderPrice: () => founderPrice('business', billingInterval),
