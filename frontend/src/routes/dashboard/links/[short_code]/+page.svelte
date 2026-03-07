@@ -443,7 +443,9 @@
 		{:else if link && analytics}
 			<!-- Link Summary Header -->
 			<div class="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">
-				<div class="flex items-start justify-between gap-4 flex-wrap">
+				<div
+					class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+				>
 					<div class="flex-1 min-w-0">
 						<h1
 							class="text-2xl font-bold text-gray-900 truncate mb-2"
@@ -510,7 +512,9 @@
 					</div>
 
 					<!-- Summary Stats -->
-					<div class="flex items-center gap-6 text-center">
+					<div
+						class="flex items-center gap-6 text-center sm:flex-shrink-0"
+					>
 						<div>
 							<p class="text-3xl font-bold text-gray-900">
 								{link.click_count}
