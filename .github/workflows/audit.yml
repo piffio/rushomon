@@ -6,11 +6,17 @@ on:
     paths:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
+
+permissions:
+  contents: read
+
 jobs:
   security_audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/install-action@cargo-deny
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: taiki-e/install-action@f23382d582832e41d5eb4fff2bddb06bc5adf8d3 # v2.68.21
+        with:
+          tool: cargo-deny
       - name: Scan for vulnerabilities
         run: cargo deny check advisories
