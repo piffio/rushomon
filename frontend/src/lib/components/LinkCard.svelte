@@ -92,9 +92,15 @@
 	<div class="flex items-start justify-between gap-4 mb-2">
 		<div class="flex-1 min-w-0">
 			<!-- Title as Main Element (or short code if no title) -->
-			<h3 class="text-lg font-semibold text-gray-900 truncate mb-1">
-				{link.title || link.short_code}
-			</h3>
+			<a
+				href="/dashboard/links/{link.short_code}"
+				class="hover:text-orange-600 transition-colors hover:underline"
+				title="View analytics for {link.title || link.short_code}"
+			>
+				<h3 class="text-lg font-semibold text-gray-900 truncate mb-1">
+					{link.title || link.short_code}
+				</h3>
+			</a>
 
 			<!-- Short Link → Destination URL -->
 			<div
