@@ -63,7 +63,7 @@
 
 	const link = $derived(data.analytics?.link ?? data.link);
 	const analytics = $derived(data.analytics);
-	const days = $derived(data.days ?? 30);
+	const days = $derived(data.days ?? 7);
 	const shortUrl = $derived(
 		link ? `${SHORT_LINK_BASE}/${link.short_code}` : "",
 	);
