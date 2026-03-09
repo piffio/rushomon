@@ -637,37 +637,6 @@ async fn test_remove_member_not_in_org_returns_404() {
 }
 
 #[tokio::test]
-async fn test_remove_last_owner_is_rejected() {
-    let client = authenticated_client();
-    let org_id = get_primary_test_org_id().await;
-
-    // Get the real user ID from /api/auth/me (not the hardcoded "1000" which is a test fixture)
-    let me: Value = client
-        .get(format!("{}/api/auth/me", BASE_URL))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    let user_id = me["id"].as_str().expect("should have id").to_string();
-
-    // Trying to remove yourself as the last owner should fail
-    let response = client
-        .delete(format!(
-            "{}/api/orgs/{}/members/{}",
-            BASE_URL, org_id, user_id
-        ))
-        .send()
-        .await
-        .unwrap();
-    // Should be rejected — last owner can't be removed
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-}
-
-// ─── Delete Org ───────────────────────────────────────────────────────────────
-
-#[tokio::test]
 async fn test_delete_org_requires_auth() {
     let client = test_client();
     let response = client
@@ -827,3 +796,34 @@ async fn test_billing_account_tier_reflected_in_org_tier() {
         tier
     );
 }
+
+#[tokio::test]
+async fn test_remove_last_owner_is_rejected() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    // Get the real user ID from /api/auth/me (not the hardcoded "1000" which is a test fixture)
+    let me: Value = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let user_id = me["id"].as_str().expect("should have id").to_string();
+
+    // Trying to remove yourself as the last owner should fail
+    let response = client
+        .delete(format!(
+            "{}/api/orgs/{}/members/{}",
+            BASE_URL, org_id, user_id
+        ))
+        .send()
+        .await
+        .unwrap();
+    // Should be rejected — last owner can't be removed
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+// ─── Delete Org ───────────────────────────────────────────────────────────────

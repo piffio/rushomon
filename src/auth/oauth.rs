@@ -409,6 +409,9 @@ async fn create_or_get_user(
     };
     let user = queries::create_or_update_user(db, create_data, &org.id).await?;
 
+    // Add the user as an organization member with owner role
+    queries::add_org_member(db, &org.id, &user.id, "owner").await?;
+
     // Update the billing account owner to the actual user ID
     queries::update_billing_account_owner(db, org.billing_account_id.as_ref().unwrap(), &user.id)
         .await?;
