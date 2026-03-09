@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "chart.js": "^4.5.1",
+    "i18n-iso-countries": "^7.14.0",
     "qrcode": "^1.5.4",
     "ua-parser-js": "^2.0.9",
     "zod": "^4.3.6"
