@@ -6,6 +6,7 @@ import type {
 	OrgInvitation,
 	InviteInfo,
 	UsageResponse,
+	OrgSettings,
 } from '$lib/types/api';
 
 export const orgsApi = {
@@ -72,5 +73,13 @@ export const orgsApi = {
 
 	async getUsage(): Promise<UsageResponse> {
 		return apiClient.get<UsageResponse>('/api/usage');
+	},
+
+	async getOrgSettings(org_id: string): Promise<OrgSettings> {
+		return apiClient.get<OrgSettings>(`/api/orgs/${org_id}/settings`);
+	},
+
+	async updateOrgSettings(org_id: string, settings: Partial<OrgSettings>): Promise<OrgSettings> {
+		return apiClient.patch<OrgSettings>(`/api/orgs/${org_id}/settings`, settings);
 	},
 };

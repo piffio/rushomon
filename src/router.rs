@@ -150,8 +150,47 @@ pub async fn handle_redirect(
         }
     }
 
-    // Build the redirect response immediately (fast path)
-    let destination_url = Url::parse(&mapping.destination_url)?;
+    // Build the redirect URL, applying UTM params and forwarding as needed
+    let mut destination_url = Url::parse(&mapping.destination_url)?;
+
+    // Feature A: apply static UTM params (always, if set on the link)
+    if let Some(ref utm) = mapping.utm_params {
+        let pairs: Vec<(&str, &str)> = [
+            ("utm_source", utm.utm_source.as_deref()),
+            ("utm_medium", utm.utm_medium.as_deref()),
+            ("utm_campaign", utm.utm_campaign.as_deref()),
+            ("utm_term", utm.utm_term.as_deref()),
+            ("utm_content", utm.utm_content.as_deref()),
+            ("utm_ref", utm.utm_ref.as_deref()),
+        ]
+        .into_iter()
+        .filter_map(|(k, v)| v.filter(|s| !s.is_empty()).map(|s| (k, s)))
+        .collect();
+
+        if !pairs.is_empty() {
+            let mut q = destination_url.query_pairs_mut();
+            for (k, v) in pairs {
+                q.append_pair(k, v);
+            }
+        }
+    }
+
+    // Feature B: forward incoming visitor query params (visitor wins on conflict)
+    if mapping.forward_query_params
+        && let Ok(incoming_url) = req.url()
+    {
+        let visitor_pairs: Vec<(String, String)> = incoming_url
+            .query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect();
+        if !visitor_pairs.is_empty() {
+            let mut q = destination_url.query_pairs_mut();
+            for (k, v) in &visitor_pairs {
+                q.append_pair(k, v);
+            }
+        }
+    }
+
     let response = Response::redirect_with_status(destination_url, 301)?;
 
     // Collect analytics data from the request before it's consumed
@@ -345,13 +384,15 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         "title",
         "expires_at",
         "tags",
+        "utm_params",
+        "forward_query_params",
     ];
     if let Some(obj) = raw_body.as_object() {
         for field_name in obj.keys() {
             if !expected_fields.contains(&field_name.as_str()) {
                 return Response::error(
                     format!(
-                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional)",
+                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+)",
                         field_name
                     ),
                     400,
@@ -398,6 +439,24 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     if body.short_code.is_some() && !allow_custom {
         return Response::error(
             "Custom short codes are not available on the free tier. Upgrade to Pro.",
+            403,
+        );
+    }
+
+    // Check if Pro features (UTM params / query forwarding) are allowed
+    let is_pro_or_above = matches!(
+        tier.as_ref(),
+        Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
+    );
+    let wants_pro_features = body
+        .utm_params
+        .as_ref()
+        .map(|u| !u.is_empty())
+        .unwrap_or(false)
+        || body.forward_query_params.is_some();
+    if wants_pro_features && !is_pro_or_above {
+        return Response::error(
+            "UTM parameters and query parameter forwarding require a Pro plan or above.",
             403,
         );
     }
@@ -449,6 +508,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let link_id = uuid::Uuid::new_v4().to_string();
     let now = now_timestamp();
 
+    // Normalise UTM params: treat all-empty as None
+    let utm_params = body.utm_params.filter(|u| !u.is_empty());
+
     let link = Link {
         id: link_id.clone(),
         org_id: org_id.to_string(),
@@ -462,6 +524,8 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         status: LinkStatus::Active,
         click_count: 0,
         tags: normalized_tags.clone(),
+        utm_params,
+        forward_query_params: body.forward_query_params,
     };
 
     // Store in D1
@@ -472,9 +536,19 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         db::set_tags_for_link(&db, &link_id, org_id, &normalized_tags).await?;
     }
 
+    // Resolve forwarding flag: per-link setting overrides org default
+    let resolved_forward = link.forward_query_params.unwrap_or(false); // org default fetched below if None
+    let resolved_forward = if link.forward_query_params.is_none() {
+        db::get_org_forward_query_params(&db, org_id)
+            .await
+            .unwrap_or(false)
+    } else {
+        resolved_forward
+    };
+
     // Store in KV
     let kv = ctx.kv("URL_MAPPINGS")?;
-    let mapping = link.to_mapping();
+    let mapping = link.to_mapping(resolved_forward);
     kv::store_link_mapping(&kv, org_id, &short_code, &mapping).await?;
 
     Response::from_json(&link)
@@ -882,6 +956,37 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         None => return Response::error("Link not found", 404),
     };
 
+    // Tier check for Pro-only features in update
+    let billing_account_update = db::get_billing_account_for_org(&db, &user_ctx.org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
+    let tier_update = Tier::from_str_value(&billing_account_update.tier);
+    let is_pro_or_above_update = matches!(
+        tier_update.as_ref(),
+        Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
+    );
+    let wants_pro_features_update = update_req
+        .utm_params
+        .as_ref()
+        .map(|u| !u.is_empty())
+        .unwrap_or(false)
+        || update_req.forward_query_params.is_some();
+    if wants_pro_features_update && !is_pro_or_above_update {
+        return Response::error(
+            "UTM parameters and query parameter forwarding require a Pro plan or above.",
+            403,
+        );
+    }
+
+    // Normalise UTM: None means "not provided" (no change); Some(empty) means clear it
+    let utm_json_for_db: Option<Option<String>> = update_req.utm_params.as_ref().map(|u| {
+        if u.is_empty() {
+            None
+        } else {
+            u.to_json_string()
+        }
+    });
+
     // Update in D1
     let mut updated_link = db::update_link(
         &db,
@@ -891,6 +996,8 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         update_req.title.as_deref(),
         update_req.status.as_ref().map(|s| s.as_str()),
         update_req.expires_at,
+        utm_json_for_db.as_ref().map(|o| o.as_deref()),
+        update_req.forward_query_params.map(Some),
     )
     .await?;
 
@@ -906,9 +1013,21 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         updated_link.tags = db::get_tags_for_link(&db, &link_id).await?;
     }
 
-    // If destination URL or status changed, update KV mapping
-    if update_req.destination_url.is_some() || update_req.status.is_some() {
-        let mapping = updated_link.to_mapping();
+    // Update KV if any redirect-affecting field changed
+    let kv_needs_update = update_req.destination_url.is_some()
+        || update_req.status.is_some()
+        || update_req.utm_params.is_some()
+        || update_req.forward_query_params.is_some();
+    if kv_needs_update {
+        let resolved_forward = updated_link.forward_query_params.unwrap_or(false);
+        let resolved_forward = if updated_link.forward_query_params.is_none() {
+            db::get_org_forward_query_params(&db, &user_ctx.org_id)
+                .await
+                .unwrap_or(false)
+        } else {
+            resolved_forward
+        };
+        let mapping = updated_link.to_mapping(resolved_forward);
         kv::update_link_mapping(&kv, &existing_link.short_code, &mapping).await?;
     }
 
@@ -2173,7 +2292,9 @@ pub async fn handle_admin_update_link_status(
                         .await?;
                 } else {
                     // Disabled links remain in KV but with updated status
-                    let mapping = updated_link.to_mapping();
+                    // Preserve existing resolved forwarding flag (admin status update doesn't change it)
+                    let resolved_forward = updated_link.forward_query_params.unwrap_or(false);
+                    let mapping = updated_link.to_mapping(resolved_forward);
                     kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await?;
                 }
             }

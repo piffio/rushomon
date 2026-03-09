@@ -4,9 +4,6 @@ use serde_json::json;
 mod common;
 use common::*;
 
-// Import test_client for analytics test
-use common::test_client;
-
 #[tokio::test]
 async fn test_create_link_with_random_short_code() {
     let client = authenticated_client();
@@ -330,4 +327,145 @@ async fn test_delete_link_with_analytics_events() {
         .unwrap();
 
     assert_eq!(get_after_delete.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_create_link_with_utm_params() {
+    let client = authenticated_client();
+
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/utm-test",
+            "utm_params": {
+                "utm_source": "newsletter",
+                "utm_medium": "email",
+                "utm_campaign": "spring_sale",
+                "utm_term": "running+shoes",
+                "utm_content": "banner_top"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = response.status();
+    if status == StatusCode::FORBIDDEN {
+        println!("User not on Pro tier, skipping UTM create test");
+        return;
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let link: serde_json::Value = response.json().await.unwrap();
+    let link_id = link["id"].as_str().unwrap();
+
+    // Verify UTM fields are persisted
+    assert_eq!(link["utm_params"]["utm_source"], "newsletter");
+    assert_eq!(link["utm_params"]["utm_medium"], "email");
+    assert_eq!(link["utm_params"]["utm_campaign"], "spring_sale");
+    assert_eq!(link["utm_params"]["utm_term"], "running+shoes");
+    assert_eq!(link["utm_params"]["utm_content"], "banner_top");
+
+    // Fetch the link and verify UTM is returned
+    let get_response = client
+        .get(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let fetched: serde_json::Value = get_response.json().await.unwrap();
+    assert_eq!(fetched["utm_params"]["utm_source"], "newsletter");
+
+    // Clean up
+    let _ = client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
+}
+
+#[tokio::test]
+async fn test_create_link_with_forward_query_params() {
+    let client = authenticated_client();
+
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/forward-test",
+            "forward_query_params": true
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = response.status();
+    if status == StatusCode::FORBIDDEN {
+        println!("User not on Pro tier, skipping forward_query_params create test");
+        return;
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let link: serde_json::Value = response.json().await.unwrap();
+    let link_id = link["id"].as_str().unwrap();
+
+    assert_eq!(link["forward_query_params"], true);
+
+    // Clean up
+    let _ = client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
+}
+
+#[tokio::test]
+async fn test_update_link_utm_params() {
+    let client = authenticated_client();
+
+    // Create a basic link first
+    let create_response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/update-utm-test"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let link_id = link["id"].as_str().unwrap();
+
+    // Update with UTM params
+    let update_response = client
+        .put(format!("{}/api/links/{}", BASE_URL, link_id))
+        .json(&json!({
+            "utm_params": {
+                "utm_source": "social",
+                "utm_medium": "twitter"
+            },
+            "forward_query_params": true
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = update_response.status();
+    if status == StatusCode::FORBIDDEN {
+        println!("User not on Pro tier, skipping UTM update test");
+        let _ = client
+            .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+            .send()
+            .await;
+        return;
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let updated: serde_json::Value = update_response.json().await.unwrap();
+    assert_eq!(updated["utm_params"]["utm_source"], "social");
+    assert_eq!(updated["utm_params"]["utm_medium"], "twitter");
+    assert_eq!(updated["forward_query_params"], true);
+
+    // Clean up
+    let _ = client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
 }

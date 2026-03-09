@@ -243,11 +243,49 @@ pub async fn get_org_by_id(db: &D1Database, org_id: &str) -> Result<Option<Organ
         .await
 }
 
+/// Get the org-level forward_query_params default setting (0 or 1).
+/// Returns false if the org doesn't exist or the column is NULL.
+pub async fn get_org_forward_query_params(db: &D1Database, org_id: &str) -> Result<bool> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(forward_query_params, 0) as forward_query_params
+         FROM organizations
+         WHERE id = ?1",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    Ok(result
+        .and_then(|v| v["forward_query_params"].as_f64())
+        .map(|v| v != 0.0)
+        .unwrap_or(false))
+}
+
+/// Update the org-level forward_query_params default.
+pub async fn set_org_forward_query_params(
+    db: &D1Database,
+    org_id: &str,
+    forward: bool,
+) -> Result<()> {
+    let stmt = db.prepare("UPDATE organizations SET forward_query_params = ?1 WHERE id = ?2");
+    stmt.bind(&[
+        (if forward { 1i64 } else { 0i64 } as f64).into(),
+        org_id.into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
 /// Create a new link
 pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
+    let utm_json = link.utm_params.as_ref().and_then(|u| u.to_json_string());
+
     let stmt = db.prepare(
-        "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+        "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
     );
 
     stmt.bind(&[
@@ -266,6 +304,10 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
             .unwrap_or(JsValue::NULL),
         link.status.as_str().into(),
         (link.click_count as f64).into(),
+        utm_json.map(|s| s.into()).unwrap_or(JsValue::NULL),
+        link.forward_query_params
+            .map(|v| (if v { 1i64 } else { 0i64 } as f64).into())
+            .unwrap_or(JsValue::NULL),
     ])?
     .run()
     .await?;
@@ -325,7 +367,7 @@ pub async fn get_links_by_org_filtered(
     tags_filter: Option<&[String]>,
 ) -> Result<Vec<Link>> {
     let mut query = String::from(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
          FROM links
          WHERE org_id = ?1"
     );
@@ -479,7 +521,7 @@ pub async fn get_links_count_by_org_filtered(
 /// Get a link by ID
 pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
          FROM links
          WHERE id = ?1
          AND org_id = ?2
@@ -494,7 +536,7 @@ pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Res
 /// Get a link by ID without org_id check (used for public redirects)
 pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
          FROM links
          WHERE id = ?1
          AND status = 'active'"
@@ -506,7 +548,7 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
 /// Get a link by ID without org_id check (used for admin operations - returns all statuses)
 pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
          FROM links
          WHERE id = ?1"
     );
@@ -520,7 +562,7 @@ pub async fn get_link_by_short_code_no_auth(
     short_code: &str,
 ) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
          FROM links
          WHERE short_code = ?1
          AND status = 'active'"
@@ -530,6 +572,7 @@ pub async fn get_link_by_short_code_no_auth(
 }
 
 /// Update a link
+#[allow(clippy::too_many_arguments)]
 pub async fn update_link(
     db: &D1Database,
     link_id: &str,
@@ -538,6 +581,8 @@ pub async fn update_link(
     title: Option<&str>,
     status: Option<&str>,
     expires_at: Option<i64>,
+    utm_params: Option<Option<&str>>,
+    forward_query_params: Option<Option<bool>>,
 ) -> Result<Link> {
     let now = now_timestamp();
 
@@ -567,6 +612,22 @@ pub async fn update_link(
     if expires_at.is_some() {
         query.push_str(&format!(", expires_at = ?{}", param_count));
         params.push(expires_at.map(|t| t as f64).into());
+        param_count += 1;
+    }
+
+    if let Some(utm_val) = utm_params {
+        query.push_str(&format!(", utm_params = ?{}", param_count));
+        params.push(utm_val.map(|s| s.into()).unwrap_or(JsValue::NULL));
+        param_count += 1;
+    }
+
+    if let Some(fwd_val) = forward_query_params {
+        query.push_str(&format!(", forward_query_params = ?{}", param_count));
+        params.push(
+            fwd_val
+                .map(|v| (if v { 1i64 } else { 0i64 } as f64).into())
+                .unwrap_or(JsValue::NULL),
+        );
         param_count += 1;
     }
 

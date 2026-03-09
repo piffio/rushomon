@@ -356,6 +356,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/orgs/:id/invitations/:invitation_id/resend",
             handle_cors_preflight,
         )
+        .options_async("/api/orgs/:id/settings", handle_cors_preflight)
         .options_async("/api/auth/switch-org", handle_cors_preflight)
         .options_async("/api/invite/:token", handle_cors_preflight)
         .options_async("/api/invite/:token/accept", handle_cors_preflight)
@@ -480,6 +481,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .post_async("/api/orgs", crate::api::orgs::handle_create_org)
         .get_async("/api/orgs/:id", crate::api::orgs::handle_get_org)
         .patch_async("/api/orgs/:id", crate::api::orgs::handle_update_org)
+        .get_async(
+            "/api/orgs/:id/settings",
+            crate::api::orgs::handle_get_org_settings,
+        )
+        .patch_async(
+            "/api/orgs/:id/settings",
+            crate::api::orgs::handle_update_org_settings,
+        )
         .delete_async("/api/orgs/:id", crate::api::orgs::handle_delete_org)
         .delete_async(
             "/api/orgs/:id/members/:user_id",

@@ -1,4 +1,5 @@
 use reqwest::StatusCode;
+use serde_json::json;
 
 mod common;
 use common::*;
@@ -299,4 +300,269 @@ async fn test_admin_update_link_status_updates_kv() {
         .await
         .unwrap();
     assert_eq!(restore_response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_redirect_appends_utm_params() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+
+    // Create link with UTM params
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/page",
+            "utm_params": {
+                "utm_source": "newsletter",
+                "utm_medium": "email",
+                "utm_campaign": "spring_sale"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = create_response.status();
+    if status == StatusCode::FORBIDDEN {
+        println!("User not on Pro tier, skipping UTM test");
+        return;
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    // Follow the redirect and check Location header
+    let response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("utm_source=newsletter"),
+        "Expected utm_source in redirect URL, got: {}",
+        location
+    );
+    assert!(
+        location.contains("utm_medium=email"),
+        "Expected utm_medium in redirect URL, got: {}",
+        location
+    );
+    assert!(
+        location.contains("utm_campaign=spring_sale"),
+        "Expected utm_campaign in redirect URL, got: {}",
+        location
+    );
+    assert!(
+        location.starts_with("https://example.com/page"),
+        "Expected destination base URL, got: {}",
+        location
+    );
+
+    // Clean up
+    let link_id = link["id"].as_str().unwrap();
+    let _ = auth_client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
+}
+
+#[tokio::test]
+async fn test_redirect_forwards_visitor_query_params() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+
+    // Create link with forward_query_params enabled
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/landing",
+            "forward_query_params": true
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = create_response.status();
+    if status == StatusCode::FORBIDDEN {
+        println!("User not on Pro tier, skipping forwarding test");
+        return;
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    // Access short link with visitor query params
+    let response = public_client
+        .get(format!(
+            "{}/{}?ref=twitter&campaign=launch",
+            BASE_URL, short_code
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("ref=twitter"),
+        "Expected ref param forwarded, got: {}",
+        location
+    );
+    assert!(
+        location.contains("campaign=launch"),
+        "Expected campaign param forwarded, got: {}",
+        location
+    );
+    assert!(
+        location.starts_with("https://example.com/landing"),
+        "Expected destination base URL, got: {}",
+        location
+    );
+
+    // Clean up
+    let link_id = link["id"].as_str().unwrap();
+    let _ = auth_client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
+}
+
+#[tokio::test]
+async fn test_redirect_visitor_params_override_utm() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+
+    // Create link with both UTM params and forwarding enabled
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/page",
+            "utm_params": {
+                "utm_source": "newsletter",
+                "utm_medium": "email"
+            },
+            "forward_query_params": true
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = create_response.status();
+    if status == StatusCode::FORBIDDEN {
+        println!("User not on Pro tier, skipping UTM override test");
+        return;
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    // Visitor provides utm_source — should override the static value
+    let response = public_client
+        .get(format!("{}/{}?utm_source=twitter", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    // Visitor's utm_source=twitter should win over static newsletter
+    assert!(
+        location.contains("utm_source=twitter"),
+        "Expected visitor utm_source to override static, got: {}",
+        location
+    );
+    // Static utm_medium should still be present (no conflict)
+    assert!(
+        location.contains("utm_medium=email"),
+        "Expected static utm_medium to be present, got: {}",
+        location
+    );
+
+    // Clean up
+    let link_id = link["id"].as_str().unwrap();
+    let _ = auth_client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
+}
+
+#[tokio::test]
+async fn test_redirect_no_forwarding_strips_visitor_params() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+
+    // Create link WITHOUT forward_query_params
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/clean",
+            "forward_query_params": false
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    // Access short link with visitor query params
+    let response = public_client
+        .get(format!(
+            "{}/{}?ref=should_not_forward",
+            BASE_URL, short_code
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    assert!(
+        !location.contains("ref=should_not_forward"),
+        "Visitor params should NOT be forwarded when disabled, got: {}",
+        location
+    );
+
+    // Clean up
+    let link_id = link["id"].as_str().unwrap();
+    let _ = auth_client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
 }

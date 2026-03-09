@@ -17,6 +17,15 @@ export interface User {
 
 export type LinkStatus = 'active' | 'disabled' | 'blocked';
 
+export interface UtmParams {
+	utm_source?: string;
+	utm_medium?: string;
+	utm_campaign?: string;
+	utm_term?: string;
+	utm_content?: string;
+	utm_ref?: string;
+}
+
 export interface Link {
 	id: string;
 	org_id: string;
@@ -30,6 +39,8 @@ export interface Link {
 	status: LinkStatus;
 	click_count: number;
 	tags: string[];
+	utm_params?: UtmParams | null;
+	forward_query_params?: boolean | null;
 }
 
 export interface TagWithCount {
@@ -43,6 +54,8 @@ export interface CreateLinkRequest {
 	title?: string;
 	expires_at?: number;
 	tags?: string[];
+	utm_params?: UtmParams;
+	forward_query_params?: boolean;
 }
 
 export interface UpdateLinkRequest {
@@ -51,6 +64,12 @@ export interface UpdateLinkRequest {
 	expires_at?: number;
 	status?: LinkStatus;
 	tags?: string[];
+	utm_params?: UtmParams;
+	forward_query_params?: boolean;
+}
+
+export interface OrgSettings {
+	forward_query_params: boolean;
 }
 
 export interface ApiError {

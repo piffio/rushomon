@@ -383,6 +383,51 @@
 				<span>{formatDate(link.created_at)}</span>
 			</div>
 
+			<!-- UTM Indicator -->
+			{#if link.utm_params && (link.utm_params.utm_source || link.utm_params.utm_medium || link.utm_params.utm_campaign || link.utm_params.utm_term || link.utm_params.utm_content || link.utm_params.utm_ref)}
+				<div
+					class="flex items-center gap-1.5"
+					title="UTM parameters configured"
+				>
+					<svg
+						class="w-3.5 h-3.5 text-indigo-500"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+						/>
+					</svg>
+					<span class="text-xs text-indigo-600 font-medium">UTM</span>
+				</div>
+			{/if}
+
+			<!-- Forwarding Indicator -->
+			{#if link.forward_query_params}
+				<div
+					class="flex items-center"
+					title="Query parameter forwarding enabled"
+				>
+					<svg
+						class="w-3.5 h-3.5 text-teal-500"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M13 5l7 7-7 7M5 5l7 7-7 7"
+						/>
+					</svg>
+				</div>
+			{/if}
+
 			<!-- Expiration Date (if set) -->
 			{#if link.expires_at}
 				<div

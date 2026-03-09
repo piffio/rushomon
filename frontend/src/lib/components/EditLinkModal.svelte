@@ -1,14 +1,21 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
-	import type { Link, UpdateLinkRequest, LinkStatus } from "$lib/types/api";
+	import type {
+		Link,
+		UpdateLinkRequest,
+		LinkStatus,
+		UtmParams,
+	} from "$lib/types/api";
 	import { linksApi } from "$lib/api/links";
 
 	let {
 		link,
 		isOpen = $bindable(false),
+		isPro = false,
 	}: {
 		link: Link;
 		isOpen?: boolean;
+		isPro?: boolean;
 	} = $props();
 
 	const dispatch = createEventDispatcher<{ close: void; updated: Link }>();
@@ -18,8 +25,27 @@
 	let expiresAt = $state("");
 	let status = $state<LinkStatus>("active");
 
+	// Pro features
+	let showUtmBuilder = $state(false);
+	let utmSource = $state("");
+	let utmMedium = $state("");
+	let utmCampaign = $state("");
+	let utmTerm = $state("");
+	let utmContent = $state("");
+	let forwardQueryParams = $state<boolean | null>(null);
+
 	let isSubmitting = $state(false);
 	let error = $state("");
+
+	function hasUtmParams(): boolean {
+		return !!(
+			utmSource.trim() ||
+			utmMedium.trim() ||
+			utmCampaign.trim() ||
+			utmTerm.trim() ||
+			utmContent.trim()
+		);
+	}
 
 	// Reset form when link prop changes
 	$effect(() => {
@@ -29,6 +55,21 @@
 			? new Date(link.expires_at * 1000).toISOString().slice(0, 16)
 			: "";
 		status = link.status;
+		// UTM fields
+		utmSource = link.utm_params?.utm_source || "";
+		utmMedium = link.utm_params?.utm_medium || "";
+		utmCampaign = link.utm_params?.utm_campaign || "";
+		utmTerm = link.utm_params?.utm_term || "";
+		utmContent = link.utm_params?.utm_content || "";
+		showUtmBuilder = !!(
+			link.utm_params &&
+			(link.utm_params.utm_source ||
+				link.utm_params.utm_medium ||
+				link.utm_params.utm_campaign ||
+				link.utm_params.utm_term ||
+				link.utm_params.utm_content)
+		);
+		forwardQueryParams = link.forward_query_params ?? null;
 	});
 
 	async function handleSubmit(e: Event) {
@@ -54,7 +95,36 @@
 					new Date(expiresAt).getTime() / 1000,
 				);
 			} else if (link.expires_at) {
-				updateData.expires_at = undefined; // Clear expiration
+				updateData.expires_at = undefined;
+			}
+
+			// UTM params: send if Pro and changed
+			if (isPro) {
+				const newUtm: UtmParams = {
+					utm_source: utmSource.trim() || undefined,
+					utm_medium: utmMedium.trim() || undefined,
+					utm_campaign: utmCampaign.trim() || undefined,
+					utm_term: utmTerm.trim() || undefined,
+					utm_content: utmContent.trim() || undefined,
+				};
+				const origUtm = link.utm_params;
+				const utmChanged =
+					(newUtm.utm_source || "") !== (origUtm?.utm_source || "") ||
+					(newUtm.utm_medium || "") !== (origUtm?.utm_medium || "") ||
+					(newUtm.utm_campaign || "") !==
+						(origUtm?.utm_campaign || "") ||
+					(newUtm.utm_term || "") !== (origUtm?.utm_term || "") ||
+					(newUtm.utm_content || "") !== (origUtm?.utm_content || "");
+				if (utmChanged) {
+					updateData.utm_params = newUtm;
+				}
+
+				if (
+					forwardQueryParams !== (link.forward_query_params ?? null)
+				) {
+					updateData.forward_query_params =
+						forwardQueryParams ?? undefined;
+				}
 			}
 
 			const updatedLink = await linksApi.update(link.id, updateData);
@@ -191,6 +261,156 @@
 							Leave empty for no expiration
 						</p>
 					</div>
+
+					<!-- Pro Features: UTM Builder + Query Forwarding -->
+					{#if isPro}
+						<!-- UTM Builder -->
+						<div
+							class="mb-4 border border-gray-200 rounded-lg overflow-hidden"
+						>
+							<button
+								type="button"
+								class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+								onclick={() =>
+									(showUtmBuilder = !showUtmBuilder)}
+							>
+								<span class="flex items-center gap-2">
+									UTM Parameters
+									{#if hasUtmParams()}
+										<span
+											class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full"
+											>active</span
+										>
+									{/if}
+								</span>
+								<svg
+									class="w-4 h-4 text-gray-400 transition-transform {showUtmBuilder
+										? 'rotate-180'
+										: ''}"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M19 9l-7 7-7-7"
+									/>
+								</svg>
+							</button>
+							{#if showUtmBuilder}
+								<div
+									class="p-4 space-y-3 border-t border-gray-200"
+								>
+									<p class="text-xs text-gray-500">
+										Appended to the destination URL on every
+										redirect.
+									</p>
+									<div class="grid grid-cols-2 gap-3">
+										<div>
+											<label
+												for="edit-utm-source"
+												class="block text-xs font-medium text-gray-600 mb-1"
+												>Source</label
+											>
+											<input
+												type="text"
+												id="edit-utm-source"
+												bind:value={utmSource}
+												placeholder="e.g. newsletter"
+												class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+											/>
+										</div>
+										<div>
+											<label
+												for="edit-utm-medium"
+												class="block text-xs font-medium text-gray-600 mb-1"
+												>Medium</label
+											>
+											<input
+												type="text"
+												id="edit-utm-medium"
+												bind:value={utmMedium}
+												placeholder="e.g. email"
+												class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+											/>
+										</div>
+										<div>
+											<label
+												for="edit-utm-campaign"
+												class="block text-xs font-medium text-gray-600 mb-1"
+												>Campaign</label
+											>
+											<input
+												type="text"
+												id="edit-utm-campaign"
+												bind:value={utmCampaign}
+												placeholder="e.g. spring_sale"
+												class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+											/>
+										</div>
+										<div>
+											<label
+												for="edit-utm-term"
+												class="block text-xs font-medium text-gray-600 mb-1"
+												>Term</label
+											>
+											<input
+												type="text"
+												id="edit-utm-term"
+												bind:value={utmTerm}
+												placeholder="e.g. running+shoes"
+												class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+											/>
+										</div>
+										<div class="col-span-2">
+											<label
+												for="edit-utm-content"
+												class="block text-xs font-medium text-gray-600 mb-1"
+												>Content</label
+											>
+											<input
+												type="text"
+												id="edit-utm-content"
+												bind:value={utmContent}
+												placeholder="e.g. banner_top"
+												class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+											/>
+										</div>
+									</div>
+								</div>
+							{/if}
+						</div>
+
+						<!-- Forward Query Params Toggle -->
+						<div
+							class="mb-4 flex items-start gap-3 p-4 border border-gray-200 rounded-lg"
+						>
+							<div class="flex-1">
+								<label
+									for="edit-forward-query-params"
+									class="block text-sm font-medium text-gray-700"
+								>
+									Forward visitor query parameters
+								</label>
+								<p class="text-xs text-gray-500 mt-0.5">
+									Append visitor query params to the
+									destination. Overrides UTM on conflict.
+								</p>
+							</div>
+							<input
+								type="checkbox"
+								id="edit-forward-query-params"
+								checked={forwardQueryParams === true}
+								onchange={(e) =>
+									(forwardQueryParams = (
+										e.target as HTMLInputElement
+									).checked)}
+								class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+							/>
+						</div>
+					{/if}
 
 					{#if error}
 						<div

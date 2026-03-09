@@ -339,6 +339,97 @@ pub async fn handle_update_org(mut req: Request, ctx: RouteContext<()>) -> Resul
     }))
 }
 
+// ─── GET /api/orgs/:id/settings ─────────────────────────────────────────────
+/// Get org-level settings (Pro+ only for query forwarding)
+pub async fn handle_get_org_settings(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let org_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing org id".to_string()))?
+        .to_string();
+
+    // Only members of this org can read settings
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    if db::get_org_member(&db, &org_id, &user_ctx.user_id)
+        .await?
+        .is_none()
+    {
+        return Response::error("Organization not found", 404);
+    }
+
+    let forward_query_params = db::get_org_forward_query_params(&db, &org_id).await?;
+
+    Response::from_json(&serde_json::json!({
+        "forward_query_params": forward_query_params
+    }))
+}
+
+// ─── PATCH /api/orgs/:id/settings ───────────────────────────────────────────
+/// Update org-level settings (owner/admin only, Pro+ required for query forwarding)
+pub async fn handle_update_org_settings(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let org_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing org id".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Verify owner or admin
+    let member = db::get_org_member(&db, &org_id, &user_ctx.user_id).await?;
+    match &member {
+        Some(m) if m.role == "owner" || m.role == "admin" => {}
+        Some(_) => {
+            return Response::error(
+                "Only org owners and admins can change organization settings",
+                403,
+            );
+        }
+        None => return Response::error("Organization not found", 404),
+    }
+
+    // Tier check: forward_query_params is Pro+ only
+    let org = db::get_org_by_id(&db, &org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
+    let tier = get_org_tier(&db, &org).await;
+    let is_pro_or_above = matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited);
+
+    let body: serde_json::Value = req
+        .json()
+        .await
+        .map_err(|_| Error::RustError("Invalid JSON body".to_string()))?;
+
+    if let Some(forward) = body["forward_query_params"].as_bool() {
+        if forward && !is_pro_or_above {
+            return Response::error(
+                "Query parameter forwarding requires a Pro plan or above.",
+                403,
+            );
+        }
+        db::set_org_forward_query_params(&db, &org_id, forward).await?;
+    } else {
+        return Response::error("forward_query_params (boolean) is required", 400);
+    }
+
+    let updated_forward = db::get_org_forward_query_params(&db, &org_id).await?;
+
+    Response::from_json(&serde_json::json!({
+        "forward_query_params": updated_forward
+    }))
+}
+
 // ─── DELETE /api/orgs/:id/members/:user_id ──────────────────────────────────
 /// Remove a member from an org
 /// - Owners can remove anyone except the last owner
@@ -954,7 +1045,8 @@ pub async fn handle_delete_org(mut req: Request, ctx: RouteContext<()>) -> Resul
             let link_ids = db::get_org_link_ids(&db, target_org_id).await?;
             for link_id in &link_ids {
                 if let Some(link) = db::get_link_by_id(&db, link_id, target_org_id).await? {
-                    let mapping = link.to_mapping();
+                    let resolved_forward = link.forward_query_params.unwrap_or(false);
+                    let mapping = link.to_mapping(resolved_forward);
                     let _ = kv.put(&link.short_code, mapping)?.execute().await; // Ignore KV errors
                 }
             }

@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { linksApi } from "$lib/api/links";
-	import type { Link, ApiError } from "$lib/types/api";
+	import type { Link, ApiError, UtmParams } from "$lib/types/api";
 	import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
 
 	let {
 		onLinkCreated,
+		isPro = false,
 	}: {
 		onLinkCreated: (link: Link) => void;
+		isPro?: boolean;
 	} = $props();
 
 	let destinationUrl = $state("");
@@ -18,6 +20,25 @@
 	let success = $state(false);
 	let isFetchingTitle = $state(false);
 	let hasUserEnteredTitle = $state(false);
+
+	// Pro features
+	let showUtmBuilder = $state(false);
+	let utmSource = $state("");
+	let utmMedium = $state("");
+	let utmCampaign = $state("");
+	let utmTerm = $state("");
+	let utmContent = $state("");
+	let forwardQueryParams = $state(false);
+
+	function hasUtmParams(): boolean {
+		return !!(
+			utmSource.trim() ||
+			utmMedium.trim() ||
+			utmCampaign.trim() ||
+			utmTerm.trim() ||
+			utmContent.trim()
+		);
+	}
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -57,6 +78,17 @@
 			}
 		}
 
+		// Build UTM params if any filled
+		const utmParams: UtmParams | undefined = hasUtmParams()
+			? {
+					utm_source: utmSource.trim() || undefined,
+					utm_medium: utmMedium.trim() || undefined,
+					utm_campaign: utmCampaign.trim() || undefined,
+					utm_term: utmTerm.trim() || undefined,
+					utm_content: utmContent.trim() || undefined,
+				}
+			: undefined;
+
 		try {
 			const link = await linksApi.create({
 				destination_url: destinationUrl.trim(),
@@ -65,6 +97,9 @@
 				expires_at: expiresAt
 					? Math.floor(new Date(expiresAt).getTime() / 1000)
 					: undefined,
+				utm_params: utmParams,
+				forward_query_params:
+					isPro && forwardQueryParams ? true : undefined,
 			});
 
 			// Success!
@@ -77,6 +112,14 @@
 				shortCode = "";
 				title = "";
 				expiresAt = "";
+				utmSource = "";
+				utmMedium = "";
+				utmCampaign = "";
+				utmTerm = "";
+				utmContent = "";
+				forwardQueryParams = false;
+				showUtmBuilder = false;
+				hasUserEnteredTitle = false;
 				success = false;
 			}, 2000);
 		} catch (err) {
@@ -245,6 +288,187 @@
 				Leave empty for links that never expire
 			</p>
 		</div>
+
+		<!-- Pro Features: UTM Builder + Query Forwarding -->
+		{#if isPro}
+			<!-- UTM Builder -->
+			<div class="border border-gray-200 rounded-lg overflow-hidden">
+				<button
+					type="button"
+					class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+					onclick={() => (showUtmBuilder = !showUtmBuilder)}
+				>
+					<span class="flex items-center gap-2">
+						<svg
+							class="w-4 h-4 text-indigo-500"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+							/>
+						</svg>
+						UTM Parameters
+						{#if hasUtmParams()}
+							<span
+								class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full"
+								>active</span
+							>
+						{/if}
+					</span>
+					<svg
+						class="w-4 h-4 text-gray-400 transition-transform {showUtmBuilder
+							? 'rotate-180'
+							: ''}"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M19 9l-7 7-7-7"
+						/>
+					</svg>
+				</button>
+				{#if showUtmBuilder}
+					<div class="p-4 space-y-3 border-t border-gray-200">
+						<p class="text-xs text-gray-500">
+							These UTM parameters will be appended to the
+							destination URL on every redirect.
+						</p>
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label
+									for="utm-source"
+									class="block text-xs font-medium text-gray-600 mb-1"
+									>Source</label
+								>
+								<input
+									type="text"
+									id="utm-source"
+									bind:value={utmSource}
+									placeholder="e.g. newsletter"
+									class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+								/>
+							</div>
+							<div>
+								<label
+									for="utm-medium"
+									class="block text-xs font-medium text-gray-600 mb-1"
+									>Medium</label
+								>
+								<input
+									type="text"
+									id="utm-medium"
+									bind:value={utmMedium}
+									placeholder="e.g. email"
+									class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+								/>
+							</div>
+							<div>
+								<label
+									for="utm-campaign"
+									class="block text-xs font-medium text-gray-600 mb-1"
+									>Campaign</label
+								>
+								<input
+									type="text"
+									id="utm-campaign"
+									bind:value={utmCampaign}
+									placeholder="e.g. spring_sale"
+									class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+								/>
+							</div>
+							<div>
+								<label
+									for="utm-term"
+									class="block text-xs font-medium text-gray-600 mb-1"
+									>Term</label
+								>
+								<input
+									type="text"
+									id="utm-term"
+									bind:value={utmTerm}
+									placeholder="e.g. running+shoes"
+									class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+								/>
+							</div>
+							<div class="col-span-2">
+								<label
+									for="utm-content"
+									class="block text-xs font-medium text-gray-600 mb-1"
+									>Content</label
+								>
+								<input
+									type="text"
+									id="utm-content"
+									bind:value={utmContent}
+									placeholder="e.g. banner_top"
+									class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+								/>
+							</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Forward Query Params Toggle -->
+			<div
+				class="flex items-start gap-3 p-4 border border-gray-200 rounded-lg"
+			>
+				<div class="flex-1">
+					<label
+						for="forward-query-params"
+						class="block text-sm font-medium text-gray-700"
+					>
+						Forward visitor query parameters
+					</label>
+					<p class="text-xs text-gray-500 mt-0.5">
+						Append any query params from the short link URL to the
+						destination. Visitor params override UTM params on
+						conflict.
+					</p>
+				</div>
+				<input
+					type="checkbox"
+					id="forward-query-params"
+					bind:checked={forwardQueryParams}
+					class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+				/>
+			</div>
+		{:else}
+			<!-- Upsell for free tier -->
+			<div
+				class="flex items-center gap-2 p-3 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500"
+			>
+				<svg
+					class="w-4 h-4 text-amber-500 shrink-0"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M13 10V3L4 14h7v7l9-11h-7z"
+					/>
+				</svg>
+				<span
+					><strong class="text-gray-700">Pro feature:</strong> UTM
+					parameters &amp; query forwarding —
+					<a href="/billing" class="text-indigo-600 hover:underline"
+						>Upgrade to Pro</a
+					></span
+				>
+			</div>
+		{/if}
 
 		<!-- Error Message -->
 		{#if error}

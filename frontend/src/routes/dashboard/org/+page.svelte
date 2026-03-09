@@ -8,6 +8,7 @@
 		OrgMember,
 		OrgInvitation,
 		OrgWithRole,
+		OrgSettings,
 	} from "$lib/types/api";
 	import type { BillingStatus } from "$lib/api/billing";
 
@@ -45,6 +46,7 @@
 				return;
 			}
 			orgDetails = await orgsApi.getOrg(currentOrgId);
+			await loadOrgSettings(currentOrgId);
 		} catch (e: any) {
 			error = e?.message ?? "Failed to load organization details.";
 		} finally {
@@ -182,10 +184,43 @@
 	}
 
 	const isOwner = $derived(orgDetails?.org.role === "owner");
+	const isPro = $derived(
+		["pro", "business", "unlimited"].includes(orgDetails?.org.tier ?? ""),
+	);
 	// Business tier only allows team members (up to 20)
 	const canInviteMembers = $derived(
 		["business", "unlimited"].includes(orgDetails?.org.tier ?? ""),
 	);
+
+	// Org settings: forward_query_params
+	let orgSettings = $state<OrgSettings | null>(null);
+	let settingsError = $state("");
+	let settingsSaving = $state(false);
+
+	async function loadOrgSettings(orgId: string) {
+		try {
+			orgSettings = await orgsApi.getOrgSettings(orgId);
+		} catch {
+			// Non-critical
+		}
+	}
+
+	async function toggleForwardQueryParams(value: boolean) {
+		if (!orgDetails) return;
+		settingsSaving = true;
+		settingsError = "";
+		try {
+			orgSettings = await orgsApi.updateOrgSettings(orgDetails.org.id, {
+				forward_query_params: value,
+			});
+			actionSuccess = "Organization settings updated.";
+			setTimeout(() => (actionSuccess = ""), 3000);
+		} catch (e: any) {
+			settingsError = e?.message ?? "Failed to update settings.";
+		} finally {
+			settingsSaving = false;
+		}
+	}
 
 	// Delete organization
 	let showDeleteModal = $state(false);
@@ -374,6 +409,78 @@
 					</div>
 				{/if}
 			</div>
+
+			<!-- Pro Features / org settings card -->
+			{#if isPro}
+				<div
+					class="bg-white rounded-xl border border-gray-200 p-6 mb-6"
+				>
+					<h2 class="text-lg font-semibold text-gray-900 mb-1">
+						Link Defaults
+					</h2>
+					<p class="text-sm text-gray-500 mb-4">
+						Default settings applied to new and edited links.
+						Changes here do not retroactively update existing links.
+					</p>
+
+					<div
+						class="flex items-start gap-4 py-3 border-t border-gray-100"
+					>
+						<div class="flex-1">
+							<label
+								for="org-forward-query-params"
+								class="block text-sm font-medium text-gray-900"
+							>
+								Forward visitor query parameters by default
+							</label>
+							<p class="text-xs text-gray-500 mt-0.5">
+								When enabled, new links will forward visitor
+								query params to the destination URL by default.
+								Can be overridden per link.
+							</p>
+						</div>
+						<div class="flex items-center gap-2">
+							{#if settingsSaving}
+								<svg
+									class="animate-spin w-4 h-4 text-gray-400"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
+								</svg>
+							{/if}
+							<input
+								type="checkbox"
+								id="org-forward-query-params"
+								checked={orgSettings?.forward_query_params ??
+									false}
+								disabled={settingsSaving || !isOwner}
+								onchange={(e) =>
+									toggleForwardQueryParams(
+										(e.target as HTMLInputElement).checked,
+									)}
+								class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+							/>
+						</div>
+					</div>
+
+					{#if settingsError}
+						<p class="mt-2 text-sm text-red-600">{settingsError}</p>
+					{/if}
+				</div>
+			{/if}
 
 			<!-- Members Card -->
 			<div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
