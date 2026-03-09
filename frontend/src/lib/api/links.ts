@@ -94,16 +94,12 @@ export const linksApi = {
 	/**
 	 * Get analytics data for a link
 	 * @param id - Link UUID
-	 * @param start - Start timestamp (unix seconds, optional)
-	 * @param end - End timestamp (unix seconds, optional)
+	 * @param days - Number of days to analyze (e.g., 7 for last 7 days, 0 for all time)
 	 * @returns Analytics response with clicks over time, referrers, countries, user agents
 	 */
-	async getAnalytics(id: string, start?: number, end?: number): Promise<LinkAnalyticsResponse> {
-		const params = new URLSearchParams();
-		if (start !== undefined) params.set('start', start.toString());
-		if (end !== undefined) params.set('end', end.toString());
-		const query = params.toString();
-		return apiClient.get<LinkAnalyticsResponse>(`/api/links/${id}/analytics${query ? `?${query}` : ''}`);
+	async getAnalytics(id: string, days: number): Promise<LinkAnalyticsResponse> {
+		// Backend now calculates timestamps to eliminate clock skew issues
+		return apiClient.get<LinkAnalyticsResponse>(`/api/links/${id}/analytics?days=${days}`);
 	}
 };
 

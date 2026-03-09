@@ -3,8 +3,7 @@ use crate::db;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
-    Link, PaginatedResponse, PaginationMeta, Tier,
-    analytics::LinkAnalyticsResponse,
+    Link, LinkAnalyticsResponse, PaginatedResponse, PaginationMeta, Tier, TimeRange,
     link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
@@ -679,29 +678,46 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
         None => return Response::error("Link not found", 404),
     };
 
-    // Parse time range from query params (unix timestamps)
+    // Parse time range from query parameters
+    // Support both new format (TimeRange enum) and legacy format (start/end timestamps)
     let url = req.url()?;
-    let now = now_timestamp();
+    let query = url.query().unwrap_or("");
 
-    let mut start: i64 = url
-        .query()
-        .and_then(|q| {
-            q.split('&')
-                .find(|s| s.starts_with("start="))
-                .and_then(|s| s.split('=').nth(1))
-                .and_then(|s| s.parse().ok())
-        })
-        .unwrap_or_else(|| now - 7 * 24 * 60 * 60); // Default: 7 days ago
+    // Try to parse as new TimeRange format first
+    let time_range = if let Ok(time_range_str) = extract_query_param(query, "time_range") {
+        // New format: JSON TimeRange object
+        serde_json::from_str::<TimeRange>(&time_range_str)
+            .map_err(|e| Error::RustError(format!("Invalid time_range parameter: {}", e)))?
+    } else if let Ok(days_str) = extract_query_param(query, "days") {
+        // Simple days parameter (e.g., ?days=7)
+        let days = days_str.parse::<i64>().unwrap_or(7);
+        TimeRange::Days { value: days }
+    } else {
+        // Legacy format: start/end timestamps for backward compatibility
+        let now = crate::models::analytics::now_timestamp();
 
-    let end: i64 = url
-        .query()
-        .and_then(|q| {
-            q.split('&')
-                .find(|s| s.starts_with("end="))
-                .and_then(|s| s.split('=').nth(1))
-                .and_then(|s| s.parse().ok())
-        })
-        .unwrap_or(now);
+        let start_legacy = query
+            .split('&')
+            .find(|s| s.starts_with("start="))
+            .and_then(|s| s.split('=').nth(1))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| now - 7 * 24 * 60 * 60); // Default: 7 days ago
+
+        let end_legacy = query
+            .split('&')
+            .find(|s| s.starts_with("end="))
+            .and_then(|s| s.split('=').nth(1))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(now);
+
+        TimeRange::Custom {
+            start: start_legacy,
+            end: end_legacy,
+        }
+    };
+
+    // Calculate timestamps using backend logic (eliminates clock skew)
+    let (mut start, end) = time_range.calculate_timestamps();
 
     // Check tier-based analytics limits from billing account
     let org = db::get_org_by_id(&db, org_id)
@@ -725,6 +741,7 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
 
     // Enforce analytics retention window — clamp start date
     if let Some(retention_days) = limits.analytics_retention_days {
+        let now = crate::models::analytics::now_timestamp();
         let retention_start = now - retention_days * 24 * 60 * 60;
         if start < retention_start {
             start = retention_start;

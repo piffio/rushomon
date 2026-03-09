@@ -16,14 +16,12 @@ export const load: PageLoad = async ({ params, parent, url }) => {
 		const link: Link = await linksApi.getByCode(params.short_code);
 
 		// Parse time range from URL query params (or use defaults)
-		const now = Math.floor(Date.now() / 1000);
 		const days = parseInt(url.searchParams.get('days') || '7', 10);
-		const start = days === 0 ? 0 : now - days * 24 * 60 * 60; // 0 = All time
-		const end = now;
 
 		// Fetch analytics and usage (tier info) in parallel
+		// Backend now calculates timestamps to eliminate clock skew issues
 		const [analytics, usage]: [LinkAnalyticsResponse, UsageResponse | null] = await Promise.all([
-			linksApi.getAnalytics(link.id, start, end),
+			linksApi.getAnalytics(link.id, days),
 			usageApi.getUsage().catch(() => null)
 		]);
 

@@ -7,7 +7,7 @@ pub mod pagination;
 pub mod tier;
 pub mod user;
 
-pub use analytics::AnalyticsEvent;
+pub use analytics::{AnalyticsEvent, LinkAnalyticsResponse, TimeRange};
 pub use billing_account::BillingAccount;
 pub use link::{Link, LinkMapping};
 pub use org_member::{OrgInvitation, OrgMember, OrgMemberWithUser, OrgWithRole};
