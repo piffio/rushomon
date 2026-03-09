@@ -326,7 +326,7 @@
 							? ""
 							: allowCustomShortCode
 								? "my-link"
-								: "Available on Unlimited"}
+								: "Available on Pro"}
 						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
 					/>
 					<p class="text-xs text-gray-500 mt-1">
@@ -336,7 +336,7 @@
 							<a
 								href="/pricing"
 								class="text-orange-600 hover:text-orange-700 hover:underline"
-								>Upgrade to Unlimited</a
+								>Upgrade to Pro</a
 							> to use custom short codes
 						{:else}
 							4-10 alphanumeric characters. Leave empty for
