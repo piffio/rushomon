@@ -24,6 +24,11 @@
 		BarElement,
 	} from "chart.js";
 	import { UAParser } from "ua-parser-js";
+	import countries from "i18n-iso-countries";
+	import enLocale from "i18n-iso-countries/langs/en.json";
+
+	// Register the English locale for browser environment
+	countries.registerLocale(enLocale);
 
 	Chart.register(
 		LineController,
@@ -136,6 +141,16 @@
 			return "Upgrade to Business for unlimited analytics history";
 		}
 		return `Upgrade to ${range.minTier.charAt(0).toUpperCase() + range.minTier.slice(1)} to access ${range.label.toLowerCase()} analytics`;
+	}
+
+	// Country code to name mapping
+	function countryCodeToName(code: string): string {
+		if (!code || code === "Unknown") return code;
+
+		const upperCode = code.toUpperCase();
+		const name = countries.getName(upperCode, "en");
+
+		return name || code;
 	}
 
 	// Country code to emoji flag
@@ -290,10 +305,17 @@
 		if (!browserChartCanvas || browserData.length === 0) return;
 		if (browserChart) browserChart.destroy();
 
+		const total = browserData.reduce((sum, b) => sum + b.count, 0);
+		const percentages = browserData.map((b) =>
+			((b.count / total) * 100).toFixed(1),
+		);
+
 		browserChart = new Chart(browserChartCanvas, {
 			type: "doughnut",
 			data: {
-				labels: browserData.map((b) => b.name),
+				labels: browserData.map(
+					(b, i) => `${b.name} (${percentages[i]}%)`,
+				),
 				datasets: [
 					{
 						data: browserData.map((b) => b.count),
@@ -314,6 +336,19 @@
 						position: "bottom",
 						labels: { padding: 12, font: { size: 11 } },
 					},
+					tooltip: {
+						callbacks: {
+							label: function (context) {
+								const label = context.label || "";
+								const value = context.parsed;
+								const percentage = (
+									(value / total) *
+									100
+								).toFixed(1);
+								return `${label}: ${value} (${percentage}%)`;
+							},
+						},
+					},
 				},
 				cutout: "60%",
 			},
@@ -324,10 +359,15 @@
 		if (!osChartCanvas || osData.length === 0) return;
 		if (osChart) osChart.destroy();
 
+		const total = osData.reduce((sum, o) => sum + o.count, 0);
+		const percentages = osData.map((o) =>
+			((o.count / total) * 100).toFixed(1),
+		);
+
 		osChart = new Chart(osChartCanvas, {
 			type: "doughnut",
 			data: {
-				labels: osData.map((o) => o.name),
+				labels: osData.map((o, i) => `${o.name} (${percentages[i]}%)`),
 				datasets: [
 					{
 						data: osData.map((o) => o.count),
@@ -344,6 +384,19 @@
 					legend: {
 						position: "bottom",
 						labels: { padding: 12, font: { size: 11 } },
+					},
+					tooltip: {
+						callbacks: {
+							label: function (context) {
+								const label = context.label || "";
+								const value = context.parsed;
+								const percentage = (
+									(value / total) *
+									100
+								).toFixed(1);
+								return `${label}: ${value} (${percentage}%)`;
+							},
+						},
 					},
 				},
 				cutout: "60%",
@@ -837,7 +890,9 @@
 											class="flex items-center justify-between mb-1"
 										>
 											<span class="text-sm text-gray-900"
-												>{country.country}</span
+												>{countryCodeToName(
+													country.country,
+												)}</span
 											>
 											<span
 												class="text-sm font-medium text-gray-600 ml-2"
