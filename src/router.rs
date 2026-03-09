@@ -397,7 +397,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         .unwrap_or(false);
     if body.short_code.is_some() && !allow_custom {
         return Response::error(
-            "Custom short codes are not available on the free tier. Upgrade to Unlimited.",
+            "Custom short codes are not available on the free tier. Upgrade to Pro.",
             403,
         );
     }
