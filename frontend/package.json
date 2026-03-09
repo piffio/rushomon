@@ -26,7 +26,8 @@
   "name": "frontend",
   "private": true,
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-sitemap.js",
+    "build:sitemap": "node scripts/generate-sitemap.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "dev": "vite dev",

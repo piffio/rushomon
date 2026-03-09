@@ -1,5 +1,7 @@
-import type { RequestHandler } from './$types';
-import { dev } from '$app/environment';
+#!/usr/bin/env node
+
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 const PUBLIC_PAGES = [
 	{ path: '/', changefreq: 'weekly', priority: '1.0' },
@@ -10,7 +12,7 @@ const PUBLIC_PAGES = [
 	{ path: '/privacy', changefreq: 'yearly', priority: '0.3' }
 ];
 
-function buildSitemap(baseUrl: string): string {
+function generateSitemap(baseUrl) {
 	const lastmod = new Date().toISOString().split('T')[0];
 
 	const urls = PUBLIC_PAGES.map(
@@ -29,19 +31,14 @@ ${urls}
 </urlset>`;
 }
 
-export const GET: RequestHandler = async ({ request }) => {
-	// Only serve in development mode
-	if (!dev) {
-		return new Response('Not found', { status: 404 });
-	}
+// Get base URL from environment or default
+// Can override with SITE_URL env var for different deployments
+const baseUrl = process.env.SITE_URL || 'https://rushomon.cc';
+const sitemap = generateSitemap(baseUrl);
 
-	const origin = new URL(request.url).origin;
-	const sitemap = buildSitemap(origin);
+// Write to build directory
+const outputPath = join(process.cwd(), 'build', 'sitemap.xml');
+writeFileSync(outputPath, sitemap);
 
-	return new Response(sitemap, {
-		headers: {
-			'Content-Type': 'application/xml',
-			'Cache-Control': 'no-cache'
-		}
-	});
-};
+console.log(`✅ Generated sitemap.xml at ${outputPath}`);
+console.log(`🌐 Site URL: ${baseUrl}`);
