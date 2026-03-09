@@ -25,13 +25,16 @@
 
 	const dispatch = createEventDispatcher<{ saved: Link }>();
 
-	// Determine mode and tier-based custom code availability
+	// Determine mode and tier-based feature availability
 	const isEditMode = $derived(!!link);
 	const allowCustomShortCode = $derived(
 		usage?.limits?.allow_custom_short_code ?? false,
 	);
-	const isPro = $derived(
-		(usage?.limits?.allow_custom_short_code ?? false) === true,
+	const allowUtmParameters = $derived(
+		usage?.limits?.allow_utm_parameters ?? false,
+	);
+	const allowQueryForwarding = $derived(
+		usage?.limits?.allow_query_forwarding ?? false,
 	);
 	const modalTitle = $derived(
 		isEditMode ? "Edit Link" : "Create New Short Link",
@@ -198,7 +201,7 @@
 		error = "";
 
 		try {
-			const utmParams: UtmParams | undefined = isPro
+			const utmParams: UtmParams | undefined = allowUtmParameters
 				? {
 						utm_source: utmSource.trim() || undefined,
 						utm_medium: utmMedium.trim() || undefined,
@@ -217,7 +220,9 @@
 					: undefined,
 				tags: tags.length > 0 ? tags : [],
 				utm_params: utmParams,
-				forward_query_params: isPro ? forwardQueryParams : undefined,
+				forward_query_params: allowQueryForwarding
+					? forwardQueryParams
+					: undefined,
 			};
 
 			let savedLink: Link;
@@ -522,20 +527,45 @@
 				</div>
 
 				<!-- Pro Features: UTM Builder + Query Forwarding -->
-				{#if isPro}
+				{#if allowUtmParameters || allowQueryForwarding}
 					<!-- UTM Builder -->
-					<div
-						class="border border-gray-200 rounded-lg overflow-hidden"
-					>
-						<button
-							type="button"
-							class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
-							onclick={() => (showUtmBuilder = !showUtmBuilder)}
-							disabled={loading}
+					{#if allowUtmParameters}
+						<div
+							class="border border-gray-200 rounded-lg overflow-hidden"
 						>
-							<span class="flex items-center gap-2">
+							<button
+								type="button"
+								class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+								onclick={() =>
+									(showUtmBuilder = !showUtmBuilder)}
+								disabled={loading}
+							>
+								<span class="flex items-center gap-2">
+									<svg
+										class="w-4 h-4 text-indigo-500"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+										/>
+									</svg>
+									UTM Parameters
+									{#if hasUtmParams()}
+										<span
+											class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full"
+											>active</span
+										>
+									{/if}
+								</span>
 								<svg
-									class="w-4 h-4 text-indigo-500"
+									class="w-4 h-4 text-gray-400 transition-transform {showUtmBuilder
+										? 'rotate-180'
+										: ''}"
 									fill="none"
 									stroke="currentColor"
 									viewBox="0 0 24 24"
@@ -544,300 +574,284 @@
 										stroke-linecap="round"
 										stroke-linejoin="round"
 										stroke-width="2"
-										d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+										d="M19 9l-7 7-7-7"
 									/>
 								</svg>
-								UTM Parameters
-								{#if hasUtmParams()}
-									<span
-										class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full"
-										>active</span
-									>
-								{/if}
-							</span>
-							<svg
-								class="w-4 h-4 text-gray-400 transition-transform {showUtmBuilder
-									? 'rotate-180'
-									: ''}"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M19 9l-7 7-7-7"
-								/>
-							</svg>
-						</button>
-						{#if showUtmBuilder}
-							<div class="p-4 space-y-3 border-t border-gray-200">
-								<p class="text-xs text-gray-500 mb-4">
-									Appended to the destination URL on every
-									redirect.
-								</p>
-								<div class="space-y-3">
-									<!-- Source -->
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
-										>
-											<svg
-												class="w-4 h-4 text-gray-600"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
+							</button>
+							{#if showUtmBuilder}
+								<div
+									class="p-4 space-y-3 border-t border-gray-200"
+								>
+									<p class="text-xs text-gray-500 mb-4">
+										Appended to the destination URL on every
+										redirect.
+									</p>
+									<div class="space-y-3">
+										<!-- Source -->
+										<div class="flex items-center gap-3">
+											<div
+												class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
 											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-												/>
-											</svg>
+												<svg
+													class="w-4 h-4 text-gray-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+													/>
+												</svg>
+											</div>
+											<label
+												for="modal-utm-source"
+												class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+												>Source</label
+											>
+											<input
+												type="text"
+												id="modal-utm-source"
+												bind:value={utmSource}
+												placeholder="e.g. newsletter"
+												disabled={loading}
+												class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+											/>
 										</div>
-										<label
-											for="modal-utm-source"
-											class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
-											>Source</label
-										>
-										<input
-											type="text"
-											id="modal-utm-source"
-											bind:value={utmSource}
-											placeholder="e.g. newsletter"
-											disabled={loading}
-											class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-										/>
+
+										<!-- Medium -->
+										<div class="flex items-center gap-3">
+											<div
+												class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+											>
+												<svg
+													class="w-4 h-4 text-gray-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+													/>
+												</svg>
+											</div>
+											<label
+												for="modal-utm-medium"
+												class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+												>Medium</label
+											>
+											<input
+												type="text"
+												id="modal-utm-medium"
+												bind:value={utmMedium}
+												placeholder="e.g. email"
+												disabled={loading}
+												class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+											/>
+										</div>
+
+										<!-- Campaign -->
+										<div class="flex items-center gap-3">
+											<div
+												class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+											>
+												<svg
+													class="w-4 h-4 text-gray-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"
+													/>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"
+													/>
+												</svg>
+											</div>
+											<label
+												for="modal-utm-campaign"
+												class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+												>Campaign</label
+											>
+											<input
+												type="text"
+												id="modal-utm-campaign"
+												bind:value={utmCampaign}
+												placeholder="e.g. spring_sale"
+												disabled={loading}
+												class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+											/>
+										</div>
+
+										<!-- Term -->
+										<div class="flex items-center gap-3">
+											<div
+												class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+											>
+												<svg
+													class="w-4 h-4 text-gray-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+													/>
+												</svg>
+											</div>
+											<label
+												for="modal-utm-term"
+												class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+												>Term</label
+											>
+											<input
+												type="text"
+												id="modal-utm-term"
+												bind:value={utmTerm}
+												placeholder="e.g. running+shoes"
+												disabled={loading}
+												class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+											/>
+										</div>
+
+										<!-- Content -->
+										<div class="flex items-center gap-3">
+											<div
+												class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+											>
+												<svg
+													class="w-4 h-4 text-gray-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+													/>
+												</svg>
+											</div>
+											<label
+												for="modal-utm-content"
+												class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+												>Content</label
+											>
+											<input
+												type="text"
+												id="modal-utm-content"
+												bind:value={utmContent}
+												placeholder="e.g. banner_top"
+												disabled={loading}
+												class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+											/>
+										</div>
+
+										<!-- Ref -->
+										<div class="flex items-center gap-3">
+											<div
+												class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+											>
+												<svg
+													class="w-4 h-4 text-gray-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 3.12-9.032 7.326M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+													/>
+												</svg>
+											</div>
+											<label
+												for="modal-utm-ref"
+												class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+												>Referral</label
+											>
+											<input
+												type="text"
+												id="modal-utm-ref"
+												bind:value={utmRef}
+												placeholder="e.g. affiliate123"
+												disabled={loading}
+												class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
+											/>
+										</div>
 									</div>
 
-									<!-- Medium -->
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
-										>
-											<svg
-												class="w-4 h-4 text-gray-600"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
+									<!-- URL Preview -->
+									{#if destinationUrl && hasUtmParams()}
+										<div class="px-4 pb-4">
+											<div
+												class="text-sm font-medium text-gray-700 mb-1 block"
 											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-												/>
-											</svg>
-										</div>
-										<label
-											for="modal-utm-medium"
-											class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
-											>Medium</label
-										>
-										<input
-											type="text"
-											id="modal-utm-medium"
-											bind:value={utmMedium}
-											placeholder="e.g. email"
-											disabled={loading}
-											class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-										/>
-									</div>
-
-									<!-- Campaign -->
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
-										>
-											<svg
-												class="w-4 h-4 text-gray-600"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
+												URL Preview
+											</div>
+											<div
+												class="p-3 bg-gray-50 rounded-lg border border-gray-200"
 											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"
-												/>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"
-												/>
-											</svg>
+												{@html `<p class="text-xs font-mono text-gray-600 break-all">${buildPreviewUrl()}</p>`}
+											</div>
 										</div>
-										<label
-											for="modal-utm-campaign"
-											class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
-											>Campaign</label
-										>
-										<input
-											type="text"
-											id="modal-utm-campaign"
-											bind:value={utmCampaign}
-											placeholder="e.g. spring_sale"
-											disabled={loading}
-											class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-										/>
-									</div>
-
-									<!-- Term -->
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
-										>
-											<svg
-												class="w-4 h-4 text-gray-600"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-												/>
-											</svg>
-										</div>
-										<label
-											for="modal-utm-term"
-											class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
-											>Term</label
-										>
-										<input
-											type="text"
-											id="modal-utm-term"
-											bind:value={utmTerm}
-											placeholder="e.g. running+shoes"
-											disabled={loading}
-											class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-										/>
-									</div>
-
-									<!-- Content -->
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
-										>
-											<svg
-												class="w-4 h-4 text-gray-600"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-												/>
-											</svg>
-										</div>
-										<label
-											for="modal-utm-content"
-											class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
-											>Content</label
-										>
-										<input
-											type="text"
-											id="modal-utm-content"
-											bind:value={utmContent}
-											placeholder="e.g. banner_top"
-											disabled={loading}
-											class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-										/>
-									</div>
-
-									<!-- Ref -->
-									<div class="flex items-center gap-3">
-										<div
-											class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
-										>
-											<svg
-												class="w-4 h-4 text-gray-600"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 3.12-9.032 7.326M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-												/>
-											</svg>
-										</div>
-										<label
-											for="modal-utm-ref"
-											class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
-											>Referral</label
-										>
-										<input
-											type="text"
-											id="modal-utm-ref"
-											bind:value={utmRef}
-											placeholder="e.g. affiliate123"
-											disabled={loading}
-											class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100"
-										/>
-									</div>
+									{/if}
 								</div>
-
-								<!-- URL Preview -->
-								{#if destinationUrl && hasUtmParams()}
-									<div class="px-4 pb-4">
-										<div
-											class="text-sm font-medium text-gray-700 mb-1 block"
-										>
-											URL Preview
-										</div>
-										<div
-											class="p-3 bg-gray-50 rounded-lg border border-gray-200"
-										>
-											{@html `<p class="text-xs font-mono text-gray-600 break-all">${buildPreviewUrl()}</p>`}
-										</div>
-									</div>
-								{/if}
-							</div>
-						{/if}
-					</div>
+							{/if}
+						</div>
+					{/if}
 
 					<!-- Forward Query Params Toggle -->
-					<div
-						class="flex items-start gap-3 p-4 border border-gray-200 rounded-lg"
-					>
-						<div class="flex-1">
-							<label
-								for="modal-forward-query-params"
-								class="block text-sm font-medium text-gray-700"
-							>
-								Forward visitor query parameters
-							</label>
-							<p class="text-xs text-gray-500 mt-0.5">
-								Appends query params from the short link URL to
-								the destination (e.g. <code
-									class="bg-gray-100 px-1 rounded"
-									>?ref=tw</code
-								> passes through). Visitor params override UTM params
-								on conflict.
-							</p>
+					{#if allowQueryForwarding}
+						<div
+							class="flex items-start gap-3 p-4 border border-gray-200 rounded-lg"
+						>
+							<div class="flex-1">
+								<label
+									for="modal-forward-query-params"
+									class="block text-sm font-medium text-gray-700"
+								>
+									Forward visitor query parameters
+								</label>
+								<p class="text-xs text-gray-500 mt-0.5">
+									Appends query params from the short link URL
+									to the destination (e.g. <code
+										class="bg-gray-100 px-1 rounded"
+										>?ref=tw</code
+									> passes through). Visitor params override UTM
+									params on conflict.
+								</p>
+							</div>
+							<input
+								type="checkbox"
+								id="modal-forward-query-params"
+								bind:checked={forwardQueryParams}
+								disabled={loading}
+								class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+							/>
 						</div>
-						<input
-							type="checkbox"
-							id="modal-forward-query-params"
-							bind:checked={forwardQueryParams}
-							disabled={loading}
-							class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-						/>
-					</div>
-				{:else}
-					<!-- Upsell for free tier -->
+					{/if}
+				{/if}
+
+				<!-- Show upsell if neither feature is available -->
+				{#if !allowUtmParameters && !allowQueryForwarding}
 					<div
 						class="flex items-center gap-2 p-3 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500"
 					>

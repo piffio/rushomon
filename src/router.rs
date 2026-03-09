@@ -1403,6 +1403,8 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
             "max_links_per_month": limits.max_links_per_month,
             "analytics_retention_days": limits.analytics_retention_days,
             "allow_custom_short_code": limits.allow_custom_short_code,
+            "allow_utm_parameters": limits.allow_utm_parameters,
+            "allow_query_forwarding": limits.allow_query_forwarding,
         },
         "usage": {
             "links_created_this_month": links_created_this_month,

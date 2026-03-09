@@ -136,6 +136,8 @@ export interface UsageResponse {
 		max_links_per_month: number | null;
 		analytics_retention_days: number | null;
 		allow_custom_short_code: boolean;
+		allow_utm_parameters: boolean;
+		allow_query_forwarding: boolean;
 	};
 	usage: {
 		links_created_this_month: number;

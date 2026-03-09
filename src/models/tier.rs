@@ -38,6 +38,8 @@ impl Tier {
                 max_links_per_month: Some(15),
                 analytics_retention_days: Some(7),
                 allow_custom_short_code: false,
+                allow_utm_parameters: false,
+                allow_query_forwarding: false,
                 max_members: Some(1),
                 max_orgs: Some(1),
             },
@@ -46,6 +48,8 @@ impl Tier {
                 max_links_per_month: Some(1000),
                 analytics_retention_days: Some(365),
                 allow_custom_short_code: true,
+                allow_utm_parameters: true,
+                allow_query_forwarding: true,
                 max_members: Some(1),
                 max_orgs: Some(1),
             },
@@ -54,6 +58,8 @@ impl Tier {
                 max_links_per_month: Some(10000),
                 analytics_retention_days: None,
                 allow_custom_short_code: true,
+                allow_utm_parameters: true,
+                allow_query_forwarding: true,
                 max_members: Some(20),
                 max_orgs: Some(3),
             },
@@ -62,6 +68,8 @@ impl Tier {
                 max_links_per_month: None,
                 analytics_retention_days: None,
                 allow_custom_short_code: true,
+                allow_utm_parameters: true,
+                allow_query_forwarding: true,
                 max_members: None,
                 max_orgs: None,
             },
@@ -85,6 +93,10 @@ pub struct TierLimits {
     pub analytics_retention_days: Option<i64>,
     /// Whether custom short codes are allowed for this tier.
     pub allow_custom_short_code: bool,
+    /// Whether UTM parameters are allowed for this tier.
+    pub allow_utm_parameters: bool,
+    /// Whether query parameter forwarding is allowed for this tier.
+    pub allow_query_forwarding: bool,
     /// Maximum members per organization (including owner). None = unlimited.
     pub max_members: Option<i64>,
     /// Maximum organizations a user can own. None = unlimited.
