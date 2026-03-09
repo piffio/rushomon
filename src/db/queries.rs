@@ -1964,8 +1964,7 @@ pub struct OrgTag {
 use crate::models::{OrgInvitation, OrgMember, OrgMemberWithUser, OrgWithRole};
 
 /// Get all organizations a user belongs to (via org_members junction table).
-/// Falls back to the user's default org_id if no org_members rows exist yet,
-/// and auto-inserts the missing membership row to self-heal.
+/// After migration, all users should have proper org_members records.
 pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWithRole>> {
     let stmt = db.prepare(
         "SELECT o.id, o.name, m.role, m.joined_at
@@ -1976,6 +1975,8 @@ pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWith
     );
     let results = stmt.bind(&[user_id.into()])?.all().await?;
     let rows = results.results::<serde_json::Value>()?;
+
+    // Convert rows to OrgWithRole objects
     let orgs: Vec<OrgWithRole> = rows
         .iter()
         .filter_map(|row| {
@@ -1988,48 +1989,7 @@ pub async fn get_user_orgs(db: &D1Database, user_id: &str) -> Result<Vec<OrgWith
         })
         .collect();
 
-    if !orgs.is_empty() {
-        return Ok(orgs);
-    }
-
-    // No org_members rows — fall back to users.org_id and auto-heal
-    let user_row = db
-        .prepare("SELECT org_id, created_at FROM users WHERE id = ?1")
-        .bind(&[user_id.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    let Some(user_row) = user_row else {
-        return Ok(vec![]);
-    };
-
-    let Some(org_id) = user_row["org_id"].as_str() else {
-        return Ok(vec![]);
-    };
-    let joined_at = user_row["created_at"].as_f64().unwrap_or(0.0) as i64;
-
-    // Insert the missing membership row (ignore conflicts)
-    db.prepare(
-        "INSERT INTO org_members (org_id, user_id, role, joined_at)
-         VALUES (?1, ?2, 'owner', ?3)
-         ON CONFLICT(org_id, user_id) DO NOTHING",
-    )
-    .bind(&[org_id.into(), user_id.into(), (joined_at as f64).into()])?
-    .run()
-    .await?;
-
-    // Now fetch the org details
-    let org = match get_org_by_id(db, org_id).await? {
-        Some(o) => o,
-        None => return Ok(vec![]),
-    };
-
-    Ok(vec![OrgWithRole {
-        id: org.id,
-        name: org.name,
-        role: "owner".to_string(),
-        joined_at,
-    }])
+    Ok(orgs) // No fallback needed after migration
 }
 
 /// Get the membership record for a specific user in a specific org.

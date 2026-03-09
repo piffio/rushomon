@@ -86,9 +86,10 @@
 	const currentOrg = $derived(orgs.find((o) => o.id === currentOrgId));
 	const canCreateOrg = $derived(() => {
 		if (!currentOrg || !orgs) return false;
-		// Business tier allows up to 3 organizations
+		// Only business organization owners can create new organizations
 		const tier = currentOrg.tier;
-		if (tier === "business" || tier === "unlimited") {
+		const role = currentOrg.role;
+		if ((tier === "business" || tier === "unlimited") && role === "owner") {
 			const ownedOrgs = orgs.filter((o) => o.role === "owner");
 			return ownedOrgs.length < 3;
 		}
@@ -105,7 +106,12 @@
 		);
 	});
 	const hasReachedOrgLimit = $derived(() => {
-		return isBusinessTier() && ownedOrgCount() >= 3;
+		return (
+			currentOrg &&
+			isBusinessTier() &&
+			currentOrg.role === "owner" &&
+			ownedOrgCount() >= 3
+		);
 	});
 
 	function openCreateOrg() {
@@ -292,8 +298,16 @@
 														>
 														<span
 															class="block text-xs text-gray-500 capitalize"
-															>{org.role} · {org.tier}</span
 														>
+															{org.role} · {org.tier}
+															{#if org.role === "owner"}
+																<span
+																	class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 ml-1"
+																>
+																	Personal
+																</span>
+															{/if}
+														</span>
 													</span>
 													{#if org.id === currentOrgId}
 														<svg
@@ -360,6 +374,52 @@
 												<span
 													>{ownedOrgCount()}/3
 													organizations created</span
+												>
+											</div>
+										{:else if !isBusinessTier()}
+											<div
+												class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 cursor-default select-none"
+											>
+												<svg
+													class="w-4 h-4"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+													/>
+												</svg>
+												<span>Create Organization</span>
+												<span
+													class="ml-auto text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium"
+													>Business</span
+												>
+											</div>
+										{:else if currentOrg && currentOrg.role !== "owner"}
+											<div
+												class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 cursor-default select-none"
+											>
+												<svg
+													class="w-4 h-4"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+													/>
+												</svg>
+												<span>Create Organization</span>
+												<span
+													class="ml-auto text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium"
+													>Owner Only</span
 												>
 											</div>
 										{:else}
