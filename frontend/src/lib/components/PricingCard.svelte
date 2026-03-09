@@ -30,7 +30,12 @@
 		if (buttonHref) {
 			window.location.href = buttonHref;
 		} else if (isCurrentPlan) {
-			dispatch("portal", { tier });
+			// For free tier, redirect to dashboard instead of opening portal
+			if (tier === "free") {
+				window.location.href = "/dashboard";
+			} else {
+				dispatch("portal", { tier });
+			}
 		} else if (isUpgrade && usePortalForUpgrade) {
 			dispatch("portal", { tier });
 		} else {
@@ -195,7 +200,9 @@
 			{checkoutLoading === `${tier}_${billingInterval}` ||
 			checkoutLoading === "portal"
 				? isCurrentPlan
-					? "Opening Portal…"
+					? tier === "free"
+						? "Redirecting…"
+						: "Opening Portal…"
 					: "Redirecting…"
 				: buttonText}
 		</button>

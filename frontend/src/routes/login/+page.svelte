@@ -4,6 +4,9 @@
 	import { page } from "$app/stores";
 	import Logo from "$lib/components/Logo.svelte";
 	import { authApi, type AuthProvider } from "$lib/api/auth";
+	import type { PageData } from "./$types";
+
+	let { data }: { data: PageData } = $props();
 
 	let providers = $state<AuthProvider[]>([]);
 	let loading = $state(true);
@@ -18,6 +21,12 @@
 	);
 
 	onMount(async () => {
+		// Redirect to dashboard if user is already authenticated
+		if (data.user) {
+			await goto("/dashboard");
+			return;
+		}
+
 		try {
 			providers = await authApi.getProviders();
 		} catch (err) {
