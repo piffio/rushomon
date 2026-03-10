@@ -59,14 +59,6 @@
 		} catch {
 			// Non-critical
 		}
-		// Trigger initial filter if tags present and links loaded
-		if (selectedTags.length > 0 && links.length > 0) {
-			handleFilterChange(
-				new CustomEvent("change", {
-					detail: { search, status, sort, tags: selectedTags },
-				}),
-			);
-		}
 	});
 
 	// Initialize links, pagination, and stats from data (runs on mount and when data changes)

@@ -29,17 +29,23 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 		const search = url.searchParams.get('search') || '';
 		const status = url.searchParams.get('status') as 'active' | 'disabled' | null;
 		const sort = (url.searchParams.get('sort') || 'created') as 'created' | 'updated' | 'clicks' | 'title' | 'code';
-		// Fetch links and usage data in parallel
-		const [paginatedLinks, usage] = await Promise.all([
-			linksApi.list(page, 10, search || undefined, status || undefined, sort),
-			usageApi.getUsage().catch(() => null)
-		]);
-
-		// Parse tags for UI state (not passed to API yet)
-		const initialTags = (url.searchParams.get('tags') || '')
+		const tags = (url.searchParams.get('tags') || '')
 			.split(',')
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
+
+		// Fetch links and usage data in parallel
+		const [paginatedLinks, usage] = await Promise.all([
+			linksApi.list(
+				page,
+				10,
+				search || undefined,
+				status || undefined,
+				sort,
+				tags.length > 0 ? tags : undefined
+			),
+			usageApi.getUsage().catch(() => null)
+		]);
 
 		return {
 			user,
@@ -48,7 +54,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			initialSearch: search,
 			initialStatus: status || 'all',
 			initialSort: sort,
-			initialTags
+			initialTags: tags
 		};
 	} catch (error) {
 		// If links fetch fails, still return user data
