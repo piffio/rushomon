@@ -41,6 +41,32 @@
 	let localSearch = $state(search);
 	let showTagDropdown = $state(false);
 
+	// Close dropdown on Escape key or click outside
+	$effect(() => {
+		if (!showTagDropdown) return;
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				showTagDropdown = false;
+			}
+		};
+
+		const handleClickOutside = (e: MouseEvent) => {
+			const target = e.target as HTMLElement;
+			if (!target.closest("[data-tag-dropdown]")) {
+				showTagDropdown = false;
+			}
+		};
+
+		document.addEventListener("keydown", handleKeyDown);
+		document.addEventListener("click", handleClickOutside);
+
+		return () => {
+			document.removeEventListener("keydown", handleKeyDown);
+			document.removeEventListener("click", handleClickOutside);
+		};
+	});
+
 	// Sync local search with prop
 	$effect(() => {
 		localSearch = search;
@@ -254,7 +280,7 @@
 					<span class="text-sm text-gray-600 whitespace-nowrap"
 						>Tags:</span
 					>
-					<div class="relative">
+					<div class="relative" data-tag-dropdown>
 						<button
 							type="button"
 							onclick={() => (showTagDropdown = !showTagDropdown)}
