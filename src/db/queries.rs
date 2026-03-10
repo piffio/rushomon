@@ -1074,6 +1074,255 @@ pub async fn get_link_total_clicks_in_range(
     }
 }
 
+/// Get total click count from analytics_events for an org within a time range
+pub async fn get_org_total_clicks_in_range(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(*) as count
+         FROM analytics_events
+         WHERE org_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into(), (start as f64).into(), (end as f64).into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Get unique link count clicked in an org within a time range
+pub async fn get_org_unique_links_clicked(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(DISTINCT link_id) as count
+         FROM analytics_events
+         WHERE org_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3",
+    );
+
+    let result = stmt
+        .bind(&[org_id.into(), (start as f64).into(), (end as f64).into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    match result {
+        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+        None => Ok(0),
+    }
+}
+
+/// Get clicks over time for an org, grouped by day
+pub async fn get_org_clicks_over_time(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+) -> Result<Vec<crate::models::analytics::DailyClicks>> {
+    let stmt = db.prepare(
+        "SELECT date(timestamp, 'unixepoch') as date, COUNT(*) as count
+         FROM analytics_events
+         WHERE org_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+         GROUP BY date
+         ORDER BY date ASC",
+    );
+
+    let results = stmt
+        .bind(&[org_id.into(), (start as f64).into(), (end as f64).into()])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let clicks = rows
+        .iter()
+        .filter_map(|row| {
+            let date = row["date"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::DailyClicks { date, count })
+        })
+        .collect();
+
+    Ok(clicks)
+}
+
+/// Get top links by click count in an org within a time range
+pub async fn get_org_top_links(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::TopLinkCount>> {
+    let stmt = db.prepare(
+        "SELECT ae.link_id, l.short_code, l.title, COUNT(*) as count
+         FROM analytics_events ae
+         JOIN links l ON ae.link_id = l.id
+         WHERE ae.org_id = ?1 AND ae.timestamp >= ?2 AND ae.timestamp <= ?3
+         GROUP BY ae.link_id
+         ORDER BY count DESC
+         LIMIT ?4",
+    );
+
+    let results = stmt
+        .bind(&[
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let links = rows
+        .iter()
+        .filter_map(|row| {
+            let link_id = row["link_id"].as_str()?.to_string();
+            let short_code = row["short_code"].as_str()?.to_string();
+            let title = row["title"].as_str().map(|s| s.to_string());
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::TopLinkCount {
+                link_id,
+                short_code,
+                title,
+                count,
+            })
+        })
+        .collect();
+
+    Ok(links)
+}
+
+/// Get top referrers for an org
+pub async fn get_org_top_referrers(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::ReferrerCount>> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(referrer, 'Direct / Unknown') as referrer, COUNT(*) as count
+         FROM analytics_events
+         WHERE org_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+         GROUP BY referrer
+         ORDER BY count DESC
+         LIMIT ?4",
+    );
+
+    let results = stmt
+        .bind(&[
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let referrers = rows
+        .iter()
+        .filter_map(|row| {
+            let referrer = row["referrer"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::ReferrerCount { referrer, count })
+        })
+        .collect();
+
+    Ok(referrers)
+}
+
+/// Get top countries for an org
+pub async fn get_org_top_countries(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::CountryCount>> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(country, 'Unknown') as country, COUNT(*) as count
+         FROM analytics_events
+         WHERE org_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+         GROUP BY country
+         ORDER BY count DESC
+         LIMIT ?4",
+    );
+
+    let results = stmt
+        .bind(&[
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let countries = rows
+        .iter()
+        .filter_map(|row| {
+            let country = row["country"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::CountryCount { country, count })
+        })
+        .collect();
+
+    Ok(countries)
+}
+
+/// Get top user agents for an org (raw strings, parsed client-side)
+pub async fn get_org_top_user_agents(
+    db: &D1Database,
+    org_id: &str,
+    start: i64,
+    end: i64,
+    limit: i64,
+) -> Result<Vec<crate::models::analytics::UserAgentCount>> {
+    let stmt = db.prepare(
+        "SELECT COALESCE(user_agent, 'Unknown') as user_agent, COUNT(*) as count
+         FROM analytics_events
+         WHERE org_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+         GROUP BY user_agent
+         ORDER BY count DESC
+         LIMIT ?4",
+    );
+
+    let results = stmt
+        .bind(&[
+            org_id.into(),
+            (start as f64).into(),
+            (end as f64).into(),
+            (limit as f64).into(),
+        ])?
+        .all()
+        .await?;
+
+    let rows = results.results::<serde_json::Value>()?;
+    let agents = rows
+        .iter()
+        .filter_map(|row| {
+            let user_agent = row["user_agent"].as_str()?.to_string();
+            let count = row["count"].as_f64()? as i64;
+            Some(crate::models::analytics::UserAgentCount { user_agent, count })
+        })
+        .collect();
+
+    Ok(agents)
+}
+
 /// Suspend a user
 pub async fn suspend_user(
     db: &D1Database,

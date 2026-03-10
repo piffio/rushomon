@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Header from "$lib/components/Header.svelte";
 	import { orgsApi } from "$lib/api/orgs";
 	import { billingApi } from "$lib/api/billing";
 	import type { PageData } from "./$types";
@@ -289,30 +288,9 @@
 </script>
 
 <div class="min-h-screen bg-gray-50">
-	<Header user={data.user} currentPage="settings" />
-
 	<main class="container mx-auto px-4 py-8 max-w-3xl">
 		<div class="mb-6">
-			<a
-				href="/dashboard"
-				class="text-sm text-gray-500 hover:text-orange-600 transition-colors flex items-center gap-1"
-			>
-				<svg
-					class="w-4 h-4"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M15 19l-7-7 7-7"
-					/>
-				</svg>
-				Back to Dashboard
-			</a>
-			<h1 class="text-2xl font-bold text-gray-900 mt-2">
+			<h1 class="text-2xl font-bold text-gray-900">
 				Organization Settings
 			</h1>
 		</div>

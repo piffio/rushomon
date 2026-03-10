@@ -72,7 +72,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings - Rushomon</title>
+	<title>Account Settings - Rushomon</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50 flex flex-col">
@@ -80,9 +80,11 @@
 
 	<main class="flex-1 container mx-auto px-4 py-12">
 		<div class="max-w-3xl mx-auto">
-			<h1 class="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+			<h1 class="text-3xl font-bold text-gray-900 mb-2">
+				Account Settings
+			</h1>
 			<p class="text-gray-600 mb-8">
-				Manage your account preferences and configuration.
+				Manage your personal account preferences and configuration.
 			</p>
 
 			<!-- User Info Preview -->

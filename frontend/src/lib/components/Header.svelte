@@ -8,7 +8,12 @@
 
 	interface Props {
 		user?: User | null;
-		currentPage?: "landing" | "dashboard" | "admin" | "settings";
+		currentPage?:
+			| "landing"
+			| "dashboard"
+			| "analytics"
+			| "admin"
+			| "settings";
 	}
 
 	let { user, currentPage = "landing" }: Props = $props();
@@ -40,7 +45,9 @@
 	$effect(() => {
 		if (
 			user &&
-			(currentPage === "dashboard" || currentPage === "settings")
+			(currentPage === "dashboard" ||
+				currentPage === "analytics" ||
+				currentPage === "settings")
 		) {
 			orgsLoading = true;
 			orgsApi
@@ -76,11 +83,6 @@
 		} finally {
 			switchingOrg = false;
 		}
-	}
-
-	function handleOrgSettingsClick() {
-		orgSwitcherOpen = false;
-		window.location.href = "/dashboard/org";
 	}
 
 	const currentOrg = $derived(orgs.find((o) => o.id === currentOrgId));
@@ -205,7 +207,7 @@
 					{/if}
 
 					<!-- Org Switcher (dashboard & settings pages, always shown when authenticated) -->
-					{#if currentPage === "dashboard" || currentPage === "settings"}
+					{#if currentPage === "dashboard" || currentPage === "analytics" || currentPage === "settings"}
 						<div class="relative hidden md:block">
 							<button
 								onclick={() =>
@@ -451,32 +453,6 @@
 												>
 											</button>
 										{/if}
-										<!-- Organization Settings -->
-										<button
-											onclick={handleOrgSettingsClick}
-											class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-										>
-											<svg
-												class="w-4 h-4 text-gray-400"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-												/>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-												/>
-											</svg>
-											Organization Settings
-										</button>
 									</div>
 								</div>
 							{/if}
@@ -540,20 +516,10 @@
 						>
 					{/if}
 					<div class="border-t border-gray-100 pt-2">
-						{#if currentPage === "dashboard" || currentPage === "settings"}
-							<button
-								onclick={() => {
-									mobileMenuOpen = false;
-									window.location.href = "/dashboard/org";
-								}}
-								class="block w-full text-left py-2 text-gray-700 hover:text-orange-600 transition-colors"
-								>🏢 Organization Settings</button
-							>
-						{/if}
 						<a
 							href="/settings"
 							class="block py-2 text-gray-700 hover:text-orange-600 transition-colors"
-							>⚙️ Settings</a
+							>⚙️ Account Settings</a
 						>
 						<a
 							href="https://github.com/piffio/rushomon/"

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Header from "$lib/components/Header.svelte";
 	import type { LinkAnalyticsResponse, UserAgentCount } from "$lib/types/api";
 	import {
 		PUBLIC_VITE_API_BASE_URL,
@@ -85,7 +84,7 @@
 		{ label: "Last 30 days", value: 30, minTier: "pro" },
 		{ label: "Last 90 days", value: 90, minTier: "pro" },
 		{ label: "Last year", value: 365, minTier: "pro" },
-		{ label: "All time", value: 0, minTier: "business" },
+		{ label: "Last 3 years", value: 0, minTier: "business" },
 	];
 
 	// Track which locked button was clicked for popover
@@ -457,30 +456,7 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50">
-	<Header user={data.user} currentPage="dashboard" />
-
 	<div class="max-w-6xl mx-auto px-4 py-8">
-		<!-- Back Navigation -->
-		<a
-			href="/dashboard"
-			class="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600 mb-6 transition-colors"
-		>
-			<svg
-				class="w-4 h-4"
-				fill="none"
-				stroke="currentColor"
-				viewBox="0 0 24 24"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M15 19l-7-7 7-7"
-				/>
-			</svg>
-			Back to Dashboard
-		</a>
-
 		{#if data.error}
 			<div
 				class="bg-red-50 border border-red-200 rounded-xl p-6 text-center"
@@ -661,43 +637,25 @@
 
 						<!-- Upsell Popover -->
 						{#if lockedPopoverOpen === range.label}
-							<div class="absolute top-full left-0 mt-2 z-50">
-								<div
-									class="bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
+							<div
+								class="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-20 text-sm"
+							>
+								<p class="text-gray-700 mb-2">
+									{getUpsellMessage(range)}
+								</p>
+								<a
+									href="/pricing"
+									class="block w-full text-center px-3 py-1.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors"
 								>
-									<p class="text-sm text-gray-600 mb-2">
-										{getUpsellMessage(range)}
-									</p>
-									<div
-										class="flex items-center justify-between"
-									>
-										<a
-											href="/pricing"
-											class="text-sm font-medium text-orange-600 hover:text-orange-700"
-										>
-											View pricing →
-										</a>
-										<button
-											onclick={closePopover}
-											class="text-gray-400 hover:text-gray-600 p-1"
-											title="Close popover"
-										>
-											<svg
-												class="w-4 h-4"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M6 18L18 6M6 6l12 12"
-												/>
-											</svg>
-										</button>
-									</div>
-								</div>
+									Upgrade to {range.minTier === "business"
+										? "Business"
+										: "Pro"} →
+								</a>
+								<button
+									onclick={closePopover}
+									class="mt-1 w-full text-center text-xs text-gray-400 hover:text-gray-600"
+									>Dismiss</button
+								>
 							</div>
 						{/if}
 					</div>
@@ -843,7 +801,7 @@
 											class="w-full bg-gray-100 rounded-full h-1.5"
 										>
 											<div
-												class="bg-orange-500 h-1.5 rounded-full"
+												class="bg-blue-500 h-1.5 rounded-full"
 												style="width: {(ref.count /
 													maxCount) *
 													100}%"
@@ -903,7 +861,7 @@
 											class="w-full bg-gray-100 rounded-full h-1.5"
 										>
 											<div
-												class="bg-blue-500 h-1.5 rounded-full"
+												class="bg-green-500 h-1.5 rounded-full"
 												style="width: {(country.count /
 													maxCount) *
 													100}%"

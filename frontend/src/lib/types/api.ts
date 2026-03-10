@@ -130,6 +130,25 @@ export interface LinkAnalyticsResponse {
 	gated_reason?: string;
 }
 
+export interface TopLinkCount {
+	link_id: string;
+	short_code: string;
+	title: string | null;
+	count: number;
+}
+
+export interface OrgAnalyticsResponse {
+	total_clicks: number;
+	unique_links_clicked: number;
+	clicks_over_time: ClicksOverTime[];
+	top_links: TopLinkCount[];
+	top_referrers: ReferrerCount[];
+	top_countries: CountryCount[];
+	top_user_agents: UserAgentCount[];
+	analytics_gated?: boolean;
+	gated_reason?: string;
+}
+
 export interface UsageResponse {
 	tier: string;
 	limits: {

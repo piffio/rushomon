@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Header from "$lib/components/Header.svelte";
 	import LinkList from "$lib/components/LinkList.svelte";
 	import LinkModal from "$lib/components/LinkModal.svelte";
 	import QRCodeModal from "$lib/components/QRCodeModal.svelte";
@@ -282,8 +281,6 @@
 
 <div class="min-h-screen bg-gray-50">
 	{#if data.user}
-		<Header user={data.user} currentPage="dashboard" />
-
 		<!-- Slim Title Bar -->
 		<div class="border-b border-gray-200 bg-white">
 			<div
