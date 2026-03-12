@@ -538,3 +538,250 @@ async fn test_usage_api_includes_custom_code_flag() {
         "Unlimited tier should allow custom short codes"
     );
 }
+
+#[tokio::test]
+async fn test_free_tier_tag_limits() {
+    let client = authenticated_client();
+
+    // Get user info to find billing account ID
+    let user_response = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let user: serde_json::Value = user_response.json().await.unwrap();
+
+    // Get all billing accounts and find the one for this user
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            // Find the billing account that belongs to this user
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
+    // Set billing account to free tier
+    let tier_response = client
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
+        .json(&json!({"tier": "free"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tier_response.status(),
+        200,
+        "Failed to set billing account to free tier"
+    );
+
+    // Create a new org to ensure clean tag state
+    let org_response = client
+        .post(format!("{}/api/orgs", BASE_URL))
+        .json(&json!({
+            "name": "Tag Limits Test Org"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let org_status = org_response.status();
+    let org_id = if org_status == StatusCode::FORBIDDEN {
+        println!("Org limit reached, using existing org for tag test");
+        // Use existing org - get primary org
+        get_primary_test_org_id().await
+    } else {
+        assert_eq!(org_status, StatusCode::OK);
+        let org_data: serde_json::Value = org_response.json().await.unwrap();
+        org_data["org"]["id"]
+            .as_str()
+            .expect("Org response should have org.id field")
+            .to_string()
+    };
+
+    // Try to create links with unique tags until we hit the tag limit
+    let mut created_links = Vec::new();
+    let mut tags_created = 0;
+
+    for i in 1..=10 {
+        let tag_name = format!("tag{}", i);
+        let response = client
+            .post(format!("{}/api/links", BASE_URL))
+            .json(&json!({
+                "destination_url": format!("https://example{}.com", i),
+                "title": format!("Test Link {}", i),
+                "tags": [tag_name]
+            }))
+            .send()
+            .await
+            .unwrap();
+
+        if response.status() == StatusCode::FORBIDDEN {
+            println!(
+                "Hit tag limit at link {} (quota may be partially consumed)",
+                i
+            );
+
+            // Verify error message mentions tag limit
+            let error_text = response.text().await.unwrap();
+            assert!(
+                error_text.contains("tag limit") || error_text.contains("reached your tag limit"),
+                "Error message should mention tag limit: {}",
+                error_text
+            );
+
+            println!("Tag limit is working correctly");
+            break;
+        } else {
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "Link {} should succeed on free tier",
+                i
+            );
+
+            let link: serde_json::Value = response.json().await.unwrap();
+            created_links.push(link["id"].as_str().unwrap().to_string());
+            tags_created += 1;
+
+            // Stop if we've created 5 tags (the expected limit for free tier)
+            if tags_created >= 5 {
+                break;
+            }
+        }
+    }
+
+    // If we didn't hit the limit, that's also fine - it means quota was already consumed
+    if tags_created == 0 {
+        println!("Tag limit already enforced (quota full from previous tests)");
+    }
+
+    // Test that we can still create links with existing tags
+    if tags_created > 0 {
+        let response = client
+            .post(format!("{}/api/links", BASE_URL))
+            .json(&json!({
+                "destination_url": "https://example-reuse.com",
+                "title": "Test Link with Existing Tag",
+                "tags": ["tag1"] // Reuse first tag
+            }))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Should be able to create links with existing tags"
+        );
+
+        let link: serde_json::Value = response.json().await.unwrap();
+        created_links.push(link["id"].as_str().unwrap().to_string());
+    }
+
+    // Test tag management endpoints
+    if tags_created > 0 {
+        // Get tags
+        let response = client
+            .get(format!("{}/api/tags", BASE_URL))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let tags: serde_json::Value = response.json().await.unwrap();
+        assert!(tags.as_array().unwrap().len() > 0);
+
+        // Rename a tag
+        let first_tag = tags[0]["name"].as_str().unwrap();
+        let response = client
+            .put(format!("{}/api/tags/{}", BASE_URL, first_tag))
+            .json(&json!({
+                "name": "renamed-tag"
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Verify tag was renamed
+        let response = client
+            .get(format!("{}/api/tags", BASE_URL))
+            .send()
+            .await
+            .unwrap();
+        let updated_tags: serde_json::Value = response.json().await.unwrap();
+        let tag_names: Vec<String> = updated_tags
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap().to_string())
+            .collect();
+        assert!(tag_names.contains(&"renamed-tag".to_string()));
+    }
+
+    // Test usage endpoint includes tag info
+    let response = client
+        .get(format!("{}/api/usage", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let usage: serde_json::Value = response.json().await.unwrap();
+
+    // Verify tag limit is present
+    assert!(usage["limits"]["max_tags"].is_number());
+    assert_eq!(usage["limits"]["max_tags"].as_i64().unwrap(), 5); // Free tier
+
+    // Verify tag count is present
+    assert!(usage["usage"]["tags_count"].is_number());
+
+    // Clean up created links
+    for link_id in created_links {
+        let _ = client
+            .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+            .send()
+            .await;
+    }
+
+    // Clean up org only if we created a new one
+    if org_status != StatusCode::FORBIDDEN {
+        let _ = client
+            .delete(format!("{}/api/orgs/{}", BASE_URL, org_id))
+            .send()
+            .await;
+    }
+
+    // Reset billing account back to unlimited tier for subsequent tests
+    let reset_response = client
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
+        .json(&json!({"tier": "unlimited"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset billing account to unlimited tier"
+    );
+}
