@@ -157,9 +157,11 @@ export interface UsageResponse {
 		allow_custom_short_code: boolean;
 		allow_utm_parameters: boolean;
 		allow_query_forwarding: boolean;
+		max_tags: number | null;
 	};
 	usage: {
 		links_created_this_month: number;
+		tags_count: number;
 	};
 }
 

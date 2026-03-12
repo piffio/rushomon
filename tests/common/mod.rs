@@ -15,6 +15,11 @@ pub fn test_client() -> Client {
         .unwrap()
 }
 
+/// Helper to create an authenticated test client (convenience wrapper)
+pub fn create_test_client() -> Client {
+    authenticated_client()
+}
+
 /// Get the test JWT from environment variable
 /// Panics if TEST_JWT is not set - run scripts/run-integration-tests.sh first
 pub fn get_test_jwt() -> String {

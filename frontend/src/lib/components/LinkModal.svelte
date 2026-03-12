@@ -523,6 +523,8 @@
 						{availableTags}
 						placeholder="Add tags..."
 						disabled={loading}
+						maxTags={usage?.limits.max_tags ?? null}
+						currentTagsCount={usage?.usage.tags_count ?? 0}
 					/>
 				</div>
 

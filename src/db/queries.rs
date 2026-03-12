@@ -3377,3 +3377,65 @@ pub async fn get_cached_product_by_price_id(
 
     Ok(result)
 }
+
+// ─── Tag Management ─────────────────────────────────────────────────────────────
+
+/// Count distinct tag names across all organizations in a billing account.
+/// This is used to enforce BA-level tag limits.
+pub async fn count_distinct_tags_for_billing_account(
+    db: &D1Database,
+    billing_account_id: &str,
+) -> Result<i64> {
+    let stmt = db.prepare(
+        "SELECT COUNT(DISTINCT lt.tag_name) as count
+         FROM link_tags lt
+         JOIN organizations o ON lt.org_id = o.id
+         WHERE o.billing_account_id = ?1",
+    );
+
+    let result = stmt
+        .bind(&[billing_account_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    if let Some(result) = result {
+        Ok(result["count"].as_f64().unwrap_or(0.0) as i64)
+    } else {
+        Ok(0)
+    }
+}
+
+/// Rename a tag within an organization. Updates all links that use the tag.
+/// If the new name already exists in the org, this will effectively merge the tags.
+pub async fn rename_tag_for_org(
+    db: &D1Database,
+    org_id: &str,
+    old_name: &str,
+    new_name: &str,
+) -> Result<()> {
+    // Use INSERT OR REPLACE to handle the case where new_name already exists
+    // This effectively merges the old tag into the existing one
+    let stmt = db.prepare(
+        "UPDATE link_tags
+         SET tag_name = ?1
+         WHERE org_id = ?2 AND tag_name = ?3",
+    );
+
+    stmt.bind(&[new_name.into(), org_id.into(), old_name.into()])?
+        .run()
+        .await?;
+
+    Ok(())
+}
+
+/// Delete a tag from an organization. Removes the tag from all links.
+pub async fn delete_tag_for_org(db: &D1Database, org_id: &str, tag_name: &str) -> Result<()> {
+    let stmt = db.prepare(
+        "DELETE FROM link_tags
+         WHERE org_id = ?1 AND tag_name = ?2",
+    );
+
+    stmt.bind(&[org_id.into(), tag_name.into()])?.run().await?;
+
+    Ok(())
+}

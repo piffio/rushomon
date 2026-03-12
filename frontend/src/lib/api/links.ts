@@ -135,5 +135,25 @@ export const tagsApi = {
 	 */
 	async list(): Promise<TagWithCount[]> {
 		return apiClient.get<TagWithCount[]>('/api/tags');
+	},
+
+	/**
+	 * Rename a tag in the authenticated org
+	 * @param oldName Current tag name
+	 * @param newName New tag name
+	 * @returns Updated list of tags
+	 */
+	async rename(oldName: string, newName: string): Promise<TagWithCount[]> {
+		return apiClient.patch<TagWithCount[]>(`/api/tags/${encodeURIComponent(oldName)}`, {
+			new_name: newName
+		});
+	},
+
+	/**
+	 * Delete a tag from the authenticated org
+	 * @param name Tag name to delete
+	 */
+	async remove(name: string): Promise<void> {
+		return apiClient.delete<void>(`/api/tags/${encodeURIComponent(name)}`);
 	}
 };

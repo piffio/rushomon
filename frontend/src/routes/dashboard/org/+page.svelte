@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { orgsApi } from "$lib/api/orgs";
 	import { billingApi } from "$lib/api/billing";
+	import { tagsApi } from "$lib/api/links";
 	import type { PageData } from "./$types";
 	import type {
 		OrgDetails,
@@ -8,6 +9,7 @@
 		OrgInvitation,
 		OrgWithRole,
 		OrgSettings,
+		TagWithCount,
 	} from "$lib/types/api";
 	import type { BillingStatus } from "$lib/api/billing";
 
@@ -34,6 +36,16 @@
 	let actionError = $state("");
 	let actionSuccess = $state("");
 
+	// Tags management
+	let tags = $state<TagWithCount[]>([]);
+	let tagsLoading = $state(false);
+	let tagsError = $state("");
+	let editingTag = $state<string | null>(null);
+	let newTagName = $state("");
+	let savingTag = $state(false);
+	let tagError = $state("");
+	let deletingTag = $state<string | null>(null);
+
 	async function loadOrg() {
 		loading = true;
 		error = "";
@@ -46,6 +58,7 @@
 			}
 			orgDetails = await orgsApi.getOrg(currentOrgId);
 			await loadOrgSettings(currentOrgId);
+			await loadTags();
 		} catch (e: any) {
 			error = e?.message ?? "Failed to load organization details.";
 		} finally {
@@ -204,6 +217,18 @@
 		}
 	}
 
+	async function loadTags() {
+		tagsLoading = true;
+		tagsError = "";
+		try {
+			tags = await tagsApi.list();
+		} catch (e: any) {
+			tagsError = e?.message ?? "Failed to load tags.";
+		} finally {
+			tagsLoading = false;
+		}
+	}
+
 	async function toggleForwardQueryParams(value: boolean) {
 		if (!orgDetails) return;
 		settingsSaving = true;
@@ -284,6 +309,91 @@
 		} finally {
 			deleting = false;
 		}
+	}
+
+	// Tag management functions
+	function startEditTag(tagName: string) {
+		editingTag = tagName;
+		newTagName = tagName;
+		tagError = "";
+	}
+
+	function cancelEditTag() {
+		editingTag = null;
+		newTagName = "";
+		tagError = "";
+	}
+
+	async function saveTagRename(oldName: string) {
+		if (!orgDetails) return;
+		const trimmed = newTagName.trim();
+		if (!trimmed) {
+			tagError = "Tag name cannot be empty.";
+			return;
+		}
+		if (trimmed === oldName) {
+			cancelEditTag();
+			return;
+		}
+		if (trimmed.length > 50) {
+			tagError = "Tag name must be 50 characters or less.";
+			return;
+		}
+
+		savingTag = true;
+		tagError = "";
+		try {
+			tags = await tagsApi.rename(oldName, trimmed);
+			actionSuccess = `Tag renamed from "${oldName}" to "${trimmed}".`;
+			setTimeout(() => (actionSuccess = ""), 3000);
+			cancelEditTag();
+		} catch (e: any) {
+			tagError = e?.message ?? "Failed to rename tag.";
+		} finally {
+			savingTag = false;
+		}
+	}
+
+	function startDeleteTag(tagName: string) {
+		deletingTag = tagName;
+	}
+
+	function cancelDeleteTag() {
+		deletingTag = null;
+	}
+
+	async function confirmDeleteTag(tagName: string) {
+		if (!orgDetails) return;
+		try {
+			await tagsApi.remove(tagName);
+			tags = tags.filter((t) => t.name !== tagName);
+			actionSuccess = `Tag "${tagName}" deleted successfully.`;
+			setTimeout(() => (actionSuccess = ""), 3000);
+			cancelDeleteTag();
+		} catch (e: any) {
+			actionError = e?.message ?? "Failed to delete tag.";
+			setTimeout(() => (actionError = ""), 3000);
+		}
+	}
+
+	// Helper function for tag colors (same as SearchFilterBar)
+	const TAG_COLORS = [
+		"bg-blue-100 text-blue-800",
+		"bg-green-100 text-green-800",
+		"bg-purple-100 text-purple-800",
+		"bg-yellow-100 text-yellow-800",
+		"bg-pink-100 text-pink-800",
+		"bg-indigo-100 text-indigo-800",
+		"bg-orange-100 text-orange-800",
+		"bg-teal-100 text-teal-800",
+	];
+
+	function tagColor(tag: string): string {
+		let hash = 0;
+		for (let i = 0; i < tag.length; i++) {
+			hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffffff;
+		}
+		return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
 	}
 </script>
 
@@ -661,6 +771,134 @@
 						Billing is managed by the owner of this billing account.
 						Contact them to change the plan.
 					</p>
+				{/if}
+			</div>
+
+			<!-- Tags Management -->
+			<div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+				<h2 class="text-lg font-semibold text-gray-900 mb-4">Tags</h2>
+
+				{#if tagsLoading}
+					<div class="flex items-center gap-2 text-sm text-gray-500">
+						<div
+							class="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"
+						></div>
+						Loading tags...
+					</div>
+				{:else if tagsError}
+					<div class="text-sm text-red-600">
+						{tagsError}
+					</div>
+				{:else if tags.length === 0}
+					<p class="text-sm text-gray-500">
+						No tags created yet. Tags are automatically created when
+						you add them to links.
+					</p>
+				{:else}
+					<div class="space-y-2">
+						{#each tags as tag (tag.name)}
+							<div
+								class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+							>
+								<div class="flex items-center gap-3">
+									<span
+										class="inline-block w-3 h-3 rounded-full {tagColor(
+											tag.name,
+										).split(' ')[0]}"
+									></span>
+									{#if editingTag === tag.name}
+										<input
+											type="text"
+											bind:value={newTagName}
+											onkeydown={(e) => {
+												if (e.key === "Enter")
+													saveTagRename(tag.name);
+												if (e.key === "Escape")
+													cancelEditTag();
+											}}
+											class="px-2 py-1 text-sm border border-gray-300 rounded focus:border-orange-500 focus:outline-none"
+											maxlength="50"
+										/>
+									{:else}
+										<span class="font-medium text-gray-900"
+											>{tag.name}</span
+										>
+									{/if}
+									<span class="text-sm text-gray-500"
+										>({tag.count} links)</span
+									>
+								</div>
+
+								<div class="flex items-center gap-2">
+									{#if editingTag === tag.name}
+										<button
+											onclick={() =>
+												saveTagRename(tag.name)}
+											disabled={savingTag}
+											class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+										>
+											{savingTag ? "Saving..." : "Save"}
+										</button>
+										<button
+											onclick={cancelEditTag}
+											disabled={savingTag}
+											class="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+										>
+											Cancel
+										</button>
+									{:else}
+										<button
+											onclick={() =>
+												startEditTag(tag.name)}
+											class="text-xs px-2 py-1 text-blue-600 hover:text-blue-700"
+										>
+											Rename
+										</button>
+										<button
+											onclick={() =>
+												startDeleteTag(tag.name)}
+											class="text-xs px-2 py-1 text-red-600 hover:text-red-700"
+										>
+											Delete
+										</button>
+									{/if}
+								</div>
+							</div>
+
+							{#if editingTag === tag.name && tagError}
+								<div class="ml-3 text-xs text-red-600">
+									{tagError}
+								</div>
+							{/if}
+
+							{#if deletingTag === tag.name}
+								<div
+									class="ml-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+								>
+									<p class="text-sm text-red-800 mb-3">
+										Are you sure you want to delete the tag
+										"{tag.name}"? This will remove it from {tag.count}
+										link{tag.count === 1 ? "" : "s"}.
+									</p>
+									<div class="flex gap-2">
+										<button
+											onclick={() =>
+												confirmDeleteTag(tag.name)}
+											class="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+										>
+											Delete
+										</button>
+										<button
+											onclick={cancelDeleteTag}
+											class="text-xs px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+										>
+											Cancel
+										</button>
+									</div>
+								</div>
+							{/if}
+						{/each}
+					</div>
 				{/if}
 			</div>
 

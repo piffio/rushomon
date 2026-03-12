@@ -33,7 +33,7 @@ impl Tier {
 
     pub fn limits(&self) -> TierLimits {
         match self {
-            // Free: 1 user, 1 org, 15 links/month, 7-day analytics
+            // Free: 1 user, 1 org, 15 links/month, 7-day analytics, 5 tags
             Tier::Free => TierLimits {
                 max_links_per_month: Some(15),
                 analytics_retention_days: Some(7),
@@ -42,8 +42,9 @@ impl Tier {
                 allow_query_forwarding: false,
                 max_members: Some(1),
                 max_orgs: Some(1),
+                max_tags: Some(5),
             },
-            // Pro ($9): 1 user, 1 org, 1000 links/month, 1-year analytics, custom codes
+            // Pro ($9): 1 user, 1 org, 1000 links/month, 1-year analytics, custom codes, 25 tags
             Tier::Pro => TierLimits {
                 max_links_per_month: Some(1000),
                 analytics_retention_days: Some(365),
@@ -52,8 +53,9 @@ impl Tier {
                 allow_query_forwarding: true,
                 max_members: Some(1),
                 max_orgs: Some(1),
+                max_tags: Some(25),
             },
-            // Business ($29): 20 users, 3 orgs, 10000 links/month, unlimited analytics
+            // Business ($29): 20 users, 3 orgs, 10000 links/month, unlimited analytics, unlimited tags
             Tier::Business => TierLimits {
                 max_links_per_month: Some(10000),
                 analytics_retention_days: None,
@@ -62,6 +64,7 @@ impl Tier {
                 allow_query_forwarding: true,
                 max_members: Some(20),
                 max_orgs: Some(3),
+                max_tags: None,
             },
             // Unlimited (self-hosted): no limits
             Tier::Unlimited => TierLimits {
@@ -72,6 +75,7 @@ impl Tier {
                 allow_query_forwarding: true,
                 max_members: None,
                 max_orgs: None,
+                max_tags: None,
             },
         }
     }
@@ -101,6 +105,8 @@ pub struct TierLimits {
     pub max_members: Option<i64>,
     /// Maximum organizations a user can own. None = unlimited.
     pub max_orgs: Option<i64>,
+    /// Maximum distinct tag names across all orgs in the billing account. None = unlimited.
+    pub max_tags: Option<i64>,
 }
 
 #[cfg(test)]
@@ -132,6 +138,7 @@ mod tests {
         assert!(!limits.allow_custom_short_code);
         assert_eq!(limits.max_members, Some(1));
         assert_eq!(limits.max_orgs, Some(1));
+        assert_eq!(limits.max_tags, Some(5));
     }
 
     #[test]
@@ -142,6 +149,7 @@ mod tests {
         assert!(limits.allow_custom_short_code);
         assert_eq!(limits.max_members, Some(1));
         assert_eq!(limits.max_orgs, Some(1));
+        assert_eq!(limits.max_tags, Some(25));
     }
 
     #[test]
@@ -152,6 +160,7 @@ mod tests {
         assert!(limits.allow_custom_short_code);
         assert_eq!(limits.max_members, Some(20));
         assert_eq!(limits.max_orgs, Some(3));
+        assert!(limits.max_tags.is_none());
     }
 
     #[test]
@@ -162,6 +171,7 @@ mod tests {
         assert!(limits.allow_custom_short_code);
         assert!(limits.max_members.is_none());
         assert!(limits.max_orgs.is_none());
+        assert!(limits.max_tags.is_none());
     }
 
     #[test]

@@ -6,11 +6,15 @@
 		availableTags = [],
 		placeholder = "Add tags...",
 		disabled = false,
+		maxTags = null,
+		currentTagsCount = 0,
 	}: {
 		tags?: string[];
 		availableTags?: TagWithCount[];
 		placeholder?: string;
 		disabled?: boolean;
+		maxTags?: number | null;
+		currentTagsCount?: number;
 	} = $props();
 
 	let inputValue = $state("");
@@ -30,6 +34,16 @@
 			.slice(0, 8),
 	);
 
+	// Check if we can add new tags (considering both local limit and BA limit)
+	const canAddNewTags = $derived(
+		maxTags === null || currentTagsCount < maxTags,
+	);
+
+	// Check if a tag is new to the BA (not in availableTags)
+	function isNewToBillingAccount(tagName: string): boolean {
+		return !availableTags.some((t) => t.name === tagName);
+	}
+
 	function normalizeTag(raw: string): string {
 		return raw.replace(/\s+/g, " ").trim();
 	}
@@ -46,6 +60,14 @@
 			showDropdown = false;
 			return;
 		}
+
+		// Check if this is a new tag for the BA and if we're at the limit
+		if (isNewToBillingAccount(tag) && !canAddNewTags) {
+			inputValue = "";
+			showDropdown = false;
+			return; // Silently block - the parent component should show the upgrade hint
+		}
+
 		tags = [...tags, tag];
 		inputValue = "";
 		showDropdown = false;
@@ -166,6 +188,21 @@
 			/>
 		{/if}
 	</div>
+
+	<!-- Upgrade hint when limit is reached -->
+	{#if !canAddNewTags && maxTags !== null}
+		<div class="mt-2 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+			<p class="text-xs text-orange-700">
+				You've reached your limit of {maxTags} tags.
+				<a
+					href="/billing"
+					class="font-medium underline hover:text-orange-800"
+					>Upgrade to {maxTags === 5 ? "Pro" : "Business"}</a
+				>
+				to add more tags.
+			</p>
+		</div>
+	{/if}
 
 	<!-- Autocomplete dropdown -->
 	{#if showDropdown && filteredSuggestions.length > 0}

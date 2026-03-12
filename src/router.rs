@@ -504,6 +504,58 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         Vec::new()
     };
 
+    // Check tag limit for this tier (enforced at billing account level)
+    if let Some(ref tier_limits) = limits
+        && let Some(max_tags) = tier_limits.max_tags
+    {
+        // Get current count of distinct tags in the billing account
+        let current_tag_count =
+            db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
+
+        // Find which tags are new to the BA (not already in use)
+        let mut new_tag_count = 0;
+        if !normalized_tags.is_empty() {
+            // Get all existing tags in the BA
+            let existing_tags_query = db.prepare(
+                "SELECT DISTINCT tag_name
+                 FROM link_tags lt
+                 JOIN organizations o ON lt.org_id = o.id
+                 WHERE o.billing_account_id = ?1",
+            );
+            let existing_tags_result = existing_tags_query
+                .bind(&[billing_account.id.clone().into()])?
+                .all()
+                .await?;
+            let existing_tags_set: std::collections::HashSet<String> = existing_tags_result
+                .results::<serde_json::Value>()?
+                .iter()
+                .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
+                .collect();
+
+            // Count how many of the submitted tags are new
+            new_tag_count = normalized_tags
+                .iter()
+                .filter(|tag| !existing_tags_set.contains(*tag))
+                .count() as i64;
+        }
+
+        // Check if adding these new tags would exceed the limit
+        if current_tag_count + new_tag_count > max_tags {
+            let remaining = max_tags.saturating_sub(current_tag_count);
+            let message = if remaining > 0 {
+                format!(
+                    "You can create {} more tag{} across all organizations. Upgrade your plan to add more tags.",
+                    remaining,
+                    if remaining == 1 { "" } else { "s" }
+                )
+            } else {
+                "You have reached your tag limit across all organizations. Upgrade your plan to create more tags."
+                    .to_string()
+            };
+            return Response::error(message, 403);
+        }
+    }
+
     // Create link record
     let link_id = uuid::Uuid::new_v4().to_string();
     let now = now_timestamp();
@@ -1007,6 +1059,109 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             Ok(t) => t,
             Err(e) => return Response::error(e.to_string(), 400),
         };
+
+        // Check tag limit for this tier (enforced at billing account level)
+        let tier_limits = tier_update.as_ref().map(|t| t.limits());
+        if let Some(ref limits) = tier_limits
+            && let Some(max_tags) = limits.max_tags
+        {
+            // Get current count of distinct tags in the billing account
+            let current_tag_count =
+                db::count_distinct_tags_for_billing_account(&db, &billing_account_update.id)
+                    .await?;
+
+            // Get existing tags for this link to see which ones are being removed
+            let existing_link_tags = db::get_tags_for_link(&db, &link_id).await?;
+            let existing_tags_set: std::collections::HashSet<String> =
+                existing_link_tags.into_iter().collect();
+            let new_tags_set: std::collections::HashSet<String> =
+                normalized_tags.iter().cloned().collect();
+
+            // Get all existing tags in the BA
+            let existing_ba_tags_query = db.prepare(
+                "SELECT DISTINCT tag_name
+                 FROM link_tags lt
+                 JOIN organizations o ON lt.org_id = o.id
+                 WHERE o.billing_account_id = ?1",
+            );
+            let existing_ba_tags_result = existing_ba_tags_query
+                .bind(&[billing_account_update.id.clone().into()])?
+                .all()
+                .await?;
+            let existing_ba_tags_set: std::collections::HashSet<String> = existing_ba_tags_result
+                .results::<serde_json::Value>()?
+                .iter()
+                .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
+                .collect();
+
+            // Calculate net change in distinct tags
+            // Tags being removed from this link that aren't used elsewhere in the BA
+            let tags_being_removed: std::collections::HashSet<String> = existing_tags_set
+                .difference(&new_tags_set)
+                .cloned()
+                .collect();
+
+            // Tags being added that don't exist elsewhere in the BA
+            let tags_being_added: std::collections::HashSet<String> = new_tags_set
+                .difference(&existing_tags_set)
+                .cloned()
+                .collect();
+
+            // Count how many removed tags are actually disappearing from the BA
+            let mut disappearing_count = 0;
+            for tag in &tags_being_removed {
+                // Check if this tag is used anywhere else in the BA (excluding this link)
+                let usage_query = db.prepare(
+                    "SELECT COUNT(*) as count
+                     FROM link_tags lt
+                     JOIN organizations o ON lt.org_id = o.id
+                     WHERE o.billing_account_id = ?1 AND lt.tag_name = ?2 AND lt.link_id != ?3",
+                );
+                let usage_result = usage_query
+                    .bind(&[
+                        billing_account_update.id.clone().into(),
+                        tag.as_str().into(),
+                        link_id.as_str().into(),
+                    ])?
+                    .first::<serde_json::Value>(None)
+                    .await?;
+                let usage_count = if let Some(result) = usage_result {
+                    result["count"].as_f64().unwrap_or(0.0) as i64
+                } else {
+                    0
+                };
+
+                if usage_count == 0 {
+                    disappearing_count += 1;
+                }
+            }
+
+            // Count how many added tags are truly new to the BA
+            let new_to_ba_count = tags_being_added
+                .iter()
+                .filter(|tag| !existing_ba_tags_set.contains(*tag))
+                .count() as i64;
+
+            // Net change in tag count
+            let net_change = new_to_ba_count - disappearing_count;
+
+            // Check if this would exceed the limit
+            if current_tag_count + net_change > max_tags {
+                let remaining = max_tags.saturating_sub(current_tag_count);
+                let message = if remaining > 0 {
+                    format!(
+                        "You can create {} more tag{} across all organizations. Upgrade your plan to add more tags.",
+                        remaining,
+                        if remaining == 1 { "" } else { "s" }
+                    )
+                } else {
+                    "You have reached your tag limit across all organizations. Upgrade your plan to create more tags."
+                        .to_string()
+                };
+                return Response::error(message, 403);
+            }
+        }
+
         db::set_tags_for_link(&db, &link_id, &user_ctx.org_id, &normalized_tags).await?;
         updated_link.tags = normalized_tags;
     } else {
@@ -1382,11 +1537,63 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
         }
 
         // Validate and normalize tags (silently drop bad tags)
-        let normalized_tags = if let Some(ref tags) = row.tags {
+        let mut normalized_tags = if let Some(ref tags) = row.tags {
             db::validate_and_normalize_tags(tags).unwrap_or_default()
         } else {
             Vec::new()
         };
+
+        // Check tag limit for this tier (enforced at billing account level)
+        if let Some(ref tier_limits) = limits
+            && let Some(max_tags) = tier_limits.max_tags
+        {
+            // Get current count of distinct tags in the billing account
+            let current_tag_count =
+                db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
+
+            // Find which tags are new to the BA (not already in use)
+            let mut new_tag_count = 0;
+            if !normalized_tags.is_empty() {
+                // Get all existing tags in the BA
+                let existing_tags_query = db.prepare(
+                    "SELECT DISTINCT tag_name
+                     FROM link_tags lt
+                     JOIN organizations o ON lt.org_id = o.id
+                     WHERE o.billing_account_id = ?1",
+                );
+                let existing_tags_result = existing_tags_query
+                    .bind(&[billing_account.id.clone().into()])?
+                    .all()
+                    .await?;
+                let existing_tags_set: std::collections::HashSet<String> = existing_tags_result
+                    .results::<serde_json::Value>()?
+                    .iter()
+                    .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
+                    .collect();
+
+                // Count how many of the submitted tags are new
+                new_tag_count = normalized_tags
+                    .iter()
+                    .filter(|tag| !existing_tags_set.contains(*tag))
+                    .count() as i64;
+            }
+
+            // Check if adding these new tags would exceed the limit
+            if current_tag_count + new_tag_count > max_tags {
+                // For imports, we'll skip the row but allow the import to continue
+                skipped += 1;
+                warnings.push(ImportWarning {
+                    row: row_num,
+                    destination_url: destination_url.clone(),
+                    reason: format!(
+                        "Tags skipped: would exceed tag limit ({} max). Consider upgrading your plan.",
+                        max_tags
+                    ),
+                });
+                // Clear tags to avoid exceeding limit
+                normalized_tags.clear();
+            }
+        }
 
         // Clamp title to 200 chars
         let title = row.title.as_ref().and_then(|t| {
@@ -1800,6 +2007,9 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
     let links_created_this_month =
         db::get_monthly_counter_for_billing_account(&db, &billing_account.id, &year_month).await?;
 
+    // Get tag count for the billing account
+    let tags_count = db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
+
     let usage = serde_json::json!({
         "tier": tier.as_str(),
         "limits": {
@@ -1808,9 +2018,11 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
             "allow_custom_short_code": limits.allow_custom_short_code,
             "allow_utm_parameters": limits.allow_utm_parameters,
             "allow_query_forwarding": limits.allow_query_forwarding,
+            "max_tags": limits.max_tags,
         },
         "usage": {
             "links_created_this_month": links_created_this_month,
+            "tags_count": tags_count,
         }
     });
 
@@ -3947,4 +4159,107 @@ fn extract_query_param(query: &str, name: &str) -> Result<String> {
             }
         })
         .ok_or_else(|| Error::RustError(format!("Missing {} parameter", name)))
+}
+
+// ─── Tag Management ─────────────────────────────────────────────────────────────
+
+/// Handle deleting a tag: DELETE /api/tags/:name
+pub async fn handle_delete_org_tag(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let tag_name = match ctx.param("name") {
+        Some(name) => name.to_string(),
+        None => return Response::error("Missing tag name", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Delete the tag from the organization
+    match db::delete_tag_for_org(&db, &user_ctx.org_id, &tag_name).await {
+        Ok(()) => Ok(Response::empty()?.with_status(204)),
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "delete_tag_failed",
+                    "org_id": user_ctx.org_id,
+                    "tag_name": tag_name,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to delete tag", 500)
+        }
+    }
+}
+
+/// Handle renaming a tag: PATCH /api/tags/:name
+pub async fn handle_rename_org_tag(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let old_name = match ctx.param("name") {
+        Some(name) => name.to_string(),
+        None => return Response::error("Missing tag name", 400),
+    };
+
+    // Parse request body
+    let body: serde_json::Value = match req.json().await {
+        Ok(body) => body,
+        Err(_) => return Response::error("Invalid request body", 400),
+    };
+
+    let new_name = match body.get("new_name").and_then(|v| v.as_str()) {
+        Some(name) => name.to_string(),
+        None => return Response::error("Missing new_name field", 400),
+    };
+
+    // Validate and normalize the new tag name
+    let normalized_new_name = match db::normalize_tag(&new_name) {
+        Some(name) => name,
+        None => return Response::error("Invalid tag name", 400),
+    };
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Rename the tag
+    match db::rename_tag_for_org(&db, &user_ctx.org_id, &old_name, &normalized_new_name).await {
+        Ok(()) => {
+            // Return updated tag list
+            match db::get_org_tags(&db, &user_ctx.org_id).await {
+                Ok(tags) => Response::from_json(&tags),
+                Err(e) => {
+                    console_log!(
+                        "{}",
+                        serde_json::json!({
+                            "event": "get_tags_after_rename_failed",
+                            "org_id": user_ctx.org_id,
+                            "error": e.to_string(),
+                            "level": "error"
+                        })
+                    );
+                    Response::error("Tag renamed but failed to fetch updated list", 500)
+                }
+            }
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "rename_tag_failed",
+                    "org_id": user_ctx.org_id,
+                    "old_name": old_name,
+                    "new_name": normalized_new_name,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to rename tag", 500)
+        }
+    }
 }

@@ -344,6 +344,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/reports/pending/count", handle_cors_preflight)
         .options_async("/api/reports/links", handle_cors_preflight)
         .options_async("/api/tags", handle_cors_preflight)
+        .options_async("/api/tags/:name", handle_cors_preflight)
         .options_async("/api/fetch-title", handle_cors_preflight)
         .options_async("/api/version", handle_cors_preflight)
         .options_async("/api/orgs", handle_cors_preflight)
@@ -474,8 +475,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)
-        // Tags route
+        // Tags routes
         .get_async("/api/tags", router::handle_get_org_tags)
+        .delete_async("/api/tags/:name", router::handle_delete_org_tag)
+        .patch_async("/api/tags/:name", router::handle_rename_org_tag)
         // Public settings route
         .get_async(
             "/api/settings",
