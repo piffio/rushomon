@@ -1,6 +1,22 @@
 import { apiClient } from './client';
 import type { Link, CreateLinkRequest, UpdateLinkRequest, PaginatedResponse, LinkAnalyticsResponse, TagWithCount } from '$lib/types/api';
 
+export interface ImportLinkRow {
+	destination_url: string;
+	short_code?: string;
+	title?: string;
+	tags?: string[];
+	expires_at?: number;
+}
+
+export interface ImportBatchResult {
+	created: number;
+	skipped: number;
+	failed: number;
+	errors: { row: number; destination_url: string; reason: string; }[];
+	warnings?: { row: number; destination_url: string; reason: string; }[];
+}
+
 export const linksApi = {
 	/**
 	 * List all links for the authenticated user's organization
@@ -100,6 +116,15 @@ export const linksApi = {
 	async getAnalytics(id: string, days: number): Promise<LinkAnalyticsResponse> {
 		// Backend now calculates timestamps to eliminate clock skew issues
 		return apiClient.get<LinkAnalyticsResponse>(`/api/links/${id}/analytics?days=${days}`);
+	},
+
+	async export(): Promise<Blob> {
+		const response = await apiClient.fetchRaw('/api/links/export', { method: 'GET' });
+		return response.blob();
+	},
+
+	async importBatch(links: ImportLinkRow[]): Promise<ImportBatchResult> {
+		return apiClient.post<ImportBatchResult>('/api/links/import', { links });
 	}
 };
 

@@ -124,7 +124,7 @@ async fn test_reject_short_code_too_short() {
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
-            "short_code": "abc"  // 3 chars, minimum is 4
+            "short_code": "ab"  // 2 chars, minimum is 3
         }))
         .send()
         .await
@@ -145,7 +145,7 @@ async fn test_reject_short_code_too_long() {
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
-            "short_code": "abcdefghijk"  // 11 chars, maximum is 10
+            "short_code": "a".repeat(101)  // 101 chars, maximum is 100
         }))
         .send()
         .await
@@ -166,7 +166,7 @@ async fn test_reject_short_code_with_special_chars() {
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
-            "short_code": "test-code"  // Hyphen not allowed
+            "short_code": "test_code"  // Underscore not allowed
         }))
         .send()
         .await
@@ -261,6 +261,44 @@ async fn test_reserved_word_case_insensitive() {
         "Expected 4xx or 5xx, got {}",
         response.status()
     );
+}
+
+#[tokio::test]
+async fn test_accept_short_code_with_hyphen() {
+    let client = authenticated_client();
+
+    let valid_code = format!("my-{}", unique_short_code("link"));
+
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com",
+            "short_code": valid_code
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_accept_short_code_with_slash() {
+    let client = authenticated_client();
+
+    let valid_code = format!("company/{}", unique_short_code("promo"));
+
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com",
+            "short_code": valid_code
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[tokio::test]

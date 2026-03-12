@@ -34,6 +34,8 @@
 	let selectedQRLink = $state<Link | null>(null);
 	let isQRModalOpen = $state(false);
 	let usage = $state<UsageResponse | null>(null);
+	let isActionsMenuOpen = $state(false);
+	let isExporting = $state(false);
 
 	// Filter states - initialize from data props
 	let search = $state<string>("");
@@ -273,6 +275,29 @@
 			);
 		}
 	}
+
+	async function handleExport() {
+		isActionsMenuOpen = false;
+		isExporting = true;
+		error = "";
+		try {
+			const blob = await linksApi.export();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			const date = new Date().toISOString().slice(0, 10);
+			a.href = url;
+			a.download = `rushomon-links-${date}.csv`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			const apiError = err as ApiError;
+			error = apiError.message || "Failed to export links";
+		} finally {
+			isExporting = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -287,16 +312,95 @@
 				class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"
 			>
 				<h1 class="text-xl font-semibold text-gray-900">My Links</h1>
-				<button
-					onclick={handleCreateNew}
-					disabled={linksAtLimit}
-					class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2 rounded-lg shadow hover:shadow-md transition-all duration-200 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-					title={linksAtLimit
-						? "Monthly link limit reached"
-						: "Create a new short link"}
-				>
-					+ New Link
-				</button>
+				<div class="flex items-center gap-2">
+					<button
+						onclick={handleCreateNew}
+						disabled={linksAtLimit}
+						class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-5 py-2 rounded-lg shadow hover:shadow-md transition-all duration-200 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+						title={linksAtLimit
+							? "Monthly link limit reached"
+							: "Create a new short link"}
+					>
+						+ New Link
+					</button>
+
+					<!-- Actions dropdown (export / import) -->
+					<div class="relative">
+						<button
+							onclick={() =>
+								(isActionsMenuOpen = !isActionsMenuOpen)}
+							class="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+							title="More actions"
+							aria-label="More actions"
+						>
+							<svg
+								class="w-5 h-5"
+								fill="currentColor"
+								viewBox="0 0 20 20"
+							>
+								<path
+									d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"
+								/>
+							</svg>
+						</button>
+
+						{#if isActionsMenuOpen}
+							<!-- Click-outside overlay -->
+							<button
+								class="fixed inset-0 z-10 cursor-default bg-transparent border-0 p-0"
+								onclick={() => (isActionsMenuOpen = false)}
+								aria-label="Close menu"
+								tabindex="-1"
+							></button>
+							<div
+								class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden"
+							>
+								<button
+									onclick={handleExport}
+									disabled={isExporting}
+									class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+								>
+									<svg
+										class="w-4 h-4 text-gray-500"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+										/>
+									</svg>
+									{isExporting
+										? "Exporting…"
+										: "Export as CSV"}
+								</button>
+								<a
+									href="/dashboard/import"
+									onclick={() => (isActionsMenuOpen = false)}
+									class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+								>
+									<svg
+										class="w-4 h-4 text-gray-500"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"
+										/>
+									</svg>
+									Import from CSV
+								</a>
+							</div>
+						{/if}
+					</div>
+				</div>
 			</div>
 		</div>
 

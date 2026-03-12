@@ -65,16 +65,62 @@
 		// Trim and validate short code
 		const trimmedShortCode = shortCode.trim();
 		if (trimmedShortCode) {
-			if (trimmedShortCode.length < 4 || trimmedShortCode.length > 10) {
-				error = "Custom code must be 4-10 characters";
+			if (trimmedShortCode.length < 3 || trimmedShortCode.length > 100) {
+				error = "Custom code must be 3-100 characters";
 				isSubmitting = false;
 				return;
 			}
 
-			if (!/^[a-zA-Z0-9]+$/.test(trimmedShortCode)) {
-				error = "Custom code can only contain letters and numbers";
+			if (!/^[a-zA-Z0-9-/]+$/.test(trimmedShortCode)) {
+				error =
+					"Custom code can only contain letters, numbers, hyphens, and forward slashes";
+			}
+
+			if (
+				trimmedShortCode.startsWith("-") ||
+				trimmedShortCode.endsWith("-")
+			) {
+				error = "Custom code cannot start or end with a hyphen";
 				isSubmitting = false;
 				return;
+			}
+
+			if (
+				trimmedShortCode.startsWith("/") ||
+				trimmedShortCode.endsWith("/")
+			) {
+				error = "Custom code cannot start or end with a forward slash";
+				isSubmitting = false;
+				return;
+			}
+
+			if (trimmedShortCode.includes("//")) {
+				error =
+					"Custom code cannot contain consecutive forward slashes";
+				isSubmitting = false;
+				return;
+			}
+
+			// Segment validation
+			const segments = trimmedShortCode.split("/");
+			if (segments.length > 3) {
+				error =
+					"Custom code can have at most 3 segments separated by slashes";
+				isSubmitting = false;
+				return;
+			}
+
+			for (const segment of segments) {
+				if (segment.length < 1 || segment.length > 50) {
+					error = "Each segment must be 1-50 characters long";
+					isSubmitting = false;
+					return;
+				}
+				if (segment.startsWith("-") || segment.endsWith("-")) {
+					error = "Segment cannot start or end with a hyphen";
+					isSubmitting = false;
+					return;
+				}
 			}
 		}
 
@@ -205,7 +251,8 @@
 			>
 				Custom Short Code
 				<span class="text-gray-500 text-xs font-normal"
-					>(Optional, 4-10 alphanumeric characters)</span
+					>(Optional, 3-100 characters: letters, numbers, hyphens,
+					forward slashes)</span
 				>
 			</label>
 			<input

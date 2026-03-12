@@ -63,9 +63,6 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         .unwrap();
 
     let user: serde_json::Value = user_response.json().await.unwrap();
-    let org_id = user["org_id"]
-        .as_str()
-        .expect("Failed to get organization ID");
 
     // Get all billing accounts and find the one for this org
     let billing_accounts_response = client
@@ -288,9 +285,6 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         .unwrap();
 
     let user: serde_json::Value = user_response.json().await.unwrap();
-    let org_id = user["org_id"]
-        .as_str()
-        .expect("Failed to get organization ID");
 
     // Get all billing accounts and find the one for this org
     let billing_accounts_response = client
@@ -447,9 +441,6 @@ async fn test_usage_api_includes_custom_code_flag() {
         .unwrap();
 
     let user: serde_json::Value = user_response.json().await.unwrap();
-    let org_id = user["org_id"]
-        .as_str()
-        .expect("Failed to get organization ID");
 
     // Get all billing accounts and find the one for this org
     let billing_accounts_response = client

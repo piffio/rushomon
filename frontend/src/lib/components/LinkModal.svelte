@@ -430,8 +430,8 @@
 								>Upgrade to Pro</a
 							> to use custom short codes
 						{:else}
-							4-10 alphanumeric characters. Leave empty for
-							auto-generated code
+							3-100 characters (letters, numbers, hyphens, forward
+							slashes). Leave empty for auto-generated code
 						{/if}
 					</p>
 				</div>

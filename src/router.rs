@@ -1034,6 +1034,409 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     Response::from_json(&updated_link)
 }
 
+// ─── CSV helpers ─────────────────────────────────────────────────────────────
+
+/// Escape a single CSV field: wraps in double-quotes if the value contains
+/// a comma, double-quote, or newline; doubles any embedded double-quotes.
+fn csv_escape(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+// ─── Import / Export structs ─────────────────────────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+struct ImportLinkRow {
+    destination_url: String,
+    short_code: Option<String>,
+    title: Option<String>,
+    tags: Option<Vec<String>>,
+    expires_at: Option<i64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ImportRequest {
+    links: Vec<ImportLinkRow>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ImportError {
+    row: usize,
+    destination_url: String,
+    reason: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ImportWarning {
+    row: usize,
+    destination_url: String,
+    reason: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ImportResponse {
+    created: usize,
+    skipped: usize,
+    failed: usize,
+    errors: Vec<ImportError>,
+    warnings: Vec<ImportWarning>,
+}
+
+// ─── Export handler ───────────────────────────────────────────────────────────
+
+/// Handle CSV export of all org links: GET /api/links/export
+pub async fn handle_export_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let org_id = &user_ctx.org_id;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    let mut links = db::get_all_links_for_org_export(&db, org_id).await?;
+
+    let link_ids: Vec<String> = links.iter().map(|l| l.id.clone()).collect();
+    let tags_map = db::get_tags_for_links(&db, &link_ids).await?;
+    for link in &mut links {
+        link.tags = tags_map.get(&link.id).cloned().unwrap_or_default();
+    }
+
+    let mut csv = String::from(
+        "short_code,destination_url,title,tags,status,click_count,created_at,expires_at,utm_source,utm_medium,utm_campaign,utm_term,utm_content,utm_ref,forward_query_params\n",
+    );
+
+    for link in &links {
+        let title = link.title.as_deref().unwrap_or("");
+        let tags_str = link.tags.join("|");
+        let created_at = chrono::DateTime::from_timestamp(link.created_at, 0)
+            .map(|dt: chrono::DateTime<chrono::Utc>| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+            .unwrap_or_default();
+        let expires_at = link
+            .expires_at
+            .and_then(|ts| chrono::DateTime::from_timestamp(ts, 0))
+            .map(|dt: chrono::DateTime<chrono::Utc>| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+            .unwrap_or_default();
+        let utm_source = link
+            .utm_params
+            .as_ref()
+            .and_then(|u| u.utm_source.as_deref())
+            .unwrap_or("");
+        let utm_medium = link
+            .utm_params
+            .as_ref()
+            .and_then(|u| u.utm_medium.as_deref())
+            .unwrap_or("");
+        let utm_campaign = link
+            .utm_params
+            .as_ref()
+            .and_then(|u| u.utm_campaign.as_deref())
+            .unwrap_or("");
+        let utm_term = link
+            .utm_params
+            .as_ref()
+            .and_then(|u| u.utm_term.as_deref())
+            .unwrap_or("");
+        let utm_content = link
+            .utm_params
+            .as_ref()
+            .and_then(|u| u.utm_content.as_deref())
+            .unwrap_or("");
+        let utm_ref = link
+            .utm_params
+            .as_ref()
+            .and_then(|u| u.utm_ref.as_deref())
+            .unwrap_or("");
+        let forward_query = link
+            .forward_query_params
+            .map(|v| if v { "true" } else { "false" })
+            .unwrap_or("");
+
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            csv_escape(&link.short_code),
+            csv_escape(&link.destination_url),
+            csv_escape(title),
+            csv_escape(&tags_str),
+            csv_escape(link.status.as_str()),
+            link.click_count,
+            created_at,
+            expires_at,
+            csv_escape(utm_source),
+            csv_escape(utm_medium),
+            csv_escape(utm_campaign),
+            csv_escape(utm_term),
+            csv_escape(utm_content),
+            csv_escape(utm_ref),
+            forward_query,
+        ));
+    }
+
+    let date_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let filename = format!("rushomon-links-{}.csv", date_str);
+    let mut response = Response::ok(csv)?;
+    response
+        .headers_mut()
+        .set("Content-Type", "text/csv; charset=utf-8")?;
+    response.headers_mut().set(
+        "Content-Disposition",
+        &format!("attachment; filename=\"{}\"", filename),
+    )?;
+    Ok(response)
+}
+
+// ─── Import handler ───────────────────────────────────────────────────────────
+
+/// Handle batch import of links from CSV (normalised JSON): POST /api/links/import
+pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let user_id = &user_ctx.user_id;
+    let org_id = &user_ctx.org_id;
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    let billing_account = db::get_billing_account_for_org(&db, org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
+    let tier = Tier::from_str_value(&billing_account.tier);
+    let limits = tier.as_ref().map(|t| t.limits());
+    let is_pro_or_above = matches!(
+        tier.as_ref(),
+        Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
+    );
+
+    let body: ImportRequest = match req.json().await {
+        Ok(b) => b,
+        Err(_) => return Response::error("Invalid JSON body", 400),
+    };
+
+    if body.links.is_empty() {
+        return Response::from_json(&ImportResponse {
+            created: 0,
+            skipped: 0,
+            failed: 0,
+            errors: vec![],
+            warnings: vec![],
+        });
+    }
+
+    if body.links.len() > 50 {
+        return Response::error("Maximum 50 links per import batch", 400);
+    }
+
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let now = now_timestamp();
+    let year_month = {
+        let dt = chrono::Utc::now();
+        format!("{}-{:02}", dt.year(), dt.month())
+    };
+
+    let mut created: usize = 0;
+    let mut skipped: usize = 0;
+    let mut failed: usize = 0;
+    let mut errors: Vec<ImportError> = Vec::new();
+    let mut warnings: Vec<ImportWarning> = Vec::new();
+
+    for (idx, row) in body.links.iter().enumerate() {
+        let row_num = idx + 1;
+
+        // Validate destination URL
+        let destination_url = match validate_url(&row.destination_url) {
+            Ok(url) => url,
+            Err(e) => {
+                failed += 1;
+                errors.push(ImportError {
+                    row: row_num,
+                    destination_url: row.destination_url.clone(),
+                    reason: format!("Invalid URL: {}", e),
+                });
+                continue;
+            }
+        };
+
+        // Check blacklist
+        if db::is_destination_blacklisted(&db, &destination_url).await? {
+            failed += 1;
+            errors.push(ImportError {
+                row: row_num,
+                destination_url: destination_url.clone(),
+                reason: "Destination URL is blocked".to_string(),
+            });
+            continue;
+        }
+
+        // Monthly quota check (increment counter; rolls back nothing on partial failure)
+        if let Some(ref tier_limits) = limits
+            && let Some(max_links) = tier_limits.max_links_per_month
+        {
+            let can_create = db::increment_monthly_counter_for_billing_account(
+                &db,
+                &billing_account.id,
+                &year_month,
+                max_links,
+            )
+            .await?;
+            if !can_create {
+                failed += 1;
+                errors.push(ImportError {
+                    row: row_num,
+                    destination_url: destination_url.clone(),
+                    reason: "Monthly link limit reached".to_string(),
+                });
+                continue;
+            }
+        }
+
+        // Determine short code
+        let short_code: String;
+        if is_pro_or_above && let Some(provided_code) = row.short_code.as_ref() {
+            if let Err(e) = validate_short_code(provided_code) {
+                skipped += 1;
+                errors.push(ImportError {
+                    row: row_num,
+                    destination_url: destination_url.clone(),
+                    reason: format!("Invalid short code: {}", e),
+                });
+                continue;
+            }
+
+            // Try provided code, then auto-suffix on conflict (promo → promo-1 → … → promo-10)
+            let mut resolved: Option<String> = None;
+            for attempt in 0u32..=10 {
+                let candidate = if attempt == 0 {
+                    provided_code.clone()
+                } else {
+                    format!("{}-{}", provided_code, attempt)
+                };
+                if !kv::links::short_code_exists(&kv, &candidate).await? {
+                    resolved = Some(candidate);
+                    break;
+                }
+            }
+
+            match resolved {
+                Some(c) => short_code = c,
+                None => {
+                    // All suffix attempts exhausted — fall back to a random code
+                    let mut fallback: Option<String> = None;
+                    for _ in 0..10u32 {
+                        let candidate = generate_short_code();
+                        if !kv::links::short_code_exists(&kv, &candidate).await? {
+                            fallback = Some(candidate);
+                            break;
+                        }
+                    }
+                    match fallback {
+                        Some(c) => {
+                            warnings.push(ImportWarning {
+                                row: row_num,
+                                destination_url: destination_url.clone(),
+                                reason: format!(
+                                    "Short code '{}' conflicted with an existing link; a random code was assigned",
+                                    provided_code
+                                ),
+                            });
+                            short_code = c;
+                        }
+                        None => {
+                            failed += 1;
+                            errors.push(ImportError {
+                                row: row_num,
+                                destination_url: destination_url.clone(),
+                                reason: "Failed to generate a unique short code after conflict"
+                                    .to_string(),
+                            });
+                            continue;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Free tier OR Pro without provided code: auto-generate
+            let mut resolved: Option<String> = None;
+            for _ in 0..10u32 {
+                let candidate = generate_short_code();
+                if !kv::links::short_code_exists(&kv, &candidate).await? {
+                    resolved = Some(candidate);
+                    break;
+                }
+            }
+            match resolved {
+                Some(c) => short_code = c,
+                None => {
+                    failed += 1;
+                    errors.push(ImportError {
+                        row: row_num,
+                        destination_url: destination_url.clone(),
+                        reason: "Failed to generate unique short code".to_string(),
+                    });
+                    continue;
+                }
+            }
+        }
+
+        // Validate and normalize tags (silently drop bad tags)
+        let normalized_tags = if let Some(ref tags) = row.tags {
+            db::validate_and_normalize_tags(tags).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        // Clamp title to 200 chars
+        let title = row.title.as_ref().and_then(|t| {
+            let trimmed = t.trim().to_string();
+            if trimmed.is_empty() || trimmed.len() > 200 {
+                None
+            } else {
+                Some(trimmed)
+            }
+        });
+
+        let link_id = uuid::Uuid::new_v4().to_string();
+        let link = Link {
+            id: link_id.clone(),
+            org_id: org_id.to_string(),
+            short_code: short_code.clone(),
+            destination_url: destination_url.clone(),
+            title,
+            created_by: user_id.to_string(),
+            created_at: now,
+            updated_at: None,
+            expires_at: row.expires_at,
+            status: crate::models::link::LinkStatus::Active,
+            click_count: 0,
+            tags: normalized_tags.clone(),
+            utm_params: None,
+            forward_query_params: None,
+        };
+
+        db::create_link(&db, &link).await?;
+
+        if !normalized_tags.is_empty() {
+            db::set_tags_for_link(&db, &link_id, org_id, &normalized_tags).await?;
+        }
+
+        let mapping = link.to_mapping(false);
+        kv::store_link_mapping(&kv, org_id, &short_code, &mapping).await?;
+
+        created += 1;
+    }
+
+    Response::from_json(&ImportResponse {
+        created,
+        skipped,
+        failed,
+        errors,
+        warnings,
+    })
+}
+
 /// Returns the list of enabled OAuth providers: GET /api/auth/providers
 pub async fn handle_list_auth_providers(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     use serde_json::json;

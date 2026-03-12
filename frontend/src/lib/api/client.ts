@@ -151,6 +151,24 @@ export class ApiClient {
 			body: data ? JSON.stringify(data) : undefined
 		});
 	}
+
+	async fetchRaw(endpoint: string, options: RequestInit = {}): Promise<Response> {
+		const url = `${this.baseUrl}${endpoint}`;
+		const config: RequestInit = {
+			...options,
+			credentials: 'include',
+			headers: {
+				'Content-Type': 'application/json',
+				...options.headers
+			}
+		};
+		const response = await fetch(url, config);
+		if (!response.ok) {
+			const errorMessage = await response.text();
+			throw { message: errorMessage, status: response.status };
+		}
+		return response;
+	}
 }
 
 export const apiClient = new ApiClient();

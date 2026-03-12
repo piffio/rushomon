@@ -3343,6 +3343,20 @@ pub async fn update_subscription_status(
     Ok(())
 }
 
+/// Get all links for an organization for export (no pagination, active + disabled only)
+pub async fn get_all_links_for_org_export(db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE org_id = ?1
+         AND status IN ('active', 'disabled')
+         ORDER BY created_at DESC",
+    );
+    let results = stmt.bind(&[org_id.into()])?.all().await?;
+    let links = results.results::<Link>()?;
+    Ok(links)
+}
+
 /// Get a cached product by price_id
 pub async fn get_cached_product_by_price_id(
     db: &D1Database,

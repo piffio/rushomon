@@ -307,6 +307,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/links/by-code/:code", handle_cors_preflight)
         .options_async("/api/links/:id", handle_cors_preflight)
         .options_async("/api/links/:id/analytics", handle_cors_preflight)
+        .options_async("/api/links/export", handle_cors_preflight)
+        .options_async("/api/links/import", handle_cors_preflight)
         .options_async("/api/usage", handle_cors_preflight)
         .options_async("/api/admin/users", handle_cors_preflight)
         .options_async("/api/admin/users/:id", handle_cors_preflight)
@@ -381,6 +383,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .get_async("/api/usage", router::handle_get_usage)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
+        .get_async("/api/links/export", router::handle_export_links)
+        .post_async("/api/links/import", router::handle_import_links)
         .get_async("/api/links/by-code/:code", router::handle_get_link_by_code)
         .get_async(
             "/api/links/:id/analytics",
