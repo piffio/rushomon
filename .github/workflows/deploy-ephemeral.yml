@@ -328,17 +328,27 @@ jobs:
 
           echo "🗑️  Cleaning up monthly counters..."
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "DELETE FROM monthly_counters WHERE org_id = 'test-org-smoke'" || true
+            "DELETE FROM monthly_counters WHERE billing_account_id = 'test-org-smoke'" || true
 
           echo "🗑️  Cleaning up organizations..."
           wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
             "DELETE FROM organizations WHERE id = 'test-org-smoke'" || true
 
-          # Create test organization and user first
+          echo "🗑️  Cleaning up billing accounts..."
+          wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "DELETE FROM billing_accounts WHERE id = 'test-org-smoke'" || true
+
+          # Create test billing account, organization and user first
+          echo "📝 Creating test billing account..."
+          BILLING_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
+            "INSERT INTO billing_accounts (id, owner_user_id, tier, created_at) \
+             VALUES ('test-org-smoke', 'test-user-smoke', 'free', $NOW)" --json)
+          echo "Billing account insert result: $(echo "$BILLING_RESULT" | jq '.[0].meta.changes // 0') changes"
+
           echo "📝 Creating test organization..."
           ORG_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT INTO organizations (id, name, slug, created_at, created_by) 
-             VALUES ('test-org-smoke', 'Smoke Test Org', 'smoke-test', $NOW, 'test-user-smoke')" --json)
+            "INSERT INTO organizations (id, name, slug, created_at, created_by, billing_account_id) \
+             VALUES ('test-org-smoke', 'Smoke Test Org', 'smoke-test', $NOW, 'test-user-smoke', 'test-org-smoke')" --json)
           echo "Organization insert result: $(echo "$ORG_RESULT" | jq '.[0].meta.changes // 0') changes"
 
           echo "📝 Creating test user..."
