@@ -39,6 +39,7 @@ This directory contains all CI/CD workflows for the Rushomon project.
 - Determines PR number from branch/commit
 - Creates D1 database: `rushomon-pr-{PR_NUMBER}`
 - Creates KV namespace: `URL_MAPPINGS-pr-{PR_NUMBER}`
+- Creates R2 bucket: `rushomon-assets-pr-{PR_NUMBER}`
 - Deploys backend to: `rushomon-pr-{PR_NUMBER}.workers.dev`
 - Deploys frontend to: `pr-{PR_NUMBER}.rushomon-ui.pages.dev`
 - Runs smoke tests on both frontend and backend
@@ -52,6 +53,7 @@ This directory contains all CI/CD workflows for the Rushomon project.
 **Key Features**:
 - Isolated D1 database per PR
 - Isolated KV namespace per PR
+- Isolated R2 assets bucket per PR
 - Isolated Cloudflare Pages deployment per PR
 - Frontend and backend fully integrated with CORS
 - Automatic PR comments with both frontend and backend URLs
@@ -148,6 +150,7 @@ Secrets are scoped to GitHub Environments. Each environment has its own set of s
 | `GH_CLIENT_ID` | GitHub OAuth app client ID |
 | `GH_CLIENT_SECRET` | GitHub OAuth app client secret |
 | `JWT_SECRET` | JWT signing secret (32+ chars) |
+| `GOOGLE_CLIENT_ID` | Google OAuth app client ID (optional) |
 
 ### Production Environment (`production`)
 
@@ -157,6 +160,7 @@ Secrets are scoped to GitHub Environments. Each environment has its own set of s
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID (production account) |
 | `D1_DATABASE_ID` | Pre-created D1 database ID (`rushomon`) |
 | `KV_NAMESPACE_ID` | Pre-created KV namespace ID |
+| `R2_ASSETS_BUCKET_NAME` | Pre-created R2 bucket name for org logos |
 | `GH_CLIENT_ID` | GitHub OAuth app client ID (production) |
 | `GH_CLIENT_SECRET` | GitHub OAuth app client secret (production) |
 | `JWT_SECRET` | JWT signing secret (32+ chars) |
@@ -244,6 +248,7 @@ Workflows use these environment variables:
 | `CLOUDFLARE_ACCOUNT_ID` | GitHub Secret (env-scoped) | All workflows |
 | `D1_DATABASE_ID` | GitHub Secret (production) | Production deploy |
 | `KV_NAMESPACE_ID` | GitHub Secret (production) | Production deploy |
+| `R2_ASSETS_BUCKET_NAME` | GitHub Secret (production+staging) | Production/staging deploy |
 | `DOMAIN` | GitHub Secret (production) | Production deploy |
 | `FRONTEND_URL` | GitHub Secret (production) | Production deploy |
 | `GH_CLIENT_ID` | GitHub Secret (env-scoped) | All deployments |

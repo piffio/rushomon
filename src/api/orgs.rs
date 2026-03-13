@@ -265,6 +265,8 @@ pub async fn handle_get_org(req: Request, ctx: RouteContext<()>) -> Result<Respo
         vec![]
     };
 
+    let logo_url = db::get_org_logo_url(&db, &org_id).await.unwrap_or(None);
+
     Response::from_json(&serde_json::json!({
         "org": {
             "id": org.id,
@@ -272,6 +274,7 @@ pub async fn handle_get_org(req: Request, ctx: RouteContext<()>) -> Result<Respo
             "tier": tier.as_str(),
             "created_at": org.created_at,
             "role": member.role,
+            "logo_url": logo_url,
         },
         "members": members,
         "pending_invitations": pending_invitations,
@@ -908,6 +911,179 @@ pub async fn handle_accept_invite(req: Request, ctx: RouteContext<()>) -> Result
     }))?;
     response.headers_mut().set("Set-Cookie", &access_cookie)?;
     Ok(response)
+}
+
+// ─── POST /api/orgs/:id/logo ─────────────────────────────────────────────────
+/// Upload an org logo (owner/admin + Pro+ only).
+/// Accepts multipart/form-data with a field named "logo".
+/// Max 500 KB; accepted: image/png, image/jpeg, image/webp, image/svg+xml.
+pub async fn handle_upload_org_logo(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let org_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing org id".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Verify owner or admin
+    let member = db::get_org_member(&db, &org_id, &user_ctx.user_id).await?;
+    match &member {
+        Some(m) if m.role == "owner" || m.role == "admin" => {}
+        Some(_) => {
+            return Response::error("Only org owners and admins can upload a logo", 403);
+        }
+        None => return Response::error("Organization not found", 404),
+    }
+
+    // Tier check: Pro+ only
+    let org = db::get_org_by_id(&db, &org_id)
+        .await?
+        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
+    let tier = get_org_tier(&db, &org).await;
+    if !matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited) {
+        return Response::error("Custom org logo requires a Pro plan or above.", 403);
+    }
+
+    // Parse multipart body
+    let form_data = req
+        .form_data()
+        .await
+        .map_err(|_| Error::RustError("Failed to parse multipart form data".to_string()))?;
+
+    let file_entry = form_data
+        .get("logo")
+        .ok_or_else(|| Error::RustError("Missing 'logo' field in form data".to_string()))?;
+
+    let file = match file_entry {
+        worker::FormEntry::File(f) => f,
+        worker::FormEntry::Field(_) => {
+            return Response::error("'logo' field must be a file upload", 400);
+        }
+    };
+
+    let content_type = file.type_();
+    let allowed_types = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+    if !allowed_types.contains(&content_type.as_str()) {
+        return Response::error("Invalid file type. Allowed: PNG, JPEG, WebP, SVG", 400);
+    }
+
+    let bytes = file
+        .bytes()
+        .await
+        .map_err(|_| Error::RustError("Failed to read file bytes".to_string()))?;
+
+    const MAX_BYTES: usize = 500 * 1024; // 500 KB
+    if bytes.len() > MAX_BYTES {
+        return Response::error("Logo file must be 500 KB or smaller", 400);
+    }
+
+    // Store in R2
+    let bucket = ctx.env.bucket("ASSETS_BUCKET")?;
+    let r2_key = format!("logos/{}", org_id);
+    bucket
+        .put(&r2_key, bytes)
+        .custom_metadata([("content-type".to_string(), content_type.clone())])
+        .execute()
+        .await
+        .map_err(|e| Error::RustError(format!("Failed to store logo: {e}")))?;
+
+    // Persist the logo URL in D1 (path served via GET /api/orgs/:id/logo)
+    let logo_url = format!("/api/orgs/{org_id}/logo");
+    db::set_org_logo_url(&db, &org_id, Some(&logo_url)).await?;
+
+    let origin = req.headers().get("Origin").ok().flatten();
+    let response = Response::from_json(&serde_json::json!({ "logo_url": logo_url }))?;
+    Ok(crate::add_cors_headers(response, origin, &ctx.env))
+}
+
+// ─── GET /api/orgs/:id/logo ───────────────────────────────────────────────────
+/// Serve the org logo from R2. Public endpoint (no auth required).
+pub async fn handle_get_org_logo(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let org_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing org id".to_string()))?
+        .to_string();
+
+    let bucket = ctx.env.bucket("ASSETS_BUCKET")?;
+    let r2_key = format!("logos/{}", org_id);
+
+    let object = bucket
+        .get(&r2_key)
+        .execute()
+        .await
+        .map_err(|e| Error::RustError(format!("Failed to read logo: {e}")))?;
+
+    match object {
+        Some(obj) => {
+            let metadata = obj.custom_metadata().unwrap_or_default();
+            let content_type = metadata
+                .get("content-type")
+                .cloned()
+                .unwrap_or_else(|| "image/png".to_string());
+
+            let body = obj
+                .body()
+                .ok_or_else(|| Error::RustError("Empty object body".to_string()))?
+                .bytes()
+                .await
+                .map_err(|e| Error::RustError(format!("Failed to read body: {e}")))?;
+
+            let mut response = Response::from_bytes(body)?;
+            let headers = response.headers_mut();
+            headers.set("Content-Type", &content_type)?;
+            headers.set("Cache-Control", "public, max-age=86400")?;
+            // Public image resource — allow any origin so <img> and QR libraries can load it
+            headers.set("Access-Control-Allow-Origin", "*")?;
+            Ok(response)
+        }
+        None => Response::error("Logo not found", 404),
+    }
+}
+
+// ─── DELETE /api/orgs/:id/logo ────────────────────────────────────────────────
+/// Delete the org logo (owner/admin + Pro+ only).
+pub async fn handle_delete_org_logo(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    let org_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing org id".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Verify owner or admin
+    let member = db::get_org_member(&db, &org_id, &user_ctx.user_id).await?;
+    match &member {
+        Some(m) if m.role == "owner" || m.role == "admin" => {}
+        Some(_) => {
+            return Response::error("Only org owners and admins can delete the logo", 403);
+        }
+        None => return Response::error("Organization not found", 404),
+    }
+
+    // Delete from R2
+    let bucket = ctx.env.bucket("ASSETS_BUCKET")?;
+    let r2_key = format!("logos/{}", org_id);
+    bucket
+        .delete(&r2_key)
+        .await
+        .map_err(|e| Error::RustError(format!("Failed to delete logo: {e}")))?;
+
+    // Clear URL in D1
+    db::set_org_logo_url(&db, &org_id, None).await?;
+
+    let origin = req.headers().get("Origin").ok().flatten();
+    let response = Response::ok("Logo deleted")?;
+    Ok(crate::add_cors_headers(response, origin, &ctx.env))
 }
 
 // ─── DELETE /api/orgs/:id ───────────────────────────────────────────────────

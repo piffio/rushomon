@@ -263,6 +263,29 @@ pub async fn get_org_forward_query_params(db: &D1Database, org_id: &str) -> Resu
         .unwrap_or(false))
 }
 
+/// Get the org logo_url (nullable).
+#[allow(dead_code)]
+pub async fn get_org_logo_url(db: &D1Database, org_id: &str) -> Result<Option<String>> {
+    let stmt = db.prepare("SELECT logo_url FROM organizations WHERE id = ?1");
+    let result = stmt
+        .bind(&[org_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+    Ok(result.and_then(|v| v["logo_url"].as_str().map(str::to_string)))
+}
+
+/// Set (or clear) the org logo_url.
+pub async fn set_org_logo_url(db: &D1Database, org_id: &str, logo_url: Option<&str>) -> Result<()> {
+    let stmt = db.prepare("UPDATE organizations SET logo_url = ?1 WHERE id = ?2");
+    stmt.bind(&[
+        logo_url.map(|s| s.into()).unwrap_or(JsValue::NULL),
+        org_id.into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
 /// Update the org-level forward_query_params default.
 pub async fn set_org_forward_query_params(
     db: &D1Database,

@@ -152,6 +152,34 @@ export class ApiClient {
 		});
 	}
 
+	async postForm<T>(endpoint: string, formData: FormData): Promise<T> {
+		const url = `${this.baseUrl}${endpoint}`;
+		const config: RequestInit = {
+			method: 'POST',
+			credentials: 'include',
+			body: formData,
+			// No Content-Type header: browser will set multipart/form-data with boundary
+		};
+		const response = await fetch(url, config);
+		if (!response.ok) {
+			const contentType = response.headers.get('content-type');
+			let errorMessage: string;
+			if (contentType?.includes('application/json')) {
+				const errorData = await response.json();
+				errorMessage = errorData.message || 'An error occurred';
+				throw { message: errorMessage, status: response.status, data: errorData };
+			} else {
+				errorMessage = await response.text();
+				throw { message: errorMessage, status: response.status };
+			}
+		}
+		const contentType = response.headers.get('content-type');
+		if (contentType?.includes('application/json')) {
+			return await response.json();
+		}
+		return {} as T;
+	}
+
 	async fetchRaw(endpoint: string, options: RequestInit = {}): Promise<Response> {
 		const url = `${this.baseUrl}${endpoint}`;
 		const config: RequestInit = {
@@ -174,3 +202,14 @@ export class ApiClient {
 export const apiClient = new ApiClient();
 
 export { getAccessToken, setAccessToken, clearAccessToken };
+
+/**
+ * Resolve a relative logo URL (e.g. /api/orgs/:id/logo) to an absolute URL
+ * pointing at the API server. Required because logo_url is stored as a relative
+ * path but the frontend is served from a different origin in development.
+ */
+export function resolveLogoUrl(logoUrl: string | null | undefined): string | null {
+	if (!logoUrl) return null;
+	if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return logoUrl;
+	return `${API_BASE_URL}${logoUrl}`;
+}

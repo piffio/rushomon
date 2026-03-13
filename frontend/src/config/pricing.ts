@@ -110,6 +110,7 @@ export const createPricingTiers = (
 				'1,000 links per month',
 				'1-year analytics retention',
 				'Custom short codes',
+				'Advanced QR codes (sizes, SVG, org logo)',
 				'Email support'
 			],
 			buttonText: () => {

@@ -34,6 +34,13 @@ binding = "rushomon"
 database_name = "rushomon"
 database_id = "your-database-id-here"
 
+# R2 Bucket for binary asset storage (e.g. org logos)
+# Run: wrangler r2 bucket create rushomon-assets
+# Then update the bucket_name below
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "rushomon-assets"
+
 # Environment variables (non-sensitive)
 [vars]
 GITHUB_CLIENT_ID = "your-github-oauth-app-client-id"

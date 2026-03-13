@@ -1,59 +1,153 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-	import QRCode from "qrcode";
+	import QRCodeStyling from "qr-code-styling";
 	import type { Link } from "$lib/types/api";
+	import {
+		PUBLIC_VITE_API_BASE_URL,
+		PUBLIC_VITE_SHORT_LINK_BASE_URL,
+	} from "$env/static/public";
 
 	interface Props {
 		link: Link | null;
 		isOpen: boolean;
 		onClose: () => void;
+		tier?: string;
+		orgLogoUrl?: string | null;
 	}
 
-	let { link, isOpen, onClose }: Props = $props();
+	let {
+		link,
+		isOpen,
+		onClose,
+		tier = "free",
+		orgLogoUrl = null,
+	}: Props = $props();
 
-	let canvas: HTMLCanvasElement = $state() as HTMLCanvasElement;
-	let shortUrl: string = $state("");
-	let downloadLink: HTMLAnchorElement | null = null;
+	const SHORT_LINK_BASE =
+		PUBLIC_VITE_SHORT_LINK_BASE_URL ||
+		PUBLIC_VITE_API_BASE_URL ||
+		"http://localhost:8787";
 
-	// Generate QR code when modal opens
+	const tierLevels: Record<string, number> = {
+		free: 0,
+		pro: 1,
+		business: 2,
+		unlimited: 3,
+	};
+
+	function hasTierAccess(required: string): boolean {
+		return (tierLevels[tier] ?? 0) >= (tierLevels[required] ?? 0);
+	}
+
+	const isPro = $derived(hasTierAccess("pro"));
+
+	// ── State ────────────────────────────────────────────────────────────────
+	let container: HTMLDivElement = $state() as HTMLDivElement;
+	let shortUrl = $state("");
+	let selectedSize = $state(256);
+	let useLogoInQR = $state(false);
+	let lockedPopoverOpen = $state(false);
+	let qrInstance: QRCodeStyling | null = null;
+
+	const sizes = [256, 512, 1024];
+
+	// ── Helpers ──────────────────────────────────────────────────────────────
+	function buildAbsoluteLogoUrl(url: string | null): string | undefined {
+		if (!url) return undefined;
+		if (url.startsWith("http")) return url;
+		const base =
+			PUBLIC_VITE_API_BASE_URL ||
+			(typeof window !== "undefined" ? window.location.origin : "");
+		return `${base}${url}`;
+	}
+
+	function getQROptions(size: number, withLogo: boolean) {
+		const logoUrl =
+			withLogo && orgLogoUrl
+				? buildAbsoluteLogoUrl(orgLogoUrl)
+				: undefined;
+		return {
+			width: size,
+			height: size,
+			data: shortUrl,
+			margin: Math.round(size * 0.03),
+			qrOptions: {
+				errorCorrectionLevel: (logoUrl ? "H" : "M") as "H" | "M",
+			},
+			dotsOptions: { color: "#000000", type: "square" as const },
+			backgroundOptions: { color: "#FFFFFF" },
+			image: logoUrl,
+			imageOptions: {
+				crossOrigin: "anonymous" as const,
+				margin: 4,
+				imageSize: 0.25,
+			},
+		};
+	}
+
+	// ── QR generation ────────────────────────────────────────────────────────
 	$effect(() => {
-		if (isOpen && link && canvas) {
-			// Use the current origin for QR codes - this will work in all environments
-			shortUrl = `${window.location.origin}/${link.short_code}`;
-			generateQR();
+		if (isOpen && link) {
+			shortUrl = `${SHORT_LINK_BASE}/${link.short_code}`;
 		}
 	});
 
-	async function generateQR() {
-		if (!canvas || !shortUrl) return;
-
-		try {
-			await QRCode.toCanvas(canvas, shortUrl, {
-				width: 256,
-				margin: 2,
-				color: {
-					dark: "#000000",
-					light: "#FFFFFF",
-				},
-			});
-		} catch (err) {
-			console.error("Error generating QR code:", err);
+	$effect(() => {
+		if (isOpen && link && shortUrl && container) {
+			renderQR();
 		}
+	});
+
+	async function renderQR() {
+		if (!container || !shortUrl) return;
+		container.innerHTML = "";
+		const opts = getQROptions(selectedSize, useLogoInQR && isPro);
+		qrInstance = new QRCodeStyling(opts);
+		qrInstance.append(container);
 	}
 
-	function downloadPNG() {
-		if (!canvas || !link) return;
+	// ── Downloads ────────────────────────────────────────────────────────────
+	async function downloadPNG() {
+		if (!qrInstance || !link) return;
+		await qrInstance.download({
+			name: `${link.short_code}-qr`,
+			extension: "png",
+		});
+	}
 
-		const anchor = document.createElement("a");
-		anchor.download = `${link.short_code}-qr.png`;
-		anchor.href = canvas.toDataURL("image/png");
-		anchor.click();
+	async function downloadSVG() {
+		if (!qrInstance || !link) return;
+		await qrInstance.download({
+			name: `${link.short_code}-qr`,
+			extension: "svg",
+		});
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === "Escape") {
-			onClose();
+		if (event.key === "Escape") onClose();
+	}
+
+	function selectSize(size: number) {
+		if (size > 256 && !isPro) {
+			lockedPopoverOpen = true;
+			return;
 		}
+		selectedSize = size;
+	}
+
+	function toggleLogo() {
+		if (!isPro) {
+			lockedPopoverOpen = true;
+			return;
+		}
+		useLogoInQR = !useLogoInQR;
+	}
+
+	function tryDownloadSVG() {
+		if (!isPro) {
+			lockedPopoverOpen = true;
+			return;
+		}
+		downloadSVG();
 	}
 </script>
 
@@ -119,22 +213,114 @@
 						</p>
 					{/if}
 
-					<!-- QR Code Canvas -->
-					<div class="flex justify-center mb-6">
-						<canvas
-							bind:this={canvas}
-							class="border border-gray-200 rounded-lg"
-							width="256"
-							height="256"
-						></canvas>
+					<!-- QR Code container: always renders at selectedSize but scales to fit modal -->
+					<div class="flex justify-center mb-4">
+						<div
+							style="width:256px;height:256px;position:relative;overflow:visible;"
+						>
+							<div
+								bind:this={container}
+								class="border border-gray-200 rounded-lg overflow-hidden"
+								style="width:{selectedSize}px;height:{selectedSize}px;transform-origin:top left;transform:scale({256 /
+									selectedSize});position:absolute;top:0;left:0;"
+							></div>
+						</div>
 					</div>
 
 					<!-- Short URL -->
 					<p
-						class="text-center text-sm text-gray-600 mb-6 font-mono break-all"
+						class="text-center text-sm text-gray-600 mb-5 font-mono break-all"
 					>
 						{shortUrl}
 					</p>
+
+					<!-- Size selector -->
+					<div class="mb-4">
+						<p class="text-xs font-medium text-gray-500 mb-2">
+							Size
+						</p>
+						<div class="flex gap-2">
+							{#each sizes as size}
+								<button
+									onclick={() => selectSize(size)}
+									class="flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors
+										{selectedSize === size
+										? 'bg-orange-500 text-white border-orange-500'
+										: 'bg-white text-gray-700 border-gray-300 hover:border-orange-400'}
+										{size > 256 && !isPro ? 'opacity-60' : ''}"
+								>
+									{size}px
+									{#if size > 256 && !isPro}
+										<span class="ml-1">🔒</span>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Logo toggle (only shown if org has a logo) -->
+					{#if orgLogoUrl}
+						<div class="mb-5 flex items-center justify-between">
+							<div>
+								<p class="text-sm font-medium text-gray-700">
+									Embed org logo
+								</p>
+								<p class="text-xs text-gray-500">
+									{#if isPro}
+										Centred in the QR code
+									{:else}
+										<span class="text-orange-600"
+											>Pro feature</span
+										>
+									{/if}
+								</p>
+							</div>
+							<button
+								role="switch"
+								aria-checked={useLogoInQR}
+								aria-label="Embed org logo in QR code"
+								onclick={toggleLogo}
+								class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none
+									{useLogoInQR && isPro ? 'bg-orange-500' : 'bg-gray-200'}"
+							>
+								<span
+									class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
+										{useLogoInQR && isPro ? 'translate-x-6' : 'translate-x-1'}"
+								></span>
+							</button>
+						</div>
+					{/if}
+
+					<!-- Upgrade popover -->
+					{#if lockedPopoverOpen}
+						<div
+							class="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg"
+						>
+							<p
+								class="text-sm font-semibold text-orange-800 mb-1"
+							>
+								Pro feature
+							</p>
+							<p class="text-sm text-orange-700 mb-3">
+								Larger sizes, SVG download, and custom logo
+								require a Pro plan.
+							</p>
+							<div class="flex gap-2">
+								<a
+									href="/billing"
+									class="flex-1 text-center px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
+								>
+									Upgrade to Pro
+								</a>
+								<button
+									onclick={() => (lockedPopoverOpen = false)}
+									class="px-3 py-2 border border-orange-300 text-orange-700 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors"
+								>
+									Dismiss
+								</button>
+							</div>
+						</div>
+					{/if}
 
 					<!-- Actions -->
 					<div class="flex gap-3">
@@ -155,7 +341,32 @@
 									d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 								></path>
 							</svg>
-							Download PNG
+							PNG
+						</button>
+						<button
+							onclick={tryDownloadSVG}
+							class="flex-1 px-4 py-2.5 border font-medium rounded-lg transition-colors flex items-center justify-center gap-2
+								{isPro
+								? 'border-orange-400 text-orange-600 hover:bg-orange-50'
+								: 'border-gray-300 text-gray-500 opacity-60'}"
+						>
+							<svg
+								class="w-4 h-4"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+								></path>
+							</svg>
+							SVG
+							{#if !isPro}
+								🔒
+							{/if}
 						</button>
 						<button
 							onclick={onClose}

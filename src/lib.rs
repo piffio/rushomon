@@ -360,6 +360,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             handle_cors_preflight,
         )
         .options_async("/api/orgs/:id/settings", handle_cors_preflight)
+        .options_async("/api/orgs/:id/logo", handle_cors_preflight)
         .options_async("/api/auth/switch-org", handle_cors_preflight)
         .options_async("/api/invite/:token", handle_cors_preflight)
         .options_async("/api/invite/:token/accept", handle_cors_preflight)
@@ -515,6 +516,15 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             crate::api::orgs::handle_resend_invitation,
         )
         .post_async("/api/auth/switch-org", crate::api::orgs::handle_switch_org)
+        .post_async(
+            "/api/orgs/:id/logo",
+            crate::api::orgs::handle_upload_org_logo,
+        )
+        .get_async("/api/orgs/:id/logo", crate::api::orgs::handle_get_org_logo)
+        .delete_async(
+            "/api/orgs/:id/logo",
+            crate::api::orgs::handle_delete_org_logo,
+        )
         // Invite routes (GET is public, POST requires auth)
         .get_async(
             "/api/invite/:token",

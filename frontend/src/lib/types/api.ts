@@ -299,6 +299,7 @@ export interface OrgDetails {
 		tier: string;
 		created_at: number;
 		role: 'owner' | 'member';
+		logo_url: string | null;
 	};
 	members: OrgMember[];
 	pending_invitations: OrgInvitation[];

@@ -34,6 +34,7 @@
 	let selectedQRLink = $state<Link | null>(null);
 	let isQRModalOpen = $state(false);
 	let usage = $state<UsageResponse | null>(null);
+	let orgLogoUrl = $state<string | null>(null);
 	let isActionsMenuOpen = $state(false);
 	let isExporting = $state(false);
 
@@ -75,6 +76,7 @@
 		}
 		const d = data as Record<string, any>;
 		usage = (d.usage as UsageResponse) || null;
+		orgLogoUrl = (d as any).orgLogoUrl ?? null;
 		// Update filter states from data
 		search = d.initialSearch || "";
 		status = d.initialStatus || "all";
@@ -575,6 +577,8 @@
 				link={selectedQRLink}
 				isOpen={isQRModalOpen}
 				onClose={handleCloseQR}
+				tier={usage?.tier ?? "free"}
+				{orgLogoUrl}
 			/>
 		</main>
 	{:else}

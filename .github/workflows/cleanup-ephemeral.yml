@@ -137,6 +137,54 @@ jobs:
             # Continue anyway - We want to delete all resources
           fi
 
+      - name: Delete R2 Assets Bucket
+        id: delete_r2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          BUCKET_NAME="rushomon-assets-pr-$PR_NUMBER"
+
+          echo "Attempting to delete R2 bucket: $BUCKET_NAME"
+
+          # Delete the R2 bucket (will fail if non-empty, so purge objects first)
+          LIST_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects?limit=1000" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          KEYS=$(echo "$LIST_RESPONSE" | jq -r '.result.objects[]?.key // empty' 2>/dev/null)
+          if [ -n "$KEYS" ]; then
+            echo "Purging objects from bucket before deletion..."
+            while IFS= read -r key; do
+              curl -s -X DELETE \
+                "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects/$key" \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" > /dev/null
+            done <<< "$KEYS"
+          fi
+
+          DELETE_RESPONSE=$(curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          SUCCESS=$(echo "$DELETE_RESPONSE" | jq -r '.success // false')
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Successfully deleted R2 bucket: $BUCKET_NAME"
+            echo "r2_result=success" >> $GITHUB_OUTPUT
+          else
+            ERROR_CODE=$(echo "$DELETE_RESPONSE" | jq -r '.errors[0].code // ""')
+            if [ "$ERROR_CODE" = "10006" ]; then
+              echo "⚠️  R2 bucket not found: $BUCKET_NAME (may have already been deleted)"
+              echo "r2_result=not_found" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️  Failed to delete R2 bucket"
+              echo "Response: $DELETE_RESPONSE"
+              echo "r2_result=failed" >> $GITHUB_OUTPUT
+            fi
+            # Continue anyway - We want to delete all resources
+          fi
+
       - name: Post Cleanup Notification
         if: always()
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
@@ -152,5 +200,6 @@ jobs:
             | Worker `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_worker.outputs.worker_result == 'success' && '✅ Deleted' || steps.delete_worker.outputs.worker_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
             | KV Namespace `URL_MAPPINGS_pr_${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_kv.outputs.kv_result == 'success' && '✅ Deleted' || steps.delete_kv.outputs.kv_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
             | D1 Database `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_d1.outputs.d1_result == 'success' && '✅ Deleted' || steps.delete_d1.outputs.d1_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
+            | R2 Bucket `rushomon-assets-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_r2.outputs.r2_result == 'success' && '✅ Deleted' || steps.delete_r2.outputs.r2_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
 
             *Cleanup completed automatically when PR was closed.*

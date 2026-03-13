@@ -2,7 +2,7 @@
   "dependencies": {
     "chart.js": "^4.5.1",
     "i18n-iso-countries": "^7.14.0",
-    "qrcode": "^1.5.4",
+    "qr-code-styling": "^1.9.2",
     "ua-parser-js": "^2.0.9",
     "zod": "^4.3.6"
   },
@@ -14,7 +14,6 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tailwindcss/postcss": "^4.2.1",
     "@tailwindcss/typography": "^0.5.19",
-    "@types/qrcode": "^1.5.6",
     "@types/ua-parser-js": "^0.7.39",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.6",

@@ -82,4 +82,14 @@ export const orgsApi = {
 	async updateOrgSettings(org_id: string, settings: Partial<OrgSettings>): Promise<OrgSettings> {
 		return apiClient.patch<OrgSettings>(`/api/orgs/${org_id}/settings`, settings);
 	},
+
+	async uploadOrgLogo(org_id: string, file: File): Promise<{ logo_url: string; }> {
+		const form = new FormData();
+		form.append('logo', file);
+		return apiClient.postForm<{ logo_url: string; }>(`/api/orgs/${org_id}/logo`, form);
+	},
+
+	async deleteOrgLogo(org_id: string): Promise<void> {
+		return apiClient.delete<void>(`/api/orgs/${org_id}/logo`);
+	},
 };
