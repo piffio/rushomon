@@ -16,7 +16,7 @@
     "@tailwindcss/typography": "^0.5.19",
     "@types/ua-parser-js": "^0.7.39",
     "autoprefixer": "^10.4.27",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.8",
     "svelte": "^5.53.7",
     "svelte-check": "^4.4.4",
     "tailwindcss": "^4.2.1",
