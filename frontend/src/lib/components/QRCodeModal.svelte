@@ -5,6 +5,7 @@
 		PUBLIC_VITE_API_BASE_URL,
 		PUBLIC_VITE_SHORT_LINK_BASE_URL,
 	} from "$env/static/public";
+	import { orgsApi } from "$lib/api/orgs";
 
 	interface Props {
 		link: Link | null;
@@ -12,6 +13,7 @@
 		onClose: () => void;
 		tier?: string;
 		orgLogoUrl?: string | null;
+		orgId?: string;
 	}
 
 	let {
@@ -20,6 +22,7 @@
 		onClose,
 		tier = "free",
 		orgLogoUrl = null,
+		orgId = "",
 	}: Props = $props();
 
 	const SHORT_LINK_BASE =
@@ -48,6 +51,11 @@
 	let lockedPopoverOpen = $state(false);
 	let qrInstance: QRCodeStyling | null = null;
 
+	// Upload state
+	let isUploading = $state(false);
+	let uploadError = $state("");
+	let uploadedLogoUrl = $state<string | null>(null);
+
 	const sizes = [256, 512, 1024];
 
 	// ── Helpers ──────────────────────────────────────────────────────────────
@@ -61,9 +69,10 @@
 	}
 
 	function getQROptions(size: number, withLogo: boolean) {
+		const currentLogoUrl = uploadedLogoUrl || orgLogoUrl;
 		const logoUrl =
-			withLogo && orgLogoUrl
-				? buildAbsoluteLogoUrl(orgLogoUrl)
+			withLogo && currentLogoUrl
+				? buildAbsoluteLogoUrl(currentLogoUrl)
 				: undefined;
 		return {
 			width: size,
@@ -148,6 +157,51 @@
 			return;
 		}
 		downloadSVG();
+	}
+
+	async function handleLogoUpload(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+
+		if (!file) return;
+
+		// Validate file type
+		const allowedTypes = [
+			"image/png",
+			"image/jpeg",
+			"image/webp",
+			"image/svg+xml",
+		];
+		if (!allowedTypes.includes(file.type)) {
+			uploadError =
+				"Invalid file type. Please use PNG, JPEG, WebP, or SVG.";
+			return;
+		}
+
+		// Validate file size (500KB)
+		const maxSize = 500 * 1024;
+		if (file.size > maxSize) {
+			uploadError = "File too large. Please use an image under 500KB.";
+			return;
+		}
+
+		isUploading = true;
+		uploadError = "";
+
+		try {
+			if (!orgId) throw new Error("Organization ID not available");
+
+			const result = await orgsApi.uploadOrgLogo(orgId, file);
+			uploadedLogoUrl = result.logo_url;
+
+			// Clear the file input
+			target.value = "";
+		} catch (error: any) {
+			uploadError =
+				error.message || "Failed to upload logo. Please try again.";
+		} finally {
+			isUploading = false;
+		}
 	}
 </script>
 
@@ -259,7 +313,7 @@
 					</div>
 
 					<!-- Logo options -->
-					{#if orgLogoUrl}
+					{#if orgLogoUrl || uploadedLogoUrl}
 						<!-- User has logo - show toggle -->
 						<div class="mb-5 flex items-center justify-between">
 							<div>
@@ -290,7 +344,7 @@
 								></span>
 							</button>
 						</div>
-					{:else if isPro}
+					{:else if isPro && !orgLogoUrl && !uploadedLogoUrl}
 						<!-- Pro user without logo - upload invitation -->
 						<div
 							class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg"
@@ -319,25 +373,80 @@
 										Upload a logo to embed it in your QR
 										codes for professional branding.
 									</p>
-									<a
-										href="/dashboard/org"
-										class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors"
-									>
-										<svg
-											class="w-4 h-4"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
+
+									<!-- Error message -->
+									{#if uploadError}
+										<div
+											class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700"
 										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-											/>
-										</svg>
-										Upload logo
-									</a>
+											{uploadError}
+										</div>
+									{/if}
+
+									<!-- File upload -->
+									<div class="flex items-center gap-2">
+										<input
+											type="file"
+											id="qr-logo-upload"
+											accept="image/png,image/jpeg,image/webp,image/svg+xml"
+											onchange={handleLogoUpload}
+											disabled={isUploading}
+											class="hidden"
+										/>
+										<label
+											for="qr-logo-upload"
+											class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+										>
+											{#if isUploading}
+												<svg
+													class="w-4 h-4 animate-spin"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+													/>
+												</svg>
+												Uploading...
+											{:else}
+												<svg
+													class="w-4 h-4"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+													/>
+												</svg>
+												Choose file
+											{/if}
+										</label>
+
+										{#if !isUploading}
+											<span class="text-xs text-blue-600"
+												>PNG, JPEG, WebP, SVG (max
+												500KB)</span
+											>
+										{/if}
+									</div>
+
+									<!-- Success message -->
+									{#if uploadedLogoUrl}
+										<div
+											class="mt-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700"
+										>
+											✅ Logo uploaded! You can now enable
+											it in the QR code.
+										</div>
+									{/if}
 								</div>
 							</div>
 						</div>

@@ -36,7 +36,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			.filter((t) => t.length > 0);
 
 		// Fetch links, usage, and org details in parallel
-		const [paginatedLinks, usage, orgLogoUrl] = await Promise.all([
+		const [paginatedLinks, usage, orgId, orgLogoUrl] = await Promise.all([
 			linksApi.list(
 				page,
 				10,
@@ -46,6 +46,9 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 				tags.length > 0 ? tags : undefined
 			),
 			usageApi.getUsage().catch(() => null),
+			orgsApi.listMyOrgs()
+				.then((r) => r.current_org_id)
+				.catch(() => ""),
 			orgsApi.listMyOrgs()
 				.then((r) => orgsApi.getOrg(r.current_org_id))
 				.then((d) => d.org.logo_url)
@@ -57,6 +60,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			paginatedLinks,
 			usage,
 			orgLogoUrl,
+			orgId,
 			initialSearch: search,
 			initialStatus: status || 'all',
 			initialSort: sort,
@@ -69,6 +73,8 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			user,
 			paginatedLinks: null,
 			usage: null,
+			orgLogoUrl: null,
+			orgId: '',
 			initialSearch: '',
 			initialStatus: 'all',
 			initialSort: 'created'

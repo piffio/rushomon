@@ -35,6 +35,7 @@
 	let isQRModalOpen = $state(false);
 	let usage = $state<UsageResponse | null>(null);
 	let orgLogoUrl = $state<string | null>(null);
+	let orgId = $state<string>("");
 	let isActionsMenuOpen = $state(false);
 	let isExporting = $state(false);
 
@@ -53,6 +54,7 @@
 		status = (data as any).initialStatus || "all";
 		sort = (data as any).initialSort || "created";
 		selectedTags = (data as any).initialTags || [];
+		orgId = (data as any).orgId || "";
 	});
 
 	onMount(async () => {
@@ -579,6 +581,7 @@
 				onClose={handleCloseQR}
 				tier={usage?.tier ?? "free"}
 				{orgLogoUrl}
+				{orgId}
 			/>
 		</main>
 	{:else}
