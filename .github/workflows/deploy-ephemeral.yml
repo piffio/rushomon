@@ -176,11 +176,49 @@ jobs:
           echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
           echo "kv_name=$KV_NAME" >> $GITHUB_OUTPUT
 
+      - name: Create R2 Assets Bucket
+        id: create_r2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          BUCKET_NAME="rushomon-assets-pr-$PR_NUMBER"
+
+          echo "Checking if R2 bucket '$BUCKET_NAME' already exists..."
+          LIST_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets?name_contains=$BUCKET_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          EXISTING=$(echo "$LIST_RESPONSE" | jq -r ".result.buckets[]? | select(.name == \"$BUCKET_NAME\") | .name" | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            echo "✅ R2 bucket already exists: $BUCKET_NAME"
+          else
+            echo "🆕 Creating R2 bucket: $BUCKET_NAME"
+            RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"$BUCKET_NAME\"}")
+
+            SUCCESS=$(echo "$RESPONSE" | jq -r '.success')
+            if [ "$SUCCESS" != "true" ]; then
+              echo "❌ Failed to create R2 bucket"
+              echo "Response: $RESPONSE"
+              exit 1
+            fi
+            echo "✅ Created R2 bucket: $BUCKET_NAME"
+          fi
+
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
       - name: Create Ephemeral wrangler.toml
         env:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
           DB_ID: ${{ steps.create_d1.outputs.database_id }}
           KV_ID: ${{ steps.create_kv.outputs.kv_id }}
+          R2_BUCKET_NAME: ${{ steps.create_r2.outputs.bucket_name }}
           WORKERS_DOMAIN: ${{ secrets.WORKERS_DOMAIN }}
         run: |
           cat > wrangler.ephemeral.toml << 'EOF'
@@ -207,6 +245,10 @@ jobs:
           [[kv_namespaces]]
           binding = "URL_MAPPINGS"
           id = "${{ env.KV_ID }}"
+
+          [[r2_buckets]]
+          binding = "ASSETS_BUCKET"
+          bucket_name = "${{ env.R2_BUCKET_NAME }}"
 
           [assets]
           directory = "./frontend/build"
