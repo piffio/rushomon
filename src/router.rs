@@ -2853,9 +2853,17 @@ pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Res
     });
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let links =
-        db::get_all_links_admin(&db, limit, offset, org_filter, email_filter, domain_filter)
-            .await?;
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let links = db::get_all_links_admin(
+        &db,
+        &kv,
+        limit,
+        offset,
+        org_filter,
+        email_filter,
+        domain_filter,
+    )
+    .await?;
     let total = db::get_all_links_admin_count(&db, org_filter, email_filter, domain_filter).await?;
 
     Response::from_json(&serde_json::json!({
@@ -3008,6 +3016,79 @@ pub async fn handle_admin_delete_link(req: Request, ctx: RouteContext<()>) -> Re
     }))
 }
 
+/// Handle re-syncing a link's KV entry: POST /api/admin/links/:id/sync-kv (admin only)
+pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let link_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
+    // Get link from D1
+    let link = match db::get_link_by_id_no_auth_all(&db, &link_id).await? {
+        Some(link) => link,
+        None => return Response::error("Link not found", 404),
+    };
+
+    // Re-sync based on D1 status (treat D1 as source of truth)
+    match link.status.as_str() {
+        "active" => {
+            // Link should be active in KV - recreate/update the KV entry
+            let link_model = crate::models::Link {
+                id: link.id.clone(),
+                org_id: link.org_id.clone(),
+                short_code: link.short_code.clone(),
+                destination_url: link.destination_url.clone(),
+                title: link.title.clone(),
+                created_by: link.created_by.clone(),
+                created_at: link.created_at,
+                updated_at: link.updated_at,
+                expires_at: link.expires_at,
+                status: crate::models::link::LinkStatus::Active,
+                click_count: link.click_count,
+                tags: link.tags, // Handle missing tags field
+                utm_params: link.utm_params,
+                forward_query_params: link.forward_query_params,
+            };
+
+            // Resolve forward query params (same logic as in other places)
+            let resolved_forward = if let Some(forward) = link.forward_query_params {
+                forward
+            } else {
+                db::get_org_forward_query_params(&db, &link.org_id)
+                    .await
+                    .unwrap_or(false)
+            };
+
+            let mapping = link_model.to_mapping(resolved_forward);
+            kv::store_link_mapping(&kv, &link.org_id, &link.short_code, &mapping).await?;
+        }
+        "blocked" | "disabled" => {
+            // Link should NOT be active in KV - delete the KV entry
+            kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
+        }
+        _ => {
+            return Response::error("Cannot sync link with unknown status", 400);
+        }
+    }
+
+    Response::from_json(&serde_json::json!({
+        "success": true,
+        "message": "Link KV entry re-synced successfully"
+    }))
+}
+
 /// Handle blocking a destination: POST /api/admin/blacklist (admin only)
 pub async fn handle_admin_block_destination(
     mut req: Request,
@@ -3058,8 +3139,29 @@ pub async fn handle_admin_block_destination(
             }
         }
     } else {
-        // For domain matches, keep original as we need the domain extraction
-        destination.clone()
+        // For domain matches, extract just the domain/hostname
+        match url::Url::parse(&destination) {
+            Ok(url) => url.host_str().unwrap_or(&destination).to_string(),
+            Err(_) => {
+                console_log!(
+                    "{}",
+                    serde_json::json!({
+                        "event": "domain_extract_failed",
+                        "url": destination,
+                        "level": "warn"
+                    })
+                );
+                // If URL parsing fails, try simple extraction
+                let without_protocol = destination
+                    .trim_start_matches("http://")
+                    .trim_start_matches("https://");
+                let without_path = without_protocol
+                    .split('/')
+                    .next()
+                    .unwrap_or(without_protocol);
+                without_path.to_string()
+            }
+        }
     };
 
     let reason = match body.get("reason").and_then(|r| r.as_str()) {
@@ -3089,6 +3191,7 @@ pub async fn handle_admin_block_destination(
     .await?;
 
     let candidate_links = db::get_links_for_blacklist_scan(&db).await?;
+
     let mut blocked_links = Vec::new();
     for link in candidate_links {
         if db::is_destination_blacklisted(&db, &link.destination_url).await? {
@@ -3123,7 +3226,21 @@ pub async fn handle_admin_block_destination(
                 );
             }
 
-            kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
+            match kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await {
+                Ok(()) => {}
+                Err(e) => {
+                    console_log!(
+                        "{}",
+                        serde_json::json!({
+                            "event": "admin_block_destination_kv_delete_failed",
+                            "short_code": link.short_code,
+                            "link_id": link.id,
+                            "error": e.to_string(),
+                            "level": "error"
+                        })
+                    );
+                }
+            }
         }
     }
 

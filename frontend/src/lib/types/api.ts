@@ -180,6 +180,8 @@ export interface AdminLink {
 	click_count: number;
 	creator_email: string;
 	org_name: string;
+	kv_sync_status: 'synced' | 'missing' | 'mismatched';
+	kv_exists: boolean;
 }
 
 export interface BlacklistEntry {
