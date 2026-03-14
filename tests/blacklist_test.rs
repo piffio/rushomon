@@ -63,7 +63,10 @@ async fn test_url_blocking_with_normalization() {
 
     if let Some(entries) = blacklist_entries.as_array() {
         for entry in entries {
-            if entry["destination"].as_str() == Some("http://example.com") {
+            if matches!(
+                entry["destination"].as_str(),
+                Some("http://example.com") | Some("http://example.com/")
+            ) {
                 let delete_response = auth_client
                     .delete(format!(
                         "{}/api/admin/blacklist/{}",

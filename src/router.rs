@@ -53,6 +53,33 @@ fn hash_ip(ip: &str) -> String {
     format!("{:x}", hasher.finish())
 }
 
+async fn resolved_forward_for_link(db: &D1Database, link: &Link) -> bool {
+    if let Some(value) = link.forward_query_params {
+        value
+    } else {
+        db::get_org_forward_query_params(db, &link.org_id)
+            .await
+            .unwrap_or(false)
+    }
+}
+
+async fn sync_link_mapping_from_link(
+    db: &D1Database,
+    kv_store: &worker::kv::KvStore,
+    link: &Link,
+) -> Result<()> {
+    match link.status {
+        LinkStatus::Blocked => {
+            kv::delete_link_mapping(kv_store, &link.org_id, &link.short_code).await
+        }
+        LinkStatus::Active | LinkStatus::Disabled => {
+            let resolved_forward = resolved_forward_for_link(db, link).await;
+            let mapping = link.to_mapping(resolved_forward);
+            kv::update_link_mapping(kv_store, &link.short_code, &mapping).await
+        }
+    }
+}
+
 /// Result of a redirect operation, containing the response and optional deferred analytics work.
 pub struct RedirectResult {
     pub response: Response,
@@ -1003,7 +1030,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let kv = ctx.kv("URL_MAPPINGS")?;
 
     // Get existing link to verify ownership
-    let existing_link = match db::get_link_by_id(&db, &link_id, &user_ctx.org_id).await? {
+    let _existing_link = match db::get_link_by_id(&db, &link_id, &user_ctx.org_id).await? {
         Some(link) => link,
         None => return Response::error("Link not found", 404),
     };
@@ -1174,16 +1201,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         || update_req.utm_params.is_some()
         || update_req.forward_query_params.is_some();
     if kv_needs_update {
-        let resolved_forward = updated_link.forward_query_params.unwrap_or(false);
-        let resolved_forward = if updated_link.forward_query_params.is_none() {
-            db::get_org_forward_query_params(&db, &user_ctx.org_id)
-                .await
-                .unwrap_or(false)
-        } else {
-            resolved_forward
-        };
-        let mapping = updated_link.to_mapping(resolved_forward);
-        kv::update_link_mapping(&kv, &existing_link.short_code, &mapping).await?;
+        sync_link_mapping_from_link(&db, &kv, &updated_link).await?;
     }
 
     Response::from_json(&updated_link)
@@ -2897,56 +2915,32 @@ pub async fn handle_admin_update_link_status(
     .run()
     .await?;
 
-    // Update KV mapping for status changes (disabled/blocked should stop redirects)
-    if status == "blocked" || status == "disabled" {
-        // Get the updated link from database to ensure we have the latest status
-        match db::get_link_by_id_no_auth_all(&db, &link_id).await {
-            Ok(Some(updated_link)) => {
-                let kv = ctx.kv("URL_MAPPINGS")?;
-                if status == "blocked" {
-                    // Blocked links are removed from KV entirely
-                    kv::delete_link_mapping(&kv, &updated_link.org_id, &updated_link.short_code)
-                        .await?;
-                } else {
-                    // Disabled links remain in KV but with updated status
-                    // Preserve existing resolved forwarding flag (admin status update doesn't change it)
-                    let resolved_forward = updated_link.forward_query_params.unwrap_or(false);
-                    let mapping = updated_link.to_mapping(resolved_forward);
-                    kv::update_link_mapping(&kv, &updated_link.short_code, &mapping).await?;
-                }
-            }
-            Ok(None) => {
-                console_log!(
-                    "{}",
-                    serde_json::json!({
-                        "event": "admin_link_sync_not_found",
-                        "link_id": link_id,
-                        "level": "critical"
-                    })
-                );
-            }
-            Err(e) => {
-                console_log!(
-                    "{}",
-                    serde_json::json!({
-                        "event": "admin_link_sync_db_error",
-                        "link_id": link_id,
-                        "error": e.to_string(),
-                        "level": "critical"
-                    })
-                );
-            }
+    match db::get_link_by_id_no_auth_all(&db, &link_id).await {
+        Ok(Some(updated_link)) => {
+            let kv = ctx.kv("URL_MAPPINGS")?;
+            sync_link_mapping_from_link(&db, &kv, &updated_link).await?;
         }
-    } else {
-        console_log!(
-            "{}",
-            serde_json::json!({
-                "event": "admin_link_no_kv_update",
-                "link_id": link_id,
-                "status": status,
-                "level": "debug"
-            })
-        );
+        Ok(None) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_link_sync_not_found",
+                    "link_id": link_id,
+                    "level": "critical"
+                })
+            );
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_link_sync_db_error",
+                    "link_id": link_id,
+                    "error": e.to_string(),
+                    "level": "critical"
+                })
+            );
+        }
     }
 
     // Auto-resolve all pending reports for this link if status is being changed to disabled/blocked
@@ -3094,51 +3088,42 @@ pub async fn handle_admin_block_destination(
     )
     .await?;
 
-    // Block all matching links (use original destination for matching existing links)
-    let blocked_count =
-        db::block_links_matching_destination(&db, &destination, &match_type).await?;
+    let candidate_links = db::get_links_for_blacklist_scan(&db).await?;
+    let mut blocked_links = Vec::new();
+    for link in candidate_links {
+        if db::is_destination_blacklisted(&db, &link.destination_url).await? {
+            blocked_links.push(link);
+        }
+    }
+
+    let blocked_count = blocked_links.len() as i64;
 
     // Auto-resolve all pending reports for the blocked links
     if blocked_count > 0 {
-        // Get all blocked links to resolve their reports
-        if let Ok(links) = db::get_all_links_admin(
-            &db,
-            blocked_count,
-            0,
-            None,
-            None,
-            Some(&destination.clone()),
-        )
-        .await
-        {
-            // Resolve all pending reports for these links
-            for link in &links {
-                if let Err(e) = db::resolve_reports_for_link(
-                    &db,
-                    &link.id,
-                    "reviewed",
-                    &format!("Action taken: Blocked {} ({})", match_type, destination),
-                    &user_ctx.user_id,
-                )
-                .await
-                {
-                    console_log!(
-                        "{}",
-                        serde_json::json!({
-                            "event": "reports_resolve_failed",
-                            "link_id": link.id,
-                            "error": e.to_string(),
-                            "level": "error"
-                        })
-                    );
-                }
+        let kv = ctx.kv("URL_MAPPINGS")?;
+        for link in blocked_links {
+            db::update_link_status_by_id(&db, &link.id, "blocked").await?;
+            if let Err(e) = db::resolve_reports_for_link(
+                &db,
+                &link.id,
+                "reviewed",
+                &format!("Action taken: Blocked {} ({})", match_type, destination),
+                &user_ctx.user_id,
+            )
+            .await
+            {
+                console_log!(
+                    "{}",
+                    serde_json::json!({
+                        "event": "reports_resolve_failed",
+                        "link_id": link.id,
+                        "error": e.to_string(),
+                        "level": "error"
+                    })
+                );
             }
 
-            // Delete blocked links from KV to stop redirects
-            let kv = ctx.kv("URL_MAPPINGS")?;
-            for link in links {
-                kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
-            }
+            kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
         }
     }
 
@@ -3245,14 +3230,29 @@ pub async fn handle_admin_suspend_user(
         }
     }
 
+    let target_user = match db::get_user_by_id(&db, &target_user_id).await? {
+        Some(user) => user,
+        None => return Response::error("User not found", 404),
+    };
+    let org_links = db::get_links_by_org(&db, &target_user.org_id).await?;
+
     // Suspend user
     db::suspend_user(&db, &target_user_id, &reason, &user_ctx.user_id).await?;
 
-    // Disable all links for the user
-    let disabled_count = db::disable_all_links_for_user(&db, &target_user_id).await?;
+    // Disable all links for the user's organization
+    let disabled_count = db::disable_all_links_for_org(&db, &target_user.org_id).await?;
+
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    for link in org_links {
+        if matches!(link.status, LinkStatus::Blocked) {
+            continue;
+        }
+        let mut disabled_link = link;
+        disabled_link.status = LinkStatus::Disabled;
+        sync_link_mapping_from_link(&db, &kv, &disabled_link).await?;
+    }
 
     // Invalidate all sessions for the user
-    let _kv = ctx.kv("URL_MAPPINGS")?;
     // Note: In a production system, we'd need to track user sessions and delete them
     // For now, we'll rely on the suspended_at check in auth middleware
 
@@ -3281,9 +3281,6 @@ pub async fn handle_admin_unsuspend_user(req: Request, ctx: RouteContext<()>) ->
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     db::unsuspend_user(&db, &target_user_id).await?;
-
-    // Enable all disabled links for the user
-    let _enabled_count = db::enable_all_links_for_user(&db, &target_user_id).await?;
 
     Response::from_json(&serde_json::json!({
         "success": true,
@@ -3336,6 +3333,12 @@ pub async fn handle_admin_delete_user(mut req: Request, ctx: RouteContext<()>) -
     let confirmation = body.get("confirmation").and_then(|c| c.as_str());
     if confirmation != Some("DELETE") {
         return Response::error("Must provide 'confirmation': 'DELETE' in request body", 400);
+    }
+
+    let user_links = db::get_links_by_creator(&db, &target_user_id).await?;
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    for link in &user_links {
+        kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
     }
 
     // Delete user and all their data
