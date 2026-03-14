@@ -673,11 +673,19 @@ pub async fn update_link(
 
 /// Hard delete a link (removes from database permanently, frees up short code)
 pub async fn hard_delete_link(db: &D1Database, link_id: &str, org_id: &str) -> Result<()> {
-    // First delete analytics events for this link (FK constraint)
+    // Delete analytics events (FK constraint)
     let analytics_stmt = db.prepare("DELETE FROM analytics_events WHERE link_id = ?1");
     analytics_stmt.bind(&[link_id.into()])?.run().await?;
 
-    // Then delete the link itself
+    // Delete link reports referencing this link
+    let reports_stmt = db.prepare("DELETE FROM link_reports WHERE link_id = ?1");
+    reports_stmt.bind(&[link_id.into()])?.run().await?;
+
+    // Delete link tag associations
+    let tags_stmt = db.prepare("DELETE FROM link_tags WHERE link_id = ?1");
+    tags_stmt.bind(&[link_id.into()])?.run().await?;
+
+    // Finally delete the link itself
     let stmt = db.prepare("DELETE FROM links WHERE id = ?1 AND org_id = ?2");
     stmt.bind(&[link_id.into(), org_id.into()])?.run().await?;
 
