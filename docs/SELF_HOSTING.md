@@ -113,7 +113,7 @@ The interactive wizard will guide you through:
 - ✓ Domain configuration (single or multi-domain)
 - ✓ OAuth credential entry (GitHub and/or Google)
 - ✓ Mailgun email setup (team invitations - optional)
-- ✓ Cloudflare resource creation (D1 database, KV namespace)
+- ✓ Cloudflare resource creation (D1 database, KV namespace, R2 bucket)
 - ✓ JWT secret generation
 - ✓ Backend and frontend compilation
 - ✓ Database migrations
@@ -259,6 +259,61 @@ wrangler kv namespace create "URL_MAPPINGS"
 
 Save the returned `id` — you'll need it in Step 4.
 
+### Create R2 Assets Bucket
+
+Rushomon uses an R2 bucket to store organization logos for the QR code feature (Pro tier). Create the bucket:
+
+```bash
+wrangler r2 bucket create rushomon-assets
+```
+
+> **Naming**: Choose any globally unique name (e.g., `myapp-assets`). You will reference it by name in `wrangler.toml` and in your GitHub Actions secrets. R2 bucket names must be lowercase, alphanumeric, and may contain hyphens.
+
+> **R2 requires a paid Cloudflare plan** (Workers Paid or above, $5/month). On the free plan, Workers can still deploy but the logo upload feature will not work.
+
+### Configure R2 Bucket CORS
+
+To prevent CORS issues when serving logos through the Worker API, configure the bucket's CORS settings:
+
+First, create a CORS configuration file:
+
+```bash
+cat > cors.json << 'EOF'
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["*"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"],
+        "maxAgeSeconds": 86400
+      }
+    }
+  ]
+}
+EOF
+```
+
+Then apply the CORS configuration:
+
+```bash
+wrangler r2 bucket cors set rushomon-assets --file cors.json
+```
+
+Verify the configuration was applied:
+
+```bash
+wrangler r2 bucket cors list rushomon-assets
+```
+
+> **Why this is needed**: The Worker serves logos from R2 with `Access-Control-Allow-Origin: *`, but proper bucket CORS configuration ensures compatibility with direct R2 access and prevents potential CORS conflicts.
+
+> **Security note**: Using `"*"` for origins is safe for public logo assets since they're non-sensitive images served publicly through the Worker API anyway.
+
+> **Format note**: R2 CORS requires a `rules` array with an `allowed` object containing `origins`, `methods`, `headers`, and `maxAgeSeconds` properties. This differs from the simpler array format used by some other S3-compatible services.
+
+If you are not using the logo feature, you still need the bucket binding in `wrangler.toml` for the Worker to deploy successfully — create an empty bucket and leave it unused.
+
 ### Note Your Account ID
 
 Find your Account ID in the Cloudflare dashboard: click on any zone → **Overview** → right sidebar shows **Account ID**. Save this value.
@@ -349,6 +404,11 @@ database_id = "YOUR_D1_DATABASE_ID"
 binding = "URL_MAPPINGS"
 id = "YOUR_KV_NAMESPACE_ID"
 
+# R2 Assets Bucket (org logos for QR code feature — Pro tier)
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "YOUR_R2_ASSETS_BUCKET_NAME"
+
 # Static Assets (Frontend)
 [assets]
 directory = "./frontend/build"
@@ -386,6 +446,7 @@ MAILGUN_FROM = "invites@mg.myapp.com"  # From address for invitation emails
 Replace the placeholder values:
 - `YOUR_D1_DATABASE_ID` — from Step 2
 - `YOUR_KV_NAMESPACE_ID` — from Step 2
+- `YOUR_R2_ASSETS_BUCKET_NAME` — the bucket name you created in Step 2 (e.g., `rushomon-assets`)
 - `YOUR_GITHUB_CLIENT_ID` — from Step 3a (omit key entirely to disable GitHub login)
 - `YOUR_GOOGLE_CLIENT_ID` — from Step 3b (omit key entirely to disable Google login)
 - `api.myapp.com` — your API domain/subdomain (must match OAuth callback URL)
@@ -907,6 +968,31 @@ This returns version information including the current version, build timestamp,
 - Check rule expressions match your domain structure
 - Monitor Cloudflare Security dashboard for rate limiting events
 - Ensure rules are attached to the correct domain/zone
+
+### Logo upload or QR code logo not working (CORS issues)
+- Verify R2 bucket CORS is configured: `wrangler r2 bucket cors list your-bucket-name`
+- If CORS is missing, create a cors.json file with the correct format and apply it:
+  ```bash
+  cat > cors.json << 'EOF'
+  {
+    "rules": [
+      {
+        "allowed": {
+          "origins": ["*"],
+          "methods": ["GET", "HEAD"],
+          "headers": ["*"],
+          "maxAgeSeconds": 86400
+        }
+      }
+    ]
+  }
+  EOF
+  wrangler r2 bucket cors set your-bucket-name --file cors.json
+  ```
+- Check that the Worker is returning `Access-Control-Allow-Origin: *` for logo requests
+- Clear browser cache after fixing CORS (Ctrl+Shift+R or Cmd+Shift+R)
+- Ensure the R2 bucket binding `ASSETS_BUCKET` is correctly configured in `wrangler.toml`
+- Verify the logo file exists in R2: `wrangler r2 object list your-bucket-name --prefix logos/`
 
 ### Users getting rate limited too quickly
 - Check your rate limiting limits (200/min for comprehensive rule)

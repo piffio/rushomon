@@ -58,6 +58,7 @@ export MAILGUN_FROM=""
 export MAILGUN_API_KEY=""
 export ENABLE_KV_RATE_LIMITING=false
 export R2_BACKUP_BUCKET=""
+export R2_ASSETS_BUCKET_NAME=""
 export SAVE_CONFIG=true
 export CLOUDFLARE_ACCOUNT_ID=""
 export D1_DATABASE_ID=""
@@ -395,6 +396,18 @@ configure_deployment_options() {
   local default_worker_name="rushomon-${ENVIRONMENT_NAME}"
   export WORKER_NAME=$(prompt_input "Worker name" "$default_worker_name" validate_worker_name)
 
+  # R2 assets bucket (required for org logo storage)
+  echo ""
+  echo "R2 bucket for organization logo storage (required for QR code logo feature)."
+  local default_assets_bucket="${WORKER_NAME}-assets"
+  while true; do
+    export R2_ASSETS_BUCKET_NAME=$(prompt_input "R2 assets bucket name" "$default_assets_bucket")
+    if [ -n "$R2_ASSETS_BUCKET_NAME" ]; then
+      break
+    fi
+    warning "R2 assets bucket name cannot be empty"
+  done
+
   # Advanced options
   if prompt_yes_no "Configure advanced options?" "n"; then
     if prompt_yes_no "Enable KV-based rate limiting? (costs money, Cloudflare rate limiting recommended)" "n"; then
@@ -456,6 +469,7 @@ show_configuration_summary() {
   echo ""
   echo -e "${YELLOW}Options:${NC}"
   echo "  - KV Rate Limiting: $([ "$ENABLE_KV_RATE_LIMITING" = true ] && echo "Enabled" || echo "Disabled")"
+  echo "  - R2 Assets Bucket: ${R2_ASSETS_BUCKET_NAME:-Not configured}"
   echo "  - R2 Backups:       ${R2_BACKUP_BUCKET:-None}"
   echo ""
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

@@ -42,6 +42,7 @@ jobs:
         env:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          R2_ASSETS_BUCKET_NAME: ${{ secrets.R2_ASSETS_BUCKET_NAME }}
           GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
@@ -73,6 +74,10 @@ jobs:
           [[kv_namespaces]]
           binding = "URL_MAPPINGS"
           id = "${{ env.KV_NAMESPACE_ID }}"
+
+          [[r2_buckets]]
+          binding = "ASSETS_BUCKET"
+          bucket_name = "${{ env.R2_ASSETS_BUCKET_NAME }}"
 
           [assets]
           directory = "./frontend/build"
@@ -177,6 +182,7 @@ jobs:
         env:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
+          R2_ASSETS_BUCKET_NAME: ${{ secrets.R2_ASSETS_BUCKET_NAME }}
           GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -208,6 +214,10 @@ jobs:
           [[kv_namespaces]]
           binding = "URL_MAPPINGS"
           id = "${{ env.KV_NAMESPACE_ID }}"
+
+          [[r2_buckets]]
+          binding = "ASSETS_BUCKET"
+          bucket_name = "${{ env.R2_ASSETS_BUCKET_NAME }}"
 
           [assets]
           directory = "./frontend/build"

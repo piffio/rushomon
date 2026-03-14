@@ -391,7 +391,34 @@ create_or_get_r2_bucket() {
     return 1
   }
 
-  success "R2 bucket created: $bucket_name"
+  # Configure CORS for logo serving
+  info "Configuring CORS for R2 bucket: $bucket_name"
+
+  # Create temporary CORS configuration file
+  local temp_cors_file=$(mktemp)
+  cat > "$temp_cors_file" << 'EOF'
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["*"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"],
+        "maxAgeSeconds": 86400
+      }
+    }
+  ]
+}
+EOF
+
+  wrangler r2 bucket cors set "$bucket_name" --file "$temp_cors_file" || {
+    warning "Failed to configure CORS for R2 bucket (manual setup may be required)"
+  }
+
+  # Clean up temporary file
+  rm -f "$temp_cors_file"
+
+  success "R2 bucket created and configured: $bucket_name"
   return 0
 }
 
