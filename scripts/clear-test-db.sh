@@ -23,12 +23,7 @@ rm -rf .wrangler/state/v3/d1/miniflare-D1DatabaseObject/ 2>/dev/null || true
 
 # Reset R2 bucket (delete and recreate to clear all logos)
 echo "Resetting R2 assets bucket..."
-if wrangler r2 bucket list | grep -q "rushomon-assets"; then
-    echo "Deleting existing R2 bucket: rushomon-assets"
-    wrangler r2 bucket delete rushomon-assets
-fi
-echo "Creating fresh R2 bucket: rushomon-assets"
-wrangler r2 bucket create rushomon-assets
+rm -rf .wrangler/state/v3/d1/rushomon-assets 2>/dev/null || true
 
 echo "Reapplying migrations..."
 yes | wrangler d1 migrations apply rushomon --local

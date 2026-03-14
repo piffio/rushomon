@@ -1442,6 +1442,36 @@ pub async fn delete_user(
     Ok((user_count, links_count, analytics_count))
 }
 
+pub async fn get_links_by_creator(db: &D1Database, user_id: &str) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE created_by = ?1",
+    );
+    let results = stmt.bind(&[user_id.into()])?.all().await?;
+    results.results::<Link>()
+}
+
+pub async fn get_links_by_org(db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE org_id = ?1",
+    );
+    let results = stmt.bind(&[org_id.into()])?.all().await?;
+    results.results::<Link>()
+}
+
+pub async fn get_links_for_blacklist_scan(db: &D1Database) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE status IN ('active', 'disabled')",
+    );
+    let results = stmt.all().await?;
+    results.results::<Link>()
+}
+
 /// Check if user is the last admin in their organization
 pub async fn is_last_admin_in_org(db: &D1Database, user_id: &str, org_id: &str) -> Result<bool> {
     let stmt = db.prepare(
@@ -1493,31 +1523,22 @@ mod tests {
     }
 }
 
-/// Disable all links for a user
-pub async fn disable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
+pub async fn update_link_status_by_id(db: &D1Database, link_id: &str, status: &str) -> Result<()> {
     let now = now_timestamp();
-    let stmt = db.prepare(
-        "UPDATE links SET status = 'disabled', updated_at = ?1 WHERE created_by = ?2 AND status = 'active'"
-    );
-    let result = stmt
-        .bind(&[(now as f64).into(), user_id.into()])?
+    let stmt = db.prepare("UPDATE links SET status = ?1, updated_at = ?2 WHERE id = ?3");
+    stmt.bind(&[status.into(), (now as f64).into(), link_id.into()])?
         .run()
         .await?;
-    Ok(result
-        .meta()?
-        .and_then(|m| m.changes)
-        .map(|c| c as i64)
-        .unwrap_or(0))
+    Ok(())
 }
 
-/// Enable all disabled links for a user (when user is unsuspended)
-pub async fn enable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
+pub async fn disable_all_links_for_org(db: &D1Database, org_id: &str) -> Result<i64> {
     let now = now_timestamp();
     let stmt = db.prepare(
-        "UPDATE links SET status = 'active', updated_at = ?1 WHERE created_by = ?2 AND status = 'disabled'"
+        "UPDATE links SET status = 'disabled', updated_at = ?1 WHERE org_id = ?2 AND status = 'active'"
     );
     let result = stmt
-        .bind(&[(now as f64).into(), user_id.into()])?
+        .bind(&[(now as f64).into(), org_id.into()])?
         .run()
         .await?;
     Ok(result
@@ -1655,43 +1676,6 @@ pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> R
     }
 
     Ok(false)
-}
-
-/// Block all links matching a blacklist target
-pub async fn block_links_matching_destination(
-    db: &D1Database,
-    destination: &str,
-    match_type: &str,
-) -> Result<i64> {
-    let now = now_timestamp();
-    let stmt = if match_type == "exact" {
-        db.prepare(
-            "UPDATE links SET status = 'blocked', updated_at = ?1
-             WHERE destination_url = ?2 AND status IN ('active', 'disabled')",
-        )
-    } else {
-        // Domain match - use LIKE with wildcards
-        db.prepare(
-            "UPDATE links SET status = 'blocked', updated_at = ?1
-             WHERE destination_url LIKE ?2 AND status IN ('active', 'disabled')",
-        )
-    };
-
-    let pattern = if match_type == "exact" {
-        destination.to_string()
-    } else {
-        format!("%{}%", destination)
-    };
-
-    let result = stmt
-        .bind(&[(now as f64).into(), pattern.into()])?
-        .run()
-        .await?;
-    Ok(result
-        .meta()?
-        .and_then(|m| m.changes)
-        .map(|c| c as i64)
-        .unwrap_or(0))
 }
 
 /// Get all links for admin (global listing with filters)
