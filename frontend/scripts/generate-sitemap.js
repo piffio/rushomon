@@ -46,8 +46,8 @@ ${urls}
 }
 
 // Get base URL from environment or default
-// Can override with SITE_URL env var for different deployments
-const baseUrl = process.env.SITE_URL || 'https://rushomon.cc';
+// Can override with PUBLIC_VITE_SITE_URL env var for different deployments
+const baseUrl = process.env.PUBLIC_VITE_SITE_URL || 'https://rushomon.cc';
 const sitemap = generateSitemap(baseUrl);
 
 // Write to build directory

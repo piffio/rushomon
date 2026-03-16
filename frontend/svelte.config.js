@@ -10,7 +10,7 @@ const config = {
 			precompress: true
 		}),
 		prerender: {
-			origin: process.env.SITE_URL || 'https://rushomon.cc'
+			origin: process.env.PUBLIC_VITE_SITE_URL || 'https://rushomon.cc'
 		}
 	}
 };
