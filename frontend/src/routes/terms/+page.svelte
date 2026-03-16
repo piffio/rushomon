@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import Footer from "$lib/components/Footer.svelte";
+	import SEO from "$lib/components/SEO.svelte";
 	import { authApi } from "$lib/api/auth";
 	import { onMount } from "svelte";
 	import type { PageData } from "./$types";
@@ -23,10 +24,9 @@
 </script>
 
 <svelte:head>
-	<title>Terms of Service - Rushomon</title>
-	<meta
-		name="description"
-		content="Terms of Service and Abuse Policy for Rushomon URL shortener."
+	<SEO
+		title="Terms of Service – Rushomon"
+		description="Terms of Service and Abuse Policy for Rushomon URL shortener."
 	/>
 </svelte:head>
 

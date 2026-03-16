@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import Footer from "$lib/components/Footer.svelte";
+	import SEO from "$lib/components/SEO.svelte";
 	import PricingCard from "$lib/components/PricingCard.svelte";
 	import { authApi } from "$lib/api/auth";
 	import { billingApi } from "$lib/api/billing";
@@ -245,10 +246,9 @@
 </script>
 
 <svelte:head>
-	<title>Pricing - Rushomon</title>
-	<meta
-		name="description"
-		content="Simple, transparent pricing for Rushomon URL shortener. Free forever for personal use, with paid plans for creators and teams."
+	<SEO
+		title="Pricing – Rushomon"
+		description="Simple, transparent pricing for Rushomon URL shortener. Free forever for personal use, with paid plans for creators and teams."
 	/>
 </svelte:head>
 

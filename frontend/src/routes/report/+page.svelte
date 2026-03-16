@@ -2,6 +2,7 @@
 	import { goto } from "$app/navigation";
 	import { apiClient } from "$lib/api/client";
 	import { authApi } from "$lib/api/auth";
+	import SEO from "$lib/components/SEO.svelte";
 	import { onMount } from "svelte";
 	import type { User } from "$lib/types/api";
 
@@ -128,10 +129,9 @@
 </script>
 
 <svelte:head>
-	<title>Report Abuse - Rushomon</title>
-	<meta
-		name="description"
-		content="Report abusive or inappropriate links on Rushomon"
+	<SEO
+		title="Report Abuse – Rushomon"
+		description="Report abusive or inappropriate links on Rushomon"
 	/>
 </svelte:head>
 

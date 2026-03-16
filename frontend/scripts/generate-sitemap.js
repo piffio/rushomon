@@ -2,15 +2,29 @@
 
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
-const PUBLIC_PAGES = [
-	{ path: '/', changefreq: 'weekly', priority: '1.0' },
-	{ path: '/pricing', changefreq: 'monthly', priority: '0.8' },
-	{ path: '/login', changefreq: 'monthly', priority: '0.7' },
-	{ path: '/report', changefreq: 'monthly', priority: '0.6' },
-	{ path: '/terms', changefreq: 'yearly', priority: '0.3' },
-	{ path: '/privacy', changefreq: 'yearly', priority: '0.3' }
-];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Import PUBLIC_PAGES from the shared location
+// We need to read the TypeScript file and extract the constant
+const fs = await import('fs');
+const pagesFile = fs.readFileSync(resolve(__dirname, '../src/lib/seo/pages.ts'), 'utf8');
+const pagesMatch = pagesFile.match(/export const PUBLIC_PAGES: PublicPage\[\] = \[([\s\S]*?)\];/);
+const pagesContent = pagesMatch ? pagesMatch[1] : '';
+
+// Parse the pages array (simplified - just extract path, changefreq, priority)
+const PUBLIC_PAGES = [];
+const pageMatches = pagesContent.matchAll(/\{ path: '([^']+)', changefreq: '([^']+)', priority: '([^']+)'/g);
+for (const match of pageMatches) {
+	PUBLIC_PAGES.push({
+		path: match[1],
+		changefreq: match[2],
+		priority: match[3]
+	});
+}
 
 function generateSitemap(baseUrl) {
 	const lastmod = new Date().toISOString().split('T')[0];

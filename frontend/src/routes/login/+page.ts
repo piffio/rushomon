@@ -1,8 +1,12 @@
 import type { PageLoad } from './$types';
+import type { User } from "$lib/types/api";
 
-export const load: PageLoad = async ({ parent }) => {
-	const parentData = await parent() as { user?: any; };
+export const prerender = true;
+export const ssr = true;
+
+export const load: PageLoad = async () => {
+	// Static adapter - no server-side data fetching
 	return {
-		user: parentData.user
+		user: undefined as User | undefined,
 	};
 };

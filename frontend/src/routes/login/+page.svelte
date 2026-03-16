@@ -3,6 +3,7 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import Logo from "$lib/components/Logo.svelte";
+	import SEO from "$lib/components/SEO.svelte";
 	import { authApi, type AuthProvider } from "$lib/api/auth";
 	import type { PageData } from "./$types";
 
@@ -12,15 +13,16 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
-	let signupsDisabled = $derived(
-		$page.url.searchParams.get("error") === "signups_disabled",
-	);
-
-	let emailAlreadyUsed = $derived(
-		$page.url.searchParams.get("error") === "email_already_used",
-	);
+	let signupsDisabled = $state(false);
+	let emailAlreadyUsed = $state(false);
 
 	onMount(async () => {
+		// Set search params after mount
+		signupsDisabled =
+			$page.url.searchParams.get("error") === "signups_disabled";
+		emailAlreadyUsed =
+			$page.url.searchParams.get("error") === "email_already_used";
+
 		// Redirect to dashboard if user is already authenticated
 		if (data.user) {
 			await goto("/dashboard");
@@ -45,7 +47,11 @@
 </script>
 
 <svelte:head>
-	<title>Sign In – Rushomon</title>
+	<SEO
+		title="Sign In – Rushomon"
+		description="Sign in to Rushomon, the self-hosted URL shortener."
+		noindex={true}
+	/>
 </svelte:head>
 
 <div

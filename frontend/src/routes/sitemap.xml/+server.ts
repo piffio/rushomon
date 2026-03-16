@@ -1,14 +1,6 @@
 import type { RequestHandler } from './$types';
 import { dev } from '$app/environment';
-
-const PUBLIC_PAGES = [
-	{ path: '/', changefreq: 'weekly', priority: '1.0' },
-	{ path: '/pricing', changefreq: 'monthly', priority: '0.8' },
-	{ path: '/login', changefreq: 'monthly', priority: '0.7' },
-	{ path: '/report', changefreq: 'monthly', priority: '0.6' },
-	{ path: '/terms', changefreq: 'yearly', priority: '0.3' },
-	{ path: '/privacy', changefreq: 'yearly', priority: '0.3' }
-];
+import { PUBLIC_PAGES } from '$lib/seo/pages';
 
 function buildSitemap(baseUrl: string): string {
 	const lastmod = new Date().toISOString().split('T')[0];
@@ -30,7 +22,7 @@ ${urls}
 }
 
 export const GET: RequestHandler = async ({ request }) => {
-	// Only serve in development mode
+	// Only serve in development mode - in production sitemap is generated as static file
 	if (!dev) {
 		return new Response('Not found', { status: 404 });
 	}

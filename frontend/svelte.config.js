@@ -8,7 +8,10 @@ const config = {
 			assets: 'build',
 			fallback: 'index.html',
 			precompress: true
-		})
+		}),
+		prerender: {
+			origin: process.env.SITE_URL || 'https://rushomon.cc'
+		}
 	}
 };
 

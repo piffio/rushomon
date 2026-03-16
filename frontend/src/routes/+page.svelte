@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
 	import Footer from "$lib/components/Footer.svelte";
+	import SEO from "$lib/components/SEO.svelte";
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
@@ -9,17 +10,20 @@
 	let { data }: { data: PageData } = $props();
 
 	let mounted = $state(false);
-	let signupsDisabled = $derived(
-		$page.url.searchParams.get("error") === "signups_disabled",
-	);
+	let signupsDisabled = $state(false);
 
 	onMount(() => {
 		mounted = true;
+		signupsDisabled =
+			$page.url.searchParams.get("error") === "signups_disabled";
 	});
 </script>
 
 <svelte:head>
-	<title>Rushomon - Self-Hosted URL Shortener</title>
+	<SEO
+		title="Rushomon – Self-Hosted URL Shortener"
+		description="Self-hosted, blazing fast URL shortener with analytics. Deploy on your own domain with Cloudflare Workers."
+	/>
 </svelte:head>
 
 <div class="min-h-screen bg-white flex flex-col">
@@ -34,7 +38,7 @@
 						? 'opacity-100 translate-y-0'
 						: 'opacity-0 translate-y-4'}"
 				>
-					<h2
+					<h1
 						class="text-5xl md:text-7xl font-bold text-gray-900 mb-8 leading-tight"
 					>
 						Your Own<br />
@@ -43,7 +47,7 @@
 						>
 							URL Shortener
 						</span>
-					</h2>
+					</h1>
 					<p
 						class="text-xl md:text-2xl text-gray-600 mb-12 leading-relaxed max-w-2xl mx-auto"
 					>
@@ -185,11 +189,11 @@
 		<section id="features" class="py-20 bg-white">
 			<div class="container mx-auto px-4">
 				<div class="max-w-6xl mx-auto">
-					<h3
+					<h2
 						class="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-16"
 					>
 						Everything You Need
-					</h3>
+					</h2>
 
 					<div class="grid md:grid-cols-3 gap-8">
 						<!-- Lightning Fast -->
