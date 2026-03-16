@@ -144,8 +144,89 @@
 		blockReason = "";
 	}
 
+	function extractDomain(url: string): string {
+		try {
+			const urlObj = new URL(url);
+			return urlObj.hostname;
+		} catch (e) {
+			// If URL parsing fails, try to extract domain manually
+			// Remove protocol and path, keep just the domain
+			const withoutProtocol = url.replace(/^https?:\/\//, "");
+			const withoutPath = withoutProtocol.split("/")[0];
+			return withoutPath;
+		}
+	}
+
 	function confirmBlockDomain(linkId: string, destination: string) {
-		confirmBlock(linkId, destination, "domain");
+		const domain = extractDomain(destination);
+		confirmBlock(linkId, domain, "domain");
+	}
+
+	async function handleSyncKv(linkId: string) {
+		try {
+			await adminApi.syncLinkKv(linkId);
+			await loadLinks();
+			showToast("KV entry re-synced successfully", "success");
+		} catch (err) {
+			showToast(
+				(err as ApiError).message || "Failed to sync KV entry",
+				"error",
+			);
+		}
+	}
+
+	function getKvSyncBadge(status: string): string {
+		switch (status) {
+			case "synced":
+				return "badge-success";
+			case "missing":
+				return "badge-warning";
+			case "mismatched":
+				return "badge-danger";
+			default:
+				return "badge-secondary";
+		}
+	}
+
+	function getKvSyncIcon(status: string): string {
+		switch (status) {
+			case "synced":
+				return "✓";
+			case "missing":
+				return "✗";
+			case "mismatched":
+				return "⚠";
+			default:
+				return "?";
+		}
+	}
+
+	function getKvSyncText(status: string): string {
+		switch (status) {
+			case "synced":
+				return "Synced";
+			case "missing":
+				return "Missing";
+			case "mismatched":
+				return "Mismatch";
+			default:
+				return "Unknown";
+		}
+	}
+
+	function getKvSyncTooltip(status: string, exists: boolean): string {
+		switch (status) {
+			case "synced":
+				return exists
+					? "KV and D1 are in sync"
+					: "Link is inactive in both KV and D1";
+			case "missing":
+				return "KV entry is missing but link should be active in D1";
+			case "mismatched":
+				return "KV and D1 have conflicting status information";
+			default:
+				return "Unknown sync status";
+		}
 	}
 
 	function closeConfirm() {
@@ -250,6 +331,7 @@
 						<th>Creator</th>
 						<th>Organization</th>
 						<th>Status</th>
+						<th>KV Sync</th>
 						<th>Clicks</th>
 						<th>Created</th>
 						<th>Actions</th>
@@ -279,6 +361,32 @@
 									class="badge {getStatusBadge(link.status)}"
 									>{link.status}</span
 								>
+							</td>
+							<td>
+								<div class="kv-sync-status">
+									<span
+										class="kv-badge {getKvSyncBadge(
+											link.kv_sync_status,
+										)}"
+										title={getKvSyncTooltip(
+											link.kv_sync_status,
+											link.kv_exists,
+										)}
+									>
+										{getKvSyncIcon(link.kv_sync_status)}
+										{getKvSyncText(link.kv_sync_status)}
+									</span>
+									{#if link.kv_sync_status !== "synced"}
+										<button
+											class="btn btn-xs btn-secondary sync-btn"
+											onclick={() =>
+												handleSyncKv(link.id)}
+											title="Re-sync KV entry to match D1 status"
+										>
+											↻
+										</button>
+									{/if}
+								</div>
 							</td>
 							<td>{link.click_count}</td>
 							<td>{formatDate(link.created_at)}</td>
@@ -674,6 +782,30 @@
 	.badge.secondary {
 		background: #f3f4f6;
 		color: #6b7280;
+	}
+
+	.kv-sync-status {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.kv-badge {
+		font-size: 0.75rem;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+		font-weight: 500;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		white-space: nowrap;
+	}
+
+	.sync-btn {
+		padding: 0.125rem 0.375rem;
+		font-size: 0.75rem;
+		min-width: auto;
+		line-height: 1;
 	}
 
 	.empty-state {

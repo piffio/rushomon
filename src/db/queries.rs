@@ -1,5 +1,6 @@
 use crate::models::{
-    AnalyticsEvent, BillingAccount, Link, Organization, User, user::CreateUserData,
+    AnalyticsEvent, BillingAccount, Link, Organization, User, link::LinkStatus,
+    user::CreateUserData,
 };
 use crate::utils::now_timestamp;
 use wasm_bindgen::JsValue;
@@ -569,6 +570,7 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
 }
 
 /// Get a link by ID without org_id check (used for admin operations - returns all statuses)
+/// Note: tags are populated separately via get_tags_for_links
 pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
         "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
@@ -579,8 +581,9 @@ pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Resul
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
 }
 
-/// Get a link by short_code without org_id check (used for public reporting)
-pub async fn get_link_by_short_code_no_auth(
+/// Get an active link by short_code without org_id check (used for public reporting)
+/// Only returns links with status = 'active'
+pub async fn get_active_link_by_short_code(
     db: &D1Database,
     short_code: &str,
 ) -> Result<Option<Link>> {
@@ -673,11 +676,19 @@ pub async fn update_link(
 
 /// Hard delete a link (removes from database permanently, frees up short code)
 pub async fn hard_delete_link(db: &D1Database, link_id: &str, org_id: &str) -> Result<()> {
-    // First delete analytics events for this link (FK constraint)
+    // Delete analytics events (FK constraint)
     let analytics_stmt = db.prepare("DELETE FROM analytics_events WHERE link_id = ?1");
     analytics_stmt.bind(&[link_id.into()])?.run().await?;
 
-    // Then delete the link itself
+    // Delete link reports referencing this link
+    let reports_stmt = db.prepare("DELETE FROM link_reports WHERE link_id = ?1");
+    reports_stmt.bind(&[link_id.into()])?.run().await?;
+
+    // Delete link tag associations
+    let tags_stmt = db.prepare("DELETE FROM link_tags WHERE link_id = ?1");
+    tags_stmt.bind(&[link_id.into()])?.run().await?;
+
+    // Finally delete the link itself
     let stmt = db.prepare("DELETE FROM links WHERE id = ?1 AND org_id = ?2");
     stmt.bind(&[link_id.into(), org_id.into()])?.run().await?;
 
@@ -1442,6 +1453,36 @@ pub async fn delete_user(
     Ok((user_count, links_count, analytics_count))
 }
 
+pub async fn get_links_by_creator(db: &D1Database, user_id: &str) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE created_by = ?1",
+    );
+    let results = stmt.bind(&[user_id.into()])?.all().await?;
+    results.results::<Link>()
+}
+
+pub async fn get_links_by_org(db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE org_id = ?1",
+    );
+    let results = stmt.bind(&[org_id.into()])?.all().await?;
+    results.results::<Link>()
+}
+
+pub async fn get_links_for_blacklist_scan(db: &D1Database) -> Result<Vec<Link>> {
+    let stmt = db.prepare(
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+         FROM links
+         WHERE status IN ('active', 'disabled')",
+    );
+    let results = stmt.all().await?;
+    results.results::<Link>()
+}
+
 /// Check if user is the last admin in their organization
 pub async fn is_last_admin_in_org(db: &D1Database, user_id: &str, org_id: &str) -> Result<bool> {
     let stmt = db.prepare(
@@ -1493,31 +1534,22 @@ mod tests {
     }
 }
 
-/// Disable all links for a user
-pub async fn disable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
+pub async fn update_link_status_by_id(db: &D1Database, link_id: &str, status: &str) -> Result<()> {
     let now = now_timestamp();
-    let stmt = db.prepare(
-        "UPDATE links SET status = 'disabled', updated_at = ?1 WHERE created_by = ?2 AND status = 'active'"
-    );
-    let result = stmt
-        .bind(&[(now as f64).into(), user_id.into()])?
+    let stmt = db.prepare("UPDATE links SET status = ?1, updated_at = ?2 WHERE id = ?3");
+    stmt.bind(&[status.into(), (now as f64).into(), link_id.into()])?
         .run()
         .await?;
-    Ok(result
-        .meta()?
-        .and_then(|m| m.changes)
-        .map(|c| c as i64)
-        .unwrap_or(0))
+    Ok(())
 }
 
-/// Enable all disabled links for a user (when user is unsuspended)
-pub async fn enable_all_links_for_user(db: &D1Database, user_id: &str) -> Result<i64> {
+pub async fn disable_all_links_for_org(db: &D1Database, org_id: &str) -> Result<i64> {
     let now = now_timestamp();
     let stmt = db.prepare(
-        "UPDATE links SET status = 'active', updated_at = ?1 WHERE created_by = ?2 AND status = 'disabled'"
+        "UPDATE links SET status = 'disabled', updated_at = ?1 WHERE org_id = ?2 AND status = 'active'"
     );
     let result = stmt
-        .bind(&[(now as f64).into(), user_id.into()])?
+        .bind(&[(now as f64).into(), org_id.into()])?
         .run()
         .await?;
     Ok(result
@@ -1657,52 +1689,54 @@ pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> R
     Ok(false)
 }
 
-/// Block all links matching a blacklist target
-pub async fn block_links_matching_destination(
-    db: &D1Database,
-    destination: &str,
-    match_type: &str,
-) -> Result<i64> {
-    let now = now_timestamp();
-    let stmt = if match_type == "exact" {
-        db.prepare(
-            "UPDATE links SET status = 'blocked', updated_at = ?1
-             WHERE destination_url = ?2 AND status IN ('active', 'disabled')",
-        )
-    } else {
-        // Domain match - use LIKE with wildcards
-        db.prepare(
-            "UPDATE links SET status = 'blocked', updated_at = ?1
-             WHERE destination_url LIKE ?2 AND status IN ('active', 'disabled')",
-        )
-    };
+/// Check KV sync status for a link
+pub async fn check_link_kv_sync(
+    kv: &worker::kv::KvStore,
+    link: &AdminLinkBase,
+) -> Result<(String, bool)> {
+    use crate::kv;
 
-    let pattern = if match_type == "exact" {
-        destination.to_string()
-    } else {
-        format!("%{}%", destination)
-    };
+    // Check if KV entry exists
+    let kv_mapping = kv::get_link_mapping(kv, &link.short_code).await?;
 
-    let result = stmt
-        .bind(&[(now as f64).into(), pattern.into()])?
-        .run()
-        .await?;
-    Ok(result
-        .meta()?
-        .and_then(|m| m.changes)
-        .map(|c| c as i64)
-        .unwrap_or(0))
+    match kv_mapping {
+        Some(mapping) => {
+            // KV entry exists, check if it's in sync with D1
+            let should_exist = link.status == "active";
+            let is_active = mapping.status == LinkStatus::Active;
+
+            if should_exist && is_active {
+                Ok(("synced".to_string(), true))
+            } else if !should_exist && !is_active {
+                // Both agree it should be inactive
+                Ok(("synced".to_string(), true))
+            } else {
+                // Mismatch: D1 says blocked but KV still active, or vice versa
+                Ok(("mismatched".to_string(), true))
+            }
+        }
+        None => {
+            // KV entry doesn't exist
+            let should_exist = link.status == "active";
+            if should_exist {
+                Ok(("missing".to_string(), false))
+            } else {
+                // Link is blocked/disabled and KV doesn't exist - this is correct
+                Ok(("synced".to_string(), false))
+            }
+        }
+    }
 }
 
-/// Get all links for admin (global listing with filters)
-pub async fn get_all_links_admin(
+/// Get all links for admin (global listing with filters) - base data only
+pub async fn get_all_links_admin_base(
     db: &D1Database,
     limit: i64,
     offset: i64,
     org_filter: Option<&str>,
     email_filter: Option<&str>,
     domain_filter: Option<&str>,
-) -> Result<Vec<AdminLink>> {
+) -> Result<Vec<AdminLinkBase>> {
     let mut query = String::from(
         "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, u.email as creator_email, o.name as org_name
          FROM links l
@@ -1742,8 +1776,36 @@ pub async fn get_all_links_admin(
 
     let stmt = db.prepare(&query);
     let results = stmt.bind(&params)?.all().await?;
-    let links = results.results::<AdminLink>()?;
+    let links = results.results::<AdminLinkBase>()?;
     Ok(links)
+}
+
+/// Get all links for admin with KV sync status
+pub async fn get_all_links_admin(
+    db: &D1Database,
+    kv: &worker::kv::KvStore,
+    limit: i64,
+    offset: i64,
+    org_filter: Option<&str>,
+    email_filter: Option<&str>,
+    domain_filter: Option<&str>,
+) -> Result<Vec<AdminLink>> {
+    let base_links =
+        get_all_links_admin_base(db, limit, offset, org_filter, email_filter, domain_filter)
+            .await?;
+
+    let mut links_with_kv = Vec::new();
+    for base_link in base_links {
+        let (kv_sync_status, kv_exists) = check_link_kv_sync(kv, &base_link).await?;
+
+        links_with_kv.push(AdminLink {
+            base: base_link,
+            kv_sync_status,
+            kv_exists,
+        });
+    }
+
+    Ok(links_with_kv)
 }
 
 /// Get total count of links for admin with filters
@@ -1798,8 +1860,8 @@ pub struct BlacklistEntry {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct AdminLink {
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AdminLinkBase {
     pub id: String,
     pub org_id: String,
     pub short_code: String,
@@ -1813,6 +1875,14 @@ pub struct AdminLink {
     pub click_count: i64,
     pub creator_email: String,
     pub org_name: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AdminLink {
+    #[serde(flatten)]
+    pub base: AdminLinkBase,
+    pub kv_sync_status: String, // "synced", "missing", "mismatched"
+    pub kv_exists: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -2011,19 +2081,23 @@ pub async fn get_link_reports(
             id: qr.id,
             link_id: qr.link_id,
             link: AdminLink {
-                id: qr.link__id,
-                org_id: qr.link__org_id,
-                short_code: qr.link__short_code,
-                destination_url: qr.link__destination_url,
-                title: qr.link__title,
-                created_by: qr.link__created_by,
-                created_at: qr.link__created_at,
-                updated_at: qr.link__updated_at,
-                expires_at: qr.link__expires_at,
-                status: qr.link__status,
-                click_count: qr.link__click_count,
-                creator_email: qr.link__creator_email,
-                org_name: qr.link__org_name,
+                base: AdminLinkBase {
+                    id: qr.link__id,
+                    org_id: qr.link__org_id,
+                    short_code: qr.link__short_code,
+                    destination_url: qr.link__destination_url,
+                    title: qr.link__title,
+                    created_by: qr.link__created_by,
+                    created_at: qr.link__created_at,
+                    updated_at: qr.link__updated_at,
+                    expires_at: qr.link__expires_at,
+                    status: qr.link__status,
+                    click_count: qr.link__click_count,
+                    creator_email: qr.link__creator_email,
+                    org_name: qr.link__org_name,
+                },
+                kv_sync_status: "unknown".to_string(), // Not checked in reports context
+                kv_exists: false,                      // Not checked in reports context
             },
             reason: qr.reason,
             reporter_user_id: qr.reporter_user_id,

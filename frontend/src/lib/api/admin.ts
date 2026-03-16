@@ -219,6 +219,17 @@ export const adminApi = {
 	},
 
 	/**
+	 * Re-sync a link's KV entry (admin only)
+	 * @param id - Link UUID
+	 * @returns Success message
+	 */
+	async syncLinkKv(id: string): Promise<{ success: boolean; message: string; }> {
+		return apiClient.request<{ success: boolean; message: string; }>(`/api/admin/links/${id}/sync-kv`, {
+			method: 'POST'
+		});
+	},
+
+	/**
 	 * Block a destination URL (admin only)
 	 * @param destination - Destination URL or domain
 	 * @param matchType - Match type ('exact' or 'domain')

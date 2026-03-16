@@ -335,6 +335,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
         .options_async("/api/admin/links", handle_cors_preflight)
         .options_async("/api/admin/links/:id", handle_cors_preflight)
+        .options_async("/api/admin/links/:id/sync-kv", handle_cors_preflight)
         .options_async("/api/admin/blacklist", handle_cors_preflight)
         .options_async("/api/admin/blacklist/:id", handle_cors_preflight)
         .options_async("/api/admin/users/:id/suspend", handle_cors_preflight)
@@ -406,6 +407,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             router::handle_admin_update_link_status,
         )
         .delete_async("/api/admin/links/:id", router::handle_admin_delete_link)
+        .post_async(
+            "/api/admin/links/:id/sync-kv",
+            router::handle_admin_sync_link_kv,
+        )
         .post_async(
             "/api/admin/blacklist",
             router::handle_admin_block_destination,
