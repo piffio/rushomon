@@ -570,9 +570,10 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
 }
 
 /// Get a link by ID without org_id check (used for admin operations - returns all statuses)
+/// Note: tags are populated separately via get_tags_for_links
 pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, tags, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
          FROM links
          WHERE id = ?1"
     );
@@ -580,8 +581,9 @@ pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Resul
     stmt.bind(&[link_id.into()])?.first::<Link>(None).await
 }
 
-/// Get a link by short_code without org_id check (used for public reporting)
-pub async fn get_link_by_short_code_no_auth(
+/// Get an active link by short_code without org_id check (used for public reporting)
+/// Only returns links with status = 'active'
+pub async fn get_active_link_by_short_code(
     db: &D1Database,
     short_code: &str,
 ) -> Result<Option<Link>> {

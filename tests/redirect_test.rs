@@ -435,6 +435,92 @@ async fn test_blacklist_block_retroactively_disables_normalized_exact_match_link
 }
 
 #[tokio::test]
+async fn test_domain_block_removes_kv_and_redirects_to_404() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let unique_domain = format!("domain-block-{}.example.net", unique_short_code("dom"));
+    let destination_url = format!("https://{}/landing", unique_domain);
+
+    let create_response = create_test_link(&destination_url, None).await;
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    let initial_response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(initial_response.status(), StatusCode::MOVED_PERMANENTLY);
+    assert_eq!(
+        initial_response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        destination_url
+    );
+
+    let block_response = auth_client
+        .post(format!("{}/api/admin/blacklist", BASE_URL))
+        .json(&serde_json::json!({
+            "destination": unique_domain,
+            "match_type": "domain",
+            "reason": "Domain blocking regression test"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(block_response.status(), StatusCode::OK);
+
+    let blocked_response = public_client
+        .get(format!("{}/{}", BASE_URL, short_code))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(blocked_response.status(), StatusCode::FOUND);
+    let blocked_location = blocked_response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        blocked_location.ends_with("/404"),
+        "Expected blocked link to redirect to /404, got: {}",
+        blocked_location
+    );
+
+    let blacklist_entries: serde_json::Value = auth_client
+        .get(format!("{}/api/admin/blacklist", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    if let Some(entries) = blacklist_entries.as_array() {
+        for entry in entries {
+            if entry["destination"].as_str() == Some(unique_domain.as_str())
+                && entry["match_type"].as_str() == Some("domain")
+            {
+                let delete_response = auth_client
+                    .delete(format!(
+                        "{}/api/admin/blacklist/{}",
+                        BASE_URL,
+                        entry["id"].as_str().unwrap()
+                    ))
+                    .send()
+                    .await
+                    .unwrap();
+                assert_eq!(delete_response.status(), StatusCode::OK);
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn test_redirect_appends_utm_params() {
     let auth_client = authenticated_client();
     let public_client = test_client();

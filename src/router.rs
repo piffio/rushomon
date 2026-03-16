@@ -3,8 +3,8 @@ use crate::db;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
-    Link, LinkAnalyticsResponse, PaginatedResponse, PaginationMeta, Tier, TimeRange,
-    link::{CreateLinkRequest, LinkStatus, UpdateLinkRequest},
+    LinkAnalyticsResponse, PaginatedResponse, PaginationMeta, Tier, TimeRange,
+    link::{CreateLinkRequest, Link, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use chrono::Datelike;
@@ -2912,39 +2912,21 @@ pub async fn handle_admin_update_link_status(
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    // Update link status
-    let now = now_timestamp();
-    let stmt = db.prepare("UPDATE links SET status = ?1, updated_at = ?2 WHERE id = ?3");
-    stmt.bind(&[
-        status.clone().into(),
-        (now as f64).into(),
-        link_id.clone().into(),
-    ])?
-    .run()
-    .await?;
+    // Update link status using the same function as regular endpoint
+    db::update_link_status_by_id(&db, &link_id, &status).await?;
 
-    match db::get_link_by_id_no_auth_all(&db, &link_id).await {
-        Ok(Some(updated_link)) => {
-            let kv = ctx.kv("URL_MAPPINGS")?;
+    // Sync KV using the shared function (now that get_link_by_id_no_auth_all is fixed)
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    match db::get_link_by_id_no_auth_all(&db, &link_id).await? {
+        Some(updated_link) => {
             sync_link_mapping_from_link(&db, &kv, &updated_link).await?;
         }
-        Ok(None) => {
+        None => {
             console_log!(
                 "{}",
                 serde_json::json!({
                     "event": "admin_link_sync_not_found",
                     "link_id": link_id,
-                    "level": "critical"
-                })
-            );
-        }
-        Err(e) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "admin_link_sync_db_error",
-                    "link_id": link_id,
-                    "error": e.to_string(),
                     "level": "critical"
                 })
             );
@@ -3617,7 +3599,7 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Validate that the link exists and check its status
-    let link = match db::get_link_by_short_code_no_auth(&db, &link_id).await {
+    let link = match db::get_active_link_by_short_code(&db, &link_id).await {
         Ok(Some(link)) => Some(link),
         Ok(None) => {
             // Try by ID if short code not found
