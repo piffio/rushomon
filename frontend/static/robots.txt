@@ -31,6 +31,7 @@ Disallow: /settings
 Disallow: /admin
 Disallow: /billing
 Disallow: /auth
+Disallow: /login
 Disallow: /invite
 Disallow: /api
 Disallow: /404
