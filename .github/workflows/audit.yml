@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: taiki-e/install-action@f23382d582832e41d5eb4fff2bddb06bc5adf8d3 # v2.68.21
+      - uses: taiki-e/install-action@cbb1dcaa26e1459e2876c39f61c1e22a1258aac5 # v2.68.33
         with:
           tool: cargo-deny
       - name: Scan for vulnerabilities
