@@ -11,6 +11,9 @@
 #   - Resource management
 #
 
+# Suppress wrangler update warnings that break jq JSON parsing
+export WRANGLER_LOG="error"
+
 # Source common utilities if not already loaded
 if [ -z "$BLUE" ]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
