@@ -573,7 +573,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         worker_ctx.wait_until(analytics_future);
     }
 
-    // SPA fallback: if router returned 404 on the frontend domain, serve index.html.
+    // SPA fallback: if router returned 404 on the frontend domain, serve fallback.html.
     // This enables client-side routing for paths like /dashboard, /auth/callback, etc.
     // Short code redirects are already handled by the router above (returning 301/302).
     if response.status_code() == 404
@@ -581,7 +581,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         && !path.starts_with("/api/")
         && let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS")
     {
-        let fallback_url = format!("{}://{}/index.html", url.scheme(), &request_authority);
+        let fallback_url = format!("{}://{}/fallback.html", url.scheme(), &request_authority);
         if let Ok(fallback_response) = assets.fetch(fallback_url, None).await
             && fallback_response.status_code() < 400
         {

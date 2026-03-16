@@ -2,9 +2,6 @@ import { redirect } from '@sveltejs/kit';
 import type { LayoutLoad } from './$types';
 import { browser } from '$app/environment';
 
-// Mark this as client-side only to avoid SSR issues with localStorage
-export const ssr = false;
-
 export const load: LayoutLoad = async ({ url }) => {
 	// Define public routes that don't require authentication
 	const publicPaths = ['/auth/github', '/auth/callback', '/pricing', '/terms', '/privacy', '/report', '/login', '/invite'];
@@ -12,7 +9,8 @@ export const load: LayoutLoad = async ({ url }) => {
 		url.pathname.startsWith(route)
 	);
 
-	// This now runs client-side only, so localStorage is available
+	// For SSR, we can't access localStorage, so skip auth checks
+	// Auth will be handled client-side
 	if (browser) {
 		try {
 			// Import apiClient dynamically to ensure it runs client-side
@@ -38,6 +36,6 @@ export const load: LayoutLoad = async ({ url }) => {
 		}
 	}
 
-	// If somehow we're not in browser (shouldn't happen with ssr=false), return empty
+	// For SSR, return empty - auth will be handled client-side
 	return {};
 };
