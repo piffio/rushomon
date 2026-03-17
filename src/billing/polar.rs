@@ -125,6 +125,30 @@ impl PolarClient {
 
         Ok(portal_url.to_string())
     }
+
+    /// Finds a Polar customer by external_id (our billing_account_id).
+    /// Returns the customer ID if found, None if not found.
+    /// Used to prevent duplicate customer creation during checkout.
+    pub async fn find_customer_by_external_id(&self, external_id: &str) -> Result<Option<String>> {
+        // URL encode the external_id to handle special characters
+        let encoded_id = urlencoding::encode(external_id);
+        let path = format!("/v1/customers?external_id={}", encoded_id);
+        let json = self.get_json(&path).await?;
+
+        let customers = json["items"].as_array().ok_or_else(|| {
+            worker::Error::RustError("No items array in Polar customers response".to_string())
+        })?;
+
+        // Return first non-archived customer's ID
+        for customer in customers {
+            let is_archived = customer["is_archived"].as_bool().unwrap_or(false);
+            if !is_archived && let Some(id) = customer["id"].as_str() {
+                return Ok(Some(id.to_string()));
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 impl BillingProvider for PolarClient {

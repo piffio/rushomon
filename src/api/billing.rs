@@ -250,6 +250,54 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
         }
     };
 
+    // Resolve Polar customer ID with deduplication
+    // Query Polar to find existing customer by external_id to prevent duplicate customers
+    let polar_customer_id = if let Some(existing_id) = &billing_account.provider_customer_id {
+        // We already have a customer ID stored
+        console_log!(
+            "[checkout] Using existing Polar customer_id: {}",
+            existing_id
+        );
+        Some(existing_id.clone())
+    } else {
+        // Query Polar to find existing customer by external_id
+        console_log!(
+            "[checkout] No customer_id stored, querying Polar for external_id: {}",
+            billing_account.id
+        );
+        match polar
+            .find_customer_by_external_id(&billing_account.id)
+            .await
+        {
+            Ok(Some(cid)) => {
+                console_log!("[checkout] Found existing Polar customer: {}", cid);
+                // Update our database with found customer_id for future use
+                if let Err(e) =
+                    db::update_billing_account_provider_customer_id(&db, &billing_account.id, &cid)
+                        .await
+                {
+                    console_error!("[checkout] Failed to store found customer_id: {}", e);
+                    // Continue anyway - we can still use the found customer_id
+                }
+                Some(cid)
+            }
+            Ok(None) => {
+                console_log!(
+                    "[checkout] No existing Polar customer found, Polar will create new one"
+                );
+                None // Let Polar create new customer
+            }
+            Err(e) => {
+                console_error!(
+                    "[checkout] Failed to query Polar for existing customer: {}",
+                    e
+                );
+                // Graceful degradation - let Polar create new customer
+                None
+            }
+        }
+    };
+
     let frontend_url = get_frontend_url(&ctx.env);
     let success_url = format!(
         "{}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
@@ -259,7 +307,7 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
 
     let params = crate::billing::types::CreateCheckoutSessionParams {
         billing_account_id: billing_account.id.clone(),
-        customer_id: billing_account.provider_customer_id.clone(),
+        customer_id: polar_customer_id,
         price_id: polar_product_id,
         success_url,
         cancel_url,
@@ -481,9 +529,16 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
 
         "subscription.updated" | "subscription.uncanceled" => {
             let subscription_id = data["id"].as_str().unwrap_or("").to_string();
-            let customer_id = data["customer_id"].as_str().unwrap_or("").to_string();
+            // Polar uses different casing in different event types - try both
+            let customer_id = data["customer_id"]
+                .as_str()
+                .or_else(|| data["customerId"].as_str())
+                .unwrap_or("")
+                .to_string();
+            // externalId can be external_id or externalId - try both
             let billing_account_id = data["customer"]["external_id"]
                 .as_str()
+                .or_else(|| data["customer"]["externalId"].as_str())
                 .unwrap_or("")
                 .to_string();
             let status = data["status"].as_str().unwrap_or("active");
@@ -578,9 +633,16 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
 
         "subscription.canceled" | "subscription.revoked" => {
             let subscription_id = data["id"].as_str().unwrap_or("").to_string();
-            let customer_id = data["customerId"].as_str().unwrap_or("").to_string();
-            let billing_account_id = data["customer"]["externalId"]
+            // Polar uses different casing in different event types - try both
+            let customer_id = data["customer_id"]
                 .as_str()
+                .or_else(|| data["customerId"].as_str())
+                .unwrap_or("")
+                .to_string();
+            // externalId can be external_id or externalId - try both
+            let billing_account_id = data["customer"]["external_id"]
+                .as_str()
+                .or_else(|| data["customer"]["externalId"].as_str())
                 .unwrap_or("")
                 .to_string();
 
