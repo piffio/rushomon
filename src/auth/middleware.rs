@@ -1,6 +1,8 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
+use crate::utils::time::now_timestamp;
+use sha2::{Digest, Sha256};
 use worker::{D1Database, console_log};
-use worker::{Request, Response, RouteContext};
+use worker::{Request, Response, RouteContext}; // Assuming you have a time util, or use chrono
 
 /// Authentication error that can be converted to an HTTP response
 pub enum AuthError {
@@ -87,6 +89,72 @@ pub async fn authenticate_request(
             }
         }
     };
+
+    // Intercept Personal Access Tokens (PAT)
+    if jwt.starts_with("ro_pat_") {
+        let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+            Ok(db) => db,
+            Err(_e) => {
+                console_log!("DB binding failed for PAT auth");
+                return Err(AuthError::InternalError(
+                    "Server configuration error".to_string(),
+                ));
+            }
+        };
+
+        // 1. Hash the incoming token
+        let mut hasher = Sha256::new();
+        hasher.update(jwt.as_bytes());
+        let key_hash = format!("{:x}", hasher.finalize());
+
+        // 2. Look up the hash in the database
+        let api_key = match crate::db::queries::get_api_key_by_hash(&db, &key_hash).await {
+            Ok(Some(key)) => key,
+            Ok(None) => {
+                console_log!("Invalid PAT attempt");
+                return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+            }
+            Err(_) => {
+                return Err(AuthError::InternalError(
+                    "Failed to validate API key".to_string(),
+                ));
+            }
+        };
+
+        // 3. Check expiration (if your DB schema supports it)
+        if let Some(expires_at) = api_key.expires_at
+            && now_timestamp() > expires_at
+        {
+            return Err(AuthError::Unauthorized("API Key has expired".to_string()));
+        }
+
+        // 4. Verify the user exists and isn't suspended
+        let user = match crate::db::get_user_by_id(&db, &api_key.user_id).await {
+            Ok(Some(u)) => u,
+            Ok(None) => return Err(AuthError::Unauthorized("User not found".to_string())),
+            Err(_) => {
+                return Err(AuthError::InternalError(
+                    "Failed to validate user".to_string(),
+                ));
+            }
+        };
+
+        if user.suspended_at.is_some() {
+            return Err(AuthError::Forbidden("Account suspended".to_string()));
+        }
+
+        // 5. Update the 'last_used_at' timestamp inline
+        let _ =
+            crate::db::queries::update_api_key_last_used(&db, &api_key.id, now_timestamp()).await;
+
+        // 6. Successfully authenticate!
+        return Ok(UserContext {
+            user_id: user.id,
+            org_id: api_key.org_id, // <--- USE THE API KEY'S ORG ID
+            session_id: format!("pat_{}", api_key.id),
+            role: user.role,
+        });
+    }
 
     // Get JWT secret from environment
     let jwt_secret = match ctx.env.secret("JWT_SECRET") {

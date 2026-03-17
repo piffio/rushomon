@@ -3704,3 +3704,38 @@ pub async fn cleanup_expired_webhooks(db: &D1Database) -> Result<i64> {
     // Return 0 - actual count not needed for cleanup
     Ok(0)
 }
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ApiKeyRecord {
+    pub id: String,
+    pub user_id: String,
+    pub org_id: String,
+    pub expires_at: Option<i64>,
+}
+
+// ─── API Keys (Personal Access Token) ────────────────────────────────────────
+
+pub async fn get_api_key_by_hash(
+    db: &worker::d1::D1Database,
+    key_hash: &str,
+) -> worker::Result<Option<ApiKeyRecord>> {
+    let stmt = db.prepare(
+        "SELECT id, user_id, org_id, expires_at 
+         FROM api_keys 
+         WHERE key_hash = ?1",
+    );
+
+    stmt.bind(&[key_hash.into()])?
+        .first::<ApiKeyRecord>(None)
+        .await
+}
+
+pub async fn update_api_key_last_used(
+    db: &worker::d1::D1Database,
+    key_id: &str,
+    timestamp: i64,
+) -> worker::Result<()> {
+    let stmt = db.prepare("UPDATE api_keys SET last_used_at = ?1 WHERE id = ?2");
+    stmt.bind(&[timestamp.into(), key_id.into()])?.run().await?;
+    Ok(())
+}
