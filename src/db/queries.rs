@@ -3302,8 +3302,7 @@ pub async fn update_billing_account_provider_customer_id(
 // ─── Billing / Subscription queries ──────────────────────────────────────────
 
 /// Look up a billing_account_id by its provider customer ID.
-/// Used in webhook handlers where we only have the customer ID from the billing provider.
-#[allow(dead_code)]
+/// Used in webhook handlers where external_id is missing from the payload.
 pub async fn get_billing_account_id_by_provider_customer(
     db: &D1Database,
     provider_customer_id: &str,

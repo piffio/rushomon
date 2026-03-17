@@ -12,6 +12,66 @@ fn get_frontend_url(env: &Env) -> String {
         .unwrap_or_else(|_| "http://localhost:5173".to_string())
 }
 
+/// Resolves a billing account ID from webhook data.
+///
+/// Prefers `external_id` from the webhook payload, but falls back to looking up
+/// by `customer_id` if `external_id` is missing. This handles edge cases where
+/// Polar may not include `external_id` in the webhook.
+///
+/// # Arguments
+/// * `db` - Database connection
+/// * `event_type` - The webhook event type (for logging)
+/// * `external_id` - The `external_id` from webhook (may be empty)
+/// * `customer_id` - The `customer_id` from webhook (used for fallback lookup)
+///
+/// # Returns
+/// * `Ok(billing_account_id)` - Successfully resolved billing account ID
+/// * `Err(Response)` - Error response ready to return (400 or 503)
+async fn resolve_billing_account_id(
+    db: &D1Database,
+    event_type: &str,
+    external_id: &str,
+    customer_id: &str,
+) -> Result<String, Response> {
+    // Prefer external_id if present
+    if !external_id.is_empty() {
+        return Ok(external_id.to_string());
+    }
+
+    // Fallback: look up by customer_id
+    console_warn!(
+        "[webhook] {} missing external_id, falling back to customer_id lookup. customer_id={}",
+        event_type,
+        customer_id
+    );
+
+    match db::get_billing_account_id_by_provider_customer(db, customer_id).await {
+        Ok(Some(id)) => {
+            console_log!(
+                "[webhook] Found billing account via customer_id lookup: {}",
+                id
+            );
+            Ok(id)
+        }
+        Ok(None) => {
+            console_error!(
+                "[webhook] {} billing account not found by customer_id. customer_id={}",
+                event_type,
+                customer_id
+            );
+            Err(Response::error("Missing billing account ID", 400).unwrap())
+        }
+        Err(e) => {
+            console_error!(
+                "[webhook] {} DB error looking up billing account by customer_id: {}",
+                event_type,
+                e
+            );
+            Err(Response::error("Service temporarily unavailable", 503).unwrap())
+        }
+    }
+}
+
 // ─── GET /api/billing/status ─────────────────────────────────────────────────
 /// Returns the billing/subscription status for the authenticated user's billing account.
 pub async fn handle_get_status(req: Request, ctx: RouteContext<()>) -> Result<Response> {
@@ -341,15 +401,18 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
             let currency = data["currency"].as_str().unwrap_or("usd");
             let discount_name = data["discount"]["name"].as_str();
 
-            if billing_account_id.is_empty() {
-                console_error!(
-                    "[webhook] {} missing billing_account_id (externalId). customer_id={}",
-                    event_type,
-                    customer_id
-                );
-                // Permanent data issue – don't retry
-                return Response::error("Missing billing account ID", 400);
-            }
+            // Resolve billing_account_id using helper with fallback logic
+            let billing_account_id = match resolve_billing_account_id(
+                &db,
+                &event_type,
+                &billing_account_id,
+                &customer_id,
+            )
+            .await
+            {
+                Ok(id) => id,
+                Err(response) => return Ok(response),
+            };
 
             let (plan, resolved_interval) =
                 match db::get_cached_product_by_price_id(&db, &price_id).await {
@@ -446,13 +509,18 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
             let currency = data["currency"].as_str().unwrap_or("usd");
             let discount_name = data["discount"]["name"].as_str();
 
-            if billing_account_id.is_empty() {
-                console_error!(
-                    "[webhook] subscription.updated missing billing_account_id. customer_id={}",
-                    customer_id
-                );
-                return Response::error("Missing billing account ID", 400);
-            }
+            // Resolve billing_account_id using helper with fallback logic
+            let billing_account_id = match resolve_billing_account_id(
+                &db,
+                &event_type,
+                &billing_account_id,
+                &customer_id,
+            )
+            .await
+            {
+                Ok(id) => id,
+                Err(response) => return Ok(response),
+            };
 
             let (plan, resolved_interval) =
                 match db::get_cached_product_by_price_id(&db, &price_id).await {
@@ -516,14 +584,18 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 .unwrap_or("")
                 .to_string();
 
-            if billing_account_id.is_empty() {
-                console_error!(
-                    "[webhook] {} missing billing_account_id. customer_id={}",
-                    event_type,
-                    customer_id
-                );
-                return Response::error("Missing billing account ID", 400);
-            }
+            // Resolve billing_account_id using helper with fallback logic
+            let billing_account_id = match resolve_billing_account_id(
+                &db,
+                &event_type,
+                &billing_account_id,
+                &customer_id,
+            )
+            .await
+            {
+                Ok(id) => id,
+                Err(response) => return Ok(response),
+            };
 
             if let Err(e) = db::mark_subscription_canceled(&db, &subscription_id, now).await {
                 console_error!("[webhook] DB error canceling subscription: {}", e);

@@ -60,21 +60,22 @@ if command -v polar &> /dev/null; then
     # Check if running on macOS with Terminal.app
     if command -v osascript &> /dev/null; then
         # Use AppleScript to open new terminal window with Polar CLI
-        osascript -e "tell application \"Terminal\" to do script \"cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook\""
+        # Note: Webhooks are forwarded to backend port 8787, not frontend 5173
+        osascript -e "tell application \"Terminal\" to do script \"cd '$PWD' && polar listen http://localhost:8787/api/billing/webhook\""
         echo "✅ Opened Polar CLI in new Terminal window"
     elif command -v gnome-terminal &> /dev/null; then
         # Linux with GNOME Terminal
-        gnome-terminal -- bash -c "cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook; exec bash"
+        gnome-terminal -- bash -c "cd '$PWD' && polar listen http://localhost:8787/api/billing/webhook; exec bash"
         echo "✅ Opened Polar CLI in new terminal window"
     elif command -v xterm &> /dev/null; then
         # Fallback to xterm
-        xterm -e "cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook" &
+        xterm -e "cd '$PWD' && polar listen http://localhost:8787/api/billing/webhook" &
         echo "✅ Opened Polar CLI in new terminal window"
     else
         # Fallback: run in background with instructions
         echo "⚠️  Cannot open new terminal window automatically"
         echo "   Please run this manually in a separate terminal:"
-        echo "   cd '$PWD' && polar listen http://localhost:5173/api/billing/webhook"
+        echo "   cd '$PWD' && polar listen http://localhost:8787/api/billing/webhook"
         echo ""
         echo "⌨️  Press Enter after you've started Polar CLI manually..."
         read -r
@@ -202,7 +203,7 @@ if [ "$ENABLE_POLAR_CLI" = true ]; then
         echo "✅ Polar CLI is running for webhook testing!"
         echo ""
         echo "💳 Polar Webhook Info:"
-        echo "  Webhook endpoint: http://localhost:5173/api/billing/webhook"
+        echo "  Webhook endpoint: http://localhost:8787/api/billing/webhook"
         echo "  Secret configured in .dev.vars"
         echo ""
     fi
