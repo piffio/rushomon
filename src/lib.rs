@@ -11,6 +11,7 @@ mod kv;
 mod middleware;
 mod models;
 mod router;
+mod scheduled;
 pub mod utils;
 
 // Thread-local storage for deferred analytics futures from redirect handlers.

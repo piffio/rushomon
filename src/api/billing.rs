@@ -46,13 +46,7 @@ async fn resolve_billing_account_id(
     );
 
     match db::get_billing_account_id_by_provider_customer(db, customer_id).await {
-        Ok(Some(id)) => {
-            console_log!(
-                "[webhook] Found billing account via customer_id lookup: {}",
-                id
-            );
-            Ok(id)
-        }
+        Ok(Some(id)) => Ok(id),
         Ok(None) => {
             console_error!(
                 "[webhook] {} billing account not found by customer_id. customer_id={}",
@@ -254,23 +248,14 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     // Query Polar to find existing customer by external_id to prevent duplicate customers
     let polar_customer_id = if let Some(existing_id) = &billing_account.provider_customer_id {
         // We already have a customer ID stored
-        console_log!(
-            "[checkout] Using existing Polar customer_id: {}",
-            existing_id
-        );
         Some(existing_id.clone())
     } else {
         // Query Polar to find existing customer by external_id
-        console_log!(
-            "[checkout] No customer_id stored, querying Polar for external_id: {}",
-            billing_account.id
-        );
         match polar
             .find_customer_by_external_id(&billing_account.id)
             .await
         {
             Ok(Some(cid)) => {
-                console_log!("[checkout] Found existing Polar customer: {}", cid);
                 // Update our database with found customer_id for future use
                 if let Err(e) =
                     db::update_billing_account_provider_customer_id(&db, &billing_account.id, &cid)
@@ -282,9 +267,6 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
                 Some(cid)
             }
             Ok(None) => {
-                console_log!(
-                    "[checkout] No existing Polar customer found, Polar will create new one"
-                );
                 None // Let Polar create new customer
             }
             Err(e) => {
@@ -449,6 +431,23 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
             let currency = data["currency"].as_str().unwrap_or("usd");
             let discount_name = data["discount"]["name"].as_str();
 
+            // Parse period dates - Polar uses snake_case
+            let current_period_start = data["current_period_start"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp())
+                .unwrap_or(0);
+            let current_period_end = data["current_period_end"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp())
+                .unwrap_or(0);
+            let cancel_at_period_end = data["cancel_at_period_end"].as_bool().unwrap_or(false);
+            let ends_at = data["ends_at"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp());
+
             // Resolve billing_account_id using helper with fallback logic
             let billing_account_id = match resolve_billing_account_id(
                 &db,
@@ -496,12 +495,13 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 &plan,
                 &resolved_interval,
                 &price_id,
-                0,
-                0,
-                false,
+                current_period_start,
+                current_period_end,
+                cancel_at_period_end,
                 amount_cents,
                 currency,
                 discount_name,
+                ends_at,
                 now,
             )
             .await
@@ -549,17 +549,22 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 .unwrap_or("")
                 .to_string();
             let interval = data["recurringInterval"].as_str().unwrap_or("month");
-            let current_period_start = data["currentPeriodStart"]
+            // Polar uses snake_case field names
+            let current_period_start = data["current_period_start"]
                 .as_str()
                 .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                 .map(|dt| dt.timestamp())
                 .unwrap_or(0);
-            let current_period_end = data["currentPeriodEnd"]
+            let current_period_end = data["current_period_end"]
                 .as_str()
                 .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                 .map(|dt| dt.timestamp())
                 .unwrap_or(0);
-            let cancel_at_period_end = data["cancelAtPeriodEnd"].as_bool().unwrap_or(false);
+            let cancel_at_period_end = data["cancel_at_period_end"].as_bool().unwrap_or(false);
+            let ends_at = data["ends_at"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp());
             let amount_cents = data["amount"].as_i64();
             let currency = data["currency"].as_str().unwrap_or("usd");
             let discount_name = data["discount"]["name"].as_str();
@@ -602,6 +607,7 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                     }
                 };
 
+            // Update subscription with all fields including cancel_at_period_end and period dates
             if let Err(e) = db::upsert_subscription(
                 &db,
                 &billing_account_id,
@@ -617,6 +623,7 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 amount_cents,
                 currency,
                 discount_name,
+                ends_at,
                 now,
             )
             .await
@@ -625,7 +632,42 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 return Response::error("Service temporarily unavailable", 503);
             }
 
-            if let Err(e) = db::update_billing_account_tier(&db, &billing_account_id, &plan).await {
+            // If cancel_at_period_end is true, also set pending_cancellation flag
+            if cancel_at_period_end {
+                if let Err(e) = db::set_subscription_pending_cancellation(
+                    &db,
+                    &subscription_id,
+                    current_period_end,
+                )
+                .await
+                {
+                    console_error!(
+                        "[webhook] {} DB error setting pending_cancellation: {}",
+                        event_type,
+                        e
+                    );
+                    // Continue anyway - subscription was updated
+                }
+            } else if event_type == "subscription.uncanceled" {
+                // User uncancelled their subscription - clear pending_cancellation flag
+                if let Err(e) =
+                    db::clear_subscription_pending_cancellation(&db, &subscription_id).await
+                {
+                    console_error!(
+                        "[webhook] {} DB error clearing pending_cancellation: {}",
+                        event_type,
+                        e
+                    );
+                    // Continue anyway - subscription was updated
+                }
+            }
+
+            // Only update tier if subscription is active
+            // Don't upgrade tier for canceled/revoked subscriptions
+            if status == "active"
+                && let Err(e) =
+                    db::update_billing_account_tier(&db, &billing_account_id, &plan).await
+            {
                 console_error!("[webhook] DB error updating billing tier: {}", e);
                 return Response::error("Service temporarily unavailable", 503);
             }
@@ -659,15 +701,54 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 Err(response) => return Ok(response),
             };
 
-            if let Err(e) = db::mark_subscription_canceled(&db, &subscription_id, now).await {
-                console_error!("[webhook] DB error canceling subscription: {}", e);
-                return Response::error("Service temporarily unavailable", 503);
-            }
+            // Parse cancellation details - Polar uses snake_case field names
+            let cancel_at_period_end = data["cancel_at_period_end"].as_bool().unwrap_or(false);
+            let current_period_end = data["current_period_end"]
+                .as_str()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.timestamp())
+                .unwrap_or(0);
+            let status = data["status"].as_str().unwrap_or("canceled");
 
-            if let Err(e) = db::update_billing_account_tier(&db, &billing_account_id, "free").await
-            {
-                console_error!("[webhook] DB error downgrading tier: {}", e);
-                return Response::error("Service temporarily unavailable", 503);
+            // Determine if this is "cancel at period end" or immediate termination
+            // Key rules:
+            // 1. If status="canceled" AND cancel_at_period_end=false → immediate downgrade
+            // 2. If status="active" AND cancel_at_period_end=true → pending cancellation (downgrade at period end)
+            // 3. If status="active" AND cancel_at_period_end=false → immediate downgrade
+            let is_immediate_cancellation = status == "canceled" || !cancel_at_period_end;
+
+            if event_type == "subscription.canceled" && !is_immediate_cancellation {
+                // Cancel at period end - user retains access until period ends
+                if let Err(e) = db::set_subscription_pending_cancellation(
+                    &db,
+                    &subscription_id,
+                    current_period_end,
+                )
+                .await
+                {
+                    console_error!(
+                        "[webhook] {} DB error setting pending_cancellation: {}",
+                        event_type,
+                        e
+                    );
+                    return Response::error("Service temporarily unavailable", 503);
+                }
+
+                // Do NOT downgrade tier yet - user retains access until period ends
+                // The cron job will handle tier downgrade when current_period_end passes
+            } else {
+                // Immediate termination: status="canceled" OR cancel_at_period_end=false
+                if let Err(e) = db::mark_subscription_canceled(&db, &subscription_id, now).await {
+                    console_error!("[webhook] DB error canceling subscription: {}", e);
+                    return Response::error("Service temporarily unavailable", 503);
+                }
+
+                if let Err(e) =
+                    db::update_billing_account_tier(&db, &billing_account_id, "free").await
+                {
+                    console_error!("[webhook] DB error downgrading tier: {}", e);
+                    return Response::error("Service temporarily unavailable", 503);
+                }
             }
         }
 

@@ -71,12 +71,31 @@
 			);
 			accounts = response.accounts;
 			total = response.total;
+			
+			// Load subscription info for all visible accounts to show status badges
+			await loadSubscriptionInfoForAllAccounts();
 		} catch (err) {
 			error = "Failed to load billing accounts";
 			console.error(err);
 		} finally {
 			loading = false;
 		}
+	}
+	
+	async function loadSubscriptionInfoForAllAccounts() {
+		// Load subscription info for all accounts in parallel
+		const promises = accounts.map(async (account) => {
+			if (!accountDetails[account.id]) {
+				try {
+					const details = await adminApi.getBillingAccount(account.id);
+					accountDetails[account.id] = details;
+				} catch (err) {
+					console.error(`Failed to load details for account ${account.id}:`, err);
+				}
+			}
+		});
+		
+		await Promise.all(promises);
 	}
 
 	async function toggleExpand(accountId: string) {
@@ -287,6 +306,36 @@
 							class="tier-badge {getTierBadgeClass(account.tier)}"
 							>{getTierDisplayName(account.tier)}</span
 						>
+						{#if accountDetails[account.id]?.subscription}
+							{@const sub = accountDetails[account.id].subscription}
+							{@const daysUntilEnd = sub?.current_period_end ? Math.floor((sub.current_period_end * 1000 - Date.now()) / (1000 * 60 * 60 * 24)) : null}
+							{#if sub?.pending_cancellation}
+								<span
+									class="subscription-status-badge pending {daysUntilEnd !== null && daysUntilEnd <= 7 ? 'urgent' : ''}"
+									title="Cancels {sub.current_period_end ? formatDate(sub.current_period_end) : ''}"
+								>
+									{#if daysUntilEnd !== null && daysUntilEnd <= 7}
+										🟡 {daysUntilEnd}d
+									{:else}
+										🟡 {sub.current_period_end ? formatDate(sub.current_period_end) : ''}
+									{/if}
+								</span>
+							{:else if sub?.status === "active"}
+								<span
+									class="subscription-status-badge active"
+									title="Active subscription"
+								>
+									🟢
+								</span>
+							{:else}
+								<span
+									class="subscription-status-badge canceled"
+									title="Canceled"
+								>
+									🔴
+								</span>
+							{/if}
+						{/if}
 						<span class="usage"
 							>{account.links_created_this_month} links</span
 						>
@@ -385,17 +434,38 @@
 									<h4>Subscription</h4>
 									{#if details.subscription}
 										{@const sub = details.subscription}
+										{@const daysUntilEnd = sub.current_period_end ? Math.floor((sub.current_period_end * 1000 - Date.now()) / (1000 * 60 * 60 * 24)) : null}
 										<div class="subscription-info">
 											<div class="info-grid">
 												<div class="info-item">
 													<span class="label"
 														>Status:</span
 													>
-													<span
-														class="value subscription-status {sub.status}"
-													>
-														{sub.status}
-													</span>
+													{#if sub.pending_cancellation}
+														<span
+															class="value subscription-status pending {daysUntilEnd !== null && daysUntilEnd <= 7 ? 'urgent' : ''}"
+														>
+															{#if daysUntilEnd !== null && daysUntilEnd <= 1}
+																🟠 Ends {sub.current_period_end ? formatDate(sub.current_period_end) : ''}
+															{:else if daysUntilEnd !== null && daysUntilEnd <= 7}
+																🟡 Cancels in {daysUntilEnd} days
+															{:else}
+																🟡 Cancels {sub.current_period_end ? formatDate(sub.current_period_end) : ''}
+															{/if}
+														</span>
+													{:else if sub.status === "active"}
+														<span
+															class="value subscription-status active"
+														>
+															🟢 Active
+														</span>
+													{:else}
+														<span
+															class="value subscription-status canceled"
+														>
+															🔴 Canceled
+														</span>
+													{/if}
 												</div>
 												<div class="info-item">
 													<span class="label"
@@ -442,10 +512,24 @@
 														>
 													</div>
 												{/if}
+												{#if sub.current_period_start}
+													<div class="info-item">
+														<span class="label"
+															>Subscription Start:</span
+														>
+														<span class="value"
+															>{formatDate(
+																sub.current_period_start,
+															)}</span
+														>
+													</div>
+												{/if}
 												{#if sub.current_period_end}
 													<div class="info-item">
 														<span class="label"
-															>Next Billing:</span
+															>{sub.cancel_at_period_end
+																? "Cancels On"
+																: "Next Renewal"}:</span
 														>
 														<span class="value"
 															>{formatDate(
@@ -898,6 +982,67 @@
 	.tier-unlimited {
 		background: #e0e7ff;
 		color: #3730a3;
+	}
+
+	/* Subscription Status Badges */
+	.subscription-status {
+		display: inline-block;
+		padding: 0.25rem 0.75rem;
+		border-radius: 9999px;
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
+	.subscription-status.active {
+		background: #d1fae5;
+		color: #065f46;
+	}
+
+	.subscription-status.pending {
+		background: #fef3c7;
+		color: #92400e;
+	}
+
+	.subscription-status.pending.urgent {
+		background: #fed7aa;
+		color: #9a3412;
+	}
+
+	.subscription-status.canceled {
+		background: #fee2e2;
+		color: #991b1b;
+	}
+
+	/* Compact subscription status badge for collapsed cards */
+	.subscription-status-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.125rem 0.5rem;
+		border-radius: 9999px;
+		font-size: 0.7rem;
+		font-weight: 500;
+		min-width: 1.5rem;
+	}
+
+	.subscription-status-badge.active {
+		background: #d1fae5;
+		color: #065f46;
+	}
+
+	.subscription-status-badge.pending {
+		background: #fef3c7;
+		color: #92400e;
+	}
+
+	.subscription-status-badge.pending.urgent {
+		background: #fed7aa;
+		color: #9a3412;
+	}
+
+	.subscription-status-badge.canceled {
+		background: #fee2e2;
+		color: #991b1b;
 	}
 
 	.usage,

@@ -238,6 +238,11 @@ jobs:
           [build]
           command = "cargo install -q worker-build && worker-build --release"
 
+          # Cron Triggers for scheduled tasks
+          # Runs daily at midnight UTC to downgrade expired subscriptions
+          [triggers]
+          crons = ["0 0 * * *"]
+
           [[d1_databases]]
           binding = "rushomon"
           database_id = "${{ env.DB_ID }}"

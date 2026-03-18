@@ -3278,10 +3278,6 @@ pub async fn update_billing_account_tier(
         .run()
         .await?;
 
-    // Update all organizations linked to this billing account
-    // Note: organizations no longer have tier column, so no update needed
-    // The tier is now read directly from the billing account
-
     Ok(())
 }
 
@@ -3327,7 +3323,7 @@ pub async fn get_subscription_for_billing_account(
                 provider_subscription_id, provider_customer_id, provider_price_id,
                 current_period_start, current_period_end,
                 cancel_at_period_end, canceled_at, created_at, updated_at,
-                amount_cents, currency, discount_name
+                amount_cents, currency, discount_name, pending_cancellation
          FROM subscriptions
          WHERE billing_account_id = ?1
          ORDER BY created_at DESC
@@ -3356,6 +3352,7 @@ pub async fn upsert_subscription(
     amount_cents: Option<i64>,
     currency: &str,
     discount_name: Option<&str>,
+    ends_at: Option<i64>,
     now: i64,
 ) -> Result<()> {
     let sub_id = format!("sub_{}", crate::utils::generate_short_code_with_length(16));
@@ -3365,10 +3362,10 @@ pub async fn upsert_subscription(
         "INSERT INTO subscriptions (
            id, billing_account_id, status, plan, interval,
            provider_subscription_id, provider_customer_id, provider_price_id,
-           current_period_start, current_period_end,
+           current_period_start, current_period_end, ends_at,
            cancel_at_period_end, amount_cents, currency, discount_name,
            created_at, updated_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)
          ON CONFLICT(provider_subscription_id) DO UPDATE SET
            status = excluded.status,
            plan = excluded.plan,
@@ -3376,6 +3373,7 @@ pub async fn upsert_subscription(
            provider_price_id = excluded.provider_price_id,
            current_period_start = excluded.current_period_start,
            current_period_end = excluded.current_period_end,
+           ends_at = excluded.ends_at,
            cancel_at_period_end = excluded.cancel_at_period_end,
            amount_cents = excluded.amount_cents,
            currency = excluded.currency,
@@ -3393,6 +3391,7 @@ pub async fn upsert_subscription(
         provider_price_id.into(),
         (current_period_start as f64).into(),
         (current_period_end as f64).into(),
+        ends_at.map(|v| (v as f64).into()).unwrap_or("".into()),
         (cancel_flag as f64).into(),
         (amount_cents.unwrap_or(0) as f64).into(),
         currency.into(),
@@ -3413,6 +3412,83 @@ pub async fn mark_subscription_canceled(
     let stmt = db.prepare(
         "UPDATE subscriptions
          SET status = 'canceled', canceled_at = ?1, updated_at = ?1
+         WHERE provider_subscription_id = ?2",
+    );
+    stmt.bind(&[(now as f64).into(), provider_subscription_id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Set subscription as pending cancellation (cancel_at_period_end = true).
+/// The tier will be downgraded when the cron job runs after current_period_end.
+pub async fn set_subscription_pending_cancellation(
+    db: &D1Database,
+    provider_subscription_id: &str,
+    current_period_end: i64,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET pending_cancellation = 1,
+             cancel_at_period_end = 1,
+             updated_at = ?1
+         WHERE provider_subscription_id = ?2",
+    );
+    stmt.bind(&[
+        (current_period_end as f64).into(),
+        provider_subscription_id.into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Clear pending cancellation flag (e.g., when user uncancels their subscription).
+pub async fn clear_subscription_pending_cancellation(
+    db: &D1Database,
+    provider_subscription_id: &str,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET pending_cancellation = 0,
+             cancel_at_period_end = 0,
+             updated_at = (SELECT strftime('%s', 'now'))
+         WHERE provider_subscription_id = ?1",
+    );
+    stmt.bind(&[provider_subscription_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Get all subscriptions with pending_cancellation that have expired.
+/// Returns provider_subscription_id and billing_account_id for each.
+pub async fn get_expired_pending_cancellations(
+    db: &D1Database,
+    now: i64,
+) -> Result<Vec<serde_json::Value>> {
+    let stmt = db.prepare(
+        "SELECT provider_subscription_id, billing_account_id, current_period_end
+         FROM subscriptions
+         WHERE pending_cancellation = 1
+           AND current_period_end < ?1
+         LIMIT 1000",
+    );
+    let results = stmt.bind(&[(now as f64).into()])?.all().await?;
+
+    results.results::<serde_json::Value>()
+}
+
+/// Finalize an expired subscription after downgrading the tier.
+pub async fn finalize_expired_subscription(
+    db: &D1Database,
+    provider_subscription_id: &str,
+    now: i64,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET status = 'canceled',
+             pending_cancellation = 0,
+             canceled_at = ?1,
+             updated_at = ?1
          WHERE provider_subscription_id = ?2",
     );
     stmt.bind(&[(now as f64).into(), provider_subscription_id.into()])?
