@@ -14,6 +14,15 @@
 	let confirmingSignupToggle = $state(false);
 	let confirmingFounderPricingToggle = $state(false);
 
+	// System Operations state
+	let cronLoading = $state(false);
+	let cronResult = $state<{
+		processed: number;
+		success: number;
+		errors: number;
+	} | null>(null);
+	let showCronResult = $state(false);
+
 	let discounts = $state<Discount[]>([]);
 	let discountsLoading = $state(false);
 	let discountsError = $state("");
@@ -483,6 +492,20 @@
 			showToast = false;
 		}, 3000);
 	}
+
+	async function triggerCronJob() {
+		try {
+			cronLoading = true;
+			const result = await adminApi.triggerCronDowngrade();
+			cronResult = result;
+			showCronResult = true;
+		} catch (err) {
+			console.error("Failed to trigger cron job:", err);
+			showToastMessage("Failed to trigger cron job");
+		} finally {
+			cronLoading = false;
+		}
+	}
 </script>
 
 <div class="settings-page">
@@ -798,154 +821,234 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- System Operations Section -->
+			<div class="pricing-section">
+				<h2 class="pricing-section-header">⚙️ System Operations</h2>
+				<p class="pricing-section-description">
+					Manual system maintenance operations
+				</p>
+			</div>
+
+			<!-- System Operations Setting -->
+			<div class="setting-card">
+				<div class="setting-content">
+					<div class="setting-info">
+						<h3>Process Expired Subscriptions</h3>
+						<p class="setting-description">
+							Manually trigger the cron job that downgrades
+							subscriptions with expired pending cancellations.
+							This normally runs automatically on a schedule.
+						</p>
+					</div>
+					<div class="setting-control">
+						<button
+							class="btn btn-primary"
+							onclick={triggerCronJob}
+							disabled={cronLoading}
+						>
+							{#if cronLoading}
+								Processing...
+							{:else}
+								Process Now
+							{/if}
+						</button>
+					</div>
+				</div>
+
+				{#if showCronResult && cronResult}
+					<div
+						class="cron-result {cronResult.errors > 0
+							? 'has-errors'
+							: 'success'}"
+					>
+						<h4>Operation Results</h4>
+						<div class="result-stats">
+							<div class="stat">
+								<span class="stat-value"
+									>{cronResult.processed}</span
+								>
+								<span class="stat-label">Processed</span>
+							</div>
+							<div class="stat">
+								<span class="stat-value"
+									>{cronResult.success}</span
+								>
+								<span class="stat-label">Success</span>
+							</div>
+							<div class="stat">
+								<span class="stat-value"
+									>{cronResult.errors}</span
+								>
+								<span class="stat-label">Errors</span>
+							</div>
+						</div>
+						{#if cronResult.errors > 0}
+							<p class="error-message">
+								Some subscriptions failed to process. Check the
+								logs for details.
+							</p>
+						{:else}
+							<p class="success-message">
+								All expired subscriptions were processed
+								successfully.
+							</p>
+						{/if}
+					</div>
+				{/if}
+			</div>
 		</div>
 	{/if}
+
+	<!-- Signup Toggle Confirmation Modal -->
+	{#if confirmingSignupToggle}
+		<div
+			class="modal-backdrop"
+			role="button"
+			tabindex="0"
+			onclick={() => (confirmingSignupToggle = false)}
+			onkeydown={(e) =>
+				e.key === "Enter" && (confirmingSignupToggle = false)}
+		>
+			<div
+				class="modal"
+				onclick={(e) => e.stopPropagation()}
+				role="dialog"
+				aria-modal="true"
+				tabindex="0"
+				onkeydown={(e) =>
+					e.key === "Escape" && (confirmingSignupToggle = false)}
+			>
+				<div class="modal-header">
+					<h3>
+						{signupsEnabled
+							? "Disable New Signups?"
+							: "Enable New Signups?"}
+					</h3>
+					<button
+						class="modal-close"
+						onclick={() => (confirmingSignupToggle = false)}
+						>&times;</button
+					>
+				</div>
+				<div class="modal-body">
+					<p>
+						{#if signupsEnabled}
+							Are you sure you want to <strong
+								>disable new signups</strong
+							>? New users will no longer be able to create
+							accounts.
+						{:else}
+							Are you sure you want to <strong
+								>enable new signups</strong
+							>? New users will be able to create accounts.
+						{/if}
+					</p>
+				</div>
+				<div class="modal-footer">
+					<button
+						class="btn btn-secondary"
+						onclick={() => (confirmingSignupToggle = false)}
+						disabled={saving}
+					>
+						Cancel
+					</button>
+					<button
+						class="btn btn-primary"
+						onclick={confirmSignupToggle}
+						disabled={saving}
+					>
+						{#if saving}
+							Updating...
+						{:else if signupsEnabled}
+							Disable Signups
+						{:else}
+							Enable Signups
+						{/if}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Founder Pricing Toggle Confirmation Modal -->
+	{#if confirmingFounderPricingToggle}
+		<div
+			class="modal-backdrop"
+			role="button"
+			tabindex="0"
+			onclick={() => (confirmingFounderPricingToggle = false)}
+			onkeydown={(e) =>
+				e.key === "Enter" && (confirmingFounderPricingToggle = false)}
+		>
+			<div
+				class="modal"
+				onclick={(e) => e.stopPropagation()}
+				role="dialog"
+				aria-modal="true"
+				tabindex="0"
+				onkeydown={(e) =>
+					e.key === "Escape" &&
+					(confirmingFounderPricingToggle = false)}
+			>
+				<div class="modal-header">
+					<h3>
+						{founderPricingEnabled
+							? "Disable Founder Pricing?"
+							: "Enable Founder Pricing?"}
+					</h3>
+					<button
+						class="modal-close"
+						onclick={() => (confirmingFounderPricingToggle = false)}
+						>&times;</button
+					>
+				</div>
+				<div class="modal-body">
+					<p>
+						{#if founderPricingEnabled}
+							Are you sure you want to <strong
+								>disable founder pricing</strong
+							>? New users will no longer see the discounted
+							founder prices.
+						{:else}
+							Are you sure you want to <strong
+								>enable founder pricing</strong
+							>? New users will see lifetime discounted prices
+							(Pro: €5/mo, Business: €19/mo).
+						{/if}
+					</p>
+				</div>
+				<div class="modal-footer">
+					<button
+						class="btn btn-secondary"
+						onclick={() => (confirmingFounderPricingToggle = false)}
+						disabled={saving}
+					>
+						Cancel
+					</button>
+					<button
+						class="btn btn-primary"
+						onclick={confirmFounderPricingToggle}
+						disabled={saving}
+					>
+						{#if saving}
+							Updating...
+						{:else if founderPricingEnabled}
+							Disable Founder Pricing
+						{:else}
+							Enable Founder Pricing
+						{/if}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Toast -->
+	{#if showToast}
+		<div class="toast">{toastMessage}</div>
+	{/if}
 </div>
-
-<!-- Signup Toggle Confirmation Modal -->
-{#if confirmingSignupToggle}
-	<div
-		role="button"
-		tabindex="0"
-		onclick={() => (confirmingSignupToggle = false)}
-		onkeydown={(e) => e.key === "Enter" && (confirmingSignupToggle = false)}
-	>
-		<div
-			class="modal"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			tabindex="0"
-			onkeydown={(e) =>
-				e.key === "Escape" && (confirmingSignupToggle = false)}
-		>
-			<div class="modal-header">
-				<h3>
-					{signupsEnabled
-						? "Disable New Signups?"
-						: "Enable New Signups?"}
-				</h3>
-				<button
-					class="modal-close"
-					onclick={() => (confirmingSignupToggle = false)}
-					>&times;</button
-				>
-			</div>
-			<div class="modal-body">
-				<p>
-					{#if signupsEnabled}
-						Are you sure you want to <strong
-							>disable new signups</strong
-						>? New users will no longer be able to create accounts.
-					{:else}
-						Are you sure you want to <strong
-							>enable new signups</strong
-						>? New users will be able to create accounts.
-					{/if}
-				</p>
-			</div>
-			<div class="modal-footer">
-				<button
-					class="btn btn-secondary"
-					onclick={() => (confirmingSignupToggle = false)}
-					disabled={saving}
-				>
-					Cancel
-				</button>
-				<button
-					class="btn btn-primary"
-					onclick={confirmSignupToggle}
-					disabled={saving}
-				>
-					{#if saving}
-						Updating...
-					{:else if signupsEnabled}
-						Disable Signups
-					{:else}
-						Enable Signups
-					{/if}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Founder Pricing Toggle Confirmation Modal -->
-{#if confirmingFounderPricingToggle}
-	<div
-		class="modal-backdrop"
-		role="button"
-		tabindex="0"
-		onclick={() => (confirmingFounderPricingToggle = false)}
-		onkeydown={(e) =>
-			e.key === "Enter" && (confirmingFounderPricingToggle = false)}
-	>
-		<div
-			class="modal"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			tabindex="0"
-			onkeydown={(e) =>
-				e.key === "Escape" && (confirmingFounderPricingToggle = false)}
-		>
-			<div class="modal-header">
-				<h3>
-					{founderPricingEnabled
-						? "Disable Founder Pricing?"
-						: "Enable Founder Pricing?"}
-				</h3>
-				<button
-					class="modal-close"
-					onclick={() => (confirmingFounderPricingToggle = false)}
-					>&times;</button
-				>
-			</div>
-			<div class="modal-body">
-				<p>
-					{#if founderPricingEnabled}
-						Are you sure you want to <strong
-							>disable founder pricing</strong
-						>? New users will no longer see the discounted founder
-						prices.
-					{:else}
-						Are you sure you want to <strong
-							>enable founder pricing</strong
-						>? New users will see lifetime discounted prices (Pro:
-						€5/mo, Business: €19/mo).
-					{/if}
-				</p>
-			</div>
-			<div class="modal-footer">
-				<button
-					class="btn btn-secondary"
-					onclick={() => (confirmingFounderPricingToggle = false)}
-					disabled={saving}
-				>
-					Cancel
-				</button>
-				<button
-					class="btn btn-primary"
-					onclick={confirmFounderPricingToggle}
-					disabled={saving}
-				>
-					{#if saving}
-						Updating...
-					{:else if founderPricingEnabled}
-						Disable Founder Pricing
-					{:else}
-						Enable Founder Pricing
-					{/if}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Toast -->
-{#if showToast}
-	<div class="toast">{toastMessage}</div>
-{/if}
 
 <style>
 	.settings-page {
@@ -1477,6 +1580,60 @@
 	.btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	/* System Operations */
+
+	.cron-result {
+		margin-top: 1rem;
+		padding: 1rem;
+		border-radius: 6px;
+		border-left: 4px solid;
+	}
+
+	.cron-result.success {
+		background: #f0fdf4;
+		border-left-color: #22c55e;
+		color: #166534;
+	}
+
+	.cron-result.has-errors {
+		background: #fef2f2;
+		border-left-color: #ef4444;
+		color: #991b1b;
+	}
+
+	.result-stats {
+		display: flex;
+		gap: 2rem;
+		margin: 1rem 0;
+	}
+
+	.stat {
+		text-align: center;
+	}
+
+	.stat-value {
+		display: block;
+		font-size: 1.5rem;
+		font-weight: 600;
+		color: #1e293b;
+	}
+
+	.stat-label {
+		font-size: 0.8rem;
+		color: #64748b;
+		text-transform: uppercase;
+	}
+
+	.error-message {
+		margin: 0.5rem 0 0 0;
+		color: #991b1b;
+	}
+
+	.success-message {
+		margin: 0.5rem 0 0 0;
+		color: #166534;
 	}
 
 	/* Toast */
