@@ -1,25 +1,25 @@
-//! Scheduled cron job to downgrade expired subscriptions.
+//! Scheduled cron job handler for subscription management and webhook cleanup.
 //!
-//! This handler runs daily at midnight UTC via Cloudflare Cron Triggers.
-//! It finds subscriptions where:
-//! - pending_cancellation = 1 (user canceled at period end)
-//! - current_period_end < now (the period has ended)
+//! This handler runs two separate jobs via Cloudflare Cron Triggers:
 //!
-//! For each expired subscription, it:
-//! - Downgrades the billing account tier to "free"
-//! - Clears the pending_cancellation flag
-//! - Updates the subscription status to "canceled"
+//! 1. subscription_downgrade (daily at midnight UTC):
+//!    - Finds subscriptions where pending_cancellation = 1 AND current_period_end < now
+//!    - Downgrades billing account tier to "free"
+//!    - Marks subscription as canceled
+//!
+//! 2. webhook_cleanup (daily at 4 AM UTC):
+//!    - Deletes webhook records older than 30 days from processed_webhooks table
 
 use crate::db;
 use crate::utils::now_timestamp;
 use worker::d1::D1Database;
 use worker::*;
 
-/// Scheduled handler for downgrading expired subscriptions.
-/// Called by Cloudflare Cron Triggers.
+/// Scheduled handler for subscription downgrade and webhook cleanup.
+/// Called by Cloudflare Cron Triggers with names "subscription_downgrade" or "webhook_cleanup".
 #[event(scheduled)]
-pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
-    console_log!("[cron] Starting expired subscription downgrade job");
+pub async fn scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
+    let cron_name = event.cron();
 
     let db = match env.get_binding::<D1Database>("rushomon") {
         Ok(db) => db,
@@ -29,10 +29,29 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
         }
     };
 
+    match cron_name.as_str() {
+        "subscription_downgrade" => {
+            console_log!("[cron] Starting subscription downgrade job");
+            run_subscription_downgrade(&db).await;
+        }
+        "webhook_cleanup" => {
+            console_log!("[cron] Starting webhook cleanup job");
+            run_webhook_cleanup(&db).await;
+        }
+        other => {
+            console_warn!("[cron] Unknown cron trigger: {}", other);
+        }
+    }
+
+    console_log!("[cron] Scheduled job complete");
+}
+
+/// Downgrades expired subscriptions to free tier.
+async fn run_subscription_downgrade(db: &D1Database) {
     let now = now_timestamp();
 
     // Find expired subscriptions
-    match db::get_expired_pending_cancellations(&db, now).await {
+    match db::get_expired_pending_cancellations(db, now).await {
         Ok(expired_subscriptions) => {
             console_log!(
                 "[cron] Found {} expired subscriptions to process",
@@ -65,7 +84,7 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
 
                 // Downgrade tier to free
                 if let Err(e) =
-                    db::update_billing_account_tier(&db, billing_account_id, "free").await
+                    db::update_billing_account_tier(db, billing_account_id, "free").await
                 {
                     console_error!(
                         "[cron] Failed to downgrade tier for billing account {}: {}",
@@ -77,7 +96,7 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
                 }
 
                 // Mark subscription as fully canceled
-                if let Err(e) = db::finalize_expired_subscription(&db, subscription_id, now).await {
+                if let Err(e) = db::finalize_expired_subscription(db, subscription_id, now).await {
                     console_error!(
                         "[cron] Failed to finalize subscription {}: {}",
                         subscription_id,
@@ -95,13 +114,25 @@ pub async fn scheduled(_event: ScheduledEvent, env: Env, _ctx: ScheduleContext) 
             }
 
             console_log!(
-                "[cron] Completed: {} successful, {} errors",
+                "[cron] Subscription downgrade complete: {} successful, {} errors",
                 success_count,
                 error_count
             );
         }
         Err(e) => {
             console_error!("[cron] Failed to query expired subscriptions: {}", e);
+        }
+    }
+}
+
+/// Cleans up expired webhook records (older than 30 days).
+async fn run_webhook_cleanup(db: &D1Database) {
+    match db::cleanup_expired_webhooks(db).await {
+        Ok(_) => {
+            console_log!("[cron] Webhook cleanup complete");
+        }
+        Err(e) => {
+            console_error!("[cron] Webhook cleanup failed: {}", e);
         }
     }
 }

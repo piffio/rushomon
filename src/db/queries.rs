@@ -1980,7 +1980,7 @@ pub async fn create_link_report(
 /// Get a single report by ID
 pub async fn get_link_report_by_id(db: &D1Database, _report_id: &str) -> Result<LinkReport> {
     let stmt = db.prepare(
-        "SELECT id, link_id, reason, reporter_user_id, reporter_email, status, 
+        "SELECT id, link_id, reason, reporter_user_id, reporter_email, status,
                 admin_notes, reviewed_by, reviewed_at, created_at
          FROM link_reports WHERE id = ?1",
     );
@@ -3610,4 +3610,78 @@ pub async fn delete_tag_for_org(db: &D1Database, org_id: &str, tag_name: &str) -
     stmt.bind(&[org_id.into(), tag_name.into()])?.run().await?;
 
     Ok(())
+}
+
+// ─── Webhook Idempotency ─────────────────────────────────────────────────────
+
+/// Check if a webhook has already been processed (for idempotency)
+pub async fn webhook_already_processed(
+    db: &D1Database,
+    provider: &str,
+    webhook_id: &str,
+) -> Result<bool> {
+    let stmt = db.prepare(
+        "SELECT 1 FROM processed_webhooks
+         WHERE provider = ?1 AND webhook_id = ?2
+         LIMIT 1",
+    );
+
+    let result = stmt
+        .bind(&[provider.into(), webhook_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    Ok(result.is_some())
+}
+
+/// Mark a webhook as processed (for idempotency)
+/// ttl_seconds: How long to keep the record (default: 30 days = 2592000 seconds)
+pub async fn mark_webhook_processed(
+    db: &D1Database,
+    provider: &str,
+    webhook_id: &str,
+    event_type: &str,
+    ttl_seconds: i64,
+) -> Result<()> {
+    let now = now_timestamp();
+    let expires_at = now + ttl_seconds;
+
+    let stmt = db.prepare(
+        "INSERT INTO processed_webhooks
+         (id, provider, webhook_id, event_type, processed_at, expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    );
+
+    // Generate unique ID for this record (provider + webhook_id + timestamp)
+    let record_id = format!("{}_{}_{}", provider, webhook_id, now);
+
+    stmt.bind(&[
+        record_id.into(),
+        provider.into(),
+        webhook_id.into(),
+        event_type.into(),
+        (now as f64).into(),
+        (expires_at as f64).into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(())
+}
+
+/// Delete expired webhook records (for cleanup cron job)
+#[allow(dead_code)]
+pub async fn cleanup_expired_webhooks(db: &D1Database) -> Result<i64> {
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "DELETE FROM processed_webhooks
+         WHERE expires_at < ?1",
+    );
+
+    stmt.bind(&[(now as f64).into()])?.run().await?;
+
+    // Note: D1 doesn't expose affected row count easily
+    // Return 0 - actual count not needed for cleanup
+    Ok(0)
 }

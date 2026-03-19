@@ -407,6 +407,15 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
 
     let now = now_timestamp();
 
+    // ── 3b. Check idempotency – skip if already processed ────────────────────
+    if db::webhook_already_processed(&db, "polar", &webhook_id).await? {
+        console_log!("[webhook] Duplicate webhook ignored: {}", webhook_id);
+        return Response::from_json(&serde_json::json!({
+            "received": true,
+            "duplicate": true
+        }));
+    }
+
     // ── 4. Dispatch on event type ────────────────────────────────────────────
     match event_type.as_str() {
         "subscription.active" | "subscription.created" => {
@@ -755,6 +764,15 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
         other => {
             console_warn!("[webhook] Unhandled event type: {} – acknowledging", other);
         }
+    }
+
+    // ── 5. Mark as processed (idempotency) ───────────────────────────────────
+    // 30 days TTL for webhook records
+    if let Err(e) =
+        db::mark_webhook_processed(&db, "polar", &webhook_id, &event_type, 2592000).await
+    {
+        console_error!("[webhook] Failed to mark webhook as processed: {}", e);
+        // Don't fail the request - this is just for deduplication
     }
 
     Response::from_json(&serde_json::json!({ "received": true }))
