@@ -371,6 +371,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/billing/pricing", handle_cors_preflight)
         .options_async("/api/billing/webhook", handle_cors_preflight)
         .options_async("/api/billing/portal", handle_cors_preflight)
+        .options_async("/api/admin/cron/trigger-downgrade", handle_cors_preflight)
         .options_async("/api/settings", handle_cors_preflight)
         .options_async("/api/analytics/org", handle_cors_preflight)
         // Auth routes (public)
@@ -552,6 +553,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         .post_async("/api/billing/webhook", crate::api::billing::handle_webhook)
         .post_async("/api/billing/portal", crate::api::billing::handle_portal)
+        .post_async(
+            "/api/admin/cron/trigger-downgrade",
+            crate::api::billing::handle_cron_trigger_downgrade,
+        )
+        .post_async(
+            "/api/admin/billing-accounts/:id/reset",
+            crate::api::billing::handle_admin_reset_billing_account,
+        )
         // Org analytics route
         .get_async(
             "/api/analytics/org",
