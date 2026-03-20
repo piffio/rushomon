@@ -432,4 +432,22 @@ export const adminApi = {
 			body: JSON.stringify({ status })
 		});
 	},
+
+	/**
+	 * Trigger the expired subscription downgrade cron job (admin only)
+	 * @returns Object with processed, success, and error counts
+	 */
+	async triggerCronDowngrade(): Promise<{
+		processed: number;
+		success: number;
+		errors: number;
+	}> {
+		return apiClient.request<{
+			processed: number;
+			success: number;
+			errors: number;
+		}>('/api/admin/cron/trigger-downgrade', {
+			method: 'POST'
+		});
+	},
 };

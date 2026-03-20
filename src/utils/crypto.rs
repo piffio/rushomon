@@ -146,6 +146,166 @@ pub fn secure_compare(a: &str, b: &str) -> bool {
 mod tests {
     use super::*;
 
+    // ─── verify_polar_webhook_signature tests ────────────────────────────────
+
+    /// Compute a valid Standard Webhooks HMAC-SHA256 signature for use in tests.
+    /// Mirrors the production signing algorithm exactly.
+    fn compute_test_signature(
+        body: &[u8],
+        webhook_id: &str,
+        timestamp: &str,
+        secret: &str,
+    ) -> String {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+
+        let secret_bytes = secret
+            .strip_prefix("whsec_")
+            .unwrap_or(secret)
+            .as_bytes()
+            .to_vec();
+
+        let body_str = String::from_utf8_lossy(body);
+        let to_sign = format!("{}.{}.{}", webhook_id, timestamp, body_str);
+
+        let mut mac = Hmac::<Sha256>::new_from_slice(&secret_bytes).unwrap();
+        mac.update(to_sign.as_bytes());
+        let computed_bytes = mac.finalize().into_bytes();
+        let b64 = encode_base64(&computed_bytes);
+        format!("v1,{}", b64)
+    }
+
+    #[test]
+    fn test_webhook_signature_valid() {
+        let body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let id = "msg-test-001";
+        let ts = "1700000000";
+        let secret = "test-polar-webhook-secret";
+
+        let sig = compute_test_signature(body, id, ts, secret);
+        let result = verify_polar_webhook_signature(body, id, ts, &sig, secret);
+        assert_eq!(result, Ok(true), "Valid signature should be accepted");
+    }
+
+    #[test]
+    fn test_webhook_signature_wrong_secret() {
+        let body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let id = "msg-test-002";
+        let ts = "1700000000";
+
+        let sig = compute_test_signature(body, id, ts, "correct-secret");
+        let result = verify_polar_webhook_signature(body, id, ts, &sig, "wrong-secret");
+        assert_eq!(
+            result,
+            Ok(false),
+            "Signature computed with different secret should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_webhook_signature_tampered_body() {
+        let original_body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let tampered_body = b"{\"type\":\"subscription.active\",\"data\":{\"injected\":true}}";
+        let id = "msg-test-003";
+        let ts = "1700000000";
+        let secret = "test-polar-webhook-secret";
+
+        let sig = compute_test_signature(original_body, id, ts, secret);
+        let result = verify_polar_webhook_signature(tampered_body, id, ts, &sig, secret);
+        assert_eq!(
+            result,
+            Ok(false),
+            "Signature for original body should not validate tampered body"
+        );
+    }
+
+    #[test]
+    fn test_webhook_signature_multiple_sigs_in_header_one_valid() {
+        let body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let id = "msg-test-004";
+        let ts = "1700000000";
+        let secret = "test-polar-webhook-secret";
+
+        let valid_sig = compute_test_signature(body, id, ts, secret);
+        let header = format!("v1,invalidsignaturehere {}", valid_sig);
+        let result = verify_polar_webhook_signature(body, id, ts, &header, secret);
+        assert_eq!(
+            result,
+            Ok(true),
+            "At least one valid signature in the list should be accepted"
+        );
+    }
+
+    #[test]
+    fn test_webhook_signature_multiple_sigs_all_invalid() {
+        let body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let id = "msg-test-005";
+        let ts = "1700000000";
+        let secret = "test-polar-webhook-secret";
+
+        let header = "v1,invalidsig1 v1,invalidsig2";
+        let result = verify_polar_webhook_signature(body, id, ts, header, secret);
+        assert_eq!(
+            result,
+            Ok(false),
+            "All invalid signatures should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_webhook_signature_ignores_unknown_version() {
+        let body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let id = "msg-test-006";
+        let ts = "1700000000";
+        let secret = "test-polar-webhook-secret";
+
+        let valid_sig = compute_test_signature(body, id, ts, secret);
+        // Prepend an unknown version entry before the valid v1 entry
+        let header = format!("v2,someasymmetrickey {}", valid_sig);
+        let result = verify_polar_webhook_signature(body, id, ts, &header, secret);
+        assert_eq!(
+            result,
+            Ok(true),
+            "Unknown version prefix should be ignored; valid v1 entry accepted"
+        );
+    }
+
+    #[test]
+    fn test_webhook_signature_whsec_prefix_stripped() {
+        let body = b"{\"type\":\"subscription.active\",\"data\":{}}";
+        let id = "msg-test-007";
+        let ts = "1700000000";
+        let raw_secret = "test-polar-webhook-secret";
+        let prefixed_secret = format!("whsec_{}", raw_secret);
+
+        // Sign with the raw secret (no prefix) — should match verification with whsec_ prefix
+        let sig = compute_test_signature(body, id, ts, raw_secret);
+        let result = verify_polar_webhook_signature(body, id, ts, &sig, &prefixed_secret);
+        assert_eq!(
+            result,
+            Ok(true),
+            "whsec_ prefix should be stripped before HMAC computation"
+        );
+    }
+
+    #[test]
+    fn test_webhook_signature_empty_body() {
+        let body = b"";
+        let id = "msg-test-008";
+        let ts = "1700000000";
+        let secret = "test-polar-webhook-secret";
+
+        let sig = compute_test_signature(body, id, ts, secret);
+        let result = verify_polar_webhook_signature(body, id, ts, &sig, secret);
+        assert_eq!(
+            result,
+            Ok(true),
+            "Empty body should still produce a valid, verifiable HMAC"
+        );
+    }
+
+    // ─── secure_compare tests ─────────────────────────────────────────────────
+
     #[test]
     fn test_secure_compare_equal() {
         assert!(secure_compare("abc123", "abc123"));

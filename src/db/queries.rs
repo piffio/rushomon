@@ -1980,7 +1980,7 @@ pub async fn create_link_report(
 /// Get a single report by ID
 pub async fn get_link_report_by_id(db: &D1Database, _report_id: &str) -> Result<LinkReport> {
     let stmt = db.prepare(
-        "SELECT id, link_id, reason, reporter_user_id, reporter_email, status, 
+        "SELECT id, link_id, reason, reporter_user_id, reporter_email, status,
                 admin_notes, reviewed_by, reviewed_at, created_at
          FROM link_reports WHERE id = ?1",
     );
@@ -3278,10 +3278,6 @@ pub async fn update_billing_account_tier(
         .run()
         .await?;
 
-    // Update all organizations linked to this billing account
-    // Note: organizations no longer have tier column, so no update needed
-    // The tier is now read directly from the billing account
-
     Ok(())
 }
 
@@ -3302,8 +3298,7 @@ pub async fn update_billing_account_provider_customer_id(
 // ─── Billing / Subscription queries ──────────────────────────────────────────
 
 /// Look up a billing_account_id by its provider customer ID.
-/// Used in webhook handlers where we only have the customer ID from the billing provider.
-#[allow(dead_code)]
+/// Used in webhook handlers where external_id is missing from the payload.
 pub async fn get_billing_account_id_by_provider_customer(
     db: &D1Database,
     provider_customer_id: &str,
@@ -3328,7 +3323,7 @@ pub async fn get_subscription_for_billing_account(
                 provider_subscription_id, provider_customer_id, provider_price_id,
                 current_period_start, current_period_end,
                 cancel_at_period_end, canceled_at, created_at, updated_at,
-                amount_cents, currency, discount_name
+                amount_cents, currency, discount_name, pending_cancellation
          FROM subscriptions
          WHERE billing_account_id = ?1
          ORDER BY created_at DESC
@@ -3357,6 +3352,7 @@ pub async fn upsert_subscription(
     amount_cents: Option<i64>,
     currency: &str,
     discount_name: Option<&str>,
+    ends_at: Option<i64>,
     now: i64,
 ) -> Result<()> {
     let sub_id = format!("sub_{}", crate::utils::generate_short_code_with_length(16));
@@ -3366,10 +3362,10 @@ pub async fn upsert_subscription(
         "INSERT INTO subscriptions (
            id, billing_account_id, status, plan, interval,
            provider_subscription_id, provider_customer_id, provider_price_id,
-           current_period_start, current_period_end,
+           current_period_start, current_period_end, ends_at,
            cancel_at_period_end, amount_cents, currency, discount_name,
            created_at, updated_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)
          ON CONFLICT(provider_subscription_id) DO UPDATE SET
            status = excluded.status,
            plan = excluded.plan,
@@ -3377,6 +3373,7 @@ pub async fn upsert_subscription(
            provider_price_id = excluded.provider_price_id,
            current_period_start = excluded.current_period_start,
            current_period_end = excluded.current_period_end,
+           ends_at = excluded.ends_at,
            cancel_at_period_end = excluded.cancel_at_period_end,
            amount_cents = excluded.amount_cents,
            currency = excluded.currency,
@@ -3394,6 +3391,7 @@ pub async fn upsert_subscription(
         provider_price_id.into(),
         (current_period_start as f64).into(),
         (current_period_end as f64).into(),
+        ends_at.map(|v| (v as f64).into()).unwrap_or("".into()),
         (cancel_flag as f64).into(),
         (amount_cents.unwrap_or(0) as f64).into(),
         currency.into(),
@@ -3414,6 +3412,83 @@ pub async fn mark_subscription_canceled(
     let stmt = db.prepare(
         "UPDATE subscriptions
          SET status = 'canceled', canceled_at = ?1, updated_at = ?1
+         WHERE provider_subscription_id = ?2",
+    );
+    stmt.bind(&[(now as f64).into(), provider_subscription_id.into()])?
+        .run()
+        .await?;
+    Ok(())
+}
+
+/// Set subscription as pending cancellation (cancel_at_period_end = true).
+/// The tier will be downgraded when the cron job runs after current_period_end.
+pub async fn set_subscription_pending_cancellation(
+    db: &D1Database,
+    provider_subscription_id: &str,
+    current_period_end: i64,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET pending_cancellation = 1,
+             cancel_at_period_end = 1,
+             updated_at = ?1
+         WHERE provider_subscription_id = ?2",
+    );
+    stmt.bind(&[
+        (current_period_end as f64).into(),
+        provider_subscription_id.into(),
+    ])?
+    .run()
+    .await?;
+    Ok(())
+}
+
+/// Clear pending cancellation flag (e.g., when user uncancels their subscription).
+pub async fn clear_subscription_pending_cancellation(
+    db: &D1Database,
+    provider_subscription_id: &str,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET pending_cancellation = 0,
+             cancel_at_period_end = 0,
+             updated_at = (SELECT strftime('%s', 'now'))
+         WHERE provider_subscription_id = ?1",
+    );
+    stmt.bind(&[provider_subscription_id.into()])?.run().await?;
+    Ok(())
+}
+
+/// Get all subscriptions with pending_cancellation that have expired.
+/// Returns provider_subscription_id and billing_account_id for each.
+pub async fn get_expired_pending_cancellations(
+    db: &D1Database,
+    now: i64,
+) -> Result<Vec<serde_json::Value>> {
+    let stmt = db.prepare(
+        "SELECT provider_subscription_id, billing_account_id, current_period_end
+         FROM subscriptions
+         WHERE pending_cancellation = 1
+           AND current_period_end < ?1
+         LIMIT 1000",
+    );
+    let results = stmt.bind(&[(now as f64).into()])?.all().await?;
+
+    results.results::<serde_json::Value>()
+}
+
+/// Finalize an expired subscription after downgrading the tier.
+pub async fn finalize_expired_subscription(
+    db: &D1Database,
+    provider_subscription_id: &str,
+    now: i64,
+) -> Result<()> {
+    let stmt = db.prepare(
+        "UPDATE subscriptions
+         SET status = 'canceled',
+             pending_cancellation = 0,
+             canceled_at = ?1,
+             updated_at = ?1
          WHERE provider_subscription_id = ?2",
     );
     stmt.bind(&[(now as f64).into(), provider_subscription_id.into()])?
@@ -3535,4 +3610,78 @@ pub async fn delete_tag_for_org(db: &D1Database, org_id: &str, tag_name: &str) -
     stmt.bind(&[org_id.into(), tag_name.into()])?.run().await?;
 
     Ok(())
+}
+
+// ─── Webhook Idempotency ─────────────────────────────────────────────────────
+
+/// Check if a webhook has already been processed (for idempotency)
+pub async fn webhook_already_processed(
+    db: &D1Database,
+    provider: &str,
+    webhook_id: &str,
+) -> Result<bool> {
+    let stmt = db.prepare(
+        "SELECT 1 FROM processed_webhooks
+         WHERE provider = ?1 AND webhook_id = ?2
+         LIMIT 1",
+    );
+
+    let result = stmt
+        .bind(&[provider.into(), webhook_id.into()])?
+        .first::<serde_json::Value>(None)
+        .await?;
+
+    Ok(result.is_some())
+}
+
+/// Mark a webhook as processed (for idempotency)
+/// ttl_seconds: How long to keep the record (default: 30 days = 2592000 seconds)
+pub async fn mark_webhook_processed(
+    db: &D1Database,
+    provider: &str,
+    webhook_id: &str,
+    event_type: &str,
+    ttl_seconds: i64,
+) -> Result<()> {
+    let now = now_timestamp();
+    let expires_at = now + ttl_seconds;
+
+    let stmt = db.prepare(
+        "INSERT INTO processed_webhooks
+         (id, provider, webhook_id, event_type, processed_at, expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    );
+
+    // Generate unique ID for this record (provider + webhook_id + timestamp)
+    let record_id = format!("{}_{}_{}", provider, webhook_id, now);
+
+    stmt.bind(&[
+        record_id.into(),
+        provider.into(),
+        webhook_id.into(),
+        event_type.into(),
+        (now as f64).into(),
+        (expires_at as f64).into(),
+    ])?
+    .run()
+    .await?;
+
+    Ok(())
+}
+
+/// Delete expired webhook records (for cleanup cron job)
+#[allow(dead_code)]
+pub async fn cleanup_expired_webhooks(db: &D1Database) -> Result<i64> {
+    let now = now_timestamp();
+
+    let stmt = db.prepare(
+        "DELETE FROM processed_webhooks
+         WHERE expires_at < ?1",
+    );
+
+    stmt.bind(&[(now as f64).into()])?.run().await?;
+
+    // Note: D1 doesn't expose affected row count easily
+    // Return 0 - actual count not needed for cleanup
+    Ok(0)
 }

@@ -125,11 +125,24 @@ GOOGLE_CLIENT_SECRET=test-google-client-secret
 GOOGLE_AUTHORIZE_URL=${MOCK_OAUTH_URL}/google/o/oauth2/v2/auth
 GOOGLE_TOKEN_URL=${MOCK_OAUTH_URL}/google/token
 GOOGLE_USER_URL=${MOCK_OAUTH_URL}/google/openidconnect/v1/userinfo
+POLAR_WEBHOOK_SECRET=test-polar-webhook-secret
+POLAR_SANDBOX=true
 EOF
 
 # Step 4: Apply D1 migrations
 echo "📦 Applying D1 migrations..."
 wrangler d1 migrations apply "${DB_NAME}" --local 2>/dev/null || true
+
+# Seed test product row so webhook tests can resolve price_id → tier
+wrangler d1 execute "${DB_NAME}" --local --command "
+  INSERT OR REPLACE INTO cached_products
+    (id, name, description, price_amount, price_currency, recurring_interval,
+     recurring_interval_count, is_archived, polar_product_id, polar_price_id)
+  VALUES
+    ('price-test-pro-monthly', 'Pro Monthly', 'Test Pro plan', 999, 'usd', 'month',
+     1, FALSE, 'prod-test-pro-monthly', 'price-test-pro-monthly')
+" 2>/dev/null || true
+echo "✅ Test product seeded (price-test-pro-monthly → Pro Monthly)."
 
 # Step 5: Start mock OAuth server
 echo "� Starting mock OAuth server..."
@@ -242,9 +255,45 @@ echo "🔄 Setting up unlimited tier test environment..."
 wrangler d1 execute "${DB_NAME}" --local --command "UPDATE billing_accounts SET tier = 'unlimited'" 2>/dev/null || true
 echo "✅ All billing accounts set to unlimited tier"
 
+# Step 8: Perform a second OAuth flow to get a JWT for the dedicated billing test user
+echo ""
+echo "🔑 Creating dedicated billing test user..."
+
+# Initiate a second OAuth flow
+BILLING_AUTH_RESPONSE=$(curl -s -i "${BASE_URL}/api/auth/github" 2>&1)
+BILLING_REDIRECT_URL=$(echo "$BILLING_AUTH_RESPONSE" | grep -i "^location:" | sed 's/location: //i' | tr -d '\r')
+
+if [ -z "$BILLING_REDIRECT_URL" ]; then
+    echo "⚠️  Could not create billing test user (non-fatal)"
+    BILLING_JWT=""
+else
+    BILLING_STATE=$(echo "$BILLING_REDIRECT_URL" | grep -oE 'state=[^&]+' | cut -d= -f2)
+    if [ -n "$BILLING_STATE" ]; then
+        BILLING_MOCK_CODE="mock-gh-code-${BILLING_STATE}"
+        BILLING_CALLBACK_URL="${BASE_URL}/api/auth/callback?code=${BILLING_MOCK_CODE}&state=${BILLING_STATE}"
+        BILLING_CALLBACK_RESPONSE=$(curl -s -i "${BILLING_CALLBACK_URL}" 2>&1)
+        BILLING_JWT=$(echo "$BILLING_CALLBACK_RESPONSE" | grep -i "^set-cookie: rushomon_access=" | sed 's/set-cookie: rushomon_access=//i' | cut -d';' -f1 | tr -d '\r')
+        if [ -n "$BILLING_JWT" ]; then
+            echo "✅ Billing test user created!"
+            echo "  BILLING_JWT: ${BILLING_JWT:0:50}..."
+            # Reset billing test user to a clean free-tier state (important for reruns)
+            BILLING_ACCOUNT_ID=$(curl -s -H "Cookie: rushomon_access=${BILLING_JWT}" "${BASE_URL}/api/billing/status" | grep -o '"billing_account_id":"[^"]*"' | cut -d'"' -f4)
+            if [ -n "$BILLING_ACCOUNT_ID" ]; then
+                wrangler d1 execute "${DB_NAME}" --local --command "DELETE FROM subscriptions WHERE billing_account_id = '${BILLING_ACCOUNT_ID}'" 2>/dev/null || true
+                wrangler d1 execute "${DB_NAME}" --local --command "UPDATE billing_accounts SET tier = 'free', provider_customer_id = NULL WHERE id = '${BILLING_ACCOUNT_ID}'" 2>/dev/null || true
+                echo "✅ Billing test user state reset (billing_account_id=${BILLING_ACCOUNT_ID})"
+            fi
+        else
+            echo "⚠️  Could not extract billing JWT (non-fatal)"
+            BILLING_JWT=""
+        fi
+    fi
+fi
+
 # Export environment variables for tests
 export TEST_JWT="${JWT}"
 export TEST_JWT_SECRET="${JWT_SECRET}"
+export TEST_BILLING_JWT="${BILLING_JWT}"
 
 echo ""
 echo "🚀 Environment ready!"
