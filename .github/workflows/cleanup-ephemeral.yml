@@ -191,6 +191,7 @@ jobs:
           echo "Bucket exists, proceeding with object cleanup..."
 
           # List objects in bucket with better error handling
+          echo "DEBUG: Listing objects in bucket..."
           LIST_RESPONSE=$(curl -s -w "%{http_code}" -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects?limit=1000" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
@@ -198,6 +199,8 @@ jobs:
           # Extract HTTP code (last 3 characters) and response body
           HTTP_CODE="${LIST_RESPONSE: -3}"
           RESPONSE_BODY="${LIST_RESPONSE%???}"
+
+          echo "DEBUG: Objects list response (HTTP $HTTP_CODE): $RESPONSE_BODY"
 
           if [ "$HTTP_CODE" != "200" ]; then
             echo "⚠️  Failed to list bucket objects (HTTP $HTTP_CODE)"
@@ -210,31 +213,55 @@ jobs:
           echo "$RESPONSE_BODY" > /tmp/list_response.json
           OBJECT_COUNT=$(jq -r '.result.objects | length' /tmp/list_response.json 2>/dev/null || echo "0")
 
-          if [ "$OBJECT_COUNT" -gt 0 ]; then
-            echo "Found $OBJECT_COUNT objects, purging before deletion..."
+          echo "DEBUG: Object count reported: $OBJECT_COUNT"
 
-            # Use bulk delete for better performance (up to 1000 objects per request)
-            DELETE_BODY=$(jq -c '{"objects": [.result.objects[] | {key: .key}]}' /tmp/list_response.json)
+          # Also check if the response indicates any objects at all
+          HAS_OBJECTS=$(jq -r '.result.objects | if length > 0 then "true" else "false" end' /tmp/list_response.json 2>/dev/null || echo "false")
 
-            BULK_DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
+          # Even if object count is 0, try to force delete all versions as there might be versioned objects
+          if [ "$OBJECT_COUNT" -gt 0 ] || [ "$HAS_OBJECTS" = "true" ] || [ "$HTTP_CODE" = "200" ]; then
+            echo "Found $OBJECT_COUNT objects, attempting to purge all versions..."
+
+            # Try to delete all objects including versions
+            echo "DEBUG: Attempting to delete all object versions..."
+            PURGE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects" \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "$DELETE_BODY")
+              -d '{"objects":[{"key":"*"}]}')
 
-            DELETE_HTTP_CODE="${BULK_DELETE_RESPONSE: -3}"
-            DELETE_RESPONSE_BODY="${BULK_DELETE_RESPONSE%???}"
+            PURGE_HTTP_CODE="${PURGE_RESPONSE: -3}"
+            PURGE_RESPONSE_BODY="${PURGE_RESPONSE%???}"
 
-            if [ "$DELETE_HTTP_CODE" != "200" ]; then
-              echo "⚠️  Failed to bulk delete objects (HTTP $DELETE_HTTP_CODE)"
-              echo "Response: $DELETE_RESPONSE_BODY"
-              echo "r2_result=object_delete_failed" >> $GITHUB_OUTPUT
-              exit 1
+            echo "DEBUG: Purge response (HTTP $PURGE_HTTP_CODE): $PURGE_RESPONSE_BODY"
+
+            # If wildcard purge doesn't work, try bulk delete with actual objects
+            if [ "$PURGE_HTTP_CODE" != "200" ] && [ "$OBJECT_COUNT" -gt 0 ]; then
+              echo "Wildcard purge failed, trying bulk delete with specific objects..."
+              DELETE_BODY=$(jq -c '{"objects": [.result.objects[] | {key: .key}]}' /tmp/list_response.json)
+
+              BULK_DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
+                "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects" \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$DELETE_BODY")
+
+              DELETE_HTTP_CODE="${BULK_DELETE_RESPONSE: -3}"
+              DELETE_RESPONSE_BODY="${BULK_DELETE_RESPONSE%???}"
+
+              echo "DEBUG: Bulk delete response (HTTP $DELETE_HTTP_CODE): $DELETE_RESPONSE_BODY"
+
+              if [ "$DELETE_HTTP_CODE" != "200" ]; then
+                echo "⚠️  Failed to bulk delete objects (HTTP $DELETE_HTTP_CODE)"
+                echo "Response: $DELETE_RESPONSE_BODY"
+                echo "r2_result=object_delete_failed" >> $GITHUB_OUTPUT
+                exit 1
+              fi
             fi
 
             echo "✅ Successfully deleted all objects"
           else
-            echo "Bucket is empty, proceeding with deletion"
+            echo "Bucket appears empty, but will attempt deletion anyway..."
           fi
 
           # Now delete the bucket
