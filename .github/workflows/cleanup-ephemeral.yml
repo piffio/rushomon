@@ -145,44 +145,95 @@ jobs:
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
         run: |
           BUCKET_NAME="rushomon-assets-pr-$PR_NUMBER"
-
           echo "Attempting to delete R2 bucket: $BUCKET_NAME"
 
-          # Delete the R2 bucket (will fail if non-empty, so purge objects first)
-          LIST_RESPONSE=$(curl -s -X GET \
+          # First check if bucket exists
+          BUCKET_LIST_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1)
+
+          if [ -z "$BUCKET_EXISTS" ]; then
+            echo "⚠️  R2 bucket not found: $BUCKET_NAME (may have already been deleted)"
+            echo "r2_result=not_found" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Bucket exists, proceeding with deletion"
+
+          # List objects in bucket with better error handling
+          LIST_RESPONSE=$(curl -s -w "%{http_code}" -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects?limit=1000" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
-          KEYS=$(echo "$LIST_RESPONSE" | jq -r '.result.objects[]?.key // empty' 2>/dev/null)
-          if [ -n "$KEYS" ]; then
-            echo "Purging objects from bucket before deletion..."
-            while IFS= read -r key; do
-              curl -s -X DELETE \
-                "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects/$key" \
-                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" > /dev/null
-            done <<< "$KEYS"
+          # Extract HTTP code (last 3 characters) and response body
+          HTTP_CODE="${LIST_RESPONSE: -3}"
+          RESPONSE_BODY="${LIST_RESPONSE%???}"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "⚠️  Failed to list bucket objects (HTTP $HTTP_CODE)"
+            echo "Response: $RESPONSE_BODY"
+            echo "r2_result=list_failed" >> $GITHUB_OUTPUT
+            exit 1
           fi
 
-          DELETE_RESPONSE=$(curl -s -X DELETE \
+          # Check if bucket has objects with safer jq parsing
+          echo "$RESPONSE_BODY" > /tmp/list_response.json
+          OBJECT_COUNT=$(jq -r '.result.objects | length' /tmp/list_response.json 2>/dev/null || echo "0")
+
+          if [ "$OBJECT_COUNT" -gt 0 ]; then
+            echo "Found $OBJECT_COUNT objects, purging before deletion..."
+            
+            # Use bulk delete for better performance (up to 1000 objects per request)
+            DELETE_BODY=$(jq -c '{"objects": [.result.objects[] | {key: .key}]}' /tmp/list_response.json)
+            
+            BULK_DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$DELETE_BODY")
+
+            DELETE_HTTP_CODE="${BULK_DELETE_RESPONSE: -3}"
+            DELETE_RESPONSE_BODY="${BULK_DELETE_RESPONSE%???}"
+
+            if [ "$DELETE_HTTP_CODE" != "200" ]; then
+              echo "⚠️  Failed to bulk delete objects (HTTP $DELETE_HTTP_CODE)"
+              echo "Response: $DELETE_RESPONSE_BODY"
+              echo "r2_result=object_delete_failed" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+
+            echo "✅ Successfully deleted all objects"
+          else
+            echo "Bucket is empty, proceeding with deletion"
+          fi
+
+          # Now delete the bucket
+          DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X DELETE \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
-          SUCCESS=$(echo "$DELETE_RESPONSE" | jq -r '.success // false')
+          DELETE_HTTP_CODE="${DELETE_RESPONSE: -3}"
+          DELETE_RESPONSE_BODY="${DELETE_RESPONSE%???}"
 
-          if [ "$SUCCESS" = "true" ]; then
+          if [ "$DELETE_HTTP_CODE" = "204" ] || [ "$DELETE_HTTP_CODE" = "200" ]; then
             echo "✅ Successfully deleted R2 bucket: $BUCKET_NAME"
             echo "r2_result=success" >> $GITHUB_OUTPUT
           else
-            ERROR_CODE=$(echo "$DELETE_RESPONSE" | jq -r '.errors[0].code // ""')
+            # Parse error response
+            SUCCESS=$(echo "$DELETE_RESPONSE_BODY" | jq -r '.success // false' 2>/dev/null || echo "false")
+            ERROR_CODE=$(echo "$DELETE_RESPONSE_BODY" | jq -r '.errors[0].code // ""' 2>/dev/null || echo "")
+
             if [ "$ERROR_CODE" = "10006" ]; then
               echo "⚠️  R2 bucket not found: $BUCKET_NAME (may have already been deleted)"
               echo "r2_result=not_found" >> $GITHUB_OUTPUT
             else
-              echo "⚠️  Failed to delete R2 bucket"
-              echo "Response: $DELETE_RESPONSE"
+              echo "⚠️  Failed to delete R2 bucket (HTTP $DELETE_HTTP_CODE)"
+              echo "Response: $DELETE_RESPONSE_BODY"
               echo "r2_result=failed" >> $GITHUB_OUTPUT
+              exit 1
             fi
-            # Continue anyway - We want to delete all resources
           fi
 
       - name: Post Cleanup Notification
