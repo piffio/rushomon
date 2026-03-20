@@ -148,15 +148,12 @@ jobs:
           echo "Attempting to delete R2 bucket: $BUCKET_NAME"
 
           # Try to delete the bucket directly first - this is more reliable
-          echo "Attempting direct bucket deletion..."
           DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X DELETE \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
           DELETE_HTTP_CODE="${DELETE_RESPONSE: -3}"
           DELETE_RESPONSE_BODY="${DELETE_RESPONSE%???}"
-
-          echo "DEBUG: Direct delete response (HTTP $DELETE_HTTP_CODE): $DELETE_RESPONSE_BODY"
 
           if [ "$DELETE_HTTP_CODE" = "204" ] || [ "$DELETE_HTTP_CODE" = "200" ]; then
             echo "✅ Successfully deleted R2 bucket: $BUCKET_NAME"
@@ -172,13 +169,10 @@ jobs:
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
-          echo "DEBUG: Bucket list response: $BUCKET_LIST_RESPONSE"
-
           BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result.buckets[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1 2>/dev/null)
 
           # If the above fails, try alternative structures
           if [ -z "$BUCKET_EXISTS" ]; then
-            echo "DEBUG: Trying alternative response structure..."
             BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1 2>/dev/null)
           fi
 
@@ -191,7 +185,6 @@ jobs:
           echo "Bucket exists, proceeding with object cleanup..."
 
           # List objects in bucket with better error handling
-          echo "DEBUG: Listing objects in bucket..."
           LIST_RESPONSE=$(curl -s -w "%{http_code}" -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects?limit=1000" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
@@ -199,8 +192,6 @@ jobs:
           # Extract HTTP code (last 3 characters) and response body
           HTTP_CODE="${LIST_RESPONSE: -3}"
           RESPONSE_BODY="${LIST_RESPONSE%???}"
-
-          echo "DEBUG: Objects list response (HTTP $HTTP_CODE): $RESPONSE_BODY"
 
           if [ "$HTTP_CODE" != "200" ]; then
             echo "⚠️  Failed to list bucket objects (HTTP $HTTP_CODE)"
@@ -213,8 +204,6 @@ jobs:
           echo "$RESPONSE_BODY" > /tmp/list_response.json
           OBJECT_COUNT=$(jq -r '.result | length' /tmp/list_response.json 2>/dev/null || echo "0")
 
-          echo "DEBUG: Object count reported: $OBJECT_COUNT"
-
           # Also check if the response indicates any objects at all
           HAS_OBJECTS=$(jq -r '.result | if length > 0 then "true" else "false" end' /tmp/list_response.json 2>/dev/null || echo "false")
 
@@ -223,7 +212,6 @@ jobs:
             echo "Found $OBJECT_COUNT objects, attempting to purge all versions..."
 
             # Try to delete all objects including versions
-            echo "DEBUG: Attempting to delete all object versions..."
             PURGE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects" \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -233,8 +221,6 @@ jobs:
             PURGE_HTTP_CODE="${PURGE_RESPONSE: -3}"
             PURGE_RESPONSE_BODY="${PURGE_RESPONSE%???}"
 
-            echo "DEBUG: Purge response (HTTP $PURGE_HTTP_CODE): $PURGE_RESPONSE_BODY"
-
             # If wildcard purge doesn't work, try individual object deletion
             if [ "$PURGE_HTTP_CODE" != "200" ] && [ "$OBJECT_COUNT" -gt 0 ]; then
               echo "Wildcard purge failed, trying individual object deletion..."
@@ -242,16 +228,12 @@ jobs:
               # Delete each object individually using the R2 API
               while IFS= read -r object_key; do
                 if [ -n "$object_key" ]; then
-                  echo "DEBUG: Deleting object: $object_key"
-
                   DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X DELETE \
                     "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects/$object_key" \
                     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
                   DELETE_HTTP_CODE="${DELETE_RESPONSE: -3}"
                   DELETE_RESPONSE_BODY="${DELETE_RESPONSE%???}"
-
-                  echo "DEBUG: Object delete response for $object_key (HTTP $DELETE_HTTP_CODE): $DELETE_RESPONSE_BODY"
 
                   if [ "$DELETE_HTTP_CODE" != "200" ] && [ "$DELETE_HTTP_CODE" != "204" ]; then
                     echo "⚠️  Failed to delete object $object_key (HTTP $DELETE_HTTP_CODE)"
