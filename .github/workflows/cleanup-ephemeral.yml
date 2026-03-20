@@ -211,12 +211,12 @@ jobs:
 
           # Check if bucket has objects with safer jq parsing
           echo "$RESPONSE_BODY" > /tmp/list_response.json
-          OBJECT_COUNT=$(jq -r '.result.objects | length' /tmp/list_response.json 2>/dev/null || echo "0")
+          OBJECT_COUNT=$(jq -r '.result | length' /tmp/list_response.json 2>/dev/null || echo "0")
 
           echo "DEBUG: Object count reported: $OBJECT_COUNT"
 
           # Also check if the response indicates any objects at all
-          HAS_OBJECTS=$(jq -r '.result.objects | if length > 0 then "true" else "false" end' /tmp/list_response.json 2>/dev/null || echo "false")
+          HAS_OBJECTS=$(jq -r '.result | if length > 0 then "true" else "false" end' /tmp/list_response.json 2>/dev/null || echo "false")
 
           # Even if object count is 0, try to force delete all versions as there might be versioned objects
           if [ "$OBJECT_COUNT" -gt 0 ] || [ "$HAS_OBJECTS" = "true" ] || [ "$HTTP_CODE" = "200" ]; then
@@ -238,7 +238,9 @@ jobs:
             # If wildcard purge doesn't work, try bulk delete with actual objects
             if [ "$PURGE_HTTP_CODE" != "200" ] && [ "$OBJECT_COUNT" -gt 0 ]; then
               echo "Wildcard purge failed, trying bulk delete with specific objects..."
-              DELETE_BODY=$(jq -c '{"objects": [.result.objects[] | {key: .key}]}' /tmp/list_response.json)
+              DELETE_BODY=$(jq -c '{"objects": [.result[] | {key: .key}]}' /tmp/list_response.json)
+
+              echo "DEBUG: Delete body: $DELETE_BODY"
 
               BULK_DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
                 "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects" \
