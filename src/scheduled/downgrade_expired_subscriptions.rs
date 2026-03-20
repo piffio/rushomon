@@ -1,14 +1,7 @@
 //! Scheduled cron job handler for subscription management and webhook cleanup.
 //!
-//! This handler runs two separate jobs via Cloudflare Cron Triggers:
-//!
-//! 1. subscription_downgrade (daily at midnight UTC):
-//!    - Finds subscriptions where pending_cancellation = 1 AND current_period_end < now
-//!    - Downgrades billing account tier to "free"
-//!    - Marks subscription as canceled
-//!
-//! 2. webhook_cleanup (daily at 4 AM UTC):
-//!    - Deletes webhook records older than 30 days from processed_webhooks table
+//! This handler runs two separate jobs via Cloudflare Cron Triggers.
+//! The job to run is determined by the cron expression that triggered the event.
 
 use crate::db;
 use crate::utils::now_timestamp;
@@ -16,11 +9,10 @@ use worker::d1::D1Database;
 use worker::*;
 
 /// Scheduled handler for subscription downgrade and webhook cleanup.
-/// Called by Cloudflare Cron Triggers with names "subscription_downgrade" or "webhook_cleanup".
+/// Called by Cloudflare Cron Triggers.
+/// Determines which job to run based on the cron expression.
 #[event(scheduled)]
 pub async fn scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
-    let cron_name = event.cron();
-
     let db = match env.get_binding::<D1Database>("rushomon") {
         Ok(db) => db,
         Err(e) => {
@@ -29,17 +21,20 @@ pub async fn scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
         }
     };
 
-    match cron_name.as_str() {
-        "subscription_downgrade" => {
-            console_log!("[cron] Starting subscription downgrade job");
+    // Get the cron expression that triggered this event
+    let cron_expr = event.cron();
+
+    match cron_expr.as_str() {
+        "0 0 * * *" => {
+            console_log!("[cron] Starting subscription downgrade job (midnight UTC)");
             run_subscription_downgrade(&db).await;
         }
-        "webhook_cleanup" => {
-            console_log!("[cron] Starting webhook cleanup job");
+        "0 4 * * *" => {
+            console_log!("[cron] Starting webhook cleanup job (4 AM UTC)");
             run_webhook_cleanup(&db).await;
         }
         other => {
-            console_warn!("[cron] Unknown cron trigger: {}", other);
+            console_warn!("[cron] Unexpected cron expression: {}", other);
         }
     }
 
