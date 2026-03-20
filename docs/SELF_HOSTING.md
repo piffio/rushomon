@@ -673,6 +673,64 @@ Rushomon includes comprehensive observability features using Cloudflare Workers'
 
 ---
 
+## Step 9b: Configure Scheduled Cron Triggers (Required)
+
+Rushomon uses Cloudflare Cron Triggers to run scheduled maintenance jobs. These must be configured in your `wrangler.toml` file.
+
+### Scheduled Jobs
+
+| Cron Expression | Job | What It Does |
+|-----------------|-----|--------------|
+| `"0 0 * * *"` | Subscription Downgrade | Downgrades expired subscriptions to free tier |
+| `"0 4 * * *"` | Webhook Cleanup | Deletes webhook records older than 30 days |
+
+### Configuration
+
+Add the following to your `wrangler.toml`:
+
+```toml
+# Cron Triggers for scheduled tasks
+# Format: array of cron expressions
+# IMPORTANT: The cron expressions must match exactly what the code expects
+[triggers]
+crons = ["0 0 * * *", "0 4 * * *"]
+```
+
+### Verify Cron Triggers Are Working
+
+After deployment, check the Worker logs in Cloudflare Dashboard:
+
+1. Go to **Workers & Pages** → Your Worker → **Logs**
+2. Look for log entries like:
+   - `[cron] Starting subscription downgrade job (midnight UTC)`
+   - `[cron] Starting webhook cleanup job (4 AM UTC)`
+   - `[cron] Subscription downgrade complete: X successful, Y errors`
+
+### Custom Schedules
+
+**Important**: The cron expressions must match exactly what the code expects in `src/scheduled/downgrade_expired_subscriptions.rs`.
+
+If you need to change the schedule, update BOTH the wrangler.toml AND the handler:
+
+**wrangler.toml:**
+```toml
+[triggers]
+crons = ["30 2 * * *", "45 5 * * *"]  # New schedules
+```
+
+**src/scheduled/downgrade_expired_subscriptions.rs:**
+```rust
+match cron_expr.as_str() {
+    "30 2 * * *" => run_subscription_downgrade(&db).await,  // Updated cron
+    "45 5 * * *" => run_webhook_cleanup(&db).await,         // Updated cron
+    // ...
+}
+```
+
+Then redeploy.
+
+---
+
 ## Step 10: Verify Your Deployment
 
 ### Check the Frontend

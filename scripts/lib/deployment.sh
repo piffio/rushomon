@@ -56,6 +56,13 @@ head_sampling_rate = 1
 enabled = true
 head_sampling_rate = 0.1
 
+# Cron Triggers for scheduled tasks
+# Format: array of cron expressions (Cloudflare doesn't support named triggers)
+# - "0 0 * * *" = midnight UTC daily (subscription downgrade)
+# - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
+[triggers]
+crons = ["0 0 * * *", "0 4 * * *"]
+
 [[d1_databases]]
 binding = "rushomon"
 database_id = "${D1_DATABASE_ID}"

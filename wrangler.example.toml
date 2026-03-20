@@ -19,15 +19,11 @@ head_sampling_rate = 0.1
 command = "cargo install -q worker-build && worker-build --release"
 
 # Cron Triggers for scheduled tasks
-# Each cron has a unique name that the scheduled handler uses to determine which job to run
-
-[[triggers.crons]]
-schedule = "0 0 * * *"
-name = "subscription_downgrade"
-
-[[triggers.crons]]
-schedule = "0 4 * * *"
-name = "webhook_cleanup"
+# Format: array of cron expressions (Cloudflare doesn't support named triggers)
+# - "0 0 * * *" = midnight UTC daily (subscription downgrade)
+# - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
+[triggers]
+crons = ["0 0 * * *", "0 4 * * *"]
 
 # KV Namespace for URL mappings
 # Run: wrangler kv:namespace create "URL_MAPPINGS"
