@@ -147,12 +147,40 @@ jobs:
           BUCKET_NAME="rushomon-assets-pr-$PR_NUMBER"
           echo "Attempting to delete R2 bucket: $BUCKET_NAME"
 
+          # Try to delete the bucket directly first - this is more reliable
+          echo "Attempting direct bucket deletion..."
+          DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          DELETE_HTTP_CODE="${DELETE_RESPONSE: -3}"
+          DELETE_RESPONSE_BODY="${DELETE_RESPONSE%???}"
+
+          echo "DEBUG: Direct delete response (HTTP $DELETE_HTTP_CODE): $DELETE_RESPONSE_BODY"
+
+          if [ "$DELETE_HTTP_CODE" = "204" ] || [ "$DELETE_HTTP_CODE" = "200" ]; then
+            echo "✅ Successfully deleted R2 bucket: $BUCKET_NAME"
+            echo "r2_result=success" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # If direct delete failed, check if bucket exists and has objects
+          echo "Direct delete failed, checking bucket status..."
+
           # First check if bucket exists
           BUCKET_LIST_RESPONSE=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
-          BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1)
+          echo "DEBUG: Bucket list response: $BUCKET_LIST_RESPONSE"
+
+          BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result.buckets[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1 2>/dev/null)
+
+          # If the above fails, try alternative structures
+          if [ -z "$BUCKET_EXISTS" ]; then
+            echo "DEBUG: Trying alternative response structure..."
+            BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1 2>/dev/null)
+          fi
 
           if [ -z "$BUCKET_EXISTS" ]; then
             echo "⚠️  R2 bucket not found: $BUCKET_NAME (may have already been deleted)"
@@ -160,7 +188,7 @@ jobs:
             exit 0
           fi
 
-          echo "Bucket exists, proceeding with deletion"
+          echo "Bucket exists, proceeding with object cleanup..."
 
           # List objects in bucket with better error handling
           LIST_RESPONSE=$(curl -s -w "%{http_code}" -X GET \
@@ -184,10 +212,10 @@ jobs:
 
           if [ "$OBJECT_COUNT" -gt 0 ]; then
             echo "Found $OBJECT_COUNT objects, purging before deletion..."
-            
+
             # Use bulk delete for better performance (up to 1000 objects per request)
             DELETE_BODY=$(jq -c '{"objects": [.result.objects[] | {key: .key}]}' /tmp/list_response.json)
-            
+
             BULK_DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets/$BUCKET_NAME/objects" \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
