@@ -187,6 +187,8 @@ load_config_with_yq() {
   # Deployment configuration
   export ENVIRONMENT_NAME=$(yq eval '.deployment.environment_name // "production"' "$config_file")
   export WORKER_NAME=$(yq eval '.deployment.worker_name // "rushomon-production"' "$config_file")
+  export DOMAIN_TYPE=$(yq eval '.deployment.domain_type // "custom"' "$config_file")
+  export SKIP_ROUTES=$(yq eval '.deployment.skip_routes // "false"' "$config_file")
   export SAVE_CONFIG=$(yq eval '.deployment.save_config // true' "$config_file")
 
   # Secrets
@@ -205,13 +207,15 @@ load_config_basic() {
   local config_file="$1"
 
   # Basic grep-based parsing (limited functionality)
-  export MAIN_DOMAIN=$(grep 'main:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
-  export API_DOMAIN=$(grep 'api:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
-  export REDIRECT_DOMAIN=$(grep 'redirect:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
+  export MAIN_DOMAIN=$(grep '^[[:space:]]*main:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
+  export API_DOMAIN=$(grep '^[[:space:]]*api:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
+  export REDIRECT_DOMAIN=$(grep '^[[:space:]]*redirect:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
 
   export GITHUB_CLIENT_ID=$(grep 'client_id:' "$config_file" | head -1 | awk '{print $2}' | tr -d '"' || echo "")
   export ENVIRONMENT_NAME=$(grep 'environment_name:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "production")
   export WORKER_NAME=$(grep 'worker_name:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "rushomon-production")
+  export DOMAIN_TYPE=$(grep 'domain_type:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "custom")
+  export SKIP_ROUTES=$(grep 'skip_routes:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "false")
 
   # R2 assets bucket (basic parsing)
   export R2_ASSETS_BUCKET_NAME=$(grep 'r2_assets_bucket_name:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
@@ -269,6 +273,8 @@ oauth:
 deployment:
   environment_name: "${ENVIRONMENT_NAME:-production}"
   worker_name: "${WORKER_NAME}"
+  domain_type: "${DOMAIN_TYPE:-custom}"
+  skip_routes: ${SKIP_ROUTES:-false}
   save_config: ${SAVE_CONFIG:-true}
 
 secrets:
