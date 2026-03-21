@@ -29,17 +29,37 @@ oauth:
   # GitHub OAuth (recommended, widely used)
   github:
     enabled: true
-    client_id: "Iv1.abc123..."
-    # Secret can be environment variable or inline (environment variable recommended)
-    # Set GITHUB_CLIENT_SECRET environment variable before running setup
+    client_id: "Ov23lixxxxxxxxxxxxxxx"  # Your GitHub OAuth App Client ID
+    # Secret should be set via GITHUB_CLIENT_SECRET environment variable
     client_secret: "${GITHUB_CLIENT_SECRET}"
 
   # Google OAuth (optional)
   google:
     enabled: false
-    client_id: ""
-    # Set GOOGLE_CLIENT_SECRET environment variable if enabled
+    client_id: ""  # Your Google OAuth Client ID
+    # Secret should be set via GOOGLE_CLIENT_SECRET environment variable
     client_secret: "${GOOGLE_CLIENT_SECRET}"
+
+# Email configuration (optional - for team invitations)
+mailgun:
+  enabled: false
+  domain: ""  # Your Mailgun domain (e.g., mg.yourdomain.com)
+  base_url: "https://api.mailgun.net/v3"
+  from: "Rushomon <noreply@yourdomain.com>"
+  # API key should be set via MAILGUN_API_KEY environment variable
+
+# Billing configuration (optional - for paid plans)
+polar:
+  enabled: false
+  # Access token from Polar.sh dashboard settings
+  access_token: "${POLAR_ACCESS_TOKEN}"
+  # Webhook secret from Polar.sh webhook configuration
+  webhook_secret: "${POLAR_WEBHOOK_SECRET}"
+  # Product IDs from Polar.sh dashboard (leave empty if not using that plan)
+  pro_monthly_product_id: ""
+  pro_annual_product_id: ""
+  business_monthly_product_id: ""
+  business_annual_product_id: ""
 
 # Deployment configuration
 deployment:
@@ -76,6 +96,10 @@ advanced:
   # Leave empty to skip R2 backups
   r2_backup_bucket: ""
 
+  # R2 bucket for organization logo storage (required for QR code logo feature)
+  # Will be created automatically if it doesn't exist
+  r2_assets_bucket_name: "rushomon-production-assets"
+
 # Example configurations for different scenarios:
 
 # Example 1: Single domain deployment (simplest)
@@ -108,10 +132,37 @@ advanced:
 #   api: "staging.rushomon.example.com"
 #   redirect: "staging.rushomon.example.com"
 
+# Example 5: Production with all features enabled
+# oauth:
+#   github:
+#     enabled: true
+#     client_id: "Ov23lixxxxxxxxxxxxxxx"
+#     client_secret: "${GITHUB_CLIENT_SECRET}"
+#   google:
+#     enabled: true
+#     client_id: "619822820604-a52lapfu2gad1738t9nd5sog7bmsbqr2.apps.googleusercontent.com"
+#     client_secret: "${GOOGLE_CLIENT_SECRET}"
+# mailgun:
+#   enabled: true
+#   domain: "mg.rushomon.example.com"
+#   from: "Rushomon <noreply@rushomon.example.com>"
+# polar:
+#   enabled: true
+#   pro_monthly_product_id: "prod_xxxxxxxxxxxxxxxx"
+#   pro_annual_product_id: "prod_xxxxxxxxxxxxxxxx"
+#   business_monthly_product_id: "prod_xxxxxxxxxxxxxxxx"
+#   business_annual_product_id: "prod_xxxxxxxxxxxxxxxx"
+# advanced:
+#   r2_assets_bucket_name: "rushomon-assets"
+
 # Usage:
 # 1. Copy this file: cp config/setup.example.yaml config/setup.yaml
 # 2. Edit config/setup.yaml with your values
 # 3. Set environment variables for secrets:
-#    export GITHUB_CLIENT_SECRET="your-secret"
+#    export GITHUB_CLIENT_SECRET="your-github-secret"
+#    export GOOGLE_CLIENT_SECRET="your-google-secret"     # If Google OAuth enabled
 #    export JWT_SECRET="your-jwt-secret"
+#    export MAILGUN_API_KEY="your-mailgun-key"            # If Mailgun enabled
+#    export POLAR_ACCESS_TOKEN="your-polar-token"         # If Polar billing enabled
+#    export POLAR_WEBHOOK_SECRET="your-polar-webhook"     # If Polar billing enabled
 # 4. Run setup: ./scripts/setup.sh --config config/setup.yaml

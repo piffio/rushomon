@@ -195,6 +195,7 @@ load_config_with_yq() {
   # Advanced options
   export ENABLE_KV_RATE_LIMITING=$(yq eval '.advanced.enable_kv_rate_limiting // false' "$config_file")
   export R2_BACKUP_BUCKET=$(yq eval '.advanced.r2_backup_bucket // ""' "$config_file")
+  export R2_ASSETS_BUCKET_NAME=$(yq eval '.advanced.r2_assets_bucket_name // ""' "$config_file")
 
   # Cloudflare
   export CLOUDFLARE_ACCOUNT_ID=$(yq eval '.cloudflare.account_id // ""' "$config_file")
@@ -211,7 +212,10 @@ load_config_basic() {
   export GITHUB_CLIENT_ID=$(grep 'client_id:' "$config_file" | head -1 | awk '{print $2}' | tr -d '"' || echo "")
   export ENVIRONMENT_NAME=$(grep 'environment_name:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "production")
   export WORKER_NAME=$(grep 'worker_name:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "rushomon-production")
-  
+
+  # R2 assets bucket (basic parsing)
+  export R2_ASSETS_BUCKET_NAME=$(grep 'r2_assets_bucket_name:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
+
   # Cloudflare configuration
   export CLOUDFLARE_ACCOUNT_ID=$(grep 'account_id:' "$config_file" | awk '{print $2}' | tr -d '"' || echo "")
 
@@ -270,9 +274,26 @@ deployment:
 secrets:
   jwt_secret: "\${JWT_SECRET}"
 
+mailgun:
+  enabled: $([ -n "${MAILGUN_DOMAIN:-}" ] && echo "true" || echo "false")
+  domain: "${MAILGUN_DOMAIN:-}"
+  base_url: "${MAILGUN_BASE_URL:-}"
+  from: "${MAILGUN_FROM:-}"
+  # Note: api_key should be set via MAILGUN_API_KEY environment variable
+
+polar:
+  enabled: ${POLAR_ENABLED:-false}
+  access_token: "\${POLAR_ACCESS_TOKEN}"
+  webhook_secret: "\${POLAR_WEBHOOK_SECRET}"
+  pro_monthly_product_id: "${POLAR_PRO_MONTHLY_PRODUCT_ID:-}"
+  pro_annual_product_id: "${POLAR_PRO_ANNUAL_PRODUCT_ID:-}"
+  business_monthly_product_id: "${POLAR_BUSINESS_MONTHLY_PRODUCT_ID:-}"
+  business_annual_product_id: "${POLAR_BUSINESS_ANNUAL_PRODUCT_ID:-}"
+
 advanced:
   enable_kv_rate_limiting: ${ENABLE_KV_RATE_LIMITING:-false}
   r2_backup_bucket: "${R2_BACKUP_BUCKET:-}"
+  r2_assets_bucket_name: "${R2_ASSETS_BUCKET_NAME:-}"
 EOF
 
   success "Configuration saved to $config_file"

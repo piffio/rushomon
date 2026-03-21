@@ -15,8 +15,15 @@
 #
 # Examples:
 #   ./scripts/setup.sh
+#   ./scripts/setup.sh --dry-run
 #   ./scripts/setup.sh --config config/staging.yaml
 #   ./scripts/setup.sh --config config/production.yaml --update
+#   ./scripts/setup.sh --config config/staging.yaml --dry-run  # Preview existing config
+#
+# Notes:
+#   - --dry-run generates config/{environment}.yaml when no --config is provided
+#   - --dry-run shows existing config when --config is provided (no overwriting)
+#   - Use environment variables for sensitive data (secrets, API keys)
 #
 
 set -euo pipefail
@@ -56,6 +63,13 @@ export MAILGUN_DOMAIN=""
 export MAILGUN_BASE_URL=""
 export MAILGUN_FROM=""
 export MAILGUN_API_KEY=""
+export POLAR_ENABLED=false
+export POLAR_ACCESS_TOKEN=""
+export POLAR_WEBHOOK_SECRET=""
+export POLAR_PRO_MONTHLY_PRODUCT_ID=""
+export POLAR_PRO_ANNUAL_PRODUCT_ID=""
+export POLAR_BUSINESS_MONTHLY_PRODUCT_ID=""
+export POLAR_BUSINESS_ANNUAL_PRODUCT_ID=""
 export ENABLE_KV_RATE_LIMITING=false
 export R2_BACKUP_BUCKET=""
 export R2_ASSETS_BUCKET_NAME=""
@@ -503,6 +517,31 @@ main() {
   # Dry run mode
   if [ "$DRY_RUN" = true ]; then
     info "DRY RUN MODE - No changes will be made"
+
+    if [ -n "$CONFIG_FILE" ]; then
+      info "Using existing configuration file: $CONFIG_FILE"
+      info "Configuration preview:"
+      echo ""
+      cat "$CONFIG_FILE"
+      echo ""
+      info "To run the actual deployment: ./scripts/setup.sh --config $CONFIG_FILE"
+    else
+      # Generate configuration file for dry-run
+      local config_dir="$PROJECT_ROOT/config"
+      mkdir -p "$config_dir"
+
+      local config_file="$config_dir/${ENVIRONMENT_NAME}.yaml"
+      info "Generating configuration file: $config_file"
+
+      if save_config "$config_file"; then
+        success "Configuration file generated: $config_file"
+        info "You can run the actual deployment with: ./scripts/setup.sh --config $config_file"
+      else
+        error "Failed to generate configuration file"
+        exit 1
+      fi
+    fi
+
     exit 0
   fi
 

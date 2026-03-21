@@ -11,8 +11,8 @@
 #   - Resource management
 #
 
-# Suppress wrangler update warnings that break jq JSON parsing
-export WRANGLER_LOG="error"
+# Note: WRANGLER_LOG="error" is set per-command to suppress warnings that break JSON parsing
+# Do not set it globally as it interferes with JSON output parsing
 
 # Source common utilities if not already loaded
 if [ -z "$BLUE" ]; then
@@ -118,13 +118,50 @@ EOF
   rm -f "$temp_config"
 
   debug "Raw D1 create output: $output"
+  debug "Output length: ${#output}"
+  debug "Output first 200 chars: ${output:0:200}"
 
-  # Extract database_id from the JSON output
-  local db_id=$(echo "$output" | tr -d '\033' | grep -o '"database_id": "[^"]*"' | sed 's/"database_id": "//;s/"//' | tail -1)
+  # Try multiple extraction methods for maximum compatibility
+  local db_id=""
+
+  # Method 1: Extract database_id from wrangler output format
+  if [ -z "$db_id" ]; then
+    db_id=$(echo "$output" | grep 'database_id = ' | sed 's/.*database_id = "//;s/".*//' | head -1)
+    debug "Method 1 (wrangler format): ${db_id:-"EMPTY"}"
+  fi
+
+  # Method 2: Extract database_id from JSON format (fallback)
+  if [ -z "$db_id" ]; then
+    db_id=$(echo "$output" | tr -d '\033' | jq -r '.database_id // empty' 2>/dev/null || echo "")
+    debug "Method 2 (JSON format): ${db_id:-"EMPTY"}"
+  fi
+
+  # Method 3: Extract JSON objects then parse (fallback)
+  if [ -z "$db_id" ] || [ "$db_id" = "null" ]; then
+    db_id=$(echo "$output" | tr -d '\033' | grep -o '{[^}]*}' | jq -r '.database_id // empty' 2>/dev/null | tail -1 || echo "")
+    debug "Method 3 (extract JSON): ${db_id:-"EMPTY"}"
+  fi
+
+  # Method 4: Fallback to original grep/sed method
+  if [ -z "$db_id" ] || [ "$db_id" = "null" ]; then
+    db_id=$(echo "$output" | tr -d '\033' | grep -o '"database_id": "[^"]*"' | sed 's/"database_id": "//;s/"//' | tail -1)
+    debug "Method 4 (grep/sed fallback): ${db_id:-"EMPTY"}"
+  fi
+
+  debug "Final db_id: ${db_id:-"EMPTY"}"
 
   if [ -z "$db_id" ] || [ "$db_id" = "null" ]; then
+    # Enable debug output for troubleshooting
+    export DEBUG=true
     error "Failed to create database: $db_name - no ID returned"
     debug "Output was: $output"
+    debug "Output length: ${#output}"
+    debug "Output first 500 chars: ${output:0:500}"
+    echo ""
+    echo -e "${YELLOW}=== DEBUGGING INFO ===${NC}"
+    echo "This appears to be the issue reported in #175."
+    echo "Please share this output with the developers to help fix the parsing issue."
+    echo ""
     return 1
   fi
 
@@ -166,7 +203,7 @@ list_kv_namespaces() {
 kv_namespace_exists() {
   local kv_title="$1"
 
-  local existing_id=$(wrangler kv namespace list 2>/dev/null | tr -d '\033' | jq -r ".[] | select(.title == \"$kv_title\") | .id")
+  local existing_id=$(wrangler kv namespace list 2>/dev/null | sed -n '/^\[/,$p' | jq -r ".[] | select(.title == \"$kv_title\") | .id" 2>/dev/null || echo "")
 
   if [ -n "$existing_id" ] && [ "$existing_id" != "null" ]; then
     return 0
@@ -184,13 +221,11 @@ get_kv_namespace_id() {
     return 1
   }
 
-  local kv_id=$(echo "$output" | tr -d '\033' | jq -r ".[] | select(.title == \"$kv_title\") | .id" 2>/dev/null) || {
-    error "Failed to parse KV namespace list"
-    return 1
-  }
+  local kv_id=$(echo "$output" | sed -n '/^\[/,$p' | jq -r ".[] | select(.title == \"$kv_title\") | .id" 2>/dev/null || echo "")
 
   if [ -z "$kv_id" ] || [ "$kv_id" = "null" ]; then
     error "KV namespace '$kv_title' not found"
+    echo "$output"
     return 1
   fi
 
@@ -232,13 +267,50 @@ EOF
   rm -f "$temp_config"
 
   debug "Raw KV create output: $output"
+  debug "Output length: ${#output}"
+  debug "Output first 200 chars: ${output:0:200}"
 
-  # Extract id from the JSON output
-  local kv_id=$(echo "$output" | tr -d '\033' | grep -o '"id": "[^"]*"' | sed 's/"id": "//;s/"//' | tail -1)
+  # Try multiple extraction methods for maximum compatibility
+  local kv_id=""
+
+  # Method 1: Extract id from wrangler output format
+  if [ -z "$kv_id" ]; then
+    kv_id=$(echo "$output" | grep 'id = ' | sed 's/.*id = "//;s/".*//' | head -1)
+    debug "Method 1 (wrangler format): ${kv_id:-"EMPTY"}"
+  fi
+
+  # Method 2: Extract id from JSON format (fallback)
+  if [ -z "$kv_id" ]; then
+    kv_id=$(echo "$output" | tr -d '\033' | jq -r '.id // empty' 2>/dev/null || echo "")
+    debug "Method 2 (JSON format): ${kv_id:-"EMPTY"}"
+  fi
+
+  # Method 3: Extract JSON objects then parse (fallback)
+  if [ -z "$kv_id" ] || [ "$kv_id" = "null" ]; then
+    kv_id=$(echo "$output" | tr -d '\033' | grep -o '{[^}]*}' | jq -r '.id // empty' 2>/dev/null | tail -1 || echo "")
+    debug "Method 3 (extract JSON): ${kv_id:-"EMPTY"}"
+  fi
+
+  # Method 4: Fallback to original grep/sed method
+  if [ -z "$kv_id" ] || [ "$kv_id" = "null" ]; then
+    kv_id=$(echo "$output" | tr -d '\033' | grep -o '"id": "[^"]*"' | sed 's/"id": "//;s/"//' | tail -1)
+    debug "Method 4 (grep/sed fallback): ${kv_id:-"EMPTY"}"
+  fi
+
+  debug "Final kv_id: ${kv_id:-"EMPTY"}"
 
   if [ -z "$kv_id" ] || [ "$kv_id" = "null" ]; then
+    # Enable debug output for troubleshooting
+    export DEBUG=true
     error "Failed to create KV namespace: $kv_title - no ID returned"
     debug "Output was: $output"
+    debug "Output length: ${#output}"
+    debug "Output first 500 chars: ${output:0:500}"
+    echo ""
+    echo -e "${YELLOW}=== DEBUGGING INFO ===${NC}"
+    echo "This appears to be a similar parsing issue to #175."
+    echo "Please share this output with the developers to help fix the parsing issue."
+    echo ""
     return 1
   fi
 
@@ -380,8 +452,8 @@ list_zones() {
 create_or_get_r2_bucket() {
   local bucket_name="$1"
 
-  # Check if bucket exists
-  if wrangler r2 bucket list --json 2>/dev/null | jq -e ".[] | select(.name == \"$bucket_name\")" >/dev/null; then
+  # Check if bucket exists (parse human-readable output)
+  if wrangler r2 bucket list 2>/dev/null | grep -q "^name:.*$bucket_name$"; then
     info "R2 bucket '$bucket_name' already exists"
     return 0
   fi
