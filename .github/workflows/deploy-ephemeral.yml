@@ -672,14 +672,12 @@ jobs:
           }
           EOF
 
-      - name: Upload Deployment Info as Artifact
+      - name: Cache Deployment Info
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.6.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          name: ephemeral-deployment-pr-${{ steps.pr_number.outputs.pr_number }}
           path: .github/ephemeral-envs/pr-${{ steps.pr_number.outputs.pr_number }}.json
-          retention-days: 30
-          if-no-files-found: warn
+          key: ephemeral-deployment-pr-${{ steps.pr_number.outputs.pr_number }}
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
