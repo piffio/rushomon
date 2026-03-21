@@ -16,6 +16,8 @@ jobs:
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_NODE_VERSION: "24"
     steps:
       - uses: actions/checkout@v4
       - name: Install the Rust toolchain
@@ -30,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SQLX_OFFLINE: true
+      ACTIONS_NODE_VERSION: "24"
     steps:
       - uses: actions/checkout@v4
       - name: Install the Rust toolchain
@@ -43,6 +46,8 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      ACTIONS_NODE_VERSION: "24"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -65,6 +70,8 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      ACTIONS_NODE_VERSION: "24"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -78,7 +85,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
