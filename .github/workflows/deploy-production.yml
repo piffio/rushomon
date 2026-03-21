@@ -260,10 +260,8 @@ jobs:
           DOMAIN = "${{ secrets.API_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
-          POLAR_PRO_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_PRO_MONTHLY_PRODUCT_ID }}"
-          POLAR_PRO_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_PRO_ANNUAL_PRODUCT_ID }}"
-          POLAR_BUSINESS_MONTHLY_PRODUCT_ID = "${{ secrets.POLAR_BUSINESS_MONTHLY_PRODUCT_ID }}"
-          POLAR_BUSINESS_ANNUAL_PRODUCT_ID = "${{ secrets.POLAR_BUSINESS_ANNUAL_PRODUCT_ID }}"
+          ENABLE_KV_RATE_LIMITING = "false"
+          POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
           POLAR_SANDBOX = "false"
           EOF
 
