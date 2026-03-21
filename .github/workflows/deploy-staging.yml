@@ -31,6 +31,8 @@ jobs:
     # Only run if tests passed (or manual trigger)
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     environment: staging
+    env:
+      ACTIONS_NODE_VERSION: "24"
 
     steps:
       - name: Checkout code
@@ -39,7 +41,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install wrangler
         run: npm install -g wrangler
@@ -136,6 +138,8 @@ jobs:
     needs: backup
     environment:
       name: staging
+    env:
+      ACTIONS_NODE_VERSION: "24"
 
     steps:
       - name: Checkout code
@@ -220,7 +224,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache Rust
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: '.'
 
@@ -235,7 +239,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install wrangler
         run: npm install -g wrangler
