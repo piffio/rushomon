@@ -384,15 +384,15 @@ jobs:
 
             ${{ steps.check_deployment.outputs.should_cleanup == 'true' && format('Resources for PR #{0} cleanup summary:', steps.pr_number.outputs.pr_number) || format('No deployment found for PR #{0} - nothing to clean up.', steps.pr_number.outputs.pr_number) }}
 
-            ${{ steps.check_deployment.outputs.should_cleanup == 'true' && '
+            ${{ steps.check_deployment.outputs.should_cleanup == 'true' && format('
             | Resource | Status |
             |----------|--------|
-            | Worker `rushomon-pr-' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_worker.outputs.worker_result == 'success' && '✅ Deleted' || steps.delete_worker.outputs.worker_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
-            | KV Namespace `URL_MAPPINGS_pr_' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_kv.outputs.kv_result == 'success' && '✅ Deleted' || steps.delete_kv.outputs.kv_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
-            | D1 Database `rushomon-pr-' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_d1.outputs.d1_result == 'success' && '✅ Deleted' || steps.delete_d1.outputs.d1_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
-            | R2 Bucket `rushomon-assets-pr-' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_r2.outputs.r2_result == 'success' && '✅ Deleted' || steps.delete_r2.outputs.r2_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
+            | Worker `rushomon-pr-{0}` | {1}
+            | KV Namespace `URL_MAPPINGS_pr_{0}` | {2}
+            | D1 Database `rushomon-pr-{0}` | {3}
+            | R2 Bucket `rushomon-assets-pr-{0}` | {4}
 
-            *Cleanup completed automatically when PR was closed.*' || '
+            *Cleanup completed automatically when PR was closed.*', steps.pr_number.outputs.pr_number, steps.delete_worker.outputs.worker_result == 'success' && '✅ Deleted' || steps.delete_worker.outputs.worker_result == 'failed' && '❌ Failed' || '⚠️ Not found', steps.delete_kv.outputs.kv_result == 'success' && '✅ Deleted' || steps.delete_kv.outputs.kv_result == 'failed' && '❌ Failed' || '⚠️ Not found', steps.delete_d1.outputs.d1_result == 'success' && '✅ Deleted' || steps.delete_d1.outputs.d1_result == 'failed' && '❌ Failed' || '⚠️ Not found', steps.delete_r2.outputs.r2_result == 'success' && '✅ Deleted' || steps.delete_r2.outputs.r2_result == 'failed' && '❌ Failed' || '⚠️ Not found') || '
             *No cleanup was needed as this PR was never deployed.*' }}
 
             ${{ steps.check_deployment.outputs.should_cleanup == 'true' && '**Note:** If this PR had the `skip-preview` label, resources were still cleaned up because they were deployed before the label was added.' || '**Note:** This helps avoid error messages and wasted API calls when PRs are never deployed.' }}
