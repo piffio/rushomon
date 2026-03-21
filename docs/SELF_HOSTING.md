@@ -6,6 +6,24 @@ Step-by-step guide to deploy your own Rushomon URL shortener instance on Cloudfl
 
 The fastest way to deploy Rushomon is using our **automated setup script**. However, you must complete the prerequisites below **before** running the script.
 
+### 🚀 Deployment Options
+
+Rushomon offers two deployment options:
+
+**Workers.dev Subdomain (Instant Setup)**
+- ⚡ **No DNS required** - Deploy in minutes
+- 🆓 **Completely free** - Uses Cloudflare's subdomain
+- 🎯 **Perfect for testing** - Try Rushomon instantly
+- 📝 **Format**: `your-worker.your-subdomain.workers.dev`
+
+**Custom Domain (Production Setup)**
+- 🏢 **Professional appearance** - Use your own domain
+- 🔧 **Full control** - Multi-worker deployment support
+- 🌐 **Brand consistency** - Your branded URLs
+- ⚠️ **Requires DNS setup** - Add domain to Cloudflare first
+
+Both options are fully supported and documented below. Choose Workers.dev for quick testing, or Custom Domain for production use.
+
 ### Prerequisites (Complete These First)
 
 Before running the setup script, you need to prepare:
@@ -50,13 +68,26 @@ This opens your browser to authenticate. Verify it worked:
 wrangler whoami
 ```
 
-#### 3. Add Domain(s) to Cloudflare
+#### 3. Choose Your Deployment Type
 
-If you already have a domain setup in Cloudflare, you can skip this part.
-If you're setting up a new domain for it, then follow the next steps.
+Rushomon supports two deployment types:
 
-⚠️ **IMPORTANT**: Your domain(s) must be added to Cloudflare and have **Active** status before running the setup script.
+**Option A: Workers.dev Subdomain (Recommended for testing)**
+- **Instant setup**: No DNS configuration required
+- **Free**: Uses Cloudflare's default subdomain
+- **Format**: `your-worker.your-subdomain.workers.dev`
+- **Limitations**: Single worker deployment only
 
+**Option B: Custom Domain (Recommended for production)**
+- **Professional**: Use your own domain (e.g., `links.example.com`)
+- **Flexible**: Supports multi-worker deployment
+- **Requires**: DNS setup with Cloudflare
+
+⚠️ **IMPORTANT**: For custom domains, your domain(s) must be added to Cloudflare and have **Active** status before running the setup script.
+
+**For Workers.dev**: No setup required - just choose this option in the setup script.
+
+**For Custom Domains**:
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
 2. Click **Add a site** → enter your domain (e.g., `myapp.com`)
 3. Select the **Free** plan
@@ -79,8 +110,8 @@ Verify in the Cloudflare dashboard that your domain is active and has the correc
 2. Click **OAuth Apps** → **New OAuth App**
 3. Fill in:
    - **Application name**: `Rushomon` (or your preferred name)
-   - **Homepage URL**: `https://myapp.com` (your main domain)
-   - **Authorization callback URL**: `https://myapp.com/api/auth/callback` (or your API domain)
+   - **Homepage URL**: `https://your-domain.com` (your Workers.dev or custom domain)
+   - **Authorization callback URL**: `https://your-domain.com/api/auth/callback` (or your API domain)
 4. Click **Register application**
 5. Save the **Client ID** (you'll enter this in the setup script)
 6. Click **Generate a new client secret** and save the **Client Secret** securely
@@ -96,7 +127,7 @@ Verify in the Cloudflare dashboard that your domain is active and has the correc
    - Scopes: `openid`, `email`, `profile`
 5. Create OAuth 2.0 Client ID:
    - Application type: **Web application**
-   - **Authorized redirect URIs**: `https://myapp.com/api/auth/callback` (or your API domain)
+   - **Authorized redirect URIs**: `https://your-domain.com/api/auth/callback` (or your API domain)
 6. Click **Create** and save both **Client ID** and **Client Secret**
 
 ⚠️ **Important**: Never commit OAuth secrets to version control. The setup script will prompt you for these securely, and you might want to store them in a secure password manager.
@@ -110,7 +141,8 @@ Once all prerequisites are complete, run:
 ```
 
 The interactive wizard will guide you through:
-- ✓ Domain configuration (single or multi-domain)
+- ✓ **Deployment type selection** (Workers.dev subdomain or custom domain)
+- ✓ Domain configuration (single or multi-domain for custom domains)
 - ✓ OAuth credential entry (GitHub and/or Google)
 - ✓ Mailgun email setup (team invitations - optional)
 - ✓ Cloudflare resource creation (D1 database, KV namespace, R2 bucket)
@@ -142,18 +174,26 @@ export JWT_SECRET="$(openssl rand -base64 32)"
 
 ### After Setup Completes
 
-The script will display a summary with your deployment URLs. You still need to:
+The script will display a summary with your deployment URLs. Next steps depend on your deployment type:
 
+**For Workers.dev deployments:**
+- 🎉 **Ready to use!** Your instance is immediately available at the Workers.dev URL
+- No additional configuration required
+
+**For Custom Domain deployments:**
 1. **Configure custom domains** in Cloudflare Dashboard:
    - Go to **Workers & Pages** → Your worker → **Settings** → **Domains**
    - Add your custom domain(s) (the script will remind you)
 
-2. **Configure rate limiting** (recommended):
+2. **Configure rate limiting** (recommended for both deployment types):
    - See [Step 8](#step-8-configure-rate-limiting-important) below for setup instructions
 
 3. **Test your deployment**:
    ```bash
-   # Should return your landing page
+   # Workers.dev
+   curl https://your-worker.your-subdomain.workers.dev/
+
+   # Custom domain
    curl https://myapp.com/
 
    # Should return 401 (authentication required)
@@ -387,11 +427,18 @@ main = "build/worker/shim.mjs"
 compatibility_date = "2026-02-10"
 workers_dev = false
 
-# Custom domains (configure these after first deployment via Cloudflare Dashboard)
-# These are the domains that will route to your Worker:
-# - myapp.com (main web interface)
-# - api.myapp.com (API subdomain)
-# - short.io (short link redirects)
+# Domain configuration
+# For Workers.dev: No routes section needed (automatically handled)
+# For Custom Domains: Uncomment and configure routes below
+# [[routes]]
+# pattern = "myapp.com"
+# custom_domain = true
+# [[routes]]
+# pattern = "api.myapp.com"
+# custom_domain = true
+# [[routes]]
+# pattern = "short.io"
+# custom_domain = true
 
 # D1 Database
 [[d1_databases]]
@@ -554,8 +601,12 @@ This deploys the unified Worker with both frontend assets and backend API.
 
 ---
 
-## Step 7: Configure Custom Domains
+## Step 7: Configure Domains
 
+**For Workers.dev deployments:**
+- 🎉 **Nothing to configure!** Your instance is ready at the Workers.dev URL
+
+**For Custom Domain deployments:**
 After deployment, attach custom domains to your Worker via the Cloudflare Dashboard.
 
 1. Go to [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages)
@@ -936,6 +987,11 @@ This returns version information including the current version, build timestamp,
 ---
 
 ## Troubleshooting
+
+### Workers.dev deployment not working
+- Verify the Workers.dev subdomain is correctly formatted: `worker-name.subdomain.workers.dev`
+- Check that the worker name matches your configuration
+- Try redeploying with `wrangler deploy`
 
 ### Custom domain not working
 - Ensure the zone is **Active** in Cloudflare (check DNS tab)

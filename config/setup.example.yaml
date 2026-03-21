@@ -73,6 +73,15 @@ deployment:
   # Format: rushomon-{environment_name}
   worker_name: "rushomon-production"
 
+  # Domain type: custom or workers_dev
+  # - custom: Your own domain (requires DNS setup)
+  # - workers_dev: Cloudflare's default subdomain (no DNS needed)
+  domain_type: "custom"
+
+  # Skip routes generation (for Workers.dev deployments)
+  # Set to true when using workers_dev domain type
+  skip_routes: false
+
   # Save generated wrangler.toml file to repository
   # Set to false if you don't want to commit the config
   save_config: true
@@ -132,7 +141,19 @@ advanced:
 #   api: "staging.rushomon.example.com"
 #   redirect: "staging.rushomon.example.com"
 
-# Example 5: Production with all features enabled
+# Example 5: Workers.dev deployment (quick setup, no DNS required)
+# deployment:
+#   environment_name: "dev"
+#   worker_name: "rushomon-dev"
+#   domain_type: "workers_dev"
+#   skip_routes: true
+# domains:
+#   strategy: "single"
+#   main: "rushomon-dev.your-subdomain.workers.dev"
+#   api: "rushomon-dev.your-subdomain.workers.dev"
+#   redirect: "rushomon-dev.your-subdomain.workers.dev"
+
+# Example 6: Production with all features enabled
 # oauth:
 #   github:
 #     enabled: true

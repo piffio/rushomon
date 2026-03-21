@@ -21,7 +21,7 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 - **Multi-Organization Support**: Users can create and belong to multiple organizations, with seamless context switching
 - **Team Invitations**: Invite team members by email with role-based access (owner/admin/member); invitation lifecycle management (create, resend, revoke, accept)
 - **Billing Accounts**: Tier limits enforced at billing account level, decoupled from individual organizations
-- **Self-hostable**: Run on your own custom domain, with straightforward deployment in Cloudflare's free tier
+- **Self-hostable**: Run on Cloudflare Workers with instant Workers.dev subdomain setup or custom domain configuration
 - **Abuse Reporting**: Users can report abusive links
 - **Tagging**: Links can be tagged for better organization and filtering
 - **Link Status Management**: Active/Disabled/Deleted states with soft delete functionality
@@ -45,7 +45,7 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 
 Rushomon can be used in two ways:
 
-1. **Self-hosted**: Deploy your own instance on Cloudflare Workers. Check the [SELF_HOSTING.md](./docs/SELF_HOSTING.md) file for detailed instructions. You will need to deploy your own domain and ensure the whole configuration is working.
+1. **Self-hosted**: Deploy your own instance on Cloudflare Workers. Check the [SELF_HOSTING.md](./docs/SELF_HOSTING.md) file for detailed instructions. You can deploy instantly using Workers.dev subdomains or use your own custom domain.
 
 2. **Managed service**: Use the public instance at https://rushomon.cc. It's currently in beta and you can sign up to try the free tier via GitHub or Google OAuth. Paid tiers will be made available in the near future. Signing up for a Rushomon subscription is the best way to support the open-source development of this project.
 

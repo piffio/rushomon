@@ -14,16 +14,23 @@
 #   --help           Show this help message
 #
 # Examples:
-#   ./scripts/setup.sh
-#   ./scripts/setup.sh --dry-run
-#   ./scripts/setup.sh --config config/staging.yaml
+#   ./scripts/setup.sh                                    # Interactive setup
+#   ./scripts/setup.sh --dry-run                         # Preview config
+#   ./scripts/setup.sh --config config/staging.yaml      # Use existing config
 #   ./scripts/setup.sh --config config/production.yaml --update
 #   ./scripts/setup.sh --config config/staging.yaml --dry-run  # Preview existing config
+#
+# Domain Types:
+#   - Custom Domain: Your own domain (requires DNS setup with Cloudflare)
+#   - Workers.dev: Cloudflare's default subdomain (no DNS required, instant setup)
+#     Format: <worker-name>.<your-subdomain>.workers.dev
+#     Example: rushomon-prod.mycompany.workers.dev
 #
 # Notes:
 #   - --dry-run generates config/{environment}.yaml when no --config is provided
 #   - --dry-run shows existing config when --config is provided (no overwriting)
 #   - Use environment variables for sensitive data (secrets, API keys)
+#   - Workers.dev deployments automatically skip route configuration
 #
 
 set -euo pipefail
@@ -48,10 +55,12 @@ DRY_RUN=false
 # Default values
 export ENVIRONMENT_NAME="production"
 export WORKER_NAME=""
+export DOMAIN_TYPE="custom"  # Default to custom domain for backward compatibility
 export DOMAIN_STRATEGY="single"
 export MAIN_DOMAIN=""
 export API_DOMAIN=""
 export REDIRECT_DOMAIN=""
+export SKIP_ROUTES="false"  # Whether to skip routes generation (for workers.dev)
 export GITHUB_ENABLED=true
 export GITHUB_CLIENT_ID=""
 export GITHUB_CLIENT_SECRET=""
@@ -207,6 +216,71 @@ check_prerequisites() {
   echo ""
 }
 
+# Configure basic deployment info (needed for domain configuration)
+configure_basic_deployment() {
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}Basic Deployment Information${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+
+  # Environment name
+  export ENVIRONMENT_NAME=$(prompt_input "Environment name" "production" validate_environment_name)
+
+  # Worker name
+  local default_worker_name="rushomon-${ENVIRONMENT_NAME}"
+  export WORKER_NAME=$(prompt_input "Worker name" "$default_worker_name" validate_worker_name)
+
+  success "Basic deployment info configured"
+  echo ""
+}
+
+# Configure domain type (Custom vs Workers.dev)
+configure_domain_type() {
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}Domain Type Selection${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo "Choose your deployment type:"
+  echo ""
+  echo -e "  ${CYAN}1. Custom Domain${NC}"
+  echo "     Your own domain (e.g., example.com, app.example.com)"
+  echo "     Requires DNS setup with Cloudflare"
+  echo "     Supports multi-worker deployment"
+  echo "     Professional appearance"
+  echo ""
+  echo -e "  ${CYAN}2. Workers.dev Subdomain${NC}"
+  echo "     Cloudflare's default subdomain (e.g., rushomon-example.workers.dev)"
+  echo "     No DNS setup required - instant deployment"
+  echo "     Single worker deployment only"
+  echo "     Quick and easy to get started"
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+
+  while true; do
+    local selection=$(prompt_input "Choose deployment type [1/2]" "2")
+    case $selection in
+      1)
+        export DOMAIN_TYPE="custom"
+        break
+        ;;
+      2)
+        export DOMAIN_TYPE="workers_dev"
+        break
+        ;;
+      *)
+        warning "Please enter 1 or 2"
+        ;;
+    esac
+  done
+
+  echo ""
+  success "Selected: $([ "$DOMAIN_TYPE" = "custom" ] && echo "Custom Domain" || echo "Workers.dev Subdomain")"
+  echo ""
+}
+
 # Configure domains interactively
 configure_domains() {
   echo ""
@@ -214,6 +288,40 @@ configure_domains() {
   echo -e "${GREEN}Domain Configuration${NC}"
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
+
+  # Handle Workers.dev subdomain configuration
+  if [ "$DOMAIN_TYPE" = "workers_dev" ]; then
+    echo "Configuring Workers.dev subdomain deployment..."
+    echo ""
+
+    # Get workers.dev subdomain (the account's workers.dev subdomain)
+    # This is the part between worker name and .workers.dev
+    local default_subdomain="your-subdomain"  # Default to a reasonable subdomain
+    while true; do
+      local workers_subdomain=$(prompt_input "Workers.dev account subdomain" "$default_subdomain")
+      if [ -n "$workers_subdomain" ] && [[ "$workers_subdomain" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$ ]]; then
+        break
+      fi
+      warning "Subdomain must contain only letters, numbers, and hyphens, and start/end with alphanumeric"
+    done
+
+    # Set all domains to the full workers.dev URL
+    export MAIN_DOMAIN="${WORKER_NAME}.${workers_subdomain}.workers.dev"
+    export API_DOMAIN="${WORKER_NAME}.${workers_subdomain}.workers.dev"
+    export REDIRECT_DOMAIN="${WORKER_NAME}.${workers_subdomain}.workers.dev"
+    export DOMAIN_STRATEGY="single"  # Workers.dev only supports single domain
+    export SKIP_ROUTES="true"  # Don't generate routes for workers.dev
+
+    echo ""
+    success "Workers.dev domains configured:"
+    echo "  Main:     $MAIN_DOMAIN"
+    echo "  API:      $API_DOMAIN"
+    echo "  Redirect: $REDIRECT_DOMAIN"
+    echo ""
+    return
+  fi
+
+  # Custom domain configuration (existing logic)
   echo "Choose your domain strategy:"
   echo ""
   echo -e "  ${CYAN}1. Single domain${NC} (simplest)"
@@ -236,9 +344,25 @@ configure_domains() {
   case $domain_strategy in
     1)
       export DOMAIN_STRATEGY="single"
+      export SKIP_ROUTES="false"
       while true; do
         export MAIN_DOMAIN=$(prompt_input "Domain" "")
         if validate_domain_format "$MAIN_DOMAIN"; then
+          # Auto-detect workers.dev and switch mode
+          if echo "$MAIN_DOMAIN" | grep -qE '\.workers\.dev$'; then
+            info "Detected Workers.dev subdomain, switching to Workers.dev deployment mode..."
+            export DOMAIN_TYPE="workers_dev"
+            export DOMAIN_STRATEGY="single"
+            export SKIP_ROUTES="true"
+            export API_DOMAIN="$MAIN_DOMAIN"
+            export REDIRECT_DOMAIN="$MAIN_DOMAIN"
+            success "Auto-configured Workers.dev deployment:"
+            echo "  Main:     $MAIN_DOMAIN"
+            echo "  API:      $API_DOMAIN"
+            echo "  Redirect: $REDIRECT_DOMAIN"
+            echo ""
+            return
+          fi
           export API_DOMAIN="$MAIN_DOMAIN"
           export REDIRECT_DOMAIN="$MAIN_DOMAIN"
           break
@@ -247,6 +371,7 @@ configure_domains() {
       ;;
     2)
       export DOMAIN_STRATEGY="multi"
+      export SKIP_ROUTES="false"
       while true; do
         export MAIN_DOMAIN=$(prompt_input "Main domain (web interface)" "")
         if validate_domain_format "$MAIN_DOMAIN"; then
@@ -268,6 +393,7 @@ configure_domains() {
       ;;
     3)
       export DOMAIN_STRATEGY="custom"
+      export SKIP_ROUTES="false"
       local parent_domain=$(prompt_input "Parent domain" "")
       while ! validate_domain_format "$parent_domain"; do
         parent_domain=$(prompt_input "Parent domain" "")
@@ -395,23 +521,15 @@ configure_polar() {
   echo ""
 }
 
-# Configure deployment options
-configure_deployment_options() {
+# Configure advanced deployment options (excluding basic info already set)
+configure_deployment_options_advanced() {
   echo ""
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${GREEN}Deployment Configuration${NC}"
+  echo -e "${GREEN}Advanced Deployment Options${NC}"
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
-
-  # Environment name
-  export ENVIRONMENT_NAME=$(prompt_input "Environment name" "production" validate_environment_name)
-
-  # Worker name
-  local default_worker_name="rushomon-${ENVIRONMENT_NAME}"
-  export WORKER_NAME=$(prompt_input "Worker name" "$default_worker_name" validate_worker_name)
 
   # R2 assets bucket (required for org logo storage)
-  echo ""
   echo "R2 bucket for organization logo storage (required for QR code logo feature)."
   local default_assets_bucket="${WORKER_NAME}-assets"
   while true; do
@@ -423,7 +541,7 @@ configure_deployment_options() {
   done
 
   # Advanced options
-  if prompt_yes_no "Configure advanced options?" "n"; then
+  if prompt_yes_no "Configure additional advanced options?" "n"; then
     if prompt_yes_no "Enable KV-based rate limiting? (costs money, Cloudflare rate limiting recommended)" "n"; then
       export ENABLE_KV_RATE_LIMITING=true
     fi
@@ -434,14 +552,28 @@ configure_deployment_options() {
     fi
   fi
 
-  success "Deployment configuration complete"
+  success "Advanced deployment options configured"
   echo ""
+}
+
+# Configure deployment options (legacy - kept for backward compatibility)
+configure_deployment_options() {
+  # This function is kept for backward compatibility but should not be called
+  # in the normal flow since configure_basic_deployment and configure_deployment_options_advanced
+  # handle the setup separately now.
+  warning "This function should not be called directly - use configure_basic_deployment and configure_deployment_options_advanced"
 }
 
 # Interactive configuration flow
 interactive_configuration() {
   info "Starting interactive configuration..."
   echo ""
+
+  # Configure basic deployment info first (needed for domain configuration)
+  configure_basic_deployment
+
+  # Configure domain type
+  configure_domain_type
 
   # Configure domains
   configure_domains
@@ -455,8 +587,8 @@ interactive_configuration() {
   # Configure Polar billing (optional)
   configure_polar
 
-  # Configure deployment options
-  configure_deployment_options
+  # Configure deployment options (excluding the basic info we already set)
+  configure_deployment_options_advanced
 
   success "Configuration complete"
 }

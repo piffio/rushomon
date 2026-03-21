@@ -25,10 +25,15 @@ validate_domain_format() {
     return 1
   fi
 
-  # Check for valid domain format
+  # Check for workers.dev subdomain format
+  if echo "$domain" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.workers\.dev$'; then
+    return 0  # Valid workers.dev subdomain
+  fi
+
+  # Check for valid custom domain format
   if ! echo "$domain" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$'; then
     error "Invalid domain format: $domain"
-    info "Domain should be like: example.com or api.example.com"
+    info "Domain should be like: example.com, api.example.com, or app-name.subdomain.workers.dev"
     return 1
   fi
 

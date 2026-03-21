@@ -103,6 +103,8 @@ EOF
 DOMAIN = "${API_DOMAIN}"
 FRONTEND_URL = "https://${MAIN_DOMAIN}"
 ALLOWED_ORIGINS = "https://${MAIN_DOMAIN},https://${API_DOMAIN}"
+PUBLIC_VITE_API_BASE_URL = "https://${API_DOMAIN}"
+PUBLIC_VITE_SHORT_LINK_BASE_URL = "https://${REDIRECT_DOMAIN}"
 ENABLE_KV_RATE_LIMITING = "${ENABLE_KV_RATE_LIMITING:-false}"
 EOF
 
@@ -126,21 +128,22 @@ POLAR_SANDBOX = "${POLAR_SANDBOX:-true}"
 EOF
   fi
 
-  # Add custom domain routes
-  info "Adding custom domain routes for ${DOMAIN_STRATEGY:-single} domain strategy..."
+  # Add custom domain routes (skip for Workers.dev)
+  if [ "${SKIP_ROUTES:-false}" != "true" ]; then
+    info "Adding custom domain routes for ${DOMAIN_STRATEGY:-single} domain strategy..."
 
-  if [ "${DOMAIN_STRATEGY:-single}" = "single" ]; then
-    # Single domain strategy - only add one route
-    cat >> "$output_file" <<EOF
+    if [ "${DOMAIN_STRATEGY:-single}" = "single" ]; then
+      # Single domain strategy - only add one route
+      cat >> "$output_file" <<EOF
 
 # Custom domains - single domain strategy
 [[routes]]
 pattern = "${MAIN_DOMAIN}"
 custom_domain = true
 EOF
-  else
-    # Multi-domain strategy - add routes for all domains
-    cat >> "$output_file" <<EOF
+    else
+      # Multi-domain strategy - add routes for all domains
+      cat >> "$output_file" <<EOF
 
 # Custom domains - multi-domain strategy
 [[routes]]
@@ -155,6 +158,9 @@ custom_domain = true
 pattern = "${REDIRECT_DOMAIN}"
 custom_domain = true
 EOF
+    fi
+  else
+    info "Skipping routes generation for Workers.dev deployment"
   fi
 
   success "Wrangler configuration generated: $output_file"
