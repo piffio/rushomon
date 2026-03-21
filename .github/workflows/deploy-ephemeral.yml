@@ -404,7 +404,7 @@ jobs:
 
           echo "📝 Creating test user..."
           USER_RESULT=$(wrangler d1 execute rushomon --remote -c wrangler.ephemeral.toml --command \
-            "INSERT INTO users (id, email, name, oauth_provider, oauth_id, org_id, role, created_at) 
+            "INSERT INTO users (id, email, name, oauth_provider, oauth_id, org_id, role, created_at)
              VALUES ('test-user-smoke', 'smoke-test@example.com', 'Smoke Test User', 'github', '12345', 'test-org-smoke', 'admin', $NOW)" --json)
           echo "User insert result: $(echo "$USER_RESULT" | jq '.[0].meta.changes // 0') changes"
 
@@ -671,6 +671,15 @@ jobs:
             "backend_url": "https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
           }
           EOF
+
+      - name: Upload Deployment Info as Artifact
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.6.0
+        with:
+          name: ephemeral-deployment-pr-${{ steps.pr_number.outputs.pr_number }}
+          path: .github/ephemeral-envs/pr-${{ steps.pr_number.outputs.pr_number }}.json
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
