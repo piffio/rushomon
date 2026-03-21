@@ -40,6 +40,8 @@ jobs:
        github.event.pull_request.draft == false &&
        !contains(github.event.pull_request.labels.*.name, 'skip-preview')) ||
       github.event_name == 'push'
+    env:
+      ACTIONS_NODE_VERSION: "24"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -67,10 +69,10 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Cache Rust
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: '.'
 
@@ -703,6 +705,8 @@ jobs:
   deployment-skipped:
     name: Deployment Skipped Notification
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_NODE_VERSION: "24"
     # Run if PR event but deployment was skipped due to conditions
     if: |
       github.event_name == 'pull_request' &&
