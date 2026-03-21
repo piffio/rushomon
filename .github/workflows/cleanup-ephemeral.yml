@@ -23,8 +23,60 @@ jobs:
         run: |
           echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
 
+      - name: Check Deployment Status
+        id: check_deployment
+        run: |
+          PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
+          DEPLOYMENT_FILE=".github/ephemeral-envs/pr-$PR_NUMBER.json"
+
+          echo "Checking for deployment file: $DEPLOYMENT_FILE"
+
+          if [ -f "$DEPLOYMENT_FILE" ]; then
+            echo "✅ Deployment file found - checking deployment info"
+
+            # Read deployment info from file
+            if command -v jq >/dev/null 2>&1; then
+              DB_ID=$(jq -r '.database_id // empty' "$DEPLOYMENT_FILE")
+              KV_ID=$(jq -r '.kv_id // empty' "$DEPLOYMENT_FILE")
+              CREATED_AT=$(jq -r '.created_at // empty' "$DEPLOYMENT_FILE")
+              FRONTEND_URL=$(jq -r '.frontend_url // empty' "$DEPLOYMENT_FILE")
+              BACKEND_URL=$(jq -r '.backend_url // empty' "$DEPLOYMENT_FILE")
+            else
+              echo "❌ jq not available, using fallback parsing"
+              # Fallback parsing without jq
+              DB_ID=$(grep '"database_id"' "$DEPLOYMENT_FILE" | sed 's/.*"database_id": *"\([^"]*\)".*/\1/' || echo "")
+              KV_ID=$(grep '"kv_id"' "$DEPLOYMENT_FILE" | sed 's/.*"kv_id": *"\([^"]*\)".*/\1/' || echo "")
+              CREATED_AT=$(grep '"created_at"' "$DEPLOYMENT_FILE" | sed 's/.*"created_at": *"\([^"]*\)".*/\1/' || echo "")
+              FRONTEND_URL=$(grep '"frontend_url"' "$DEPLOYMENT_FILE" | sed 's/.*"frontend_url": *"\([^"]*\)".*/\1/' || echo "")
+              BACKEND_URL=$(grep '"backend_url"' "$DEPLOYMENT_FILE" | sed 's/.*"backend_url": *"\([^"]*\)".*/\1/' || echo "")
+            fi
+
+            echo "📋 Deployment Info:"
+            echo "  PR Number: $PR_NUMBER"
+            echo "  Database ID: ${DB_ID:-"not found"}"
+            echo "  KV ID: ${KV_ID:-"not found"}"
+            echo "  Created At: ${CREATED_AT:-"not found"}"
+            echo "  Frontend URL: ${FRONTEND_URL:-"not found"}"
+            echo "  Backend URL: ${BACKEND_URL:-"not found"}"
+
+            # Set outputs for cleanup steps
+            echo "should_cleanup=true" >> $GITHUB_OUTPUT
+            [ -n "$DB_ID" ] && echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
+            [ -n "$KV_ID" ] && echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
+            [ -n "$FRONTEND_URL" ] && echo "frontend_url=$FRONT_URL" >> $GITHUB_OUTPUT
+            [ -n "$BACKEND_URL" ] && echo "backend_url=$BACKEND_URL" >> $GITHUB_OUTPUT
+            [ -n "$CREATED_AT" ] && echo "created_at=$CREATED_AT" >> $GITHUB_OUTPUT
+
+            echo "✅ Cleanup will proceed for PR #$PR_NUMBER"
+          else
+            echo "⏭️ No deployment file found - skipping cleanup"
+            echo "  This PR was never deployed or deployment info was lost"
+            echo "should_cleanup=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Delete Ephemeral Worker
         id: delete_worker
+        if: steps.check_deployment.outputs.should_cleanup == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -53,21 +105,30 @@ jobs:
 
       - name: Delete KV Namespace
         id: delete_kv
+        if: steps.check_deployment.outputs.should_cleanup == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          KV_ID: ${{ steps.check_deployment.outputs.kv_id }}
         run: |
           KV_NAME="URL_MAPPINGS_pr_$PR_NUMBER"
 
           echo "Attempting to delete KV namespace: $KV_NAME"
 
-          # List namespaces to find the one matching our PR
-          RESPONSE=$(curl -s -X GET \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          # Use KV_ID from deployment file if available, otherwise fall back to lookup
+          if [ -n "$KV_ID" ]; then
+            echo "✅ Using KV ID from deployment file: $KV_ID"
+          else
+            echo "⚠️  KV ID not found in deployment file, falling back to lookup"
 
-          KV_ID=$(echo "$RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAME\") | .id" | head -1)
+            # List namespaces to find the one matching our PR
+            RESPONSE=$(curl -s -X GET \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+            KV_ID=$(echo "$RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAME\") | .id" | head -1)
+          fi
 
           if [ -z "$KV_ID" ]; then
             echo "⚠️  KV namespace not found: $KV_NAME (may have already been deleted)"
@@ -96,21 +157,30 @@ jobs:
 
       - name: Delete D1 Database
         id: delete_d1
+        if: steps.check_deployment.outputs.should_cleanup == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+          DB_ID: ${{ steps.check_deployment.outputs.database_id }}
         run: |
           DB_NAME="rushomon-pr-$PR_NUMBER"
 
           echo "Attempting to delete D1 database: $DB_NAME"
 
-          # List databases to find the one matching our PR
-          RESPONSE=$(curl -s -X GET \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          # Use DB_ID from deployment file if available, otherwise fall back to lookup
+          if [ -n "$DB_ID" ]; then
+            echo "✅ Using DB ID from deployment file: $DB_ID"
+          else
+            echo "⚠️  DB ID not found in deployment file, falling back to lookup"
 
-          DB_ID=$(echo "$RESPONSE" | jq -r ".result[] | select(.name == \"$DB_NAME\") | .uuid // .id" | head -1)
+            # List databases to find the one matching our PR
+            RESPONSE=$(curl -s -X GET \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+            DB_ID=$(echo "$RESPONSE" | jq -r ".result[] | select(.name == \"$DB_NAME\") | .uuid // .id" | head -1)
+          fi
 
           if [ -z "$DB_ID" ]; then
             echo "⚠️  Database not found: $DB_NAME (may have already been deleted)"
@@ -139,6 +209,7 @@ jobs:
 
       - name: Delete R2 Assets Bucket
         id: delete_r2
+        if: steps.check_deployment.outputs.should_cleanup == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -169,7 +240,7 @@ jobs:
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
 
-          BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result.buckets[] | select(.name == \"$BUCKET_NAME\") | .name" | head -1 2>/dev/null)
+          BUCKET_EXISTS=$(echo "$BUCKET_LIST_RESPONSE" | jq -r ".result.buckets[]? | select(.name == \"$BUCKET_NAME\") | .name" | head -1 2>/dev/null)
 
           # If the above fails, try alternative structures
           if [ -z "$BUCKET_EXISTS" ]; then
@@ -279,21 +350,40 @@ jobs:
             fi
           fi
 
+      - name: Cleanup Deployment Tracking File
+        if: always() && steps.check_deployment.outputs.should_cleanup == 'true'
+        run: |
+          PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
+          DEPLOYMENT_FILE=".github/ephemeral-envs/pr-$PR_NUMBER.json"
+
+          echo "Cleaning up deployment tracking file: $DEPLOYMENT_FILE"
+
+          if [ -f "$DEPLOYMENT_FILE" ]; then
+            rm "$DEPLOYMENT_FILE"
+            echo "✅ Deployment tracking file deleted"
+          else
+            echo "⚠️  Deployment tracking file not found (may have been already deleted)"
+          fi
+
       - name: Post Cleanup Notification
         if: always()
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           pr-number: ${{ steps.pr_number.outputs.pr_number }}
           message: |
-            🧹 **Ephemeral Environment Cleaned Up**
+            ${{ steps.check_deployment.outputs.should_cleanup == 'true' && '🧹 **Ephemeral Environment Cleaned Up**' || '⏭️ **Ephemeral Environment Cleanup Skipped**' }}
 
-            Resources for PR #${{ steps.pr_number.outputs.pr_number }} cleanup summary:
+            ${{ steps.check_deployment.outputs.should_cleanup == 'true' && format('Resources for PR #{0} cleanup summary:', steps.pr_number.outputs.pr_number) || format('No deployment found for PR #{0} - nothing to clean up.', steps.pr_number.outputs.pr_number) }}
 
+            ${{ steps.check_deployment.outputs.should_cleanup == 'true' && '
             | Resource | Status |
             |----------|--------|
-            | Worker `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_worker.outputs.worker_result == 'success' && '✅ Deleted' || steps.delete_worker.outputs.worker_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
-            | KV Namespace `URL_MAPPINGS_pr_${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_kv.outputs.kv_result == 'success' && '✅ Deleted' || steps.delete_kv.outputs.kv_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
-            | D1 Database `rushomon-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_d1.outputs.d1_result == 'success' && '✅ Deleted' || steps.delete_d1.outputs.d1_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
-            | R2 Bucket `rushomon-assets-pr-${{ steps.pr_number.outputs.pr_number }}` | ${{ steps.delete_r2.outputs.r2_result == 'success' && '✅ Deleted' || steps.delete_r2.outputs.r2_result == 'failed' && '❌ Failed' || '⚠️ Not found' }} |
+            | Worker `rushomon-pr-' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_worker.outputs.worker_result == 'success' && '✅ Deleted' || steps.delete_worker.outputs.worker_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
+            | KV Namespace `URL_MAPPINGS_pr_' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_kv.outputs.kv_result == 'success' && '✅ Deleted' || steps.delete_kv.outputs.kv_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
+            | D1 Database `rushomon-pr-' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_d1.outputs.d1_result == 'success' && '✅ Deleted' || steps.delete_d1.outputs.d1_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
+            | R2 Bucket `rushomon-assets-pr-' || '' }}${{ steps.pr_number.outputs.pr_number }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && '` | ' || '' }}${{ steps.delete_r2.outputs.r2_result == 'success' && '✅ Deleted' || steps.delete_r2.outputs.r2_result == 'failed' && '❌ Failed' || '⚠️ Not found' }}${{ steps.check_deployment.outputs.should_cleanup == 'true' && ' |
 
-            *Cleanup completed automatically when PR was closed.*
+            *Cleanup completed automatically when PR was closed.*' || '
+            *No cleanup was needed as this PR was never deployed.*' }}
+
+            ${{ steps.check_deployment.outputs.should_cleanup == 'true' && '**Note:** If this PR had the `skip-preview` label, resources were still cleaned up because they were deployed before the label was added.' || '**Note:** This helps avoid error messages and wasted API calls when PRs are never deployed.' }}
