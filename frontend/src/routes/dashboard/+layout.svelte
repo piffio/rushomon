@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Header from "$lib/components/Header.svelte";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import type { LayoutData } from "./$types";
 
 	interface Props {
@@ -17,7 +17,7 @@
 	];
 
 	function isActive(tab: { href: string; id: string }) {
-		const path = $page.url.pathname;
+		const path = page.url.pathname;
 		if (tab.id === "links") {
 			return path === "/dashboard" || path.startsWith("/dashboard/links");
 		}
@@ -31,7 +31,7 @@
 	}
 
 	let currentHeaderPage = $derived(
-		$page.url.pathname.startsWith("/dashboard/analytics")
+		page.url.pathname.startsWith("/dashboard/analytics")
 			? ("analytics" as const)
 			: ("dashboard" as const),
 	);

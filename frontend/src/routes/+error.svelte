@@ -1,18 +1,18 @@
 <script lang="ts">
 	import NotFound from "$lib/components/NotFound.svelte";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 </script>
 
-{#if $page.status === 404}
+{#if page.status === 404}
 	<NotFound />
 {:else}
 	<div class="min-h-screen bg-white flex items-center justify-center">
 		<div class="text-center px-4">
 			<h1 class="text-6xl font-bold text-gray-900 mb-4">
-				{$page.status}
+				{page.status}
 			</h1>
 			<p class="text-lg text-gray-600 mb-8">
-				{$page.error?.message || "Something went wrong"}
+				{page.error?.message || "Something went wrong"}
 			</p>
 			<a
 				href="/"

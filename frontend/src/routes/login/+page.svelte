@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import Logo from "$lib/components/Logo.svelte";
 	import SEO from "$lib/components/SEO.svelte";
 	import { authApi, type AuthProvider } from "$lib/api/auth";
@@ -19,9 +19,9 @@
 	onMount(async () => {
 		// Set search params after mount
 		signupsDisabled =
-			$page.url.searchParams.get("error") === "signups_disabled";
+			page.url.searchParams.get("error") === "signups_disabled";
 		emailAlreadyUsed =
-			$page.url.searchParams.get("error") === "email_already_used";
+			page.url.searchParams.get("error") === "email_already_used";
 
 		// Redirect to dashboard if user is already authenticated
 		if (data.user) {
@@ -134,7 +134,7 @@
 					{#each providers as provider}
 						{@const icon = getProviderIcon(provider.name)}
 						{@const redirect =
-							$page.url.searchParams.get("redirect")}
+							page.url.searchParams.get("redirect")}
 						<a
 							href={authApi.getProviderLoginUrl(
 								provider.name,

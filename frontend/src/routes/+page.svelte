@@ -4,7 +4,7 @@
 	import SEO from "$lib/components/SEO.svelte";
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import type { PageData } from "./$types";
 
 	let { data }: { data: PageData } = $props();
@@ -15,7 +15,7 @@
 	onMount(() => {
 		mounted = true;
 		signupsDisabled =
-			$page.url.searchParams.get("error") === "signups_disabled";
+			page.url.searchParams.get("error") === "signups_disabled";
 	});
 </script>
 

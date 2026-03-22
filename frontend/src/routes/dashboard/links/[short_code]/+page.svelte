@@ -5,7 +5,7 @@
 		PUBLIC_VITE_SHORT_LINK_BASE_URL,
 	} from "$env/static/public";
 	import { goto } from "$app/navigation";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { onMount, onDestroy } from "svelte";
 	import {
 		Chart,
@@ -119,14 +119,14 @@
 		// Set loading state for this specific range
 		loadingRange = range.value;
 
-		const params = new URLSearchParams($page.url.searchParams);
+		const params = new URLSearchParams(page.url.searchParams);
 		if (range.value === 7) {
 			params.delete("days");
 		} else {
 			params.set("days", range.value.toString());
 		}
 		const query = params.toString();
-		goto(`${$page.url.pathname}${query ? `?${query}` : ""}`, {
+		goto(`${page.url.pathname}${query ? `?${query}` : ""}`, {
 			invalidateAll: true,
 		});
 	}

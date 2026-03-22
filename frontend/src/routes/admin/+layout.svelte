@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { goto } from "$app/navigation";
 
 	type Module =
@@ -11,7 +11,11 @@
 		| "reports"
 		| "settings";
 
-	$: activeModule = $page.url.pathname.split("/").pop() || "dashboard";
+	let { children } = $props();
+
+	const activeModule = $derived(
+		page.url.pathname.split("/").pop() || "dashboard",
+	);
 
 	function navigateTo(module: Module) {
 		goto(`/admin/${module}`);
@@ -76,7 +80,7 @@
 		</nav>
 	</aside>
 	<main class="main-content">
-		<slot />
+		{@render children()}
 	</main>
 </div>
 

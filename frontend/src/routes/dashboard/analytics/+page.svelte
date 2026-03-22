@@ -7,7 +7,7 @@
 	import { analyticsApi } from "$lib/api/analytics";
 	import { linksApi } from "$lib/api/links";
 	import { goto } from "$app/navigation";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { onMount, onDestroy } from "svelte";
 	import {
 		Chart,

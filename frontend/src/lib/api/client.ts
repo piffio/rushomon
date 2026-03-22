@@ -4,6 +4,13 @@ import type { ApiError } from '$lib/types/api';
 const API_BASE_URL = PUBLIC_VITE_API_BASE_URL || 'http://localhost:8787';
 const TOKEN_KEY = 'rushomon_access_token';
 
+// Store SvelteKit fetch function if available (for SSR/hydration compatibility)
+let svelteKitFetch: typeof fetch | null = null;
+
+export function setSvelteKitFetch(fetchFn: typeof fetch) {
+	svelteKitFetch = fetchFn;
+}
+
 // Token management helpers
 function getAccessToken(): string | null {
 	if (typeof localStorage === 'undefined') {
@@ -29,7 +36,8 @@ function clearAccessToken(): void {
 // Token refresh helper
 async function refreshAccessToken(baseUrl: string): Promise<boolean> {
 	try {
-		const response = await fetch(`${baseUrl}/api/auth/refresh`, {
+		const fetchFn = svelteKitFetch || fetch;
+		const response = await fetchFn(`${baseUrl}/api/auth/refresh`, {
 			method: 'POST',
 			credentials: 'include',
 		});
@@ -56,6 +64,7 @@ export class ApiClient {
 		options: RequestInit = {}
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
+		const fetchFn = svelteKitFetch || fetch;
 
 		const config: RequestInit = {
 			...options,
@@ -67,14 +76,14 @@ export class ApiClient {
 		};
 
 		try {
-			const response = await fetch(url, config);
+			const response = await fetchFn(url, config);
 
 			if (!response.ok) {
 				if (response.status === 401) {
 					const refreshed = await refreshAccessToken(this.baseUrl);
 
 					if (refreshed) {
-						const retryResponse = await fetch(url, config);
+						const retryResponse = await fetchFn(url, config);
 						if (retryResponse.ok) {
 							const contentType = retryResponse.headers.get('content-type');
 							if (contentType?.includes('application/json')) {
@@ -154,13 +163,14 @@ export class ApiClient {
 
 	async postForm<T>(endpoint: string, formData: FormData): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
+		const fetchFn = svelteKitFetch || fetch;
 		const config: RequestInit = {
 			method: 'POST',
 			credentials: 'include',
 			body: formData,
 			// No Content-Type header: browser will set multipart/form-data with boundary
 		};
-		const response = await fetch(url, config);
+		const response = await fetchFn(url, config);
 		if (!response.ok) {
 			const contentType = response.headers.get('content-type');
 			let errorMessage: string;
@@ -182,6 +192,7 @@ export class ApiClient {
 
 	async fetchRaw(endpoint: string, options: RequestInit = {}): Promise<Response> {
 		const url = `${this.baseUrl}${endpoint}`;
+		const fetchFn = svelteKitFetch || fetch;
 		const config: RequestInit = {
 			...options,
 			credentials: 'include',
@@ -190,7 +201,7 @@ export class ApiClient {
 				...options.headers
 			}
 		};
-		const response = await fetch(url, config);
+		const response = await fetchFn(url, config);
 		if (!response.ok) {
 			const errorMessage = await response.text();
 			throw { message: errorMessage, status: response.status };
