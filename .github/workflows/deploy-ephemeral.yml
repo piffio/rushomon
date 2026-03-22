@@ -678,8 +678,7 @@ jobs:
             -f ref="${{ github.sha }}" \
             -f environment="$ENVIRONMENT" \
             -f description="Ephemeral environment for PR #$PR_NUMBER" \
-            -F auto_inactive=false \
-            -F required_contexts='[]' \
+            -f auto_inactive=false \
             --jq '.id')
 
           echo "Created GitHub deployment ID: $DEPLOY_ID"
