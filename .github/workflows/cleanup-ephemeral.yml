@@ -8,6 +8,7 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
+  deployments: write
 
 jobs:
   cleanup:
@@ -25,62 +26,25 @@ jobs:
         run: |
           echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
 
-      - name: Restore Deployment Info Cache
-        if: always()
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: .github/ephemeral-envs/pr-${{ steps.pr_number.outputs.pr_number }}.json
-          key: ephemeral-deployment-pr-${{ steps.pr_number.outputs.pr_number }}
-        continue-on-error: true
-
-      - name: Check Deployment Status
+      - name: Check GitHub Deployment Status
         id: check_deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
-          DEPLOYMENT_FILE=".github/ephemeral-envs/pr-$PR_NUMBER.json"
+          ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
 
-          echo "Checking for deployment file: $DEPLOYMENT_FILE"
+          echo "Checking GitHub Deployments API for environment: $ENVIRONMENT"
 
-          if [ -f "$DEPLOYMENT_FILE" ]; then
-            echo "✅ Deployment file found - checking deployment info"
+          DEPLOY_COUNT=$(gh api repos/${{ github.repository }}/deployments \
+            --jq "[.[] | select(.environment == \"$ENVIRONMENT\")] | length")
 
-            # Read deployment info from file
-            if command -v jq >/dev/null 2>&1; then
-              DB_ID=$(jq -r '.database_id // empty' "$DEPLOYMENT_FILE")
-              KV_ID=$(jq -r '.kv_id // empty' "$DEPLOYMENT_FILE")
-              CREATED_AT=$(jq -r '.created_at // empty' "$DEPLOYMENT_FILE")
-              FRONTEND_URL=$(jq -r '.frontend_url // empty' "$DEPLOYMENT_FILE")
-              BACKEND_URL=$(jq -r '.backend_url // empty' "$DEPLOYMENT_FILE")
-            else
-              echo "❌ jq not available, using fallback parsing"
-              # Fallback parsing without jq
-              DB_ID=$(grep '"database_id"' "$DEPLOYMENT_FILE" | sed 's/.*"database_id": *"\([^"]*\)".*/\1/' || echo "")
-              KV_ID=$(grep '"kv_id"' "$DEPLOYMENT_FILE" | sed 's/.*"kv_id": *"\([^"]*\)".*/\1/' || echo "")
-              CREATED_AT=$(grep '"created_at"' "$DEPLOYMENT_FILE" | sed 's/.*"created_at": *"\([^"]*\)".*/\1/' || echo "")
-              FRONTEND_URL=$(grep '"frontend_url"' "$DEPLOYMENT_FILE" | sed 's/.*"frontend_url": *"\([^"]*\)".*/\1/' || echo "")
-              BACKEND_URL=$(grep '"backend_url"' "$DEPLOYMENT_FILE" | sed 's/.*"backend_url": *"\([^"]*\)".*/\1/' || echo "")
-            fi
-
-            echo "📋 Deployment Info:"
-            echo "  PR Number: $PR_NUMBER"
-            echo "  Database ID: ${DB_ID:-"not found"}"
-            echo "  KV ID: ${KV_ID:-"not found"}"
-            echo "  Created At: ${CREATED_AT:-"not found"}"
-            echo "  Frontend URL: ${FRONTEND_URL:-"not found"}"
-            echo "  Backend URL: ${BACKEND_URL:-"not found"}"
-
-            # Set outputs for cleanup steps
+          if [ "$DEPLOY_COUNT" -gt 0 ]; then
+            echo "✅ Found $DEPLOY_COUNT deployment(s) for $ENVIRONMENT - cleanup will proceed"
             echo "should_cleanup=true" >> $GITHUB_OUTPUT
-            [ -n "$DB_ID" ] && echo "database_id=$DB_ID" >> $GITHUB_OUTPUT
-            [ -n "$KV_ID" ] && echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
-            [ -n "$FRONTEND_URL" ] && echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
-            [ -n "$BACKEND_URL" ] && echo "backend_url=$BACKEND_URL" >> $GITHUB_OUTPUT
-            [ -n "$CREATED_AT" ] && echo "created_at=$CREATED_AT" >> $GITHUB_OUTPUT
-
-            echo "✅ Cleanup will proceed for PR #$PR_NUMBER"
           else
-            echo "⏭️ No deployment file found - skipping cleanup"
-            echo "  This PR was never deployed or deployment info was lost"
+            echo "⏭️ No deployments found for $ENVIRONMENT - skipping cleanup"
+            echo "  This PR was never deployed to an ephemeral environment"
             echo "should_cleanup=false" >> $GITHUB_OUTPUT
           fi
 
@@ -360,20 +324,26 @@ jobs:
             fi
           fi
 
-      - name: Cleanup Deployment Tracking File
+      - name: Mark GitHub Deployment as Inactive
         if: always() && steps.check_deployment.outputs.should_cleanup == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
-          DEPLOYMENT_FILE=".github/ephemeral-envs/pr-$PR_NUMBER.json"
+          ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
 
-          echo "Cleaning up deployment tracking file: $DEPLOYMENT_FILE"
+          echo "Marking all deployments for $ENVIRONMENT as inactive..."
 
-          if [ -f "$DEPLOYMENT_FILE" ]; then
-            rm "$DEPLOYMENT_FILE"
-            echo "✅ Deployment tracking file deleted"
-          else
-            echo "⚠️  Deployment tracking file not found (may have been already deleted)"
-          fi
+          DEPLOY_IDS=$(gh api repos/${{ github.repository }}/deployments \
+            --jq ".[] | select(.environment == \"$ENVIRONMENT\") | .id")
+
+          for dep_id in $DEPLOY_IDS; do
+            gh api repos/${{ github.repository }}/deployments/$dep_id/statuses \
+              -X POST -f state=inactive >/dev/null 2>&1 || true
+            echo "  Marked deployment $dep_id as inactive"
+          done
+
+          echo "✅ GitHub deployment records marked as inactive"
 
       - name: Post Cleanup Notification
         if: always()

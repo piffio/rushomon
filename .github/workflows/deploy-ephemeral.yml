@@ -19,6 +19,7 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
+  deployments: write
 
 concurrency:
   group: ephemeral-${{ github.head_ref || github.ref }}
@@ -653,33 +654,45 @@ jobs:
           echo ""
           echo "Then trigger the failing request manually to see the error logs."
 
-      - name: Store Deployment Info
-        if: always()
+      - name: Create GitHub Deployment
+        if: github.event_name == 'pull_request'
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
-          DB_ID: ${{ steps.create_d1.outputs.database_id }}
-          KV_ID: ${{ steps.create_kv.outputs.kv_id }}
           WORKERS_DOMAIN: ${{ secrets.WORKERS_DOMAIN }}
         run: |
-          mkdir -p .github/ephemeral-envs
-          cat > .github/ephemeral-envs/pr-$PR_NUMBER.json << EOF
-          {
-            "pr_number": "$PR_NUMBER",
-            "database_id": "$DB_ID",
-            "kv_id": "$KV_ID",
-            "pages_branch": "pr-$PR_NUMBER",
-            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "frontend_url": "https://pr-$PR_NUMBER.rushomon-ui.pages.dev",
-            "backend_url": "https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
-          }
-          EOF
+          ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
+          DEPLOYMENT_URL="https://rushomon-pr-$PR_NUMBER.$WORKERS_DOMAIN"
 
-      - name: Cache Deployment Info
-        if: always()
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: .github/ephemeral-envs/pr-${{ steps.pr_number.outputs.pr_number }}.json
-          key: ephemeral-deployment-pr-${{ steps.pr_number.outputs.pr_number }}
+          # Mark any previous deployments for this environment as inactive
+          EXISTING=$(gh api repos/${{ github.repository }}/deployments \
+            --jq ".[] | select(.environment == \"$ENVIRONMENT\") | .id")
+          for dep_id in $EXISTING; do
+            gh api repos/${{ github.repository }}/deployments/$dep_id/statuses \
+              -X POST -f state=inactive >/dev/null 2>&1 || true
+          done
+
+          # Create a new deployment record
+          DEPLOY_ID=$(gh api repos/${{ github.repository }}/deployments \
+            -X POST \
+            -f ref="${{ github.sha }}" \
+            -f environment="$ENVIRONMENT" \
+            -f description="Ephemeral environment for PR #$PR_NUMBER" \
+            -F auto_inactive=false \
+            -F required_contexts='[]' \
+            --jq '.id')
+
+          echo "Created GitHub deployment ID: $DEPLOY_ID"
+
+          # Mark it as successful and record the environment URL
+          gh api repos/${{ github.repository }}/deployments/$DEPLOY_ID/statuses \
+            -X POST \
+            -f state=success \
+            -f environment_url="$DEPLOYMENT_URL" \
+            -f description="Deployed to $DEPLOYMENT_URL"
+
+          echo "deployment_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+        id: create_github_deployment
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
