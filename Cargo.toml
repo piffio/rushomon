@@ -7,15 +7,15 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-worker = { version = "0.7.4", features = ["d1"] }
-wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+worker = { version = "0.7.5", features = ["d1"] }
+wasm-bindgen = { version = "0.2.114", features = ["serde-serialize"] }
 web-sys = { version = "0.3", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.0", features = ["v4", "serde", "js"] }
+uuid = { version = "1.22.0", features = ["v4", "serde", "js"] }
 url = "2.5"
 console_error_panic_hook = "0.1"
-getrandom = { version = "0.4", features = ["wasm_js"] }
+getrandom = { version = "0.4.2", features = ["wasm_js"] }
 rand = "0.10.0"
 wasm-bindgen-futures = "0.4"
 jwt-compact = { version = "0.8.0", default-features = false, features = ["clock"] }
@@ -28,12 +28,12 @@ regex = "1.11"
 urlencoding = "2.1"
 
 [build-dependencies]
-toml = "1.0.3"
+toml = "1.0.7"
 serde_json = "1.0"
 
 [dev-dependencies]
 reqwest = { version = "0.13.1", features = ["json"] }
-tokio = { version = "1", features = ["full", "test-util"] }
+tokio = { version = "1.50.0", features = ["full", "test-util"] }
 axum = "0.8"
 base64 = "0.22"
 
@@ -51,7 +51,7 @@ version = "0.8"
 optional = true
 
 [dependencies.tokio]
-version = "1"
+version = "1.50.0"
 features = ["full"]
 optional = true
 
