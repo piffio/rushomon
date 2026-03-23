@@ -3985,7 +3985,7 @@ pub async fn handle_admin_list_billing_accounts(
             let next_reset = chrono::Utc
                 .with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
                 .single()
-                .unwrap_or_else(|| chrono::Utc::now());
+                .unwrap_or_else(chrono::Utc::now);
             let next_reset_timestamp = next_reset.timestamp();
 
             Response::from_json(&serde_json::json!({
