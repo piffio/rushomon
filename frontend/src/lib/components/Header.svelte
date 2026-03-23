@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Logo from "./Logo.svelte";
 	import UserMenu from "./UserMenu.svelte";
+	import LoadingButton from "./LoadingButton.svelte";
 	import { authApi } from "$lib/api/auth";
 	import { orgsApi } from "$lib/api/orgs";
 	import { billingApi } from "$lib/api/billing";
@@ -28,9 +29,15 @@
 	let newOrgName = $state("");
 	let creatingOrg = $state(false);
 	let createOrgError = $state("");
+	let navigatingToDashboard = $state(false);
 
 	// Logo always links to landing page
 	const logoHref = "/";
+
+	async function handleNavigateToDashboard() {
+		navigatingToDashboard = true;
+		window.location.href = "/dashboard";
+	}
 
 	async function handleLogout() {
 		try {
@@ -198,12 +205,15 @@
 				{#if user}
 					<!-- Authenticated: Show "Go to Dashboard" CTA only on landing page -->
 					{#if currentPage === "landing"}
-						<a
-							href="/dashboard"
-							class="hidden md:block px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm hover:shadow-md text-sm"
+						<LoadingButton
+							onclick={handleNavigateToDashboard}
+							loading={navigatingToDashboard}
+							variant="primary"
+							size="sm"
+							class="hidden md:block bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm hover:shadow-md"
 						>
 							Go to Dashboard →
-						</a>
+						</LoadingButton>
 					{/if}
 
 					<!-- Org Switcher (dashboard & settings pages, always shown when authenticated) -->

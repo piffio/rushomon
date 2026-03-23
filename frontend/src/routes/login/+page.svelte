@@ -15,6 +15,7 @@
 
 	let signupsDisabled = $state(false);
 	let emailAlreadyUsed = $state(false);
+	let signingInProvider = $state<string | null>(null);
 
 	onMount(async () => {
 		// Set search params after mount
@@ -43,6 +44,13 @@
 		if (name === "github") return "github";
 		if (name === "google") return "google";
 		return "default";
+	}
+
+	function handleSignIn(providerName: string, redirect: string | null) {
+		signingInProvider = providerName;
+		// Navigate to OAuth provider
+		const loginUrl = authApi.getProviderLoginUrl(providerName, redirect ?? undefined);
+		window.location.href = loginUrl;
 	}
 </script>
 
@@ -135,19 +143,51 @@
 						{@const icon = getProviderIcon(provider.name)}
 						{@const redirect =
 							page.url.searchParams.get("redirect")}
+						{@const isLoading = signingInProvider === provider.name}
+						{@const loginUrl = authApi.getProviderLoginUrl(
+							provider.name,
+							redirect ?? undefined,
+						)}
 						<a
-							href={authApi.getProviderLoginUrl(
-								provider.name,
-								redirect ?? undefined,
-							)}
+							href={loginUrl}
+							onclick={(e) => {
+								if (isLoading) {
+									e.preventDefault();
+									return;
+								}
+								handleSignIn(provider.name, redirect);
+							}}
 							class="flex items-center justify-center gap-3 w-full px-4 py-3 rounded-xl border font-medium text-sm transition-all duration-150
 								{provider.name === 'github'
 								? 'bg-gray-900 hover:bg-gray-800 text-white border-gray-900'
 								: provider.name === 'google'
 									? 'bg-white hover:bg-gray-50 text-gray-800 border-gray-300 shadow-sm'
-									: 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500'}"
+									: 'bg-orange-500 hover:bg-orange-600 text-white border-orange-500'}
+								{isLoading ? 'opacity-70 pointer-events-none' : ''}"
+							aria-busy={isLoading}
 						>
-							{#if icon === "github"}
+							{#if isLoading}
+								<svg
+									class="animate-spin h-5 w-5"
+									viewBox="0 0 24 24"
+									fill="none"
+									aria-hidden="true"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									/>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									/>
+								</svg>
+							{:else if icon === "github"}
 								<!-- GitHub Mark SVG -->
 								<svg
 									class="w-5 h-5"
@@ -186,7 +226,11 @@
 									/>
 								</svg>
 							{/if}
-							Continue with {provider.label}
+							{#if isLoading}
+								Signing in...
+							{:else}
+								Continue with {provider.label}
+							{/if}
 						</a>
 					{/each}
 				</div>

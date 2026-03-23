@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
+	import LoadingButton from "./LoadingButton.svelte";
 
 	export let tier: string;
 	export let title: string;
@@ -184,18 +185,18 @@
 
 	<!-- Action -->
 	<div class="pricing-action">
-		<button
+		<LoadingButton
 			onclick={handleAction}
-			disabled={checkoutLoading === `${tier}_${billingInterval}` ||
-				checkoutLoading === "portal" ||
-				disabled}
-			class="w-full px-6 py-3 rounded-lg font-semibold transition-all shadow-sm text-center {disabled
-				? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-				: isCurrentPlan
-					? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-md'
-					: isUpgrade
-						? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 hover:shadow-md'
-						: 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-md'}"
+			loading={checkoutLoading === `${tier}_${billingInterval}` ||
+				checkoutLoading === "portal"}
+			disabled={disabled}
+			variant={isCurrentPlan
+				? 'secondary'
+				: isUpgrade
+					? 'primary'
+					: 'primary'}
+			size="lg"
+			fullWidth
 		>
 			{checkoutLoading === `${tier}_${billingInterval}` ||
 			checkoutLoading === "portal"
@@ -205,7 +206,7 @@
 						: "Opening Portal…"
 					: "Redirecting…"
 				: buttonText}
-		</button>
+		</LoadingButton>
 	</div>
 </div>
 
