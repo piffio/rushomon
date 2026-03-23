@@ -163,6 +163,10 @@ export interface UsageResponse {
 		links_created_this_month: number;
 		tags_count: number;
 	};
+	next_reset?: {
+		utc: string;
+		timestamp: number;
+	};
 }
 
 // Admin moderation types

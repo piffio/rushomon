@@ -101,9 +101,51 @@
 	let linksAtLimit = $derived(
 		usage?.limits.max_links_per_month
 			? usage.usage.links_created_this_month >=
-					usage.limits.max_links_per_month
+				usage.limits.max_links_per_month
 			: false,
 	);
+
+	// Calculate reset countdown
+	type ResetInfo = { text: string; date: string } | null;
+	let resetInfo = $state<ResetInfo>(null);
+
+	$effect(() => {
+		if (!usage?.next_reset?.timestamp) {
+			resetInfo = null;
+			return;
+		}
+		const now = Date.now() / 1000;
+		const diffSeconds = usage.next_reset.timestamp - now;
+
+		if (diffSeconds <= 0) {
+			// Reset time passed, refresh the page to get new usage data
+			setTimeout(() => window.location.reload(), 5000);
+			resetInfo = { text: "Refreshing...", date: "" };
+			return;
+		}
+
+		const diffDays = Math.floor(diffSeconds / (60 * 60 * 24));
+		const diffHours = Math.floor((diffSeconds % (60 * 60 * 24)) / (60 * 60));
+		const diffMinutes = Math.floor((diffSeconds % (60 * 60)) / 60);
+
+		let text = "";
+		if (diffDays > 0) {
+			text = `in ${diffDays}d ${diffHours}h`;
+		} else if (diffHours > 0) {
+			text = `in ${diffHours}h ${diffMinutes}m`;
+		} else {
+			text = `in ${diffMinutes}m`;
+		}
+
+		// Format reset date in user's local timezone
+		const resetDate = new Date(usage.next_reset.timestamp * 1000);
+		const dateStr = resetDate.toLocaleDateString(undefined, {
+			month: "short",
+			day: "numeric",
+		});
+
+		resetInfo = { text, date: dateStr };
+	});
 
 	// Helper to refresh all dashboard data (stats, usage, links)
 	async function refreshDashboardData() {
@@ -474,39 +516,46 @@
 				<!-- Usage counter for tiers with limits -->
 				{#if usage && usage.limits.max_links_per_month}
 					<span class="text-gray-300 hidden sm:inline">·</span>
-					<span class="flex items-center gap-2 text-sm">
-						<span class="text-gray-500">This month:</span>
-						<span
-							class="font-semibold {linksAtLimit
-								? 'text-red-600'
-								: 'text-gray-900'}"
-						>
-							{usage.usage.links_created_this_month} / {usage
-								.limits.max_links_per_month}
-						</span>
-						<div
-							class="w-20 bg-gray-200 rounded-full h-1.5 hidden sm:block"
-						>
+					<span class="flex flex-col gap-1 text-sm">
+						<span class="flex items-center gap-2">
+							<span class="text-gray-500">This month:</span>
+							<span
+								class="font-semibold {linksAtLimit
+									? 'text-red-600'
+									: 'text-gray-900'}"
+							>
+								{usage.usage.links_created_this_month} / {usage
+									.limits.max_links_per_month}
+							</span>
 							<div
-								class="h-1.5 rounded-full transition-all duration-500 {linksAtLimit
-									? 'bg-red-500'
-									: linksUsagePercent >= 80
-										? 'bg-amber-500'
-										: 'bg-orange-500'}"
-								style="width: {linksUsagePercent}%"
-							></div>
-						</div>
-						{#if linksAtLimit}
-							<span class="text-xs text-red-600 font-medium"
-								>Limit reached</span
+								class="w-20 bg-gray-200 rounded-full h-1.5 hidden sm:block"
 							>
-						{/if}
-						{#if usage.tier === "free"}
-							<a
-								href="/pricing"
-								class="text-xs text-orange-600 hover:text-orange-700 font-medium"
-								>Upgrade →</a
-							>
+								<div
+									class="h-1.5 rounded-full transition-all duration-500 {linksAtLimit
+										? 'bg-red-500'
+										: linksUsagePercent >= 80
+											? 'bg-amber-500'
+											: 'bg-orange-500'}"
+									style="width: {linksUsagePercent}%"
+								></div>
+							</div>
+							{#if linksAtLimit}
+								<span class="text-xs text-red-600 font-medium"
+									>Limit reached</span
+								>
+							{/if}
+							{#if usage.tier === "free"}
+								<a
+									href="/pricing"
+									class="text-xs text-orange-600 hover:text-orange-700 font-medium"
+									>Upgrade →</a
+								>
+							{/if}
+						</span>
+						{#if resetInfo}
+							<span class="text-xs text-gray-400">
+								Resets {resetInfo.date} UTC (00:00) {resetInfo.text}
+							</span>
 						{/if}
 					</span>
 				{/if}

@@ -105,7 +105,8 @@
 						</li>
 					</ul>
 					<p class="text-gray-700 leading-relaxed mt-3">
-						Limits reset on the 1st of each calendar month (UTC).
+						Limits reset at <strong>midnight UTC (00:00 UTC)</strong> on the first day of each calendar month.
+						The dashboard shows your usage with a countdown to the next reset in your local timezone.
 						The instance administrator may change your tier at any
 						time. Unused quota does not roll over.
 					</p>

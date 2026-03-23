@@ -7,7 +7,7 @@ use crate::models::{
     link::{CreateLinkRequest, Link, LinkStatus, UpdateLinkRequest},
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
-use chrono::Datelike;
+use chrono::{Datelike, TimeZone};
 use std::future::Future;
 use std::pin::Pin;
 use worker::d1::D1Database;
@@ -2028,6 +2028,14 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
     // Get tag count for the billing account
     let tags_count = db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
 
+    // Calculate next reset time (first day of next month at midnight UTC)
+    let now = chrono::Utc::now();
+    let next_reset = chrono::Utc
+        .with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
+        .single()
+        .unwrap_or_else(chrono::Utc::now);
+    let next_reset_timestamp = next_reset.timestamp();
+
     let usage = serde_json::json!({
         "tier": tier.as_str(),
         "limits": {
@@ -2041,6 +2049,10 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
         "usage": {
             "links_created_this_month": links_created_this_month,
             "tags_count": tags_count,
+        },
+        "next_reset": {
+            "utc": next_reset.to_rfc3339(),
+            "timestamp": next_reset_timestamp,
         }
     });
 

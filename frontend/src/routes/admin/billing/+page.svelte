@@ -426,6 +426,20 @@
 												></div>
 											</div>
 										{/if}
+										{#if details.usage.max_links_per_month}
+											{@const now = Date.now() / 1000}
+											{@const nextReset = new Date()}
+											{@const nextResetTimestamp = (nextReset.setUTCMonth(nextReset.getUTCMonth() + 1, 1), nextReset.setUTCHours(0, 0, 0, 0), nextReset.getTime() / 1000)}
+											{@const diffSeconds = nextResetTimestamp - now}
+											{@const diffDays = Math.floor(diffSeconds / (60 * 60 * 24))}
+											{@const diffHours = Math.floor((diffSeconds % (60 * 60 * 24)) / (60 * 60))}
+											{@const diffMinutes = Math.floor((diffSeconds % (60 * 60)) / 60)}
+											{@const countdownText = diffDays > 0 ? `in ${diffDays}d ${diffHours}h` : diffHours > 0 ? `in ${diffHours}h ${diffMinutes}m` : `in ${diffMinutes}m`}
+											{@const resetDateStr = nextReset.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+											<div class="reset-info">
+												Resets {resetDateStr} UTC (00:00) {countdownText}
+											</div>
+										{/if}
 									</div>
 								</div>
 
@@ -1147,6 +1161,13 @@
 		height: 100%;
 		background: linear-gradient(to right, #3b82f6, #2563eb);
 		transition: width 0.3s;
+	}
+
+	.reset-info {
+		margin-top: 0.5rem;
+		font-size: 0.75rem;
+		color: #64748b;
+		font-style: italic;
 	}
 
 	.no-orgs {

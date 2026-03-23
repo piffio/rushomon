@@ -844,6 +844,22 @@ Rushomon includes a tier system with **Free** and **Unlimited** plans. As a self
 - Full analytics retention (all time)
 - Complete feature access
 
+### Monthly Counter Reset Time
+
+Monthly link counters reset at **midnight UTC (00:00 UTC)** on the first day of each calendar month.
+
+**Why UTC?**
+- Ensures consistent billing across all timezones
+- Prevents exploitation through timezone changes
+- Industry standard (AWS, Stripe, and most SaaS platforms use UTC)
+
+**Example:**
+- User in New York (UTC-5): Counter resets at 7:00 PM EST
+- User in London (UTC+0): Counter resets at 12:00 AM GMT
+- User in Tokyo (UTC+9): Counter resets at 9:00 AM JST
+
+The dashboard shows the next reset date with a countdown timer in your local timezone.
+
 ### First User Setup
 
 The first user to sign in to your instance automatically becomes the **instance admin**. However, they start on the **Free tier** by default. You should upgrade them:
