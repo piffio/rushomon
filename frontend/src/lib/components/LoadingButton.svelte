@@ -10,6 +10,7 @@
 		variant = "primary" as Variant,
 		size = "md" as Size,
 		fullWidth = false,
+		class: className = "",
 		children,
 		...restProps
 	} = $props();
@@ -21,6 +22,7 @@
 		inline-flex items-center justify-center gap-2 font-medium rounded-lg
 		transition-all duration-150
 		disabled:cursor-not-allowed
+		whitespace-nowrap
 		{fullWidth ? 'w-full' : ''}
 		{size === 'sm' ? 'px-3 py-1.5 text-sm' : size === 'lg' ? 'px-6 py-3 text-base' : 'px-4 py-2 text-sm'}
 		{variant === 'primary'
@@ -31,13 +33,14 @@
 					? 'bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white'
 					: 'bg-transparent hover:bg-gray-100 disabled:bg-transparent text-gray-600'}
 		{loading ? 'opacity-70' : ''}
+		{className}
 	"
 	disabled={disabled || loading}
 	{...restProps}
 >
 	{#if loading}
 		<svg
-			class="animate-spin"
+			class="animate-spin flex-shrink-0"
 			class:h-4={size !== 'lg'}
 			class:w-4={size !== 'lg'}
 			class:h-5={size === 'lg'}
