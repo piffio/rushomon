@@ -7,6 +7,7 @@
 		UtmParams,
 	} from "$lib/types/api";
 	import { linksApi } from "$lib/api/links";
+	import LoadingButton from "./LoadingButton.svelte";
 
 	let {
 		link,
@@ -429,13 +430,13 @@
 						>
 							Cancel
 						</button>
-						<button
+						<LoadingButton
 							type="submit"
-							class="px-6 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-							disabled={isSubmitting}
+							loading={isSubmitting}
+							variant="primary"
 						>
 							{isSubmitting ? "Saving..." : "Save Changes"}
-						</button>
+						</LoadingButton>
 					</div>
 				</form>
 			</div>

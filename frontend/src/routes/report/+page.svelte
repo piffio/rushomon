@@ -3,6 +3,7 @@
 	import { apiClient } from "$lib/api/client";
 	import { authApi } from "$lib/api/auth";
 	import SEO from "$lib/components/SEO.svelte";
+	import LoadingButton from "$lib/components/LoadingButton.svelte";
 	import { onMount } from "svelte";
 	import type { User } from "$lib/types/api";
 
@@ -357,13 +358,15 @@
 				<button class="btn btn-secondary" onclick={closeDialog}>
 					Cancel
 				</button>
-				<button
+				<LoadingButton
 					class="btn btn-danger"
 					onclick={handleSubmit}
-					disabled={!reason || submitting}
+					loading={submitting}
+					disabled={!reason}
+					variant="danger"
 				>
 					{submitting ? "Submitting..." : "Submit Report"}
-				</button>
+				</LoadingButton>
 			</div>
 		</div>
 	</div>

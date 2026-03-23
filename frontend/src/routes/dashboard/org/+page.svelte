@@ -13,6 +13,7 @@
 		TagWithCount,
 	} from "$lib/types/api";
 	import type { BillingStatus } from "$lib/api/billing";
+	import LoadingButton from "$lib/components/LoadingButton.svelte";
 
 	let { data }: { data: PageData } = $props();
 
@@ -509,13 +510,13 @@
 							onkeydown={(e) =>
 								e.key === "Enter" && saveOrgName()}
 						/>
-						<button
+						<LoadingButton
 							onclick={saveOrgName}
-							disabled={savingName}
-							class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+							loading={savingName}
+							variant="primary"
 						>
 							{savingName ? "Saving…" : "Save"}
-						</button>
+						</LoadingButton>
 						<button
 							onclick={() => (editingName = false)}
 							class="px-4 py-2 text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg text-sm transition-colors"
@@ -852,13 +853,13 @@
 									</p>
 								{/if}
 							</div>
-							<button
+							<LoadingButton
 								onclick={handleInvite}
-								disabled={inviting}
-								class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+								loading={inviting}
+								variant="primary"
 							>
 								{inviting ? "Sending…" : "Send Invite"}
-							</button>
+							</LoadingButton>
 						</div>
 
 						<!-- Pending Invitations -->
@@ -1215,14 +1216,14 @@
 				>
 					Cancel
 				</button>
-				<button
+				<LoadingButton
 					onclick={handleDeleteOrg}
-					disabled={deleting ||
-						(deleteAction === "migrate" && !targetOrgId)}
-					class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+					loading={deleting}
+					disabled={deleteAction === "migrate" && !targetOrgId}
+					variant="danger"
 				>
 					{deleting ? "Deleting…" : "Delete Organization"}
-				</button>
+				</LoadingButton>
 			</div>
 		</div>
 	</div>

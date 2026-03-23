@@ -4,6 +4,7 @@
 		PUBLIC_VITE_API_BASE_URL,
 		PUBLIC_VITE_SHORT_LINK_BASE_URL,
 	} from "$env/static/public";
+	import LoadingButton from "./LoadingButton.svelte";
 
 	let {
 		link,
@@ -11,12 +12,14 @@
 		onEdit,
 		onTagClick,
 		onShowQR,
+		deletingLinkId = null as string | null,
 	}: {
 		link: Link;
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
 		onTagClick?: (tag: string) => void;
 		onShowQR?: (link: Link) => void;
+		deletingLinkId?: string | null;
 	} = $props();
 
 	const TAG_COLORS = [
@@ -273,18 +276,21 @@
 							This action cannot be undone.
 						</p>
 						<div class="flex gap-2">
-							<button
+							<LoadingButton
 								onclick={() => {
 									showDeleteConfirm = false;
 									onDelete(link.id);
 								}}
-								class="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors"
+								loading={deletingLinkId === link.id}
+								variant="danger"
+								size="sm"
 							>
-								Delete
-							</button>
+								Deleting...
+							</LoadingButton>
 							<button
 								onclick={() => (showDeleteConfirm = false)}
-								class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+								disabled={deletingLinkId === link.id}
+								class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								Cancel
 							</button>
