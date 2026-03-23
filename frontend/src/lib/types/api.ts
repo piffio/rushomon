@@ -385,4 +385,8 @@ export interface ListBillingAccountsResponse {
 	total: number;
 	page: number;
 	limit: number;
+	next_reset?: {
+		utc: string;
+		timestamp: number;
+	};
 }

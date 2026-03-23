@@ -9,6 +9,7 @@
 
 	let accounts = $state<BillingAccountWithStats[]>([]);
 	let total = $state(0);
+	let nextReset = $state<{ utc: string; timestamp: number } | null>(null);
 	let loading = $state(false);
 	let error = $state("");
 	let currentPage = $state(1);
@@ -72,6 +73,7 @@
 			);
 			accounts = response.accounts;
 			total = response.total;
+			nextReset = response.next_reset || null;
 
 			// Load subscription info for all visible accounts to show status badges
 			await loadSubscriptionInfoForAllAccounts();
@@ -427,16 +429,14 @@
 												></div>
 											</div>
 										{/if}
-										{#if details.usage.max_links_per_month}
+										{#if details.usage.max_links_per_month && nextReset}
 											{@const now = Date.now() / 1000}
-											{@const nextReset = new Date()}
-											{@const nextResetTimestamp = (nextReset.setUTCMonth(nextReset.getUTCMonth() + 1, 1), nextReset.setUTCHours(0, 0, 0, 0), nextReset.getTime() / 1000)}
-											{@const diffSeconds = nextResetTimestamp - now}
+											{@const diffSeconds = nextReset.timestamp - now}
 											{@const diffDays = Math.floor(diffSeconds / (60 * 60 * 24))}
 											{@const diffHours = Math.floor((diffSeconds % (60 * 60 * 24)) / (60 * 60))}
 											{@const diffMinutes = Math.floor((diffSeconds % (60 * 60)) / 60)}
 											{@const countdownText = diffDays > 0 ? `in ${diffDays}d ${diffHours}h` : diffHours > 0 ? `in ${diffHours}h ${diffMinutes}m` : `in ${diffMinutes}m`}
-											{@const resetDateStr = nextReset.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+											{@const resetDateStr = new Date(nextReset.timestamp * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
 											<div class="reset-info">
 												Resets {resetDateStr} UTC (00:00) {countdownText}
 											</div>

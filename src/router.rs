@@ -3979,12 +3979,26 @@ pub async fn handle_admin_list_billing_accounts(
     )
     .await
     {
-        Ok((accounts, total)) => Response::from_json(&serde_json::json!({
-            "accounts": accounts,
-            "total": total,
-            "page": page,
-            "limit": limit,
-        })),
+        Ok((accounts, total)) => {
+            // Calculate next reset time (first day of next month at midnight UTC)
+            let now = chrono::Utc::now();
+            let next_reset = chrono::Utc
+                .with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
+                .single()
+                .unwrap_or_else(|| chrono::Utc::now());
+            let next_reset_timestamp = next_reset.timestamp();
+
+            Response::from_json(&serde_json::json!({
+                "accounts": accounts,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "next_reset": {
+                    "utc": next_reset.to_rfc3339(),
+                    "timestamp": next_reset_timestamp,
+                }
+            }))
+        }
         Err(e) => {
             console_log!(
                 "{}",
