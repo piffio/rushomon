@@ -116,6 +116,7 @@
 			</a>
 
 			{#if user.role === "admin"}
+				<div class="border-t border-gray-100 my-1"></div>
 				{#if !isOnDashboard}
 					<a
 						href="/dashboard"
