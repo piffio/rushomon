@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { adminApi } from "$lib/api/admin";
+	import Pagination from "$lib/components/Pagination.svelte";
 	import type { AdminLink, ApiError } from "$lib/types/api";
 
 	let links = $state<AdminLink[]>([]);
@@ -28,7 +29,7 @@
 		visible: false,
 	});
 
-	const totalPages = $derived(Math.ceil(total / 50));
+	const totalPages = $derived(Math.ceil(total / 20));
 
 	onMount(() => {
 		loadLinks();
@@ -39,7 +40,7 @@
 			loading = true;
 			const response = await adminApi.listLinks(
 				currentPage,
-				50,
+				20,
 				orgFilter,
 				emailFilter,
 				domainFilter,
@@ -486,26 +487,13 @@
 
 		<!-- Pagination -->
 		{#if totalPages > 1}
-			<div class="pagination">
-				<p class="pagination-info">
-					Page {currentPage} of {totalPages} ({total} total links)
-				</p>
-				<div class="pagination-controls">
-					<button
-						onclick={() => handlePageChange(currentPage - 1)}
-						disabled={currentPage <= 1 || loading}
-						class="pagination-btn"
-					>
-						Previous
-					</button>
-					<button
-						onclick={() => handlePageChange(currentPage + 1)}
-						disabled={currentPage >= totalPages || loading}
-						class="pagination-btn"
-					>
-						Next
-					</button>
-				</div>
+			<div class="mt-6">
+				<Pagination
+					currentPage={currentPage}
+					totalPages={totalPages}
+					onPageChange={handlePageChange}
+					loading={loading}
+				/>
 			</div>
 		{/if}
 	{/if}
@@ -814,47 +802,6 @@
 		color: #64748b;
 	}
 
-	.pagination {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		background: #f8fafc;
-		border-top: 1px solid #e2e8f0;
-	}
-
-	.pagination-info {
-		color: #64748b;
-		font-size: 0.875rem;
-		margin: 0;
-	}
-
-	.pagination-controls {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.pagination-btn {
-		padding: 0.5rem 1rem;
-		border: 1px solid #d1d5db;
-		background: white;
-		color: #374151;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.pagination-btn:hover:not(:disabled) {
-		background: #f9fafb;
-		border-color: #9ca3af;
-	}
-
-	.pagination-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
 	.btn {
 		padding: 0.5rem 1rem;
 		border: none;
@@ -1100,16 +1047,6 @@
 		.links-table th,
 		.links-table td {
 			padding: 0.75rem 0.5rem;
-		}
-
-		.pagination {
-			flex-direction: column;
-			gap: 1rem;
-			align-items: stretch;
-		}
-
-		.pagination-controls {
-			justify-content: center;
 		}
 	}
 </style>

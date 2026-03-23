@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import { adminApi } from "$lib/api/admin";
 	import { authApi } from "$lib/api/auth";
+	import Pagination from "$lib/components/Pagination.svelte";
 	import type { User } from "$lib/types/api";
 
 	let users = $state<User[]>([]);
@@ -33,7 +34,7 @@
 	async function loadUsers() {
 		try {
 			loading = true;
-			const response = await adminApi.listUsers(currentPage, 50);
+			const response = await adminApi.listUsers(currentPage, 20);
 			users = response.users;
 			total = response.total;
 			if (response.org_tiers) {
@@ -190,7 +191,7 @@
 		return new Date(ms).toLocaleDateString();
 	}
 
-	const totalPages = $derived(Math.ceil(total / 50));
+	const totalPages = $derived(Math.ceil(total / 20));
 </script>
 
 <div class="users-page">
@@ -416,32 +417,19 @@
 						{/each}
 					</tbody>
 				</table>
-			</div>
 
-			<!-- Pagination -->
-			{#if totalPages > 1}
-				<div class="pagination">
-					<p class="pagination-info">
-						Page {currentPage} of {totalPages} ({total} total users)
-					</p>
-					<div class="pagination-controls">
-						<button
-							onclick={() => handlePageChange(currentPage - 1)}
-							disabled={currentPage <= 1 || loading}
-							class="pagination-btn"
-						>
-							Previous
-						</button>
-						<button
-							onclick={() => handlePageChange(currentPage + 1)}
-							disabled={currentPage >= totalPages || loading}
-							class="pagination-btn"
-						>
-							Next
-						</button>
+				<!-- Pagination -->
+				{#if totalPages > 1}
+					<div class="mt-6">
+						<Pagination
+							currentPage={currentPage}
+							totalPages={totalPages}
+							onPageChange={handlePageChange}
+							loading={loading}
+						/>
 					</div>
-				</div>
-			{/if}
+				{/if}
+			</div>
 		</div>
 	{/if}
 </div>
@@ -991,47 +979,6 @@
 		z-index: 40;
 	}
 
-	.pagination {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		background: #f8fafc;
-		border-top: 1px solid #e2e8f0;
-	}
-
-	.pagination-info {
-		color: #64748b;
-		font-size: 0.875rem;
-		margin: 0;
-	}
-
-	.pagination-controls {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.pagination-btn {
-		padding: 0.5rem 1rem;
-		border: 1px solid #d1d5db;
-		background: white;
-		color: #374151;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.pagination-btn:hover:not(:disabled) {
-		background: #f9fafb;
-		border-color: #9ca3af;
-	}
-
-	.pagination-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
 	/* Modal */
 	.modal-backdrop {
 		position: fixed;
@@ -1153,16 +1100,6 @@
 		.users-table th,
 		.users-table td {
 			padding: 0.75rem 0.5rem;
-		}
-
-		.pagination {
-			flex-direction: column;
-			gap: 1rem;
-			align-items: stretch;
-		}
-
-		.pagination-controls {
-			justify-content: center;
 		}
 	}
 </style>

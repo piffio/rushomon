@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { adminApi } from "$lib/api/admin";
+	import Pagination from "$lib/components/Pagination.svelte";
 	import type {
 		BillingAccountWithStats,
 		BillingAccountDetails,
@@ -65,13 +66,13 @@
 			loading = true;
 			const response = await adminApi.listBillingAccounts(
 				currentPage,
-				50,
+				20,
 				searchQuery || undefined,
 				tierFilter || undefined,
 			);
 			accounts = response.accounts;
 			total = response.total;
-			
+
 			// Load subscription info for all visible accounts to show status badges
 			await loadSubscriptionInfoForAllAccounts();
 		} catch (err) {
@@ -252,7 +253,7 @@
 		return tier.charAt(0).toUpperCase() + tier.slice(1);
 	}
 
-	const totalPages = $derived(Math.ceil(total / 50));
+	const totalPages = $derived(Math.ceil(total / 20));
 </script>
 
 <div class="billing-page">
@@ -648,26 +649,13 @@
 
 		<!-- Pagination -->
 		{#if totalPages > 1}
-			<div class="pagination">
-				<p class="pagination-info">
-					Page {currentPage} of {totalPages} ({total} total accounts)
-				</p>
-				<div class="pagination-controls">
-					<button
-						onclick={() => handlePageChange(currentPage - 1)}
-						disabled={currentPage <= 1 || loading}
-						class="pagination-btn"
-					>
-						Previous
-					</button>
-					<button
-						onclick={() => handlePageChange(currentPage + 1)}
-						disabled={currentPage >= totalPages || loading}
-						class="pagination-btn"
-					>
-						Next
-					</button>
-				</div>
+			<div class="mt-6">
+				<Pagination
+					currentPage={currentPage}
+					totalPages={totalPages}
+					onPageChange={handlePageChange}
+					loading={loading}
+				/>
 			</div>
 		{/if}
 	{/if}
@@ -1235,49 +1223,6 @@
 
 	.btn-danger:disabled {
 		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.pagination {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		margin-top: 2rem;
-		background: white;
-		border-radius: 8px;
-		border: 1px solid #e2e8f0;
-	}
-
-	.pagination-info {
-		color: #64748b;
-		font-size: 0.875rem;
-		margin: 0;
-	}
-
-	.pagination-controls {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.pagination-btn {
-		padding: 0.5rem 1rem;
-		border: 1px solid #d1d5db;
-		background: white;
-		color: #374151;
-		border-radius: 6px;
-		font-size: 0.875rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.pagination-btn:hover:not(:disabled) {
-		background: #f9fafb;
-		border-color: #9ca3af;
-	}
-
-	.pagination-btn:disabled {
-		opacity: 0.5;
 		cursor: not-allowed;
 	}
 
