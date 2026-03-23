@@ -116,22 +116,44 @@
 		confirmingSuspend = userId;
 	}
 
-	async function confirmSuspend() {
-		if (!confirmingSuspend) return;
-
-		try {
-			loading = true;
-			await adminApi.suspendUser(
-				String(confirmingSuspend),
-				"Suspended by admin",
-			);
-			await loadUsers(); // Reload to show updated status
-		} catch (err) {
-			error = "Failed to suspend user";
-			console.error(err);
-		} finally {
-			loading = false;
-			confirmingSuspend = null;
+	async function confirmSuspend(userId?: string, currentlySuspended?: boolean) {
+		if (userId) {
+			// Called from mobile card - toggle suspend/unsuspend
+			confirmingSuspend = userId;
+			try {
+				loading = true;
+				if (currentlySuspended) {
+					await adminApi.unsuspendUser(String(userId));
+				} else {
+					await adminApi.suspendUser(
+						String(userId),
+						"Suspended by admin",
+					);
+				}
+				await loadUsers();
+			} catch (err) {
+				error = currentlySuspended ? "Failed to unsuspend user" : "Failed to suspend user";
+				console.error(err);
+			} finally {
+				loading = false;
+				confirmingSuspend = null;
+			}
+		} else if (confirmingSuspend) {
+			// Called from desktop table modal
+			try {
+				loading = true;
+				await adminApi.suspendUser(
+					String(confirmingSuspend),
+					"Suspended by admin",
+				);
+				await loadUsers();
+			} catch (err) {
+				error = "Failed to suspend user";
+				console.error(err);
+			} finally {
+				loading = false;
+				confirmingSuspend = null;
+			}
 		}
 	}
 
@@ -156,19 +178,32 @@
 		confirmingDelete = userId;
 	}
 
-	async function confirmDelete() {
-		if (!confirmingDelete) return;
-
-		try {
-			loading = true;
-			await adminApi.deleteUser(String(confirmingDelete));
-			await loadUsers(); // Reload to show updated user list
-		} catch (err) {
-			error = "Failed to delete user";
-			console.error(err);
-		} finally {
-			loading = false;
-			confirmingDelete = null;
+	async function confirmDelete(userId?: string) {
+		if (userId) {
+			// Called from mobile card
+			try {
+				loading = true;
+				await adminApi.deleteUser(String(userId));
+				await loadUsers();
+			} catch (err) {
+				error = "Failed to delete user";
+				console.error(err);
+			} finally {
+				loading = false;
+			}
+		} else if (confirmingDelete) {
+			// Called from desktop table modal
+			try {
+				loading = true;
+				await adminApi.deleteUser(String(confirmingDelete));
+				await loadUsers();
+			} catch (err) {
+				error = "Failed to delete user";
+				console.error(err);
+			} finally {
+				loading = false;
+				confirmingDelete = null;
+			}
 		}
 	}
 
@@ -206,6 +241,95 @@
 		<div class="error">{error}</div>
 	{:else}
 		<div class="users-container">
+			<!-- Mobile Card View -->
+			<div class="mobile-cards">
+				{#each users as user (user.id)}
+					<div class="user-card">
+						<div class="card-header">
+							<div class="user-info">
+								{#if user.avatar_url}
+									<img
+										src={user.avatar_url}
+										alt={user.name || user.email}
+										class="avatar"
+									/>
+								{:else}
+									<div class="avatar-placeholder">
+										{(user.name || user.email)
+											.charAt(0)
+											.toUpperCase()}
+									</div>
+								{/if}
+								<div class="user-details">
+									<h3>{user.name || "Unknown"}</h3>
+									<p class="email">{user.email}</p>
+								</div>
+							</div>
+							<div class="badges">
+								{#if user.role === "admin"}
+									<span class="badge admin">Admin</span>
+								{:else}
+									<span class="badge member">Member</span>
+								{/if}
+								{#if user.suspended_at}
+									<span class="badge suspended">Suspended</span>
+								{:else}
+									<span class="badge active">Active</span>
+								{/if}
+							</div>
+						</div>
+						<div class="card-body">
+							<div class="card-row">
+								<span class="label">Provider:</span>
+								<span>{user.oauth_provider || "Unknown"}</span>
+							</div>
+							<div class="card-row">
+								<span class="label">Tier:</span>
+								<span class="tier">{user.billing_account_tier || "N/A"}</span>
+							</div>
+							<div class="card-row">
+								<span class="label">Billing:</span>
+								{#if user.billing_account_id}
+									<a
+										href="/admin/billing#{user.billing_account_id}"
+										class="billing-link"
+									>
+										{user.billing_account_id.substring(0, 12)}...
+									</a>
+								{:else}
+									<span>N/A</span>
+								{/if}
+							</div>
+							<div class="card-row">
+								<span class="label">Joined:</span>
+								<span>{formatDate(user.created_at)}</span>
+							</div>
+						</div>
+						<div class="card-actions">
+							<button
+								onclick={() => handleRoleChange(user.id, user.role === 'admin' ? 'member' : 'admin')}
+								class="btn btn-secondary"
+							>
+								{user.role === 'admin' ? 'Demote' : 'Promote'}
+							</button>
+							<button
+								onclick={() => confirmSuspend(user.id, !!user.suspended_at)}
+								class="btn {user.suspended_at ? 'btn-success' : 'btn-danger'}"
+							>
+								{user.suspended_at ? 'Unsuspend' : 'Suspend'}
+							</button>
+							<button
+								onclick={() => confirmDelete(user.id)}
+								class="btn btn-danger"
+							>
+								Delete
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Desktop Table View -->
 			<div class="users-table">
 				<table>
 					<thead>
@@ -540,7 +664,7 @@
 				</button>
 				<button
 					class="btn btn-danger"
-					onclick={confirmSuspend}
+					onclick={() => confirmSuspend()}
 					disabled={loading}
 				>
 					{#if loading}
@@ -604,7 +728,7 @@
 				</button>
 				<button
 					class="btn btn-danger"
-					onclick={confirmDelete}
+					onclick={() => confirmDelete()}
 					disabled={loading}
 				>
 					{#if loading}
@@ -669,6 +793,139 @@
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 		overflow: visible;
 		position: relative;
+	}
+
+	/* Mobile Cards */
+	.mobile-cards {
+		display: none;
+		gap: 1rem;
+	}
+
+	.user-card {
+		background: white;
+		border-radius: 8px;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		overflow: hidden;
+		margin-bottom: 1rem;
+	}
+
+	.card-header {
+		padding: 1rem;
+		border-bottom: 1px solid #e2e8f0;
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 1rem;
+	}
+
+	.card-header .user-info {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.card-header .avatar,
+	.avatar-placeholder {
+		width: 48px;
+		height: 48px;
+	}
+
+	.card-header .user-details h3 {
+		margin: 0;
+		font-size: 1rem;
+		font-weight: 600;
+		color: #1e293b;
+	}
+
+	.card-header .user-details .email {
+		margin: 0.25rem 0 0 0;
+		font-size: 0.875rem;
+		color: #64748b;
+	}
+
+	.card-header .badges {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.card-body {
+		padding: 1rem;
+	}
+
+	.card-row {
+		display: flex;
+		justify-content: space-between;
+		padding: 0.5rem 0;
+		border-bottom: 1px solid #f1f5f9;
+	}
+
+	.card-row:last-child {
+		border-bottom: none;
+	}
+
+	.card-row .label {
+		font-weight: 500;
+		color: #64748b;
+	}
+
+	.card-row .tier {
+		text-transform: capitalize;
+	}
+
+	.card-row .billing-link {
+		color: #3b82f6;
+		text-decoration: none;
+	}
+
+	.card-row .billing-link:hover {
+		text-decoration: underline;
+	}
+
+	.card-actions {
+		padding: 1rem;
+		background: #f8fafc;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.card-actions .btn {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.card-actions .btn-secondary {
+		background: #e2e8f0;
+		color: #475569;
+	}
+
+	.card-actions .btn-secondary:hover {
+		background: #cbd5e1;
+	}
+
+	.card-actions .btn-danger {
+		background: #fee2e2;
+		color: #991b1b;
+	}
+
+	.card-actions .btn-danger:hover {
+		background: #fecaca;
+	}
+
+	.card-actions .btn-success {
+		background: #d1fae5;
+		color: #065f46;
+	}
+
+	.card-actions .btn-success:hover {
+		background: #a7f3d0;
 	}
 
 	.users-table {
@@ -1093,13 +1350,16 @@
 
 	/* Responsive */
 	@media (max-width: 768px) {
-		.users-table {
-			font-size: 0.875rem;
+		.mobile-cards {
+			display: block;
 		}
 
-		.users-table th,
-		.users-table td {
-			padding: 0.75rem 0.5rem;
+		.users-table {
+			display: none;
+		}
+
+		.users-container {
+			padding-top: 3rem;
 		}
 	}
 </style>

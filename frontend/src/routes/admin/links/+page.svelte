@@ -323,6 +323,73 @@
 	{:else if error}
 		<div class="error">{error}</div>
 	{:else}
+		<!-- Mobile Card View -->
+		<div class="mobile-cards">
+			{#each links as link (link.id)}
+				<div class="link-card">
+					<div class="card-header">
+						<div class="short-code-section">
+							<code class="short-code">{link.short_code}</code>
+							<span class="badge {getStatusBadge(link.status)}">{link.status}</span>
+						</div>
+						<div class="kv-sync-status">
+							<span
+								class="kv-badge {getKvSyncBadge(link.kv_sync_status)}"
+								title={getKvSyncTooltip(link.kv_sync_status, link.kv_exists)}
+							>
+								{getKvSyncIcon(link.kv_sync_status)}
+							</span>
+						</div>
+					</div>
+					<div class="card-body">
+						<div class="card-row">
+							<span class="label">Destination:</span>
+							<span class="value destination">{link.destination_url}</span>
+						</div>
+						<div class="card-row">
+							<span class="label">Creator:</span>
+							<span class="value">{link.creator_email}</span>
+						</div>
+						<div class="card-row">
+							<span class="label">Organization:</span>
+							<span class="value">{link.org_name}</span>
+						</div>
+						<div class="card-row">
+							<span class="label">Clicks:</span>
+							<span class="value">{link.click_count}</span>
+						</div>
+						<div class="card-row">
+							<span class="label">Created:</span>
+							<span class="value">{formatDate(link.created_at)}</span>
+						</div>
+					</div>
+					<div class="card-actions">
+						<button
+							class="btn btn-secondary"
+							onclick={() => confirmDelete(link.id)}
+						>
+							Delete
+						</button>
+						<button
+							class="btn btn-danger"
+							onclick={() => confirmBlock(link.id, link.destination_url)}
+						>
+							Block
+						</button>
+						{#if link.kv_sync_status !== "synced"}
+							<button
+								class="btn btn-secondary"
+								onclick={() => handleSyncKv(link.id)}
+							>
+								Sync KV
+							</button>
+						{/if}
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- Desktop Table View -->
 		<div class="links-table">
 			<table>
 				<thead>
@@ -692,6 +759,110 @@
 		color: #dc2626;
 	}
 
+	/* Mobile Cards */
+	.mobile-cards {
+		display: none;
+		gap: 1rem;
+	}
+
+	.link-card {
+		background: white;
+		border-radius: 8px;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		overflow: hidden;
+		margin-bottom: 1rem;
+	}
+
+	.card-header {
+		padding: 1rem;
+		border-bottom: 1px solid #e2e8f0;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.short-code-section {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.short-code {
+		background: #f1f5f9;
+		padding: 0.25rem 0.5rem;
+		border-radius: 4px;
+		font-family: monospace;
+		font-size: 0.875rem;
+	}
+
+	.card-body {
+		padding: 1rem;
+	}
+
+	.card-row {
+		display: flex;
+		justify-content: space-between;
+		padding: 0.5rem 0;
+		border-bottom: 1px solid #f1f5f9;
+	}
+
+	.card-row:last-child {
+		border-bottom: none;
+	}
+
+	.card-row .label {
+		font-weight: 500;
+		color: #64748b;
+	}
+
+	.card-row .value {
+		color: #1e293b;
+		text-align: right;
+		max-width: 60%;
+		word-break: break-word;
+	}
+
+	.card-row .value.destination {
+		font-size: 0.875rem;
+	}
+
+	.card-actions {
+		padding: 1rem;
+		background: #f8fafc;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.card-actions .btn {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.card-actions .btn-secondary {
+		background: #e2e8f0;
+		color: #475569;
+	}
+
+	.card-actions .btn-secondary:hover {
+		background: #cbd5e1;
+	}
+
+	.card-actions .btn-danger {
+		background: #fee2e2;
+		color: #991b1b;
+	}
+
+	.card-actions .btn-danger:hover {
+		background: #fecaca;
+	}
+
 	.links-table {
 		background: white;
 		border-radius: 8px;
@@ -1032,6 +1203,18 @@
 
 	/* Responsive */
 	@media (max-width: 768px) {
+		.mobile-cards {
+			display: block;
+		}
+
+		.links-table {
+			display: none;
+		}
+
+		.links-page {
+			padding-top: 3rem;
+		}
+
 		.filters {
 			flex-direction: column;
 		}
@@ -1040,13 +1223,23 @@
 			min-width: auto;
 		}
 
-		.links-table {
-			font-size: 0.875rem;
+		.filters input {
+			width: 100%;
 		}
 
-		.links-table th,
-		.links-table td {
-			padding: 0.75rem 0.5rem;
+		.page-header h1 {
+			font-size: 1.5rem;
+		}
+
+		.badge {
+			font-size: 0.75rem;
+			padding: 0.25rem 0.5rem;
+		}
+
+		.actions-cell {
+			display: flex;
+			flex-direction: column;
+			gap: 0.25rem;
 		}
 	}
 </style>

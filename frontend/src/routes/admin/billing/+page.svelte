@@ -1439,4 +1439,81 @@
 		color: #0369a1;
 		font-size: 0.875rem;
 	}
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.billing-page {
+			padding-top: 3rem;
+		}
+
+		.page-header h1 {
+			font-size: 1.5rem;
+		}
+
+		.filters {
+			flex-direction: column;
+		}
+
+		.search-input,
+		.tier-filter {
+			width: 100%;
+		}
+
+		.account-card {
+			margin-bottom: 1rem;
+		}
+
+		.card-header {
+			padding: 1rem;
+			grid-template-columns: 1fr auto;
+			grid-template-areas:
+				"owner tier"
+				"status status"
+				"usage usage"
+				"orgs icon";
+			gap: 0.5rem;
+		}
+
+		.card-header .owner {
+			grid-area: owner;
+			font-weight: 600;
+		}
+
+		.card-header .tier-badge {
+			grid-area: tier;
+		}
+
+		.card-header .subscription-status-badge {
+			grid-area: status;
+		}
+
+		.card-header .usage {
+			grid-area: usage;
+		}
+
+		.card-header .orgs {
+			grid-area: orgs;
+		}
+
+		.card-header .icon {
+			grid-area: icon;
+		}
+
+		.card-body {
+			padding: 1rem;
+		}
+
+		.section {
+			margin-bottom: 1rem;
+		}
+
+		.info-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.actions {
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+	}
 </style>

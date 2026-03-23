@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from "$app/state";
 	import type { User } from "$lib/types/api";
 	import Avatar from "./Avatar.svelte";
 	import { clickOutside } from "$lib/utils/clickOutside";
@@ -12,6 +13,8 @@
 	let { user, onLogout, showBilling = false }: Props = $props();
 	let showMenu = $state(false);
 	let isLoggingOut = $state(false);
+
+	const isOnDashboard = $derived(page.url.pathname === "/dashboard");
 
 	function handleClickOutside() {
 		showMenu = false;
@@ -113,6 +116,15 @@
 			</a>
 
 			{#if user.role === "admin"}
+				{#if !isOnDashboard}
+					<a
+						href="/dashboard"
+						role="menuitem"
+						class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+					>
+						📊 Dashboard
+					</a>
+				{/if}
 				<a
 					href="/admin/dashboard"
 					role="menuitem"

@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { page } from "$app/state";
 	import { goto } from "$app/navigation";
+	import { onMount } from "svelte";
+	import { authApi } from "$lib/api/auth";
+	import UserMenu from "$lib/components/UserMenu.svelte";
+	import type { User } from "$lib/types/api";
 
 	type Module =
 		| "dashboard"
@@ -20,11 +24,51 @@
 	function navigateTo(module: Module) {
 		goto(`/admin/${module}`);
 	}
+
+	let sidebarCollapsed = $state(true); // Collapsed by default on desktop
+	let mobileMenuOpen = $state(false);
+	let currentUser = $state<User | null>(null);
+
+	onMount(async () => {
+		try {
+			currentUser = await authApi.me();
+		} catch (error) {
+			console.error("Failed to load user:", error);
+		}
+	});
+
+	async function handleLogout() {
+		try {
+			await authApi.logout();
+			window.location.href = "/";
+		} catch (error) {
+			console.error("Logout failed:", error);
+			window.location.href = "/";
+		}
+	}
 </script>
 
 <div class="admin-layout">
-	<aside class="sidebar">
+	<aside class="sidebar" class:collapsed={sidebarCollapsed}>
 		<div class="sidebar-header">
+			<button
+				class="collapse-btn"
+				onclick={() => (sidebarCollapsed = !sidebarCollapsed)}
+				title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+				aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+			>
+				{#if sidebarCollapsed}
+					<!-- Expand arrow (points right) -->
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+					</svg>
+				{:else}
+					<!-- Collapse arrow (points left) -->
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+					</svg>
+				{/if}
+			</button>
 			<h2>Admin Console</h2>
 		</div>
 		<nav class="sidebar-nav">
@@ -77,9 +121,104 @@
 				<span class="nav-icon">⚙️</span>
 				<span class="nav-label">Instance Settings</span>
 			</button>
+			<a
+				href="/dashboard"
+				class="nav-item back-link"
+				title="Go to your Dashboard"
+			>
+				<span class="nav-icon">📊</span>
+				<span class="nav-label">Dashboard</span>
+			</a>
 		</nav>
 	</aside>
-	<main class="main-content">
+	<main class="main-content" class:sidebar-collapsed={sidebarCollapsed}>
+		<div class="top-bar">
+			<button class="hamburger" onclick={() => (mobileMenuOpen = !mobileMenuOpen)} aria-label="Toggle menu">
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					{#if mobileMenuOpen}
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					{:else}
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+					{/if}
+				</svg>
+			</button>
+			{#if currentUser}
+				<div class="user-menu-container">
+					<UserMenu user={currentUser} onLogout={handleLogout} />
+				</div>
+			{/if}
+		</div>
+
+		<!-- Mobile Menu -->
+		{#if mobileMenuOpen}
+			<nav class="mobile-menu">
+				<a
+					href="/admin/dashboard"
+					class="mobile-nav-item {activeModule === 'dashboard' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">🏠</span>
+					<span>Dashboard</span>
+				</a>
+				<a
+					href="/admin/users"
+					class="mobile-nav-item {activeModule === 'users' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">👥</span>
+					<span>Users</span>
+				</a>
+				<a
+					href="/admin/billing"
+					class="mobile-nav-item {activeModule === 'billing' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">💳</span>
+					<span>Billing Accounts</span>
+				</a>
+				<a
+					href="/admin/links"
+					class="mobile-nav-item {activeModule === 'links' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">🔗</span>
+					<span>Links</span>
+				</a>
+				<a
+					href="/admin/blacklist"
+					class="mobile-nav-item {activeModule === 'blacklist' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">🚫</span>
+					<span>Blacklist</span>
+				</a>
+				<a
+					href="/admin/reports"
+					class="mobile-nav-item {activeModule === 'reports' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">🚨</span>
+					<span>Reports</span>
+				</a>
+				<a
+					href="/admin/settings"
+					class="mobile-nav-item {activeModule === 'settings' ? 'active' : ''}"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">⚙️</span>
+					<span>Instance Settings</span>
+				</a>
+				<a
+					href="/dashboard"
+					class="mobile-nav-item back-link"
+					onclick={() => (mobileMenuOpen = false)}
+				>
+					<span class="mobile-nav-icon">📊</span>
+					<span>Dashboard</span>
+				</a>
+			</nav>
+		{/if}
+
 		{@render children()}
 	</main>
 </div>
@@ -98,17 +237,74 @@
 		flex-direction: column;
 		position: fixed;
 		height: 100vh;
+		transition: width 0.3s ease, transform 0.3s ease;
+		z-index: 100;
+	}
+
+	.sidebar.collapsed {
+		width: 60px;
+	}
+
+	.sidebar.collapsed .nav-label,
+	.sidebar.collapsed .sidebar-header h2 {
+		display: none;
+	}
+
+	.sidebar.collapsed .sidebar-header {
+		padding: 0.75rem 0.5rem;
+		justify-content: center;
+	}
+
+	.sidebar.collapsed .sidebar-header .collapse-btn {
+		display: flex;
+	}
+
+	.sidebar.collapsed .nav-item {
+		justify-content: center;
+		padding: 0.75rem 0.5rem;
+	}
+
+	.sidebar.collapsed .nav-icon {
+		margin: 0;
 	}
 
 	.sidebar-header {
-		padding: 1.5rem;
+		padding: 1rem;
 		border-bottom: 1px solid #334155;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
 	}
 
 	.sidebar-header h2 {
 		margin: 0;
 		font-size: 1.25rem;
 		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		flex: 1;
+	}
+
+	.sidebar-header .collapse-btn {
+		background: none;
+		border: none;
+		color: #94a3b8;
+		cursor: pointer;
+		font-size: 1.25rem;
+		padding: 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.2s;
+		flex-shrink: 0;
+	}
+
+	.sidebar-header .collapse-btn:hover {
+		color: white;
+	}
+
+	.sidebar.collapsed .sidebar-header {
+		padding: 0.75rem 0.5rem;
 	}
 
 	.sidebar-nav {
@@ -129,6 +325,7 @@
 		text-align: left;
 		font-size: 0.95rem;
 		transition: all 0.2s;
+		white-space: nowrap;
 	}
 
 	.nav-item:hover {
@@ -143,15 +340,152 @@
 
 	.nav-icon {
 		font-size: 1.25rem;
+		min-width: 20px;
 	}
 
 	.nav-label {
 		flex: 1;
 	}
 
+	.nav-item.back-link {
+		color: #94a3b8;
+		border-top: 1px solid #334155;
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+	}
+
+	.nav-item.back-link:hover {
+		background: #334155;
+		color: white;
+	}
+
+	.sidebar.collapsed .nav-item.back-link {
+		padding: 0.75rem 0.5rem;
+		justify-content: center;
+		margin-top: 0.75rem;
+		border-top: 1px solid #334155;
+	}
+
 	.main-content {
 		flex: 1;
 		margin-left: 250px;
 		padding: 2rem;
+		transition: margin-left 0.3s ease;
+	}
+
+	.main-content.sidebar-collapsed {
+		margin-left: 60px;
+	}
+
+	.top-bar {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 2rem;
+	}
+
+	.user-menu-container {
+		margin-left: auto;
+	}
+
+	.hamburger {
+		display: none;
+		position: fixed;
+		top: 1rem;
+		right: 1rem;
+		z-index: 101;
+		background: #1e293b;
+		color: white;
+		border: none;
+		padding: 0.5rem;
+		border-radius: 0.5rem;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.hamburger:hover {
+		background: #334155;
+	}
+
+	/* Mobile Menu */
+	.mobile-menu {
+		display: none;
+		position: fixed;
+		top: 4rem;
+		right: 1rem;
+		left: 1rem;
+		background: white;
+		border-radius: 0.5rem;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+		padding: 0.5rem;
+		z-index: 100;
+		border: 1px solid #e2e8f0;
+	}
+
+	.mobile-nav-item {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.75rem 1rem;
+		color: #475569;
+		text-decoration: none;
+		border-radius: 0.375rem;
+		transition: all 0.2s;
+		font-size: 0.95rem;
+	}
+
+	.mobile-nav-item:hover {
+		background: #f1f5f9;
+		color: #1e293b;
+	}
+
+	.mobile-nav-item.active {
+		background: #dbeafe;
+		color: #2563eb;
+	}
+
+	.mobile-nav-icon {
+		font-size: 1.25rem;
+	}
+
+	.mobile-nav-item.back-link {
+		color: #64748b;
+		border-top: 1px solid #e2e8f0;
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+	}
+
+	.mobile-nav-item.back-link:hover {
+		background: #f1f5f9;
+		color: #1e293b;
+	}
+
+	@media (max-width: 768px) {
+		.sidebar {
+			display: none;
+		}
+
+		.main-content {
+			margin-left: 0;
+			padding: 1rem;
+		}
+
+		.main-content.sidebar-collapsed {
+			margin-left: 0;
+		}
+
+		.top-bar {
+			margin-bottom: 1rem;
+		}
+
+		.hamburger {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.mobile-menu {
+			display: block;
+		}
 	}
 </style>
