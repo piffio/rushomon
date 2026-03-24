@@ -102,7 +102,7 @@ export const createPricingTiers = (
 		{
 			tier: 'pro',
 			title: 'Pro',
-			description: 'For creators who need custom codes and extended analytics history',
+			description: 'For creators who need custom codes, extended analytics, and advanced redirect controls',
 			price: () => getDisplayPriceWithFallback('pro', billingInterval),
 			interval: billingInterval === 'monthly' ? 'month' : 'year',
 			features: [
@@ -111,6 +111,7 @@ export const createPricingTiers = (
 				'1-year analytics retention',
 				'Custom short codes',
 				'Advanced QR codes (sizes, SVG, org logo)',
+				'Redirect type selection (301/307)',
 				'Email support'
 			],
 			buttonText: () => {

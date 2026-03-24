@@ -41,6 +41,7 @@ export interface Link {
 	tags: string[];
 	utm_params?: UtmParams | null;
 	forward_query_params?: boolean | null;
+	redirect_type: string; // "301" or "307"
 }
 
 export interface TagWithCount {
@@ -56,6 +57,7 @@ export interface CreateLinkRequest {
 	tags?: string[];
 	utm_params?: UtmParams;
 	forward_query_params?: boolean;
+	redirect_type: string; // "301" or "307" - required field with default "301"
 }
 
 export interface UpdateLinkRequest {
@@ -66,6 +68,7 @@ export interface UpdateLinkRequest {
 	tags?: string[];
 	utm_params?: UtmParams;
 	forward_query_params?: boolean;
+	redirect_type?: string; // "301" or "307"
 }
 
 export interface OrgSettings {

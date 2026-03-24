@@ -146,6 +146,7 @@
 				utm_params: utmParams,
 				forward_query_params:
 					isPro && forwardQueryParams ? true : undefined,
+				redirect_type: "301", // Default to 301 for CreateLinkForm
 			});
 
 			// Success!

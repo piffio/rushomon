@@ -36,6 +36,7 @@
 	const allowQueryForwarding = $derived(
 		usage?.limits?.allow_query_forwarding ?? false,
 	);
+	const isProOrAbove = $derived(allowUtmParameters || allowQueryForwarding);
 	const modalTitle = $derived(
 		isEditMode ? "Edit Link" : "Create New Short Link",
 	);
@@ -57,17 +58,18 @@
 	let utmContent = $state("");
 	let utmRef = $state("");
 	let forwardQueryParams = $state(false);
+	let redirectType = $state("301"); // Default to 301 for SEO
 
-	function hasUtmParams(): boolean {
-		return !!(
+	const hasUtmParams = $derived(
+		!!(
 			utmSource.trim() ||
 			utmMedium.trim() ||
 			utmCampaign.trim() ||
 			utmTerm.trim() ||
 			utmContent.trim() ||
 			utmRef.trim()
-		);
-	}
+		),
+	);
 
 	function buildPreviewUrl(): string {
 		if (!destinationUrl) return "";
@@ -141,6 +143,7 @@
 		utmContent = "";
 		utmRef = "";
 		forwardQueryParams = false;
+		redirectType = "301"; // Reset to default
 		showUtmBuilder = false;
 		populatedLinkId = null;
 	}
@@ -172,6 +175,7 @@
 				utmRef = link.utm_params?.utm_ref || "";
 				showUtmBuilder = false; // Always start collapsed
 				forwardQueryParams = link.forward_query_params ?? false;
+				redirectType = link.redirect_type || "301"; // Load existing redirect type
 				error = "";
 				populatedLinkId = link.id;
 			} else if (!link) {
@@ -223,6 +227,7 @@
 				forward_query_params: allowQueryForwarding
 					? forwardQueryParams
 					: undefined,
+				redirect_type: redirectType,
 			};
 
 			let savedLink: Link;
@@ -493,6 +498,48 @@
 					{/if}
 				</div>
 
+				<!-- Redirect Type -->
+				<div>
+					<label
+						for="redirect-type"
+						class="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
+					>
+						Redirect Type
+						{#if !isProOrAbove}
+							<span
+								class="px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded-full"
+								>Pro</span
+							>
+						{/if}
+					</label>
+					<select
+						id="redirect-type"
+						bind:value={redirectType}
+						disabled={loading || !isProOrAbove}
+						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+					>
+						<option value="301"
+							>301 - Permanent (SEO Optimized)</option
+						>
+						{#if isProOrAbove}
+							<option value="307"
+								>307 - Temporary (Better Tracking)</option
+							>
+						{/if}
+					</select>
+					<p class="text-xs text-gray-500 mt-1">
+						{#if !isProOrAbove}
+							<a
+								href="/pricing"
+								class="text-orange-600 hover:text-orange-700 hover:underline"
+								>Upgrade to Pro</a
+							> to use temporary redirects (307)
+						{:else}
+							301 for SEO benefits, 307 to avoid browser caching
+						{/if}
+					</p>
+				</div>
+
 				<!-- Expiration Date -->
 				<div>
 					<label
@@ -557,7 +604,7 @@
 										/>
 									</svg>
 									UTM Parameters
-									{#if hasUtmParams()}
+									{#if hasUtmParams}
 										<span
 											class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full"
 											>active</span
@@ -801,7 +848,7 @@
 									</div>
 
 									<!-- URL Preview -->
-									{#if destinationUrl && hasUtmParams()}
+									{#if destinationUrl && hasUtmParams}
 										<div class="px-4 pb-4">
 											<div
 												class="text-sm font-medium text-gray-700 mb-1 block"

@@ -218,7 +218,9 @@ pub async fn handle_redirect(
         }
     }
 
-    let response = Response::redirect_with_status(destination_url, 301)?;
+    // Parse redirect type and create appropriate response
+    let redirect_status = mapping.redirect_type.parse::<u16>().unwrap_or(301);
+    let response = Response::redirect_with_status(destination_url, redirect_status)?;
 
     // Collect analytics data from the request before it's consumed
     let referrer = req.headers().get("Referer").ok().flatten();
@@ -413,13 +415,14 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         "tags",
         "utm_params",
         "forward_query_params",
+        "redirect_type",
     ];
     if let Some(obj) = raw_body.as_object() {
         for field_name in obj.keys() {
             if !expected_fields.contains(&field_name.as_str()) {
                 return Response::error(
                     format!(
-                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+)",
+                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+), redirect_type (optional, defaults to 301)",
                         field_name
                     ),
                     400,
@@ -470,22 +473,26 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         );
     }
 
-    // Check if Pro features (UTM params / query forwarding) are allowed
+    // Check if Pro features (UTM params / query forwarding / redirect type) are allowed
     let is_pro_or_above = matches!(
         tier.as_ref(),
         Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
     );
+
     let wants_pro_features = body
         .utm_params
         .as_ref()
         .map(|u| !u.is_empty())
         .unwrap_or(false)
-        || body.forward_query_params.is_some();
+        || body.forward_query_params.is_some()
+        || body.redirect_type != "301"; // 307 is a Pro feature
     if wants_pro_features && !is_pro_or_above {
-        return Response::error(
-            "UTM parameters and query parameter forwarding require a Pro plan or above.",
-            403,
-        );
+        let error_msg = if body.redirect_type != "301" {
+            "Custom redirect types (307) require a Pro plan or above."
+        } else {
+            "UTM parameters and query parameter forwarding require a Pro plan or above."
+        };
+        return Response::error(error_msg, 403);
     }
 
     // Generate or validate short code
@@ -605,6 +612,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         tags: normalized_tags.clone(),
         utm_params,
         forward_query_params: body.forward_query_params,
+        redirect_type: body.redirect_type.clone(),
     };
 
     // Store in D1
@@ -1044,17 +1052,24 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         tier_update.as_ref(),
         Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
     );
+
     let wants_pro_features_update = update_req
         .utm_params
         .as_ref()
         .map(|u| !u.is_empty())
         .unwrap_or(false)
-        || update_req.forward_query_params.is_some();
+        || update_req.forward_query_params.is_some()
+        || (update_req.redirect_type.is_some()
+            && update_req.redirect_type.as_deref() != Some("301"));
     if wants_pro_features_update && !is_pro_or_above_update {
-        return Response::error(
-            "UTM parameters and query parameter forwarding require a Pro plan or above.",
-            403,
-        );
+        let error_msg = if update_req.redirect_type.is_some()
+            && update_req.redirect_type.as_deref() != Some("301")
+        {
+            "Custom redirect types (307) require a Pro plan or above."
+        } else {
+            "UTM parameters and query parameter forwarding require a Pro plan or above."
+        };
+        return Response::error(error_msg, 403);
     }
 
     // Normalise UTM: None means "not provided" (no change); Some(empty) means clear it
@@ -1077,6 +1092,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         update_req.expires_at,
         utm_json_for_db.as_ref().map(|o| o.as_deref()),
         update_req.forward_query_params.map(Some),
+        update_req.redirect_type.as_deref(),
     )
     .await?;
 
@@ -1639,6 +1655,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             tags: normalized_tags.clone(),
             utm_params: None,
             forward_query_params: None,
+            redirect_type: "301".to_string(), // Default for imported links
         };
 
         db::create_link(&db, &link).await?;
@@ -3054,6 +3071,7 @@ pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> R
                 tags: link.tags, // Handle missing tags field
                 utm_params: link.utm_params,
                 forward_query_params: link.forward_query_params,
+                redirect_type: link.redirect_type.clone(),
             };
 
             // Resolve forward query params (same logic as in other places)
@@ -3593,7 +3611,10 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     // Parse request body
     let body: serde_json::Value = match req.json().await {
         Ok(body) => body,
-        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
+        Err(e) => {
+            console_log!("ERROR parsing JSON: {:?}", e);
+            return Response::error(format!("Invalid JSON: {}", e), 400);
+        }
     };
 
     let link_id = match body.get("link_id").and_then(|v| v.as_str()) {

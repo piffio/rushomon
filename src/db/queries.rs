@@ -308,8 +308,8 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
     let utm_json = link.utm_params.as_ref().and_then(|u| u.to_json_string());
 
     let stmt = db.prepare(
-        "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
+        "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
     );
 
     stmt.bind(&[
@@ -332,6 +332,7 @@ pub async fn create_link(db: &D1Database, link: &Link) -> Result<()> {
         link.forward_query_params
             .map(|v| (if v { 1i64 } else { 0i64 } as f64).into())
             .unwrap_or(JsValue::NULL),
+        link.redirect_type.clone().into(),
     ])?
     .run()
     .await?;
@@ -391,7 +392,7 @@ pub async fn get_links_by_org_filtered(
     tags_filter: Option<&[String]>,
 ) -> Result<Vec<Link>> {
     let mut query = String::from(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE org_id = ?1"
     );
@@ -545,7 +546,7 @@ pub async fn get_links_count_by_org_filtered(
 /// Get a link by ID
 pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE id = ?1
          AND org_id = ?2
@@ -560,7 +561,7 @@ pub async fn get_link_by_id(db: &D1Database, link_id: &str, org_id: &str) -> Res
 /// Get a link by ID without org_id check (used for public redirects)
 pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE id = ?1
          AND status = 'active'"
@@ -573,7 +574,7 @@ pub async fn get_link_by_id_no_auth(db: &D1Database, link_id: &str) -> Result<Op
 /// Note: tags are populated separately via get_tags_for_links
 pub async fn get_link_by_id_no_auth_all(db: &D1Database, link_id: &str) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE id = ?1"
     );
@@ -609,6 +610,7 @@ pub async fn update_link(
     expires_at: Option<i64>,
     utm_params: Option<Option<&str>>,
     forward_query_params: Option<Option<bool>>,
+    redirect_type: Option<&str>,
 ) -> Result<Link> {
     let now = now_timestamp();
 
@@ -654,6 +656,12 @@ pub async fn update_link(
                 .map(|v| (if v { 1i64 } else { 0i64 } as f64).into())
                 .unwrap_or(JsValue::NULL),
         );
+        param_count += 1;
+    }
+
+    if let Some(rt) = redirect_type {
+        query.push_str(&format!(", redirect_type = ?{}", param_count));
+        params.push(rt.into());
         param_count += 1;
     }
 
