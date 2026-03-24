@@ -589,7 +589,7 @@ pub async fn get_active_link_by_short_code(
     short_code: &str,
 ) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE short_code = ?1
          AND status = 'active'"
@@ -909,7 +909,7 @@ pub async fn get_link_by_short_code(
     org_id: &str,
 ) -> Result<Option<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE short_code = ?1
          AND org_id = ?2
@@ -1463,7 +1463,7 @@ pub async fn delete_user(
 
 pub async fn get_links_by_creator(db: &D1Database, user_id: &str) -> Result<Vec<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE created_by = ?1",
     );
@@ -1473,7 +1473,7 @@ pub async fn get_links_by_creator(db: &D1Database, user_id: &str) -> Result<Vec<
 
 pub async fn get_links_by_org(db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE org_id = ?1",
     );
@@ -1483,7 +1483,7 @@ pub async fn get_links_by_org(db: &D1Database, org_id: &str) -> Result<Vec<Link>
 
 pub async fn get_links_for_blacklist_scan(db: &D1Database) -> Result<Vec<Link>> {
     let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
          FROM links
          WHERE status IN ('active', 'disabled')",
     );
@@ -1746,7 +1746,7 @@ pub async fn get_all_links_admin_base(
     domain_filter: Option<&str>,
 ) -> Result<Vec<AdminLinkBase>> {
     let mut query = String::from(
-        "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, u.email as creator_email, o.name as org_name
+        "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, l.utm_params, l.forward_query_params, l.redirect_type, u.email as creator_email, o.name as org_name
          FROM links l
          JOIN users u ON l.created_by = u.id
          JOIN organizations o ON l.org_id = o.id
@@ -1881,6 +1881,9 @@ pub struct AdminLinkBase {
     pub expires_at: Option<i64>,
     pub status: String,
     pub click_count: i64,
+    pub utm_params: Option<String>,
+    pub forward_query_params: Option<bool>,
+    pub redirect_type: String,
     pub creator_email: String,
     pub org_name: String,
 }
@@ -1948,6 +1951,9 @@ pub struct LinkReportQueryResult {
     pub link__expires_at: Option<i64>,
     pub link__status: String,
     pub link__click_count: i64,
+    pub link__utm_params: Option<String>,
+    pub link__forward_query_params: Option<bool>,
+    pub link__redirect_type: String,
     pub link__creator_email: String,
     pub link__org_name: String,
     pub report_count: i64,
@@ -2049,6 +2055,8 @@ pub async fn get_link_reports(
             l.created_by as link__created_by, l.created_at as link__created_at,
             l.updated_at as link__updated_at, l.expires_at as link__expires_at,
             l.status as link__status, l.click_count as link__click_count,
+            l.utm_params as link__utm_params, l.forward_query_params as link__forward_query_params,
+            l.redirect_type as link__redirect_type,
             u.email as link__creator_email, o.name as link__org_name,
             COUNT(lr_sub.id) as report_count
          FROM link_reports lr
@@ -2101,6 +2109,9 @@ pub async fn get_link_reports(
                     expires_at: qr.link__expires_at,
                     status: qr.link__status,
                     click_count: qr.link__click_count,
+                    utm_params: qr.link__utm_params,
+                    forward_query_params: qr.link__forward_query_params,
+                    redirect_type: qr.link__redirect_type,
                     creator_email: qr.link__creator_email,
                     org_name: qr.link__org_name,
                 },
