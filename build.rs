@@ -73,4 +73,7 @@ fn main() {
         .expect("Failed to write updated frontend/package.json");
 
     println!("✅ Frontend version synchronized to {}", version);
+
+    // Note: package-lock.json will be updated by running `npm install --package-lock-only`
+    // This is handled in the Makefile version-sync target
 }
