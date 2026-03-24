@@ -429,3 +429,100 @@ mod tests {
         assert_eq!(mapping.utm_params, Some(utm));
     }
 }
+
+#[cfg(test)]
+mod redirect_type_tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_create_link_request_default_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, "301");
+    }
+
+    #[test]
+    fn test_create_link_request_explicit_301() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "301"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, "301");
+    }
+
+    #[test]
+    fn test_create_link_request_explicit_307() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "307"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, "307");
+    }
+
+    #[test]
+    fn test_create_link_request_invalid_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "404"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        // Should accept any string, validation happens at runtime
+        assert_eq!(request.redirect_type, "404");
+    }
+
+    #[test]
+    fn test_update_link_request_optional_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com"}"#;
+        let request: UpdateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, None);
+    }
+
+    #[test]
+    fn test_update_link_request_with_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "307"}"#;
+        let request: UpdateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, Some("307".to_string()));
+    }
+
+    #[test]
+    fn test_link_serialization_includes_redirect_type() {
+        let link = Link {
+            id: "test-id".to_string(),
+            org_id: "org-1".to_string(),
+            short_code: "test".to_string(),
+            destination_url: "https://example.com".to_string(),
+            title: Some("Test".to_string()),
+            created_by: "user-1".to_string(),
+            created_at: 1234567890,
+            updated_at: Some(1234567890),
+            expires_at: None,
+            status: LinkStatus::Active,
+            click_count: 0,
+            tags: vec![],
+            utm_params: None,
+            forward_query_params: None,
+            redirect_type: "301".to_string(),
+        };
+
+        let json = serde_json::to_string(&link).unwrap();
+        assert!(json.contains("\"redirect_type\":\"301\""));
+    }
+
+    #[test]
+    fn test_link_deserialization_with_redirect_type() {
+        let json = r#"{
+            "id": "test-id",
+            "org_id": "org-1",
+            "short_code": "test",
+            "destination_url": "https://example.com",
+            "title": "Test",
+            "created_by": "user-1",
+            "created_at": 1234567890,
+            "updated_at": 1234567890,
+            "expires_at": null,
+            "status": "active",
+            "click_count": 0,
+            "tags": [],
+            "utm_params": null,
+            "forward_query_params": null,
+            "redirect_type": "307"
+        }"#;
+
+        let link: Link = serde_json::from_str(json).unwrap();
+        assert_eq!(link.redirect_type, "307");
+    }
+}
