@@ -39,7 +39,8 @@ async fn test_get_link_analytics_empty() {
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/analytics-empty-test",
-            "title": "Analytics Empty Test"
+            "title": "Analytics Empty Test",
+            "redirect_type": "301"
         }))
         .send()
         .await
@@ -96,7 +97,8 @@ async fn test_get_link_analytics_with_clicks() {
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com/analytics-clicks-test",
-            "title": "Analytics Clicks Test"
+            "title": "Analytics Clicks Test",
+            "redirect_type": "301"
         }))
         .send()
         .await
@@ -167,7 +169,8 @@ async fn test_get_link_analytics_with_time_range() {
     let create_response = client
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
-            "destination_url": "https://example.com/analytics-range-test"
+            "destination_url": "https://example.com/analytics-range-test",
+            "redirect_type": "301"
         }))
         .send()
         .await
@@ -212,7 +215,8 @@ async fn test_get_link_by_short_code() {
         .json(&json!({
             "destination_url": "https://example.com/by-code-test",
             "short_code": code,
-            "title": "By Code Test"
+            "title": "By Code Test",
+            "redirect_type": "301"
         }))
         .send()
         .await

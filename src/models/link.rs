@@ -84,6 +84,9 @@ pub struct Link {
     /// Whether to forward visitor query params to the destination (Pro+ only).
     /// None = use org default (resolved at KV write time).
     pub forward_query_params: Option<bool>,
+    /// HTTP redirect type: 301 (permanent) or 307 (temporary).
+    /// Default is 301 for SEO, 307 available on Pro+ plans.
+    pub redirect_type: String,
 }
 
 impl<'de> Deserialize<'de> for Link {
@@ -106,6 +109,7 @@ impl<'de> Deserialize<'de> for Link {
             click_count: i64,
             utm_params: Option<String>,        // JSON string from D1
             forward_query_params: Option<i64>, // 0/1/NULL from D1
+            redirect_type: String,             // "301" or "307"
         }
 
         let helper = LinkHelper::deserialize(deserializer)?;
@@ -142,6 +146,7 @@ impl<'de> Deserialize<'de> for Link {
             tags: Vec::new(), // Populated separately via get_tags_for_links
             utm_params,
             forward_query_params,
+            redirect_type: helper.redirect_type,
         })
     }
 }
@@ -161,6 +166,14 @@ pub struct LinkMapping {
     /// Missing in old KV entries = false (safe default: no forwarding).
     #[serde(default)]
     pub forward_query_params: bool,
+    /// HTTP redirect type: 301 (permanent) or 307 (temporary).
+    /// Missing in old KV entries = "301" (safe default: permanent for SEO).
+    #[serde(default = "default_redirect_type")]
+    pub redirect_type: String,
+}
+
+fn default_redirect_type() -> String {
+    "301".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -173,6 +186,10 @@ pub struct CreateLinkRequest {
     pub tags: Option<Vec<String>>,
     pub utm_params: Option<UtmParams>,
     pub forward_query_params: Option<bool>,
+    /// HTTP redirect type: 301 (permanent) or 307 (temporary).
+    /// Default is 301, available on Pro+ plans.
+    #[serde(default = "default_redirect_type")]
+    pub redirect_type: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -184,6 +201,9 @@ pub struct UpdateLinkRequest {
     pub tags: Option<Vec<String>>,
     pub utm_params: Option<UtmParams>,
     pub forward_query_params: Option<bool>,
+    /// HTTP redirect type: 301 (permanent) or 307 (temporary).
+    /// Available on Pro+ plans.
+    pub redirect_type: Option<String>,
 }
 
 impl Link {
@@ -207,6 +227,7 @@ impl Link {
             status: self.status.clone(),
             utm_params: self.utm_params.clone(),
             forward_query_params: resolved_forward,
+            redirect_type: self.redirect_type.clone(),
         }
     }
 }
@@ -232,6 +253,7 @@ mod tests {
             tags: Vec::new(),
             utm_params: None,
             forward_query_params: None,
+            redirect_type: "301".to_string(),
         };
         assert!(!link.is_expired());
     }
@@ -259,6 +281,7 @@ mod tests {
             tags: Vec::new(),
             utm_params: None,
             forward_query_params: None,
+            redirect_type: "301".to_string(),
         };
         assert!(!link.is_expired());
     }
@@ -282,6 +305,7 @@ mod tests {
             tags: Vec::new(),
             utm_params: None,
             forward_query_params: None,
+            redirect_type: "301".to_string(),
         };
         assert!(link.is_expired());
     }
@@ -303,6 +327,7 @@ mod tests {
             tags: Vec::new(),
             utm_params: None,
             forward_query_params: None,
+            redirect_type: "301".to_string(),
         };
 
         let mapping = link.to_mapping(false);
@@ -331,6 +356,7 @@ mod tests {
             tags: Vec::new(),
             utm_params: None,
             forward_query_params: None,
+            redirect_type: "301".to_string(),
         };
 
         let mapping = link.to_mapping(false);
@@ -395,10 +421,108 @@ mod tests {
             tags: Vec::new(),
             utm_params: Some(utm.clone()),
             forward_query_params: Some(true),
+            redirect_type: "301".to_string(),
         };
 
         let mapping = link.to_mapping(true);
         assert!(mapping.forward_query_params);
         assert_eq!(mapping.utm_params, Some(utm));
+    }
+}
+
+#[cfg(test)]
+mod redirect_type_tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_create_link_request_default_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, "301");
+    }
+
+    #[test]
+    fn test_create_link_request_explicit_301() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "301"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, "301");
+    }
+
+    #[test]
+    fn test_create_link_request_explicit_307() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "307"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, "307");
+    }
+
+    #[test]
+    fn test_create_link_request_invalid_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "404"}"#;
+        let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
+        // Should accept any string, validation happens at runtime
+        assert_eq!(request.redirect_type, "404");
+    }
+
+    #[test]
+    fn test_update_link_request_optional_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com"}"#;
+        let request: UpdateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, None);
+    }
+
+    #[test]
+    fn test_update_link_request_with_redirect_type() {
+        let json = r#"{"destination_url": "https://example.com", "redirect_type": "307"}"#;
+        let request: UpdateLinkRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.redirect_type, Some("307".to_string()));
+    }
+
+    #[test]
+    fn test_link_serialization_includes_redirect_type() {
+        let link = Link {
+            id: "test-id".to_string(),
+            org_id: "org-1".to_string(),
+            short_code: "test".to_string(),
+            destination_url: "https://example.com".to_string(),
+            title: Some("Test".to_string()),
+            created_by: "user-1".to_string(),
+            created_at: 1234567890,
+            updated_at: Some(1234567890),
+            expires_at: None,
+            status: LinkStatus::Active,
+            click_count: 0,
+            tags: vec![],
+            utm_params: None,
+            forward_query_params: None,
+            redirect_type: "301".to_string(),
+        };
+
+        let json = serde_json::to_string(&link).unwrap();
+        assert!(json.contains("\"redirect_type\":\"301\""));
+    }
+
+    #[test]
+    fn test_link_deserialization_with_redirect_type() {
+        let json = r#"{
+            "id": "test-id",
+            "org_id": "org-1",
+            "short_code": "test",
+            "destination_url": "https://example.com",
+            "title": "Test",
+            "created_by": "user-1",
+            "created_at": 1234567890,
+            "updated_at": 1234567890,
+            "expires_at": null,
+            "status": "active",
+            "click_count": 0,
+            "tags": [],
+            "utm_params": null,
+            "forward_query_params": null,
+            "redirect_type": "307"
+        }"#;
+
+        let link: Link = serde_json::from_str(json).unwrap();
+        assert_eq!(link.redirect_type, "307");
     }
 }

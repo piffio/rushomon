@@ -785,3 +785,179 @@ async fn test_free_tier_tag_limits() {
         "Failed to reset billing account to unlimited tier"
     );
 }
+
+#[tokio::test]
+async fn test_free_tier_cannot_create_307_redirect() {
+    let client = authenticated_client();
+
+    // Get user info to find organization ID
+    let user_response = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let user: serde_json::Value = user_response.json().await.unwrap();
+
+    // Get all billing accounts and find the one for this org
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            // Find the billing account that belongs to this user
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
+    // Set billing account to free tier
+    let tier_response = client
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
+        .json(&json!({"tier": "free"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(tier_response.status(), 200);
+
+    // Try to create a link with 307 redirect
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/free-307-test",
+            "title": "Free Tier 307 Should Fail",
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    // Should be rejected with 403
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    // Should be rejected with 403
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Handle error response - it might not be valid JSON
+    let response_text = response.text().await.unwrap();
+    println!("DEBUG: Response text: {}", response_text);
+    assert!(response_text.contains("Pro plan") || response_text.contains("307"));
+
+    // Reset billing account back to unlimited tier for subsequent tests
+    let reset_response = client
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
+        .json(&json!({"tier": "unlimited"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset billing account to unlimited tier"
+    );
+}
+
+#[tokio::test]
+async fn test_pro_tier_can_create_307_redirect() {
+    let client = authenticated_client();
+
+    // Get user info to find organization ID
+    let user_response = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let user: serde_json::Value = user_response.json().await.unwrap();
+
+    // Get all billing accounts and find the one for this org
+    let billing_accounts_response = client
+        .get(format!("{}/api/admin/billing-accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
+
+    let billing_account_id = billing_accounts["accounts"]
+        .as_array()
+        .expect("Billing accounts should be an array")
+        .iter()
+        .find(|account| {
+            // Find the billing account that belongs to this user
+            let owner_user_id = account["owner_user_id"].as_str().unwrap_or("");
+            let current_user_id = user["id"].as_str().unwrap_or("");
+            owner_user_id == current_user_id
+        })
+        .and_then(|account| account["id"].as_str())
+        .expect("Failed to find billing account for user");
+
+    // Set billing account to pro tier
+    let tier_response = client
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
+        .json(&json!({"tier": "pro"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(tier_response.status(), 200);
+
+    // Create a link with 307 redirect
+    let response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/pro-307-test",
+            "title": "Pro Tier 307 Should Work",
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    // Should succeed
+    assert_eq!(response.status(), StatusCode::OK);
+    let link: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(link["redirect_type"], "307");
+
+    // Clean up
+    let link_id = link["id"].as_str().unwrap();
+    let _ = client
+        .delete(format!("{}/api/links/{}", BASE_URL, link_id))
+        .send()
+        .await;
+
+    // Reset billing account back to unlimited tier for subsequent tests
+    let reset_response = client
+        .put(format!(
+            "{}/api/admin/billing-accounts/{}/tier",
+            BASE_URL, billing_account_id
+        ))
+        .json(&json!({"tier": "unlimited"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset billing account to unlimited tier"
+    );
+}

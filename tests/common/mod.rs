@@ -264,7 +264,10 @@ pub fn authenticated_client() -> Client {
 /// Helper to create a test link (authenticated) and return the response
 pub async fn create_test_link(url: &str, title: Option<&str>) -> Response {
     let client = authenticated_client();
-    let mut body = json!({"destination_url": url});
+    let mut body = json!({
+        "destination_url": url,
+        "redirect_type": "301"
+    });
 
     if let Some(t) = title {
         body["title"] = json!(t);
@@ -288,7 +291,10 @@ pub async fn create_link_and_get_code(url: &str) -> String {
 /// Helper to create a test link and return error response (for testing blocked URLs)
 pub async fn create_test_link_expect_error(url: &str, title: Option<&str>) -> String {
     let client = authenticated_client();
-    let mut body = json!({"destination_url": url});
+    let mut body = json!({
+        "destination_url": url,
+        "redirect_type": "301"
+    });
 
     if let Some(t) = title {
         body["title"] = json!(t);
