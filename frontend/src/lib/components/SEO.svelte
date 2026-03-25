@@ -55,4 +55,7 @@
 		<meta name="twitter:description" content={props.description} />
 	{/if}
 	<meta name="twitter:image" content={`${siteUrl}/favicon-192x192.png`} />
+
+	<!-- Sitemap reference for search engines -->
+	<link rel="sitemap" type="application/xml" href={`${siteUrl}/sitemap.xml`} />
 </svelte:head>
