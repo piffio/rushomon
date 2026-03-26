@@ -16,6 +16,7 @@ wrangler.production.toml
 # Environment variables and secrets
 .env
 .dev.vars
+repo-config/config/user.sh
 
 # Node.js (for frontend)
 node_modules

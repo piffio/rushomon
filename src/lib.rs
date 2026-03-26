@@ -373,6 +373,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/billing/portal", handle_cors_preflight)
         .options_async("/api/admin/cron/trigger-downgrade", handle_cors_preflight)
         .options_async("/api/settings", handle_cors_preflight)
+        .options_async("/api/settings/api-keys", handle_cors_preflight)
+        .options_async("/api/settings/api-keys/:id", handle_cors_preflight)
         .options_async("/api/analytics/org", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/providers", router::handle_list_auth_providers)
@@ -491,6 +493,18 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .get_async(
             "/api/settings",
             crate::api::settings::handle_get_public_settings,
+        )
+        .post_async(
+            "/api/settings/api-keys",
+            crate::api::keys::handle_create_api_key,
+        )
+        .get_async(
+            "/api/settings/api-keys",
+            crate::api::keys::handle_list_api_keys,
+        )
+        .delete_async(
+            "/api/settings/api-keys/:id",
+            crate::api::keys::handle_revoke_api_key,
         )
         // Org management routes
         .get_async("/api/orgs", crate::api::orgs::handle_list_user_orgs)
