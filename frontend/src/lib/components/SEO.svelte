@@ -13,12 +13,9 @@
 	let props: Props = $props();
 
 	const siteUrl = $derived(
-		browser
-			? window.location.origin
-			: (typeof process !== "undefined" &&
-					process.env?.PUBLIC_VITE_SITE_URL) ||
-					import.meta.env.PUBLIC_VITE_SITE_URL ||
-					"https://rushomon.cc",
+    browser
+        ? window.location.origin
+        : import.meta.env.PUBLIC_VITE_SITE_URL || "https://rushomon.cc"
 	);
 	const canonicalUrl = $derived(props.canonical || page.url.href);
 	const fullTitle = $derived(`${props.title} – Rushomon`);
