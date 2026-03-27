@@ -3706,15 +3706,6 @@ pub async fn cleanup_expired_webhooks(db: &D1Database) -> Result<i64> {
 }
 
 #[derive(Debug, serde::Deserialize)]
-#[allow(dead_code)]
-pub struct ApiKeyRecord {
-    pub id: String,
-    pub user_id: String,
-    pub org_id: String,
-    pub expires_at: Option<i64>,
-}
-
-#[derive(Debug, serde::Deserialize)]
 pub struct ApiKeyWithTierRecord {
     #[allow(dead_code)]
     pub id: String,
@@ -3725,23 +3716,6 @@ pub struct ApiKeyWithTierRecord {
 }
 
 // ─── API Keys (Personal Access Token) ────────────────────────────────────────
-
-#[allow(dead_code)]
-pub async fn get_api_key_by_hash(
-    db: &worker::d1::D1Database,
-    key_hash: &str,
-) -> worker::Result<Option<ApiKeyRecord>> {
-    let stmt = db.prepare(
-        "SELECT id, user_id, org_id, expires_at
-         FROM api_keys
-         WHERE key_hash = ?1",
-    );
-
-    stmt.bind(&[key_hash.into()])?
-        .first::<ApiKeyRecord>(None)
-        .await
-}
-
 pub async fn get_api_key_by_hash_with_tier(
     db: &worker::d1::D1Database,
     key_hash: &str,
@@ -3767,21 +3741,4 @@ pub async fn update_api_key_last_used(
     let stmt = db.prepare("UPDATE api_keys SET last_used_at = ?1 WHERE id = ?2");
     stmt.bind(&[timestamp.into(), key_id.into()])?.run().await?;
     Ok(())
-}
-
-#[allow(dead_code)]
-pub async fn get_user_api_keys(
-    db: &worker::d1::D1Database,
-    user_id: &str,
-) -> worker::Result<Vec<ApiKeyRecord>> {
-    let stmt = db.prepare(
-        "SELECT id, user_id, org_id, expires_at
-         FROM api_keys
-         WHERE user_id = ?1",
-    );
-
-    stmt.bind(&[user_id.into()])?
-        .all()
-        .await?
-        .results::<ApiKeyRecord>()
 }
