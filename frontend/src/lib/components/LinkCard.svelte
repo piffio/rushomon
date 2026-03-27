@@ -103,84 +103,400 @@
 
 	<!-- Header: Title + Actions -->
 	<div class="relative z-10 p-5">
-	<div class="flex items-start justify-between gap-4 mb-2">
-		<div class="flex-1 min-w-0">
-			<!-- Title as Main Element (or short code if no title) -->
-			<a
-				href="/dashboard/links/{link.short_code}"
-				class="hover:text-orange-600 transition-colors hover:underline"
-				title="View analytics for {link.title || link.short_code}"
-			>
-				<h3 class="text-lg font-semibold text-gray-900 truncate mb-1">
-					{link.title || link.short_code}
-				</h3>
-			</a>
+		<div class="flex items-start justify-between gap-4 mb-2">
+			<div class="flex-1 min-w-0">
+				<!-- Title as Main Element (or short code if no title) -->
+				<a
+					href="/dashboard/links/{link.short_code}"
+					class="hover:text-orange-600 transition-colors hover:underline"
+					title="View analytics for {link.title || link.short_code}"
+				>
+					<h3 class="text-lg font-semibold text-gray-900 truncate mb-1">
+						{link.title || link.short_code}
+					</h3>
+				</a>
 
-			<!-- Short Link → Destination URL -->
-			<div
-				class="flex items-center gap-2 text-sm text-gray-600 flex-wrap"
-			>
-				<a
-					href={shortUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="font-medium text-orange-600 hover:text-orange-700 hover:underline"
+				<!-- Short Link → Destination URL -->
+				<div
+					class="flex items-center gap-2 text-sm text-gray-600 flex-wrap"
 				>
-					{link.short_code}
-				</a>
-				<span class="text-gray-400">→</span>
-				<a
-					href={link.destination_url}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="text-gray-600 hover:text-gray-900 hover:underline truncate"
-					title={link.destination_url}
+					<a
+						href={shortUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="font-medium text-orange-600 hover:text-orange-700 hover:underline"
+					>
+						{link.short_code}
+					</a>
+					<span class="text-gray-400">→</span>
+					<a
+						href={link.destination_url}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-gray-600 hover:text-gray-900 hover:underline truncate"
+						title={link.destination_url}
+					>
+						{getDomain(link.destination_url)}
+					</a>
+				</div>
+			</div>
+
+			<!-- Action Buttons (Top Right) -->
+			<div class="flex items-center gap-1 flex-shrink-0">
+				<!-- Status Badge -->
+				{#if link.status === "disabled"}
+					<span
+						class="px-2.5 py-1 text-xs font-medium bg-gray-200 text-gray-700 rounded-full mr-1"
+					>
+						Disabled
+					</span>
+				{/if}
+
+				<!-- Analytics Button -->
+				<button
+					onclick={handleAnalyticsClick}
+					disabled={analyticsLoading}
+					class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors {analyticsLoading
+						? 'opacity-60 cursor-not-allowed'
+						: ''}"
+					title="View analytics"
 				>
-					{getDomain(link.destination_url)}
-				</a>
+					{#if analyticsLoading}
+						<svg
+							class="animate-spin w-4 h-4"
+							fill="none"
+							viewBox="0 0 24 24"
+						>
+							<circle
+								class="opacity-25"
+								cx="12"
+								cy="12"
+								r="10"
+								stroke="currentColor"
+								stroke-width="4"
+							></circle>
+							<path
+								class="opacity-75"
+								fill="currentColor"
+								d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+							></path>
+						</svg>
+					{:else}
+						<svg
+							class="w-4 h-4"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+							/>
+						</svg>
+					{/if}
+				</button>
+
+				<!-- QR Code Button -->
+				<button
+					onclick={() => onShowQR?.(link)}
+					class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+					title="Show QR code"
+				>
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<rect
+							x="3"
+							y="3"
+							width="7"
+							height="7"
+							rx="1"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+						/>
+						<rect
+							x="14"
+							y="3"
+							width="7"
+							height="7"
+							rx="1"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+						/>
+						<rect
+							x="14"
+							y="14"
+							width="7"
+							height="7"
+							rx="1"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+						/>
+						<rect
+							x="3"
+							y="14"
+							width="7"
+							height="7"
+							rx="1"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+						/>
+					</svg>
+				</button>
+
+				<!-- Edit Button -->
+				<button
+					onclick={() => onEdit(link)}
+					class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+					title="Edit link"
+				>
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+						/>
+					</svg>
+				</button>
+
+				<!-- Delete Button -->
+				<div class="relative">
+					{#if showDeleteConfirm}
+						<div
+							class="absolute right-0 top-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl p-4 z-10 min-w-[220px]"
+						>
+							<p class="text-sm font-medium text-gray-900 mb-2">
+								Delete this link?
+							</p>
+							<p class="text-xs text-gray-600 mb-3">
+								This action cannot be undone.
+							</p>
+							<div class="flex gap-2">
+								<LoadingButton
+									onclick={() => {
+										showDeleteConfirm = false;
+										onDelete(link.id);
+									}}
+									loading={deletingLinkId === link.id}
+									variant="danger"
+									size="sm"
+								>
+									Deleting...
+								</LoadingButton>
+								<button
+									onclick={() => (showDeleteConfirm = false)}
+									disabled={deletingLinkId === link.id}
+									class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					{/if}
+					<button
+						onclick={() => (showDeleteConfirm = !showDeleteConfirm)}
+						class="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+						title="Delete link"
+					>
+						<svg
+							class="w-4 h-4"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+							/>
+						</svg>
+					</button>
+				</div>
 			</div>
 		</div>
 
-		<!-- Action Buttons (Top Right) -->
-		<div class="flex items-center gap-1 flex-shrink-0">
-			<!-- Status Badge -->
-			{#if link.status === "disabled"}
-				<span
-					class="px-2.5 py-1 text-xs font-medium bg-gray-200 text-gray-700 rounded-full mr-1"
-				>
-					Disabled
-				</span>
-			{/if}
+		<!-- Tags Row -->
+		{#if link.tags && link.tags.length > 0}
+			<div class="flex flex-wrap gap-1.5 mt-3 mb-1">
+				{#each visibleTags as tag (tag)}
+					<button
+						type="button"
+						class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-75 {tagColor(
+							tag,
+						)}"
+						onclick={() => onTagClick?.(tag)}
+						title={onTagClick ? `Filter by "${tag}"` : tag}
+					>
+						{tag}
+					</button>
+				{/each}
+				{#if hiddenTagCount > 0}
+					<span
+						class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+					>
+						+{hiddenTagCount} more
+					</span>
+				{/if}
+			</div>
+		{/if}
 
-			<!-- Analytics Button -->
-			<button
-				onclick={handleAnalyticsClick}
-				disabled={analyticsLoading}
-				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors {analyticsLoading
-					? 'opacity-60 cursor-not-allowed'
-					: ''}"
-				title="View analytics"
-			>
-				{#if analyticsLoading}
+		<!-- Stats Row with Copy Button -->
+		<div
+			class="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100"
+		>
+			<!-- Stats -->
+			<div class="flex items-center gap-4 flex-wrap">
+				<!-- Click Count -->
+				<div class="flex items-center gap-1.5">
 					<svg
-						class="animate-spin w-4 h-4"
+						class="w-4 h-4 text-gray-400"
 						fill="none"
+						stroke="currentColor"
 						viewBox="0 0 24 24"
 					>
-						<circle
-							class="opacity-25"
-							cx="12"
-							cy="12"
-							r="10"
-							stroke="currentColor"
-							stroke-width="4"
-						></circle>
 						<path
-							class="opacity-75"
-							fill="currentColor"
-							d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-						></path>
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+						/>
 					</svg>
+					<span class="font-semibold text-gray-900"
+						>{link.click_count}</span
+					>
+				</div>
+
+				<!-- Created Date -->
+				<div class="flex items-center gap-1.5">
+					<svg
+						class="w-4 h-4 text-gray-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+						/>
+					</svg>
+					<span>{formatDate(link.created_at)}</span>
+				</div>
+
+				<!-- UTM Indicator -->
+				{#if link.utm_params && (link.utm_params.utm_source || link.utm_params.utm_medium || link.utm_params.utm_campaign || link.utm_params.utm_term || link.utm_params.utm_content || link.utm_params.utm_ref)}
+					<div
+						class="flex items-center gap-1.5"
+						title="UTM parameters configured"
+					>
+						<svg
+							class="w-3.5 h-3.5 text-indigo-500"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+							/>
+						</svg>
+						<span class="text-xs text-indigo-600 font-medium">UTM</span>
+					</div>
+				{/if}
+
+				<!-- Forwarding Indicator -->
+				{#if link.forward_query_params}
+					<div
+						class="flex items-center"
+						title="Query parameter forwarding enabled"
+					>
+						<svg
+							class="w-3.5 h-3.5 text-teal-500"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M13 5l7 7-7 7M5 5l7 7-7 7"
+							/>
+						</svg>
+					</div>
+				{/if}
+
+				<!-- Expiration Date (if set) -->
+				{#if link.expires_at}
+					<div
+						class="flex items-center gap-1.5 {link.expires_at * 1000 <
+						Date.now()
+							? 'text-red-600'
+							: ''}"
+					>
+						<svg
+							class="w-4 h-4"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
+						</svg>
+						<span>Expires {formatDate(link.expires_at)}</span>
+						{#if link.expires_at * 1000 < Date.now()}
+							<span class="font-medium">⚠</span>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Copy Button (Right side) -->
+			<button
+				onclick={copyToClipboard}
+				class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-300 {copySuccess
+					? 'bg-green-100 text-green-700'
+					: 'bg-gray-100 hover:bg-gray-200 text-gray-700'}"
+				title="Copy short link"
+			>
+				{#if copySuccess}
+					<svg
+						class="w-4 h-4"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M5 13l4 4L19 7"
+						/>
+					</svg>
+					<span>Copied</span>
 				{:else}
 					<svg
 						class="w-4 h-4"
@@ -192,328 +508,12 @@
 							stroke-linecap="round"
 							stroke-linejoin="round"
 							stroke-width="2"
-							d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+							d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
 						/>
 					</svg>
+					<span>Copy</span>
 				{/if}
 			</button>
-
-			<!-- QR Code Button -->
-			<button
-				onclick={() => onShowQR?.(link)}
-				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-				title="Show QR code"
-			>
-				<svg
-					class="w-4 h-4"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<rect
-						x="3"
-						y="3"
-						width="7"
-						height="7"
-						rx="1"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-					/>
-					<rect
-						x="14"
-						y="3"
-						width="7"
-						height="7"
-						rx="1"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-					/>
-					<rect
-						x="14"
-						y="14"
-						width="7"
-						height="7"
-						rx="1"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-					/>
-					<rect
-						x="3"
-						y="14"
-						width="7"
-						height="7"
-						rx="1"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-					/>
-				</svg>
-			</button>
-
-			<!-- Edit Button -->
-			<button
-				onclick={() => onEdit(link)}
-				class="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-				title="Edit link"
-			>
-				<svg
-					class="w-4 h-4"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-					/>
-				</svg>
-			</button>
-
-			<!-- Delete Button -->
-			<div class="relative">
-				{#if showDeleteConfirm}
-					<div
-						class="absolute right-0 top-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl p-4 z-10 min-w-[220px]"
-					>
-						<p class="text-sm font-medium text-gray-900 mb-2">
-							Delete this link?
-						</p>
-						<p class="text-xs text-gray-600 mb-3">
-							This action cannot be undone.
-						</p>
-						<div class="flex gap-2">
-							<LoadingButton
-								onclick={() => {
-									showDeleteConfirm = false;
-									onDelete(link.id);
-								}}
-								loading={deletingLinkId === link.id}
-								variant="danger"
-								size="sm"
-							>
-								Deleting...
-							</LoadingButton>
-							<button
-								onclick={() => (showDeleteConfirm = false)}
-								disabled={deletingLinkId === link.id}
-								class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Cancel
-							</button>
-						</div>
-					</div>
-				{/if}
-				<button
-					onclick={() => (showDeleteConfirm = !showDeleteConfirm)}
-					class="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-					title="Delete link"
-				>
-					<svg
-						class="w-4 h-4"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-						/>
-					</svg>
-				</button>
-			</div>
 		</div>
-	</div>
-
-	<!-- Tags Row -->
-	{#if link.tags && link.tags.length > 0}
-		<div class="flex flex-wrap gap-1.5 mt-3 mb-1">
-			{#each visibleTags as tag (tag)}
-				<button
-					type="button"
-					class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-75 {tagColor(
-						tag,
-					)}"
-					onclick={() => onTagClick?.(tag)}
-					title={onTagClick ? `Filter by "${tag}"` : tag}
-				>
-					{tag}
-				</button>
-			{/each}
-			{#if hiddenTagCount > 0}
-				<span
-					class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
-				>
-					+{hiddenTagCount} more
-				</span>
-			{/if}
-		</div>
-	{/if}
-
-	<!-- Stats Row with Copy Button -->
-	<div
-		class="flex items-center justify-between text-sm text-gray-500 pt-3 border-t border-gray-100"
-	>
-		<!-- Stats -->
-		<div class="flex items-center gap-4 flex-wrap">
-			<!-- Click Count -->
-			<div class="flex items-center gap-1.5">
-				<svg
-					class="w-4 h-4 text-gray-400"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
-					/>
-				</svg>
-				<span class="font-semibold text-gray-900"
-					>{link.click_count}</span
-				>
-			</div>
-
-			<!-- Created Date -->
-			<div class="flex items-center gap-1.5">
-				<svg
-					class="w-4 h-4 text-gray-400"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-					/>
-				</svg>
-				<span>{formatDate(link.created_at)}</span>
-			</div>
-
-			<!-- UTM Indicator -->
-			{#if link.utm_params && (link.utm_params.utm_source || link.utm_params.utm_medium || link.utm_params.utm_campaign || link.utm_params.utm_term || link.utm_params.utm_content || link.utm_params.utm_ref)}
-				<div
-					class="flex items-center gap-1.5"
-					title="UTM parameters configured"
-				>
-					<svg
-						class="w-3.5 h-3.5 text-indigo-500"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-						/>
-					</svg>
-					<span class="text-xs text-indigo-600 font-medium">UTM</span>
-				</div>
-			{/if}
-
-			<!-- Forwarding Indicator -->
-			{#if link.forward_query_params}
-				<div
-					class="flex items-center"
-					title="Query parameter forwarding enabled"
-				>
-					<svg
-						class="w-3.5 h-3.5 text-teal-500"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M13 5l7 7-7 7M5 5l7 7-7 7"
-						/>
-					</svg>
-				</div>
-			{/if}
-
-			<!-- Expiration Date (if set) -->
-			{#if link.expires_at}
-				<div
-					class="flex items-center gap-1.5 {link.expires_at * 1000 <
-					Date.now()
-						? 'text-red-600'
-						: ''}"
-				>
-					<svg
-						class="w-4 h-4"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-						/>
-					</svg>
-					<span>Expires {formatDate(link.expires_at)}</span>
-					{#if link.expires_at * 1000 < Date.now()}
-						<span class="font-medium">⚠</span>
-					{/if}
-				</div>
-			{/if}
-		</div>
-
-		<!-- Copy Button (Right side) -->
-		<button
-			onclick={copyToClipboard}
-			class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-300 {copySuccess
-				? 'bg-green-100 text-green-700'
-				: 'bg-gray-100 hover:bg-gray-200 text-gray-700'}"
-			title="Copy short link"
-		>
-			{#if copySuccess}
-				<svg
-					class="w-4 h-4"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M5 13l4 4L19 7"
-					/>
-				</svg>
-				<span>Copied</span>
-			{:else}
-				<svg
-					class="w-4 h-4"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-					/>
-				</svg>
-				<span>Copy</span>
-			{/if}
-		</button>
-	</div>
 	</div>
 </div>
