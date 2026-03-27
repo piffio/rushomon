@@ -25,6 +25,7 @@
 	import { UAParser } from "ua-parser-js";
 	import countries from "i18n-iso-countries";
 	import enLocale from "i18n-iso-countries/langs/en.json";
+	import { browser } from "$app/environment";
 
 	// Register the English locale for browser environment
 	countries.registerLocale(enLocale);
@@ -106,7 +107,9 @@
 	});
 
 	onDestroy(() => {
-		document.removeEventListener("click", handleGlobalClick);
+		if (browser) {
+			document.removeEventListener("click", handleGlobalClick);
+		}
 	});
 
 	function selectTimeRange(range: (typeof timeRanges)[0]) {

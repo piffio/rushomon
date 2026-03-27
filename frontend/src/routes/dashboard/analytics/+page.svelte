@@ -26,6 +26,7 @@
 	import countries from "i18n-iso-countries";
 	import enLocale from "i18n-iso-countries/langs/en.json";
 	import OrgLinkSlideOver from "$lib/components/OrgLinkSlideOver.svelte";
+  	import { browser } from "$app/environment";
 
 	countries.registerLocale(enLocale);
 
@@ -331,7 +332,9 @@
 		clicksChart?.destroy();
 		browserChart?.destroy();
 		osChart?.destroy();
-		document.removeEventListener("click", handleGlobalClick);
+		if (browser) {
+			document.removeEventListener("click", handleGlobalClick);
+		}
 	});
 
 	$effect(() => {
