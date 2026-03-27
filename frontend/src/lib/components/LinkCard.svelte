@@ -5,6 +5,7 @@
 		PUBLIC_VITE_SHORT_LINK_BASE_URL,
 	} from "$env/static/public";
 	import LoadingButton from "./LoadingButton.svelte";
+  	import { fade } from "svelte/transition";
 
 	let {
 		link,
@@ -13,6 +14,7 @@
 		onTagClick,
 		onShowQR,
 		deletingLinkId = null as string | null,
+		isHighlighted = false,
 	}: {
 		link: Link;
 		onDelete: (id: string) => void;
@@ -20,6 +22,7 @@
 		onTagClick?: (tag: string) => void;
 		onShowQR?: (link: Link) => void;
 		deletingLinkId?: string | null;
+		isHighlighted?: boolean;
 	} = $props();
 
 	const TAG_COLORS = [
@@ -89,9 +92,17 @@
 </script>
 
 <div
-	class="border-2 border-gray-200 hover:border-orange-500 rounded-xl p-5 transition-all duration-300 hover:shadow-lg bg-white"
+	class="relative overflow-hidden border-2 border-gray-200 hover:border-orange-500 rounded-xl transition-all duration-300 hover:shadow-lg bg-white"
 >
+	{#if isHighlighted}
+		<div
+			class="absolute inset-0 bg-orange-50 pointer-events-none"
+			out:fade={{ duration: 1000 }}
+		></div>
+	{/if}
+
 	<!-- Header: Title + Actions -->
+	<div class="relative z-10 p-5">
 	<div class="flex items-start justify-between gap-4 mb-2">
 		<div class="flex-1 min-w-0">
 			<!-- Title as Main Element (or short code if no title) -->
@@ -503,5 +514,6 @@
 				<span>Copy</span>
 			{/if}
 		</button>
+	</div>
 	</div>
 </div>
