@@ -102,34 +102,123 @@ pub async fn authenticate_request(
             }
         };
 
+        let kv = match ctx.kv("URL_MAPPINGS") {
+            Ok(kv) => kv,
+            Err(_e) => {
+                console_log!("KV binding failed for PAT auth");
+                return Err(AuthError::InternalError(
+                    "Server configuration error".to_string(),
+                ));
+            }
+        };
+
         // 1. Hash the incoming token
         let mut hasher = Sha256::new();
         hasher.update(jwt.as_bytes());
         let key_hash = format!("{:x}", hasher.finalize());
 
-        // 2. Look up the hash in the database
-        let api_key = match crate::db::queries::get_api_key_by_hash(&db, &key_hash).await {
-            Ok(Some(key)) => key,
-            Ok(None) => {
-                console_log!("Invalid PAT attempt");
-                return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
-            }
-            Err(_) => {
-                return Err(AuthError::InternalError(
-                    "Failed to validate API key".to_string(),
-                ));
-            }
-        };
+        // 2. Try KV cache first for fast tier validation
+        let _api_key_validation: Option<crate::kv::ApiKeyValidation> =
+            match crate::kv::get_api_key_validation(&kv, &key_hash).await {
+                Ok(Some(validation)) => {
+                    // Check if cached validation is still valid
+                    if validation.is_valid() {
+                        // Cache hit and valid, verify user still exists and isn't suspended
+                        let user = match crate::db::get_user_by_id(&db, &validation.user_id).await {
+                            Ok(Some(u)) => u,
+                            Ok(None) => {
+                                return Err(AuthError::Unauthorized("User not found".to_string()));
+                            }
+                            Err(_) => {
+                                return Err(AuthError::InternalError(
+                                    "Failed to validate user".to_string(),
+                                ));
+                            }
+                        };
 
-        // 3. Check expiration (if your DB schema supports it)
-        if let Some(expires_at) = api_key.expires_at
+                        if user.suspended_at.is_some() {
+                            return Err(AuthError::Forbidden("Account suspended".to_string()));
+                        }
+
+                        // Update last used timestamp
+                        let user_id_for_update = validation.user_id.clone();
+                        let _ = crate::db::queries::update_api_key_last_used(
+                            &db,
+                            &user_id_for_update,
+                            now_timestamp(),
+                        )
+                        .await;
+
+                        return Ok(UserContext {
+                            user_id: validation.user_id,
+                            org_id: validation.org_id,
+                            session_id: format!("pat_{}", user_id_for_update),
+                            role: user.role,
+                        });
+                    } else {
+                        // Cached validation is invalid (tier changed or expired), fall back to DB
+                        console_log!(
+                            "API key cache invalid for user {}, falling back to DB",
+                            validation.user_id
+                        );
+                        None
+                    }
+                }
+                Ok(None) => {
+                    // Cache miss, fall back to DB
+                    None
+                }
+                Err(_) => {
+                    console_log!("KV cache error, falling back to DB");
+                    None
+                }
+            };
+
+        // 3. Cache miss or invalid - fall back to database with tier information
+        let api_key_with_tier =
+            match crate::db::queries::get_api_key_by_hash_with_tier(&db, &key_hash).await {
+                Ok(Some(key)) => key,
+                Ok(None) => {
+                    console_log!("Invalid PAT attempt");
+                    return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+                }
+                Err(e) => {
+                    console_log!("Database error during API key validation: {:?}", e);
+                    return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+                }
+            };
+
+        // 4. Check expiration
+        if let Some(expires_at) = api_key_with_tier.expires_at
             && now_timestamp() > expires_at
         {
             return Err(AuthError::Unauthorized("API Key has expired".to_string()));
         }
 
-        // 4. Verify the user exists and isn't suspended
-        let user = match crate::db::get_user_by_id(&db, &api_key.user_id).await {
+        // 5. Check if tier allows API keys
+        let tier = match api_key_with_tier.tier {
+            Some(tier_str) => match crate::models::Tier::from_str_value(&tier_str) {
+                Some(tier) => tier,
+                None => {
+                    return Err(AuthError::InternalError(
+                        "Invalid tier configuration".to_string(),
+                    ));
+                }
+            },
+            None => {
+                // No billing account = Free tier
+                crate::models::Tier::Free
+            }
+        };
+
+        if !tier.limits().allow_api_keys {
+            return Err(AuthError::Forbidden(
+                "API keys are not available on your current plan. Upgrade to Pro or higher to use API keys.".to_string()
+            ));
+        }
+
+        // 6. Verify the user exists and isn't suspended
+        let user = match crate::db::get_user_by_id(&db, &api_key_with_tier.user_id).await {
             Ok(Some(u)) => u,
             Ok(None) => return Err(AuthError::Unauthorized("User not found".to_string())),
             Err(_) => {
@@ -143,15 +232,33 @@ pub async fn authenticate_request(
             return Err(AuthError::Forbidden("Account suspended".to_string()));
         }
 
-        // 5. Update the 'last_used_at' timestamp inline
-        let _ =
-            crate::db::queries::update_api_key_last_used(&db, &api_key.id, now_timestamp()).await;
+        // 7. Update KV cache with current validation data
+        let validation_data = crate::kv::ApiKeyValidation {
+            user_id: api_key_with_tier.user_id.clone(),
+            org_id: api_key_with_tier.org_id.clone(),
+            tier: tier.as_str().to_string(),
+            expires_at: api_key_with_tier.expires_at,
+        };
 
-        // 6. Successfully authenticate!
+        if let Err(e) = crate::kv::store_api_key_validation(&kv, &key_hash, &validation_data).await
+        {
+            console_log!("Failed to cache API key validation: {:?}", e);
+            // Continue anyway - authentication succeeded
+        }
+
+        // 8. Update the 'last_used_at' timestamp
+        let _ = crate::db::queries::update_api_key_last_used(
+            &db,
+            &api_key_with_tier.user_id,
+            now_timestamp(),
+        )
+        .await;
+
+        // 9. Successfully authenticate!
         return Ok(UserContext {
             user_id: user.id,
-            org_id: api_key.org_id, // <--- USE THE API KEY'S ORG ID
-            session_id: format!("pat_{}", api_key.id),
+            org_id: api_key_with_tier.org_id,
+            session_id: format!("pat_{}", api_key_with_tier.user_id),
             role: user.role,
         });
     }

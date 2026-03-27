@@ -3706,6 +3706,7 @@ pub async fn cleanup_expired_webhooks(db: &D1Database) -> Result<i64> {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct ApiKeyRecord {
     pub id: String,
     pub user_id: String,
@@ -3713,20 +3714,48 @@ pub struct ApiKeyRecord {
     pub expires_at: Option<i64>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct ApiKeyWithTierRecord {
+    #[allow(dead_code)]
+    pub id: String,
+    pub user_id: String,
+    pub org_id: String,
+    pub expires_at: Option<i64>,
+    pub tier: Option<String>,
+}
+
 // ─── API Keys (Personal Access Token) ────────────────────────────────────────
 
+#[allow(dead_code)]
 pub async fn get_api_key_by_hash(
     db: &worker::d1::D1Database,
     key_hash: &str,
 ) -> worker::Result<Option<ApiKeyRecord>> {
     let stmt = db.prepare(
-        "SELECT id, user_id, org_id, expires_at 
-         FROM api_keys 
+        "SELECT id, user_id, org_id, expires_at
+         FROM api_keys
          WHERE key_hash = ?1",
     );
 
     stmt.bind(&[key_hash.into()])?
         .first::<ApiKeyRecord>(None)
+        .await
+}
+
+pub async fn get_api_key_by_hash_with_tier(
+    db: &worker::d1::D1Database,
+    key_hash: &str,
+) -> worker::Result<Option<ApiKeyWithTierRecord>> {
+    let stmt = db.prepare(
+        "SELECT ak.id, ak.user_id, ak.org_id, ak.expires_at, ba.tier
+         FROM api_keys ak
+         JOIN organizations o ON ak.org_id = o.id
+         LEFT JOIN billing_accounts ba ON o.billing_account_id = ba.id
+         WHERE ak.key_hash = ?1",
+    );
+
+    stmt.bind(&[key_hash.into()])?
+        .first::<ApiKeyWithTierRecord>(None)
         .await
 }
 
@@ -3738,4 +3767,21 @@ pub async fn update_api_key_last_used(
     let stmt = db.prepare("UPDATE api_keys SET last_used_at = ?1 WHERE id = ?2");
     stmt.bind(&[timestamp.into(), key_id.into()])?.run().await?;
     Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn get_user_api_keys(
+    db: &worker::d1::D1Database,
+    user_id: &str,
+) -> worker::Result<Vec<ApiKeyRecord>> {
+    let stmt = db.prepare(
+        "SELECT id, user_id, org_id, expires_at
+         FROM api_keys
+         WHERE user_id = ?1",
+    );
+
+    stmt.bind(&[user_id.into()])?
+        .all()
+        .await?
+        .results::<ApiKeyRecord>()
 }

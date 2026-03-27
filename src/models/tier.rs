@@ -33,35 +33,38 @@ impl Tier {
 
     pub fn limits(&self) -> TierLimits {
         match self {
-            // Free: 1 user, 1 org, 15 links/month, 7-day analytics, 5 tags
+            // Free: 1 user, 1 org, 15 links/month, 7-day analytics, 5 tags, no API keys
             Tier::Free => TierLimits {
                 max_links_per_month: Some(15),
                 analytics_retention_days: Some(7),
                 allow_custom_short_code: false,
                 allow_utm_parameters: false,
                 allow_query_forwarding: false,
+                allow_api_keys: false,
                 max_members: Some(1),
                 max_orgs: Some(1),
                 max_tags: Some(5),
             },
-            // Pro ($9): 1 user, 1 org, 1000 links/month, 1-year analytics, custom codes, 25 tags
+            // Pro ($9): 1 user, 1 org, 1000 links/month, 1-year analytics, custom codes, 25 tags, API keys
             Tier::Pro => TierLimits {
                 max_links_per_month: Some(1000),
                 analytics_retention_days: Some(365),
                 allow_custom_short_code: true,
                 allow_utm_parameters: true,
                 allow_query_forwarding: true,
+                allow_api_keys: true,
                 max_members: Some(1),
                 max_orgs: Some(1),
                 max_tags: Some(25),
             },
-            // Business ($29): 20 users, 3 orgs, 10000 links/month, unlimited analytics, unlimited tags
+            // Business ($29): 20 users, 3 orgs, 10000 links/month, unlimited analytics, unlimited tags, API keys
             Tier::Business => TierLimits {
                 max_links_per_month: Some(10000),
                 analytics_retention_days: None,
                 allow_custom_short_code: true,
                 allow_utm_parameters: true,
                 allow_query_forwarding: true,
+                allow_api_keys: true,
                 max_members: Some(20),
                 max_orgs: Some(3),
                 max_tags: None,
@@ -73,6 +76,7 @@ impl Tier {
                 allow_custom_short_code: true,
                 allow_utm_parameters: true,
                 allow_query_forwarding: true,
+                allow_api_keys: true,
                 max_members: None,
                 max_orgs: None,
                 max_tags: None,
@@ -101,6 +105,8 @@ pub struct TierLimits {
     pub allow_utm_parameters: bool,
     /// Whether query parameter forwarding is allowed for this tier.
     pub allow_query_forwarding: bool,
+    /// Whether API key creation and usage is allowed for this tier.
+    pub allow_api_keys: bool,
     /// Maximum members per organization (including owner). None = unlimited.
     pub max_members: Option<i64>,
     /// Maximum organizations a user can own. None = unlimited.
@@ -136,6 +142,7 @@ mod tests {
         assert_eq!(limits.max_links_per_month, Some(15));
         assert_eq!(limits.analytics_retention_days, Some(7));
         assert!(!limits.allow_custom_short_code);
+        assert!(!limits.allow_api_keys);
         assert_eq!(limits.max_members, Some(1));
         assert_eq!(limits.max_orgs, Some(1));
         assert_eq!(limits.max_tags, Some(5));
@@ -147,6 +154,7 @@ mod tests {
         assert_eq!(limits.max_links_per_month, Some(1000));
         assert_eq!(limits.analytics_retention_days, Some(365));
         assert!(limits.allow_custom_short_code);
+        assert!(limits.allow_api_keys);
         assert_eq!(limits.max_members, Some(1));
         assert_eq!(limits.max_orgs, Some(1));
         assert_eq!(limits.max_tags, Some(25));
@@ -158,6 +166,7 @@ mod tests {
         assert_eq!(limits.max_links_per_month, Some(10000));
         assert!(limits.analytics_retention_days.is_none());
         assert!(limits.allow_custom_short_code);
+        assert!(limits.allow_api_keys);
         assert_eq!(limits.max_members, Some(20));
         assert_eq!(limits.max_orgs, Some(3));
         assert!(limits.max_tags.is_none());
@@ -169,6 +178,7 @@ mod tests {
         assert!(limits.max_links_per_month.is_none());
         assert!(limits.analytics_retention_days.is_none());
         assert!(limits.allow_custom_short_code);
+        assert!(limits.allow_api_keys);
         assert!(limits.max_members.is_none());
         assert!(limits.max_orgs.is_none());
         assert!(limits.max_tags.is_none());
