@@ -2,6 +2,7 @@
 	import { goto } from "$app/navigation";
 	import { linksApi } from "$lib/api/links";
 	import type { ImportLinkRow, ImportBatchResult } from "$lib/api/links";
+	import { MAX_SHORT_CODE_LENGTH } from "$lib/constants";
 	import type { UsageResponse } from "$lib/types/api";
 
 	let { data }: { data: { user: unknown; usage: UsageResponse | null } } =
@@ -106,7 +107,6 @@
 
 	// ── Step 5: Progress + Results ────────────────────────────────────────────
 	const BATCH_SIZE = 50;
-	const MAX_SHORT_CODE_LENGTH = 100;
 	let progress = $state(0); // 0-100
 	let importDone = $state(false);
 	let totalCreated = $state(0);
@@ -744,7 +744,7 @@
 											{#if row.wasTruncated}
 												<span
 													class="ml-1 text-amber-600 text-[10px] font-sans font-medium"
-													>(truncated to 100)</span
+													>(truncated to {MAX_SHORT_CODE_LENGTH})</span
 												>
 											{/if}
 										</td>
@@ -969,7 +969,7 @@
 							<strong>{truncatedCount}</strong> short code{truncatedCount ===
 							1
 								? " was"
-								: "s were"} longer than 100 characters and {truncatedCount ===
+								: "s were"} longer than {MAX_SHORT_CODE_LENGTH} characters and {truncatedCount ===
 							1
 								? "was"
 								: "were"} automatically truncated before import.

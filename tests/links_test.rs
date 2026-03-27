@@ -4,6 +4,8 @@ use serde_json::json;
 mod common;
 use common::*;
 
+use rushomon::utils::short_code::DEFAULT_MIN_RANDOM_CODE_LENGTH;
+
 #[tokio::test]
 async fn test_create_link_with_random_short_code() {
     let client = authenticated_client();
@@ -34,7 +36,10 @@ async fn test_create_link_with_random_short_code() {
     // Verify response structure
     assert!(link["id"].is_string());
     assert!(link["short_code"].is_string());
-    assert_eq!(link["short_code"].as_str().unwrap().len(), 6);
+    assert_eq!(
+        link["short_code"].as_str().unwrap().len(),
+        DEFAULT_MIN_RANDOM_CODE_LENGTH
+    );
     assert_eq!(link["destination_url"], "https://example.com/test-page");
     assert_eq!(link["title"], "Test Link");
     assert_eq!(link["status"], "active");

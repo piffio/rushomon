@@ -10,17 +10,23 @@
 	import { linksApi, tagsApi } from "$lib/api/links";
 	import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
 	import TagInput from "$lib/components/TagInput.svelte";
+	import { DEFAULT_MIN_CUSTOM_CODE_LENGTH, MAX_SHORT_CODE_LENGTH } from "$lib/constants";
 
 	interface Props {
 		link?: Link | null;
 		isOpen?: boolean;
 		usage?: UsageResponse | null;
+		minShortCodeLength?: number;
+		maxShortCodeLength?: number;
 	}
 
 	let {
 		link = null,
 		isOpen = $bindable(false),
 		usage = null,
+		// Provide default values if not passed down
+		minShortCodeLength = DEFAULT_MIN_CUSTOM_CODE_LENGTH,
+		maxShortCodeLength = MAX_SHORT_CODE_LENGTH,
 	}: Props = $props();
 
 	const dispatch = createEventDispatcher<{ saved: Link }>();
@@ -388,7 +394,7 @@
 				<div>
 					<label
 						for="short-code"
-						class="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
+						class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
 					>
 						{#if isEditMode}
 							Short Code (Read-only)
@@ -418,6 +424,8 @@
 						disabled={isEditMode ||
 							loading ||
 							!allowCustomShortCode}
+						minlength={minShortCodeLength}
+						maxlength={maxShortCodeLength}
 						placeholder={isEditMode
 							? ""
 							: allowCustomShortCode
@@ -435,8 +443,9 @@
 								>Upgrade to Pro</a
 							> to use custom short codes
 						{:else}
-							3-100 characters (letters, numbers, hyphens, forward
-							slashes). Leave empty for auto-generated code
+							{minShortCodeLength}-{maxShortCodeLength} 
+							characters (letters, numbers, hyphens, forward slashes). 
+							Leave empty for auto-generated code
 						{/if}
 					</p>
 				</div>
@@ -502,7 +511,7 @@
 				<div>
 					<label
 						for="redirect-type"
-						class="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
+						class="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
 					>
 						Redirect Type
 						{#if !isProOrAbove}

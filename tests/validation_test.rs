@@ -4,6 +4,8 @@ use serde_json::json;
 mod common;
 use common::*;
 
+use rushomon::utils::short_code::{DEFAULT_MIN_CUSTOM_CODE_LENGTH, MAX_SHORT_CODE_LENGTH};
+
 #[tokio::test]
 async fn test_reject_javascript_url() {
     let client = authenticated_client();
@@ -120,11 +122,14 @@ async fn test_accept_valid_https_url() {
 async fn test_reject_short_code_too_short() {
     let client = authenticated_client();
 
+    // Dynamically create a string 1 character shorter than the allowed default
+    let too_short_code = "a".repeat(DEFAULT_MIN_CUSTOM_CODE_LENGTH - 1);
+
     let response = client
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
-            "short_code": "ab"  // 2 chars, minimum is 3
+            "short_code": too_short_code
         }))
         .send()
         .await
@@ -145,7 +150,7 @@ async fn test_reject_short_code_too_long() {
         .post(format!("{}/api/links", BASE_URL))
         .json(&json!({
             "destination_url": "https://example.com",
-            "short_code": "a".repeat(101)  // 101 chars, maximum is 100
+            "short_code": "a".repeat(MAX_SHORT_CODE_LENGTH + 1)
         }))
         .send()
         .await

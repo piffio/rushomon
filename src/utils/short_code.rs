@@ -1,14 +1,19 @@
 use rand::RngExt;
 
 const BASE62_CHARS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-const SHORT_CODE_LENGTH: usize = 6;
 
-/// Generate a random 6-character base62 short code
 /// Character set: 0-9, A-Z, a-z (62 chars)
 /// Combinations: 62^6 = 56,800,235,584 (56.8 billion)
 /// Collision probability: < 0.01% at 1M links
+pub const DEFAULT_MIN_RANDOM_CODE_LENGTH: usize = 6;
+pub const DEFAULT_MIN_CUSTOM_CODE_LENGTH: usize = 3;
+pub const DEFAULT_SYSTEM_MIN_CODE_LENGTH: usize = 1;
+pub const MAX_SHORT_CODE_LENGTH: usize = 100;
+pub const DEFAULT_COLLISION_THRESHOLD: usize = 3;
+
+/// Generate a random base62 short code
 pub fn generate_short_code() -> String {
-    generate_short_code_with_length(SHORT_CODE_LENGTH)
+    generate_short_code_with_length(DEFAULT_MIN_RANDOM_CODE_LENGTH)
 }
 
 /// Generate a random base62 short code with custom length
@@ -29,7 +34,7 @@ mod tests {
     #[test]
     fn test_generate_short_code_returns_correct_length() {
         let code = generate_short_code();
-        assert_eq!(code.len(), SHORT_CODE_LENGTH);
+        assert_eq!(code.len(), DEFAULT_MIN_RANDOM_CODE_LENGTH);
     }
 
     #[test]
