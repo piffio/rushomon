@@ -107,29 +107,51 @@ pub async fn authenticate_request(
         hasher.update(jwt.as_bytes());
         let key_hash = format!("{:x}", hasher.finalize());
 
-        // 2. Look up the hash in the database
-        let api_key = match crate::db::queries::get_api_key_by_hash(&db, &key_hash).await {
-            Ok(Some(key)) => key,
-            Ok(None) => {
-                console_log!("Invalid PAT attempt");
-                return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
-            }
-            Err(_) => {
-                return Err(AuthError::InternalError(
-                    "Failed to validate API key".to_string(),
-                ));
-            }
-        };
+        // 2. Query database directly for API key with current tier information
+        let api_key_with_tier =
+            match crate::db::queries::get_api_key_by_hash_with_tier(&db, &key_hash).await {
+                Ok(Some(key)) => key,
+                Ok(None) => {
+                    console_log!("Invalid PAT attempt");
+                    return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+                }
+                Err(e) => {
+                    console_log!("Database error during API key validation: {:?}", e);
+                    return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+                }
+            };
 
-        // 3. Check expiration (if your DB schema supports it)
-        if let Some(expires_at) = api_key.expires_at
+        // 4. Check expiration
+        if let Some(expires_at) = api_key_with_tier.expires_at
             && now_timestamp() > expires_at
         {
             return Err(AuthError::Unauthorized("API Key has expired".to_string()));
         }
 
-        // 4. Verify the user exists and isn't suspended
-        let user = match crate::db::get_user_by_id(&db, &api_key.user_id).await {
+        // 5. Check if tier allows API keys
+        let tier = match api_key_with_tier.tier {
+            Some(tier_str) => match crate::models::Tier::from_str_value(&tier_str) {
+                Some(tier) => tier,
+                None => {
+                    return Err(AuthError::InternalError(
+                        "Invalid tier configuration".to_string(),
+                    ));
+                }
+            },
+            None => {
+                // No billing account = Free tier
+                crate::models::Tier::Free
+            }
+        };
+
+        if !tier.limits().allow_api_keys {
+            return Err(AuthError::Forbidden(
+                "API keys are not available on your current plan. Upgrade to Pro or higher to use API keys.".to_string()
+            ));
+        }
+
+        // 6. Verify the user exists and isn't suspended
+        let user = match crate::db::get_user_by_id(&db, &api_key_with_tier.user_id).await {
             Ok(Some(u)) => u,
             Ok(None) => return Err(AuthError::Unauthorized("User not found".to_string())),
             Err(_) => {
@@ -143,15 +165,19 @@ pub async fn authenticate_request(
             return Err(AuthError::Forbidden("Account suspended".to_string()));
         }
 
-        // 5. Update the 'last_used_at' timestamp inline
-        let _ =
-            crate::db::queries::update_api_key_last_used(&db, &api_key.id, now_timestamp()).await;
+        // 7. Update the 'last_used_at' timestamp
+        let _ = crate::db::queries::update_api_key_last_used(
+            &db,
+            &api_key_with_tier.user_id,
+            now_timestamp(),
+        )
+        .await;
 
         // 6. Successfully authenticate!
         return Ok(UserContext {
             user_id: user.id,
-            org_id: api_key.org_id, // <--- USE THE API KEY'S ORG ID
-            session_id: format!("pat_{}", api_key.id),
+            org_id: api_key_with_tier.org_id,
+            session_id: format!("pat_{}", api_key_with_tier.user_id),
             role: user.role,
         });
     }

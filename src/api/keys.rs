@@ -27,6 +27,31 @@ pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> R
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
     let now = now_timestamp();
 
+    // Check if user's tier allows API keys
+    let org = match crate::db::get_org_by_id(&db, &user_ctx.org_id).await {
+        Ok(Some(org)) => org,
+        Ok(None) => return Response::error("Organization not found", 404),
+        Err(_) => return Response::error("Failed to validate organization", 500),
+    };
+
+    let tier = if let Some(ref billing_account_id) = org.billing_account_id {
+        match crate::db::get_billing_account(&db, billing_account_id).await {
+            Ok(Some(billing_account)) => crate::models::Tier::from_str_value(&billing_account.tier)
+                .unwrap_or(crate::models::Tier::Free),
+            Ok(None) => crate::models::Tier::Free,
+            Err(_) => return Response::error("Failed to validate billing account", 500),
+        }
+    } else {
+        crate::models::Tier::Free
+    };
+
+    if !tier.limits().allow_api_keys {
+        return Response::error(
+            "API keys are not available on your current plan. Upgrade to Pro or higher to use API keys.",
+            403,
+        );
+    }
+
     // Calculate expiration if provided
     let expires_at = body.expires_in_days.map(|days| now + (days * 24 * 60 * 60));
 
@@ -49,12 +74,15 @@ pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> R
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     );
 
+    let user_id_for_db = user_ctx.user_id.clone();
+    let org_id_for_db = user_ctx.org_id.clone();
+
     stmt.bind(&[
         key_id.clone().into(),
-        user_ctx.user_id.into(),
-        user_ctx.org_id.into(),
+        user_id_for_db.into(),
+        org_id_for_db.into(),
         body.name.clone().into(),
-        key_hash.into(),
+        key_hash.clone().into(),
         hint.clone().into(),
         (now as f64).into(),
         expires_at
@@ -84,9 +112,9 @@ pub async fn handle_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
 
     let stmt = db.prepare(
-        "SELECT id, name, hint, created_at, last_used_at, expires_at 
-         FROM api_keys 
-         WHERE user_id = ?1 
+        "SELECT id, name, hint, created_at, last_used_at, expires_at
+         FROM api_keys
+         WHERE user_id = ?1
          ORDER BY created_at DESC",
     );
 
@@ -107,7 +135,7 @@ pub async fn handle_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Resul
         .ok_or_else(|| Error::RustError("Missing ID".to_string()))?;
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
 
-    // Ensure they only delete their own key
+    // Delete from database
     let stmt = db.prepare("DELETE FROM api_keys WHERE id = ?1 AND user_id = ?2");
     stmt.bind(&[key_id.into(), user_ctx.user_id.into()])?
         .run()

@@ -112,6 +112,7 @@ export const createPricingTiers = (
 				'Custom short codes',
 				'Advanced QR codes (sizes, SVG, org logo)',
 				'Redirect type selection (301/307)',
+				'API access',
 				'Email support'
 			],
 			buttonText: () => {
@@ -164,6 +165,7 @@ export const createPricingTiers = (
 				'20 team members',
 				'Device-based routing',
 				'Password protection',
+				'API access',
 				'Priority support'
 			],
 			buttonText: () => {
