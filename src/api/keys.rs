@@ -92,22 +92,6 @@ pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> R
     .run()
     .await?;
 
-    // Cache the API key validation data in KV
-    if let Ok(kv) = ctx.kv("URL_MAPPINGS") {
-        let validation_data = crate::kv::ApiKeyValidation {
-            user_id: user_ctx.user_id.clone(),
-            org_id: user_ctx.org_id.clone(),
-            tier: tier.as_str().to_string(),
-            expires_at,
-        };
-
-        if let Err(e) = crate::kv::store_api_key_validation(&kv, &key_hash, &validation_data).await
-        {
-            console_log!("Failed to cache new API key validation: {:?}", e);
-            // Continue anyway - API key was created successfully
-        }
-    }
-
     // Return the raw token EXACTLY ONCE
     Response::from_json(&serde_json::json!({
         "id": key_id,
@@ -151,33 +135,11 @@ pub async fn handle_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Resul
         .ok_or_else(|| Error::RustError("Missing ID".to_string()))?;
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
 
-    // First get the key hash to remove from KV cache
-    let user_id_for_query = user_ctx.user_id.clone();
-    let key_hash = match db
-        .prepare("SELECT key_hash FROM api_keys WHERE id = ?1 AND user_id = ?2")
-        .bind(&[key_id.clone().into(), user_id_for_query.into()])?
-        .first::<serde_json::Value>(None)
-        .await?
-    {
-        Some(record) => record["key_hash"].as_str().unwrap_or("").to_string(),
-        None => {
-            return Response::error("API key not found", 404);
-        }
-    };
-
     // Delete from database
     let stmt = db.prepare("DELETE FROM api_keys WHERE id = ?1 AND user_id = ?2");
     stmt.bind(&[key_id.into(), user_ctx.user_id.into()])?
         .run()
         .await?;
-
-    // Delete from KV cache
-    if let Ok(kv) = ctx.kv("URL_MAPPINGS")
-        && let Err(e) = crate::kv::delete_api_key_validation(&kv, &key_hash).await
-    {
-        console_log!("Failed to delete API key from KV cache: {:?}", e);
-        // Continue anyway - key was deleted from database
-    }
 
     Ok(Response::empty()?.with_status(204))
 }
