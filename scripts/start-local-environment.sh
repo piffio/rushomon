@@ -4,17 +4,30 @@ set -e
 
 # Parse command line arguments
 ENABLE_POLAR_CLI=false
-for arg in "$@"; do
-    case $arg in
+WRANGLER_ENV=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --enable-polar-cli)
             ENABLE_POLAR_CLI=true
             shift
             ;;
+        --env|-e)
+            WRANGLER_ENV="$2"
+            shift 2
+            ;;
         *)
-            # Unknown option
+            shift
             ;;
     esac
 done
+
+# Determine which vars file to update
+VARS_FILE=".dev.vars"
+if [ -n "$WRANGLER_ENV" ]; then
+    VARS_FILE=".dev.vars.$WRANGLER_ENV"
+    echo "🌟 Using environment: $WRANGLER_ENV (loading $VARS_FILE)"
+fi
 
 # Ensure wrangler.toml exists (copy from example if missing)
 if [ ! -f "wrangler.toml" ] && [ -f "wrangler.example.toml" ]; then
@@ -92,18 +105,18 @@ if command -v polar &> /dev/null; then
 
     echo "✅ Using webhook secret: ${POLAR_SECRET:0:8}..."
 
-    # Update .dev.vars with the webhook secret
-    if [ -f ".dev.vars" ]; then
+    # Update the correct vars file with the webhook secret
+    if [ -f "$VARS_FILE" ]; then
         # Remove existing POLAR_WEBHOOK_SECRET line if present
-        sed -i '' '/^POLAR_WEBHOOK_SECRET=/d' .dev.vars
+        sed -i '' "/^POLAR_WEBHOOK_SECRET=/d" "$VARS_FILE"
     else
         # Create .dev.vars if it doesn't exist
-        touch .dev.vars
+        touch "$VARS_FILE"
     fi
 
     # Add the new webhook secret to .dev.vars
-    echo "POLAR_WEBHOOK_SECRET=$POLAR_SECRET" >> .dev.vars
-    echo "📝 Updated .dev.vars with webhook secret"
+    echo "POLAR_WEBHOOK_SECRET=$POLAR_SECRET" >> "$VARS_FILE"
+    echo "📝 Updated $VARS_FILE with webhook secret"
 
     # Also update frontend .env file
     if [ -f "frontend/.env" ]; then
@@ -146,14 +159,14 @@ else
     echo "R2 bucket 'rushomon-assets' already exists"
 fi
 
-# Apply migrations
+# Apply migrations (passing environment if specified)
 echo "🔨 Applying migrations..."
-wrangler d1 migrations apply rushomon --local -c wrangler.toml
+wrangler d1 migrations apply rushomon --local -c wrangler.toml ${WRANGLER_ENV:+--env $WRANGLER_ENV}
 
 # Start wrangler dev with local environment
 echo "⚡ Starting backend..."
 # Use unbuffer to preserve colors while maintaining background process
-unbuffer wrangler dev --local --port 8787 --config wrangler.toml 2>&1 | tee /tmp/wrangler.log &
+unbuffer wrangler dev --local --port 8787 --config wrangler.toml ${WRANGLER_ENV:+--env $WRANGLER_ENV} 2>&1 | tee /tmp/wrangler.log &
 WRANGLER_PID=$!
 
 # Wait for worker to start
