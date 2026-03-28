@@ -3,6 +3,7 @@ import { linksApi } from '$lib/api/links';
 import { usageApi } from '$lib/api/usage';
 import { orgsApi } from '$lib/api/orgs';
 import type { PaginatedResponse, Link, UsageResponse } from '$lib/types/api';
+import { settingsApi } from '$lib/api/settings';
 
 export const load: PageLoad = async ({ parent, url, depends }) => {
 	// Declare dependency for invalidation
@@ -18,6 +19,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			user: null,
 			paginatedLinks: null,
 			usage: null,
+			publicSettings: null,
 			initialSearch: '',
 			initialStatus: 'all',
 			initialSort: 'created'
@@ -35,8 +37,8 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			.map((t) => t.trim())
 			.filter((t) => t.length > 0);
 
-		// Fetch links, usage, and org details in parallel
-		const [paginatedLinks, usage, orgId, orgLogoUrl] = await Promise.all([
+		// Fetch links, usage, org details, and settings in parallel
+		const [paginatedLinks, usage, orgId, orgLogoUrl, publicSettings] = await Promise.all([
 			linksApi.list(
 				page,
 				10,
@@ -53,6 +55,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 				.then((r) => orgsApi.getOrg(r.current_org_id))
 				.then((d) => d.org.logo_url)
 				.catch(() => null),
+			settingsApi.getPublicSettings().catch(() => null) 
 		]);
 
 		return {
@@ -61,6 +64,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			usage,
 			orgLogoUrl,
 			orgId,
+			publicSettings,
 			initialSearch: search,
 			initialStatus: status || 'all',
 			initialSort: sort,
@@ -75,6 +79,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
 			usage: null,
 			orgLogoUrl: null,
 			orgId: '',
+			publicSettings: null,
 			initialSearch: '',
 			initialStatus: 'all',
 			initialSort: 'created'

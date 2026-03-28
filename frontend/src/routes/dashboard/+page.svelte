@@ -16,6 +16,7 @@
 		TagWithCount,
 		PaginatedResponse,
 	} from "$lib/types/api";
+  import { DEFAULT_MIN_CUSTOM_CODE_LENGTH, DEFAULT_SYSTEM_MIN_CODE_LENGTH } from "$lib/constants";
 
 	let { data }: { data: PageData } = $props();
 
@@ -48,6 +49,10 @@
 	);
 	let selectedTags = $state<string[]>([]);
 	let availableTags = $state<TagWithCount[]>([]);
+
+	const effectiveMinLength = $derived(
+		(data as any).publicSettings?.min_custom_code_length || DEFAULT_MIN_CUSTOM_CODE_LENGTH
+	);
 
 	// Initialize from data props using derived
 	$effect(() => {
@@ -647,6 +652,7 @@
 				link={editingLink}
 				bind:isOpen={isModalOpen}
 				{usage}
+				minShortCodeLength={effectiveMinLength}
 				on:saved={handleLinkSaved}
 			/>
 
