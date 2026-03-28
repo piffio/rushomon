@@ -19,6 +19,7 @@
 	import { UAParser } from 'ua-parser-js';
 	import countries from 'i18n-iso-countries';
 	import enLocale from 'i18n-iso-countries/langs/en.json';
+  	import { browser } from '$app/environment';
 
 	countries.registerLocale(enLocale);
 
@@ -147,7 +148,9 @@
 
 	onDestroy(() => {
 		clicksChart?.destroy();
-		document.removeEventListener('keydown', handleKeydown);
+		if (browser) {
+			document.removeEventListener('keydown', handleKeydown);
+		}
 	});
 </script>
 
