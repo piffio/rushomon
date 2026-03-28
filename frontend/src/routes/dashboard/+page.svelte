@@ -6,7 +6,7 @@
 	import SearchFilterBar from "$lib/components/SearchFilterBar.svelte";
 	import { linksApi, tagsApi } from "$lib/api/links";
 	import { goto, invalidate } from "$app/navigation";
-	import { onMount } from "svelte";
+	import { onDestroy, onMount } from "svelte";
 	import type { PageData } from "./$types";
 	import type {
 		Link,
@@ -39,6 +39,9 @@
 	let isActionsMenuOpen = $state(false);
 	let isExporting = $state(false);
 	let deletingLinkId = $state<string | null>(null);
+	let recentlySavedLinkId = $state<string | null>(null);
+
+	let highlightTimer: ReturnType<typeof setTimeout>;
 
 	// Filter states - initialize from data props
 	let search = $state<string>("");
@@ -169,24 +172,34 @@
 		isModalOpen = true;
 	}
 
-	function handleLinkSaved(event: CustomEvent<Link>) {
+	async function handleLinkSaved(event: CustomEvent<Link>) {
 		const savedLink = event.detail;
-
 		if (editingLink) {
-			// Update existing link
+			// Update existing link in place
 			links = links.map((l) => (l.id === savedLink.id ? savedLink : l));
+			refreshDashboardData();
 		} else {
-			// Add new link to beginning
-			links = [savedLink, ...links];
-			// Update pagination total
-			if (pagination && pagination.total !== undefined) {
-				pagination = { ...pagination, total: pagination.total + 1 };
-			}
+			// New link created! 
+			// Clear all filters and jump to page 1 so it appears at the top
+			search = "";
+			status = "all";
+			sort = "created";
+			selectedTags = [];
+
+			await goto("/dashboard", { invalidateAll: true });
 		}
 
-		// Refresh all dashboard data to update stats
-		refreshDashboardData();
+		// Highlight the saved link temporarily
+		recentlySavedLinkId = savedLink.id;
+		if (highlightTimer) clearTimeout(highlightTimer); 
+		highlightTimer = setTimeout(() => {
+			recentlySavedLinkId = null;
+		}, 2500);
 	}
+
+	onDestroy(() => {
+		if (highlightTimer) clearTimeout(highlightTimer);
+	});
 
 	async function handleDelete(id: string) {
 		deletingLinkId = id;
@@ -620,6 +633,7 @@
 					{links}
 					{loading}
 					deletingLinkId={deletingLinkId}
+					recentlySavedLinkId={recentlySavedLinkId}
 					isFiltered={search.trim() !== "" ||
 						status !== "all" ||
 						selectedTags.length > 0}

@@ -6,6 +6,7 @@
 		links,
 		loading = false,
 		deletingLinkId = null as string | null,
+		recentlySavedLinkId = null as string | null,
 		isFiltered = false,
 		onDelete,
 		onEdit,
@@ -15,6 +16,7 @@
 		links: Link[];
 		loading?: boolean;
 		deletingLinkId?: string | null;
+		recentlySavedLinkId?: string | null;
 		isFiltered?: boolean;
 		onDelete: (id: string) => void;
 		onEdit: (link: Link) => void;
@@ -69,7 +71,7 @@
 		<!-- Links Grid -->
 		<div class="space-y-4">
 			{#each links as link (link.id)}
-				<LinkCard {link} {onDelete} {onEdit} {onTagClick} {onShowQR} deletingLinkId={deletingLinkId} />
+				<LinkCard {link} {onDelete} {onEdit} {onTagClick} {onShowQR} deletingLinkId={deletingLinkId} isHighlighted={recentlySavedLinkId === link.id} />
 			{/each}
 		</div>
 	{/if}
