@@ -32,6 +32,7 @@
 		src={user.avatar_url}
 		alt={displayName}
 		class="{sizeClass} rounded-full {className}"
+		referrerpolicy="no-referrer"
 	/>
 {:else}
 	<div

@@ -252,6 +252,7 @@
 										src={user.avatar_url}
 										alt={user.name || user.email}
 										class="avatar"
+										referrerpolicy="no-referrer"
 									/>
 								{:else}
 									<div class="avatar-placeholder">
@@ -355,6 +356,7 @@
 												src={user.avatar_url}
 												alt={user.name || user.email}
 												class="avatar"
+												referrerpolicy="no-referrer"
 											/>
 										{:else}
 											<div class="avatar-placeholder">

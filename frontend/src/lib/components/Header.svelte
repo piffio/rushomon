@@ -530,6 +530,7 @@
                                 <img
                                     src={user.avatar_url}
                                     alt={user.name || user.email}
+                                    referrerpolicy="no-referrer"
                                 />
                             {:else}
                                 <span
