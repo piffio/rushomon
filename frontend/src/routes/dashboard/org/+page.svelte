@@ -762,6 +762,7 @@
 										src={member.avatar_url}
 										alt={member.name ?? member.email}
 										class="w-8 h-8 rounded-full"
+										referrerpolicy="no-referrer"
 									/>
 								{:else}
 									<div
