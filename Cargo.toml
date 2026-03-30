@@ -19,7 +19,7 @@ getrandom = { version = "0.4.2", features = ["wasm_js"] }
 rand = "0.10.0"
 wasm-bindgen-futures = "0.4"
 jwt-compact = { version = "0.8.0", default-features = false, features = ["clock"] }
-hmac = "0.12"
+hmac = "0.13"
 sha2 = "0.10"
 chrono = { version = "0.4", features = ["wasmbind"] }
 js-sys = "0.3"
