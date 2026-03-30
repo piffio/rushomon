@@ -20,7 +20,7 @@ rand = "0.10.0"
 wasm-bindgen-futures = "0.4"
 jwt-compact = { version = "0.8.0", default-features = false, features = ["clock"] }
 hmac = "0.12"
-sha2 = "0.10"
+sha2 = "0.11"
 chrono = { version = "0.4", features = ["wasmbind"] }
 js-sys = "0.3"
 subtle = "2.6"
