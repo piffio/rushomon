@@ -65,9 +65,10 @@ fn main() {
         );
     }
 
-    // Write back to package.json
-    let updated_json =
+    // Write back to package.json (trailing newline required by prettier)
+    let mut updated_json =
         serde_json::to_string_pretty(&package).expect("Failed to serialize updated package.json");
+    updated_json.push('\n');
 
     fs::write(package_json_path, updated_json)
         .expect("Failed to write updated frontend/package.json");

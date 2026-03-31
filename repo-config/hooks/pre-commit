@@ -36,8 +36,32 @@ check_tool() {
     local tool="$1"
     local required="$2"
     local install_msg="$3"
-    
-    if ! command -v "$tool" >/dev/null 2>&1; then
+
+    if [ "$tool" = "prettier" ]; then
+        # Check for local prettier in frontend directory
+        if [ ! -f "$REPO_ROOT/frontend/node_modules/.bin/prettier" ]; then
+            if [ "$required" = true ]; then
+                echo "❌ Required tool '$tool' not found"
+                echo "💡 $install_msg"
+                return 1
+            else
+                log_verbose "⚠️  Optional tool '$tool' not found (install: $install_msg)"
+                return 0
+            fi
+        fi
+    elif [ "$tool" = "eslint" ]; then
+        # Check for local eslint in frontend directory
+        if [ ! -f "$REPO_ROOT/frontend/node_modules/.bin/eslint" ]; then
+            if [ "$required" = true ]; then
+                echo "❌ Required tool '$tool' not found"
+                echo "💡 $install_msg"
+                return 1
+            else
+                log_verbose "⚠️  Optional tool '$tool' not found (install: $install_msg)"
+                return 0
+            fi
+        fi
+    elif ! command -v "$tool" >/dev/null 2>&1; then
         if [ "$required" = true ]; then
             echo "❌ Required tool '$tool' not found"
             echo "💡 $install_msg"
@@ -57,27 +81,42 @@ run_check() {
     local required_var="$3"
     local error_msg_var="$4"
     local check_name="$5"
-    
+
     local enabled="${!enabled_var:-false}"
     local command="${!command_var}"
     local required="${!required_var:-false}"
     local error_msg="${!error_msg_var:-Check failed}"
-    
+
     if [ "$enabled" = true ]; then
         log_verbose "🔍 Running $check_name..."
         echo "🧪 Running $check_name..."
-        
+
         # Special handling for code formatting
         if [ "$check_name" = "code formatting" ]; then
             run_formatting_check "$command" "$error_msg" "$required"
             return $?
         fi
 
+        # Special handling for frontend formatting
+        if [ "$check_name" = "frontend formatting" ]; then
+            run_frontend_formatting_check "$command" "$error_msg" "$required"
+            return $?
+        fi
+
+        # Special handling for ESLint checking
+        if [ "$check_name" = "ESLint checking" ]; then
+            run_eslint_check "$command" "$error_msg" "$required"
+            return $?
+        fi
+
+        # Export REPO_ROOT for commands that need it
+        export REPO_ROOT="$SCRIPT_DIR/../.."
+
         if ! eval "$command"; then
             echo ""
             echo "❌ $error_msg"
             echo ""
-            
+
             if [ "$required" = true ]; then
                 echo "To skip this hook (not recommended):"
                 echo "  git commit --no-verify"
@@ -169,39 +208,251 @@ run_formatting_check() {
     fi
 }
 
+run_frontend_formatting_check() {
+    local check_command="$1"
+    local error_msg="$2"
+    local required="$3"
+    local auto_format_and_stage="${AUTO_FORMAT_FRONTEND_AND_STAGE:-false}"
+
+    # Check if formatting is needed
+    if ! eval "$check_command"; then
+        echo ""
+        echo "🔧 Frontend formatting issues detected."
+
+        if [ "$auto_format_and_stage" = true ]; then
+            echo "🤖 Auto-formatting and staging frontend changes..."
+            cd "$REPO_ROOT/frontend"
+
+            # Format all frontend files
+            npm run format
+
+            # Show what changed
+            local changed_files
+            changed_files=$(git diff --name-only -- frontend/ | grep -E '\.(svelte|ts|js|json)$' || true)
+
+            if [ -n "$changed_files" ]; then
+                echo "📝 Frontend files formatted and staged:"
+                echo "$changed_files" | sed 's/^/   - /'
+
+                # Stage the formatted files (paths are relative to repo root)
+                cd "$REPO_ROOT" && git add $changed_files
+
+                echo ""
+                echo "✅ Frontend formatting applied and changes staged automatically"
+                echo "💡 To disable this behavior, set AUTO_FORMAT_FRONTEND_AND_STAGE=false in repo-config/config/user.sh"
+            else
+                echo "ℹ️  No frontend files were changed by formatting"
+            fi
+        else
+            echo "🔧 Auto-formatting frontend files..."
+            npm --prefix "$REPO_ROOT/frontend" run format
+
+            # Show what changed
+            local changed_files
+            changed_files=$(git diff --name-only | grep -E '\.(svelte|ts|js|json)$')
+
+            if [ -n "$changed_files" ]; then
+                echo ""
+                echo "📝 The following frontend files were formatted:"
+                echo "$changed_files" | sed 's/^/   - /'
+                echo ""
+                echo "❌ Commit aborted - please review the formatting changes"
+                echo ""
+                echo "💡 Next steps:"
+                echo "   1. Review the changes above"
+                echo "   2. Stage the formatted files:"
+                echo "      git add ."
+                echo "   3. Retry your commit:"
+                echo "      git commit"
+                echo ""
+                echo "💡 To enable auto-format and stage, set AUTO_FORMAT_FRONTEND_AND_STAGE=true in repo-config/config/user.sh"
+            else
+                echo "ℹ️  No frontend files were changed by formatting"
+                return 0
+            fi
+        fi
+
+        echo ""
+        if [ "$required" = true ]; then
+            echo "To skip this hook (not recommended):"
+            echo "  git commit --no-verify"
+            echo ""
+            exit 1
+        fi
+    else
+        log_verbose "✅ Frontend formatting is correct"
+        echo "✅ Frontend formatting is correct"
+    fi
+}
+
+check_eslint() {
+    # Check if there are any frontend files staged
+    local frontend_files
+    frontend_files=$(git diff --cached --name-only --relative=frontend | grep -E '\.(svelte|ts|js)$' || true)
+
+    if [ -z "$frontend_files" ]; then
+        echo "No frontend files requiring linting detected"
+        return 0
+    fi
+
+    # Run ESLint
+    cd "$REPO_ROOT/frontend" && npm run lint
+}
+
+run_eslint_check() {
+    local check_command="$1"
+    local error_msg="$2"
+    local required="$3"
+
+    # Check environment variable first, then config files
+    local auto_format_and_stage="${AUTO_FORMAT_ESLINT_AND_STAGE:-false}"
+
+    # If not set in environment, load from config files
+    if [ "$auto_format_and_stage" = "false" ]; then
+        source "$REPO_ROOT/repo-config/config/default.sh"
+        if [ -f "$REPO_ROOT/repo-config/config/user.sh" ]; then
+            source "$REPO_ROOT/repo-config/config/user.sh"
+        fi
+        auto_format_and_stage="${AUTO_FORMAT_ESLINT_AND_STAGE:-false}"
+    fi
+
+    # Check if ESLint issues exist
+    if ! eval "$check_command"; then
+        echo ""
+        echo "🔧 ESLint issues detected."
+
+        if [ "$auto_format_and_stage" = true ]; then
+            echo "🤖 Auto-fixing ESLint issues and staging changes..."
+            cd "$REPO_ROOT/frontend" && npm run lint:fix
+
+            # Show what changed
+            local changed_files
+            changed_files=$(git diff --name-only | grep -E '\.(svelte|ts|js)$')
+
+            if [ -n "$changed_files" ]; then
+                echo "📝 ESLint issues fixed and files staged:"
+                echo "$changed_files" | sed 's/^/   - /'
+
+                # Stage the fixed files
+                git add $changed_files
+
+                echo ""
+                echo "✅ ESLint fixes applied and changes staged automatically"
+                echo "💡 To disable this behavior, set AUTO_FORMAT_ESLINT_AND_STAGE=false in repo-config/config/user.sh"
+
+                # Re-run ESLint check to verify fixes
+                echo ""
+                echo "🔍 Re-running ESLint check..."
+                if eval "$check_command"; then
+                    echo "✅ All ESLint issues resolved!"
+                else
+                    echo ""
+                    echo "❌ Some ESLint issues remain and require manual fixes"
+                    echo ""
+                    if [ "$required" = true ]; then
+                        echo "To skip this hook (not recommended):"
+                        echo "  git commit --no-verify"
+                        echo ""
+                        exit 1
+                    fi
+                fi
+            else
+                echo "ℹ️  No files were changed by ESLint auto-fix"
+            fi
+        else
+            echo "🔧 Auto-fixing ESLint issues..."
+            cd "$REPO_ROOT/frontend" && npm run lint:fix
+
+            # Show what changed
+            local changed_files
+            changed_files=$(git diff --name-only | grep -E '\.(svelte|ts|js)$')
+
+            if [ -n "$changed_files" ]; then
+                echo ""
+                echo "📝 The following files had ESLint issues fixed:"
+                echo "$changed_files" | sed 's/^/   - /'
+                echo ""
+                echo "❌ Commit aborted - please review the ESLint fixes"
+                echo ""
+                echo "💡 Next steps:"
+                echo "   1. Review the changes above"
+                echo "   2. Stage the fixed files:"
+                echo "      git add ."
+                echo "   3. Retry your commit:"
+                echo "      git commit"
+                echo ""
+                echo "💡 To enable auto-fix and stage, set AUTO_FORMAT_ESLINT_AND_STAGE=true in repo-config/config/user.sh"
+            else
+                echo "ℹ️  No ESLint issues could be auto-fixed"
+                echo ""
+                echo "❌ Manual fixes required for ESLint issues"
+                echo ""
+                if [ "$required" = true ]; then
+                    echo "To skip this hook (not recommended):"
+                    echo "  git commit --no-verify"
+                    echo ""
+                    exit 1
+                fi
+            fi
+        fi
+
+        echo ""
+        if [ "$required" = true ]; then
+            echo "To skip this hook (not recommended):"
+            echo "  git commit --no-verify"
+            echo ""
+            exit 1
+        fi
+    else
+        log_verbose "✅ ESLint checking passed"
+        echo "✅ ESLint checking passed"
+    fi
+}
+
+check_frontend_formatting() {
+    cd "$REPO_ROOT/frontend"
+    npm run format:check
+}
+
 # Main execution
 main() {
     echo "🔍 Running pre-commit checks..."
     echo ""
-    
+
     # Check required tools
     log_verbose "🔧 Checking tool availability..."
-    
+
     if ! check_tool "cargo" "$CARGO_REQUIRED" "$CARGO_INSTALL_MSG"; then
         exit 1
     fi
-    
+
     # Optional tools
     if [ "$CODE_FORMATTING_ENABLED" = true ] && [ "$CODE_FORMATTING_REQUIRED" = true ]; then
         check_tool "rustfmt" true "$RUSTFMT_INSTALL_MSG"
     fi
-    
+
     if [ "$CLIPPY_ENABLED" = true ] && [ "$CLIPPY_REQUIRED" = true ]; then
         check_tool "cargo-clippy" true "$CLIPPY_INSTALL_MSG"
     fi
-    
+
     if [ "$SVELTE_CHECK_ENABLED" = true ] && [ "$SVELTE_CHECK_REQUIRED" = true ]; then
         check_tool "node" "$NODE_REQUIRED" "$NODE_INSTALL_MSG"
     fi
 
+    if [ "$FRONTEND_FORMATTING_ENABLED" = true ] && [ "$FRONTEND_FORMATTING_REQUIRED" = true ]; then
+        check_tool "prettier" "$PRETTIER_REQUIRED" "$PRETTIER_INSTALL_MSG"
+    fi
+
     echo ""
-    
+
     # Run checks
     run_check "UNIT_TESTS_ENABLED" "UNIT_TESTS_COMMAND" "UNIT_TESTS_REQUIRED" "UNIT_TESTS_ERROR_MSG" "unit tests"
     run_check "CODE_FORMATTING_ENABLED" "CODE_FORMATTING_COMMAND" "CODE_FORMATTING_REQUIRED" "CODE_FORMATTING_ERROR_MSG" "code formatting"
     run_check "CLIPPY_ENABLED" "CLIPPY_COMMAND" "CLIPPY_REQUIRED" "CLIPPY_ERROR_MSG" "clippy linting"
     run_check "SVELTE_CHECK_ENABLED" "SVELTE_CHECK_COMMAND" "SVELTE_CHECK_REQUIRED" "SVELTE_CHECK_ERROR_MSG" "Svelte/TypeScript checking"
-    
+    run_check "ESLINT_CHECK_ENABLED" "ESLINT_CHECK_COMMAND" "ESLINT_CHECK_REQUIRED" "ESLINT_CHECK_ERROR_MSG" "ESLint checking"
+    run_check "FRONTEND_FORMATTING_ENABLED" "FRONTEND_FORMATTING_COMMAND" "FRONTEND_FORMATTING_REQUIRED" "FRONTEND_FORMATTING_ERROR_MSG" "frontend formatting"
+
     echo ""
     echo "✅ All enabled checks passed! Proceeding with commit..."
 }

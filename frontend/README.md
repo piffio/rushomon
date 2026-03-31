@@ -85,20 +85,25 @@ src/
 ## Components
 
 ### Header.svelte
+
 Navigation header with user menu and logout.
 
 ### CreateLinkForm.svelte
+
 Form for creating new short links with validation.
 
 ### LinkList.svelte
+
 Displays paginated list of links with loading/empty states.
 
 ### LinkCard.svelte
+
 Individual link card with copy, click count, and delete actions.
 
 ## API Integration
 
 All API calls go through `src/lib/api/`:
+
 - `client.ts` - Base API client with error handling
 - `auth.ts` - Authentication endpoints
 - `links.ts` - Link CRUD endpoints
@@ -108,6 +113,7 @@ Requests include `credentials: 'include'` to send httpOnly cookies.
 ## Styling
 
 Uses Tailwind CSS with a minimal, clean design:
+
 - Gray-based color scheme
 - Responsive (mobile-first)
 - Hover states and transitions
@@ -118,6 +124,7 @@ Uses Tailwind CSS with a minimal, clean design:
 Manual testing checklist in `/docs/TESTING_GUIDE.md`.
 
 For automated testing (future):
+
 - E2E tests with Playwright
 - Component tests with Vitest
 - Accessibility tests with axe
