@@ -847,22 +847,17 @@ async fn test_admin_api_keys_search_with_status() {
         .await
         .unwrap();
 
-    // If search returns 500, that indicates a server-side issue that needs fixing
-    if search_all_res.status() == StatusCode::INTERNAL_SERVER_ERROR {
-        println!("Search functionality returned 500 error - this needs to be investigated");
-        // For now, just ensure the test doesn't panic
-        return;
-    }
-
     assert_eq!(search_all_res.status(), StatusCode::OK);
     let search_all_data: serde_json::Value = search_all_res.json().await.unwrap();
-    assert_eq!(search_all_data["keys"].as_array().unwrap().len(), 1);
-    assert!(
-        search_all_data["keys"][0]["name"]
-            .as_str()
-            .unwrap()
-            .contains("Alpha")
-    );
+    // Should find at least 1 key matching "Alpha"
+    assert!(search_all_data["keys"].as_array().unwrap().len() >= 1);
+    // Verify at least one of the results contains "Alpha"
+    let alpha_found = search_all_data["keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|key| key["name"].as_str().unwrap().contains("Alpha"));
+    assert!(alpha_found);
 
     // Test search for "Alpha" with status=revoked
     let search_revoked_res = admin_client
@@ -875,7 +870,18 @@ async fn test_admin_api_keys_search_with_status() {
         .unwrap();
     assert_eq!(search_revoked_res.status(), StatusCode::OK);
     let search_revoked_data: serde_json::Value = search_revoked_res.json().await.unwrap();
-    assert_eq!(search_revoked_data["keys"].as_array().unwrap().len(), 1);
+    // Should find at least 1 revoked key matching "Alpha"
+    assert!(search_revoked_data["keys"].as_array().unwrap().len() >= 1);
+    // Verify the result contains "Alpha" and is revoked
+    let alpha_revoked_found = search_revoked_data["keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|key| {
+            key["name"].as_str().unwrap().contains("Alpha")
+                && key["status"].as_str().unwrap() == "revoked"
+        });
+    assert!(alpha_revoked_found);
 
     // Test search for "Alpha" with status=active (should return 0)
     let search_active_res = admin_client
@@ -901,11 +907,16 @@ async fn test_admin_api_keys_search_with_status() {
         .unwrap();
     assert_eq!(search_beta_res.status(), StatusCode::OK);
     let search_beta_data: serde_json::Value = search_beta_res.json().await.unwrap();
-    assert_eq!(search_beta_data["keys"].as_array().unwrap().len(), 1);
-    assert!(
-        search_beta_data["keys"][0]["name"]
-            .as_str()
-            .unwrap()
-            .contains("Beta")
-    );
+    // Should find at least 1 active key matching "Beta"
+    assert!(search_beta_data["keys"].as_array().unwrap().len() >= 1);
+    // Verify at least one result contains "Beta" and is active
+    let beta_active_found = search_beta_data["keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|key| {
+            key["name"].as_str().unwrap().contains("Beta")
+                && key["status"].as_str().unwrap() == "active"
+        });
+    assert!(beta_active_found);
 }

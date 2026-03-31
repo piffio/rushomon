@@ -3786,7 +3786,7 @@ pub async fn list_admin_api_keys(
     if let Some(s) = search {
         let pattern = format!("%{}%", s);
         let where_clause = format!(
-            "WHERE (u.email LIKE ?3 OR ak.name LIKE ?3 OR o.name LIKE ?3) {}",
+            "WHERE (u.email LIKE ?1 OR ak.name LIKE ?1 OR o.name LIKE ?1) {}",
             status_clause
         );
 
@@ -3813,7 +3813,7 @@ pub async fn list_admin_api_keys(
              LEFT JOIN billing_accounts ba ON o.billing_account_id = ba.id
              {}
              ORDER BY ak.created_at DESC
-             LIMIT ?1 OFFSET ?2",
+             LIMIT ?2 OFFSET ?3",
             where_clause
         );
 
@@ -3832,9 +3832,9 @@ pub async fn list_admin_api_keys(
         let keys = db
             .prepare(&list_sql)
             .bind(&[
+                pattern.clone().into(),
                 (limit as f64).into(),
                 (offset as f64).into(),
-                pattern.clone().into(),
             ])?
             .all()
             .await?
