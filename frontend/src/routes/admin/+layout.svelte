@@ -13,6 +13,7 @@
         | "links"
         | "blacklist"
         | "reports"
+        | "api-keys"
         | "settings";
 
     let { children } = $props();
@@ -136,6 +137,13 @@
             >
                 <span class="nav-icon">🚨</span>
                 <span class="nav-label">Reports</span>
+            </button>
+            <button
+                class="nav-item {activeModule === 'api-keys' ? 'active' : ''}"
+                onclick={() => navigateTo("api-keys")}
+            >
+                <span class="nav-icon">🔑</span>
+                <span class="nav-label">API Keys</span>
             </button>
             <button
                 class="nav-item {activeModule === 'settings' ? 'active' : ''}"
@@ -312,6 +320,16 @@
                 >
                     <span class="mobile-nav-icon">🚨</span>
                     <span>Reports</span>
+                </a>
+                <a
+                    href="/admin/api-keys"
+                    class="mobile-nav-item {activeModule === 'api-keys'
+                        ? 'active'
+                        : ''}"
+                    onclick={() => (mobileMenuOpen = false)}
+                >
+                    <span class="mobile-nav-icon">🔑</span>
+                    <span>API Keys</span>
                 </a>
                 <a
                     href="/admin/settings"

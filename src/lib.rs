@@ -375,6 +375,11 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .options_async("/api/settings", handle_cors_preflight)
         .options_async("/api/settings/api-keys", handle_cors_preflight)
         .options_async("/api/settings/api-keys/:id", handle_cors_preflight)
+        .options_async("/api/admin/api-keys", handle_cors_preflight)
+        .options_async("/api/admin/api-keys/:id", handle_cors_preflight)
+        .options_async("/api/admin/api-keys/:id/delete", handle_cors_preflight)
+        .options_async("/api/admin/api-keys/:id/restore", handle_cors_preflight)
+        .options_async("/api/admin/api-keys/:id/reactivate", handle_cors_preflight)
         .options_async("/api/analytics/org", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/providers", router::handle_list_auth_providers)
@@ -475,6 +480,24 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .post_async(
             "/api/admin/products/save",
             router::handle_admin_save_products,
+        )
+        // Admin API keys routes
+        .get_async("/api/admin/api-keys", router::handle_admin_list_api_keys)
+        .delete_async(
+            "/api/admin/api-keys/:id",
+            router::handle_admin_revoke_api_key,
+        )
+        .post_async(
+            "/api/admin/api-keys/:id/delete",
+            router::handle_admin_delete_api_key,
+        )
+        .post_async(
+            "/api/admin/api-keys/:id/restore",
+            router::handle_admin_restore_api_key,
+        )
+        .post_async(
+            "/api/admin/api-keys/:id/reactivate",
+            router::handle_admin_reactivate_api_key,
         )
         // Admin users routes
         .get_async("/api/admin/users", router::handle_admin_list_users)

@@ -128,6 +128,14 @@ pub async fn authenticate_request(
             return Err(AuthError::Unauthorized("API Key has expired".to_string()));
         }
 
+        // 4b. Check if key is active (not revoked or deleted)
+        if api_key_with_tier.status != "active" {
+            return Err(AuthError::Unauthorized(format!(
+                "API Key has been {}",
+                api_key_with_tier.status
+            )));
+        }
+
         // 5. Check if tier allows API keys
         let tier = match api_key_with_tier.tier {
             Some(tier_str) => match crate::models::Tier::from_str_value(&tier_str) {
@@ -166,12 +174,15 @@ pub async fn authenticate_request(
         }
 
         // 7. Update the 'last_used_at' timestamp
-        let _ = crate::db::queries::update_api_key_last_used(
+        if let Err(e) = crate::db::queries::update_api_key_last_used(
             &db,
-            &api_key_with_tier.user_id,
+            &api_key_with_tier.id,
             now_timestamp(),
         )
-        .await;
+        .await
+        {
+            console_log!("Failed to update API key last_used_at: {:?}", e);
+        }
 
         // 6. Successfully authenticate!
         return Ok(UserContext {

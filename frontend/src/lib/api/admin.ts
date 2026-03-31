@@ -81,6 +81,31 @@ export interface ProductsResponse {
 	items: Product[];
 }
 
+export interface AdminApiKey {
+	id: string;
+	name: string;
+	hint: string;
+	user_id: string;
+	user_email: string | null;
+	user_name: string | null;
+	org_id: string;
+	org_name: string | null;
+	tier: string | null;
+	created_at: number;
+	last_used_at: number | null;
+	expires_at: number | null;
+	status: 'active' | 'revoked' | 'deleted';
+	updated_at: number | null;
+	updated_by: string | null;
+}
+
+export interface AdminApiKeysResponse {
+	keys: AdminApiKey[];
+	total: number;
+	page: number;
+	limit: number;
+}
+
 export const adminApi = {
 	/**
 	 * List all users on the instance (admin only)
@@ -449,5 +474,63 @@ export const adminApi = {
 		}>('/api/admin/cron/trigger-downgrade', {
 			method: 'POST'
 		});
+	},
+
+	/**
+	 * List all API keys instance-wide (admin only)
+	 */
+	async listApiKeys(
+		page: number = 1,
+		limit: number = 20,
+		search?: string,
+		status?: 'all' | 'active' | 'revoked' | 'deleted'
+	): Promise<AdminApiKeysResponse> {
+		const params = new URLSearchParams({
+			page: page.toString(),
+			limit: limit.toString(),
+		});
+		if (search) params.set('search', search);
+		if (status && status !== 'all') params.set('status', status);
+		return apiClient.get<AdminApiKeysResponse>(`/api/admin/api-keys?${params}`);
+	},
+
+	/**
+	 * Revoke an API key by ID (admin only, soft delete)
+	 */
+	async revokeApiKey(id: string): Promise<{ success: boolean; message: string; }> {
+		return apiClient.request<{ success: boolean; message: string; }>(
+			`/api/admin/api-keys/${id}`,
+			{ method: 'DELETE' }
+		);
+	},
+
+	/**
+	 * Reactivate a revoked API key by ID (admin only)
+	 */
+	async reactivateApiKey(id: string): Promise<{ success: boolean; message: string; }> {
+		return apiClient.request<{ success: boolean; message: string; }>(
+			`/api/admin/api-keys/${id}/reactivate`,
+			{ method: 'POST' }
+		);
+	},
+
+	/**
+	 * Soft delete an API key by ID (admin only)
+	 */
+	async deleteApiKey(id: string): Promise<{ success: boolean; message: string; }> {
+		return apiClient.request<{ success: boolean; message: string; }>(
+			`/api/admin/api-keys/${id}/delete`,
+			{ method: 'POST' }
+		);
+	},
+
+	/**
+	 * Restore a deleted API key by ID (admin only)
+	 */
+	async restoreApiKey(id: string): Promise<{ success: boolean; message: string; }> {
+		return apiClient.request<{ success: boolean; message: string; }>(
+			`/api/admin/api-keys/${id}/restore`,
+			{ method: 'POST' }
+		);
 	},
 };

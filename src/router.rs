@@ -4412,3 +4412,260 @@ pub async fn handle_rename_org_tag(mut req: Request, ctx: RouteContext<()>) -> R
         }
     }
 }
+
+/// Handle listing all API keys (admin only): GET /api/admin/api-keys
+pub async fn handle_admin_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let url = req.url()?;
+    let query: std::collections::HashMap<String, String> = url
+        .query_pairs()
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+
+    let page: i64 = query
+        .get("page")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1)
+        .max(1);
+    let limit: i64 = query
+        .get("limit")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20)
+        .clamp(1, 100);
+    let search = query.get("search").map(|s| s.as_str());
+    let status_filter = query.get("status").map(|s| s.as_str());
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::queries::list_admin_api_keys(&db, page, limit, search, status_filter).await {
+        Ok((keys, total)) => Response::from_json(&serde_json::json!({
+            "keys": keys,
+            "total": total,
+            "page": page,
+            "limit": limit,
+        })),
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_list_api_keys_failed",
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to list API keys", 500)
+        }
+    }
+}
+
+/// Handle revoking an API key (admin only): DELETE /api/admin/api-keys/:id
+pub async fn handle_admin_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let key_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing key ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::queries::admin_revoke_api_key(&db, &key_id, &user_ctx.user_id, now_timestamp()).await
+    {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_api_key_revoked",
+                    "key_id": key_id,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "API key revoked successfully"
+            }))
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_revoke_api_key_failed",
+                    "key_id": key_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to revoke API key", 500)
+        }
+    }
+}
+
+/// Handle reactivating an API key (admin only): POST /api/admin/api-keys/:id/reactivate
+pub async fn handle_admin_reactivate_api_key(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let key_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing key ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::queries::admin_reactivate_api_key(&db, &key_id, &user_ctx.user_id, now_timestamp())
+        .await
+    {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_api_key_reactivated",
+                    "key_id": key_id,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "API key reactivated successfully"
+            }))
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_reactivate_api_key_failed",
+                    "key_id": key_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to reactivate API key", 500)
+        }
+    }
+}
+
+/// Handle deleting (soft) an API key (admin only): POST /api/admin/api-keys/:id/delete
+pub async fn handle_admin_delete_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let key_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing key ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::queries::admin_delete_api_key(&db, &key_id, &user_ctx.user_id, now_timestamp()).await
+    {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_api_key_deleted",
+                    "key_id": key_id,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "API key deleted successfully"
+            }))
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_delete_api_key_failed",
+                    "key_id": key_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to delete API key", 500)
+        }
+    }
+}
+
+/// Handle restoring a deleted API key (admin only): POST /api/admin/api-keys/:id/restore
+pub async fn handle_admin_restore_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let key_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing key ID".to_string()))?
+        .to_string();
+
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    match db::queries::admin_restore_api_key(&db, &key_id, &user_ctx.user_id, now_timestamp()).await
+    {
+        Ok(_) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_api_key_restored",
+                    "key_id": key_id,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "API key restored successfully"
+            }))
+        }
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "admin_restore_api_key_failed",
+                    "key_id": key_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to restore API key", 500)
+        }
+    }
+}

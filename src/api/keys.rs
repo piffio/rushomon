@@ -114,7 +114,7 @@ pub async fn handle_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result
     let stmt = db.prepare(
         "SELECT id, name, hint, created_at, last_used_at, expires_at
          FROM api_keys
-         WHERE user_id = ?1
+         WHERE user_id = ?1 AND status = 'active'
          ORDER BY created_at DESC",
     );
 
@@ -135,11 +135,20 @@ pub async fn handle_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Resul
         .ok_or_else(|| Error::RustError("Missing ID".to_string()))?;
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
 
-    // Delete from database
-    let stmt = db.prepare("DELETE FROM api_keys WHERE id = ?1 AND user_id = ?2");
-    stmt.bind(&[key_id.into(), user_ctx.user_id.into()])?
-        .run()
-        .await?;
+    // Soft delete - set status to 'deleted'
+    let timestamp = crate::utils::time::now_timestamp();
+    let stmt = db.prepare(
+        "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2
+         WHERE id = ?3 AND user_id = ?4 AND status = 'active'",
+    );
+    stmt.bind(&[
+        (timestamp as f64).into(),
+        user_ctx.user_id.clone().into(),
+        key_id.into(),
+        user_ctx.user_id.into(),
+    ])?
+    .run()
+    .await?;
 
     Ok(Response::empty()?.with_status(204))
 }
