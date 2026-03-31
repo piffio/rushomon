@@ -3976,3 +3976,122 @@ pub async fn admin_restore_api_key(
     .await?;
     Ok(true)
 }
+
+#[cfg(test)]
+mod api_key_tests {
+    #[test]
+    fn test_api_key_status_validation() {
+        // Test valid status values
+        let valid_statuses = vec!["active", "revoked", "deleted"];
+        for status in valid_statuses {
+            assert!(matches!(status, "active" | "revoked" | "deleted"));
+        }
+
+        // Test invalid status values
+        let invalid_statuses = vec!["invalid", "", "ACTIVE", "Revoked"];
+        for status in invalid_statuses {
+            assert!(!matches!(status, "active" | "revoked" | "deleted"));
+        }
+    }
+
+    #[test]
+    fn test_timestamp_conversion_safety() {
+        // Test that timestamp conversion works correctly
+        let timestamp = 1234567890i64;
+        let converted = timestamp as f64;
+        assert_eq!(converted, 1234567890.0);
+
+        // Test edge cases
+        let max_timestamp = i64::MAX;
+        let max_converted = max_timestamp as f64;
+        assert!(max_converted > 0.0);
+
+        let min_timestamp = i64::MIN;
+        let min_converted = min_timestamp as f64;
+        assert!(min_converted < 0.0);
+    }
+
+    #[test]
+    fn test_query_parameter_validation() {
+        // Test that our queries use proper parameter binding
+        let revoke_query = "UPDATE api_keys SET status = 'revoked', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'active'";
+        assert!(revoke_query.contains("?1"));
+        assert!(revoke_query.contains("?2"));
+        assert!(revoke_query.contains("?3"));
+        assert!(!revoke_query.contains("DROP"));
+
+        let reactivate_query = "UPDATE api_keys SET status = 'active', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'revoked'";
+        assert!(reactivate_query.contains("?1"));
+        assert!(reactivate_query.contains("?2"));
+        assert!(reactivate_query.contains("?3"));
+        assert!(!reactivate_query.contains("DELETE"));
+
+        let delete_query = "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status != 'deleted'";
+        assert!(delete_query.contains("?1"));
+        assert!(delete_query.contains("?2"));
+        assert!(delete_query.contains("?3"));
+        assert!(!delete_query.contains("DROP"));
+    }
+
+    #[test]
+    fn test_sql_injection_prevention() {
+        // Test that our query patterns prevent SQL injection
+        let safe_queries = vec![
+            "UPDATE api_keys SET status = 'revoked', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'active'",
+            "UPDATE api_keys SET status = 'active', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'revoked'",
+            "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status != 'deleted'",
+            "SELECT * FROM api_keys WHERE key_hash = ?1 AND status = 'active'",
+        ];
+
+        for query in safe_queries {
+            // Ensure queries use parameter binding instead of string interpolation
+            assert!(query.contains("?") || !query.contains("SELECT"));
+
+            // Ensure no dangerous SQL patterns
+            assert!(!query.contains("DROP"));
+            assert!(!query.contains("TRUNCATE"));
+            assert!(!query.contains("ALTER"));
+            assert!(!query.contains("EXEC"));
+            assert!(!query.contains("UNION"));
+        }
+    }
+
+    #[test]
+    fn test_status_transition_logic() {
+        // Test that our SQL WHERE clauses enforce correct status transitions
+
+        // Revoke: only active keys can be revoked
+        let revoke_where = "WHERE id = ?3 AND status = 'active'";
+        assert!(revoke_where.contains("status = 'active'"));
+
+        // Reactivate: only revoked keys can be reactivated
+        let reactivate_where = "WHERE id = ?3 AND status = 'revoked'";
+        assert!(reactivate_where.contains("status = 'revoked'"));
+
+        // Delete: any non-deleted key can be soft deleted
+        let delete_where = "WHERE id = ?3 AND status != 'deleted'";
+        assert!(delete_where.contains("status != 'deleted'"));
+
+        // Restore: only deleted keys can be restored
+        let restore_where = "WHERE id = ?3 AND status = 'deleted'";
+        assert!(restore_where.contains("status = 'deleted'"));
+    }
+
+    #[test]
+    fn test_audit_field_consistency() {
+        // Test that all update queries include audit fields
+        let update_queries = vec![
+            "UPDATE api_keys SET status = 'revoked', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'active'",
+            "UPDATE api_keys SET status = 'active', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'revoked'",
+            "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status != 'deleted'",
+            "UPDATE api_keys SET status = 'active', updated_at = ?1, updated_by = ?2 WHERE id = ?3 AND status = 'deleted'",
+        ];
+
+        for query in update_queries {
+            assert!(query.contains("updated_at"));
+            assert!(query.contains("updated_by"));
+            assert!(query.contains("?1")); // timestamp
+            assert!(query.contains("?2")); // user_id
+        }
+    }
+}

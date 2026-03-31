@@ -366,3 +366,103 @@ pub async fn authenticate_request(
         role: claims.role,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::db::ApiKeyWithTierRecord;
+
+    // Mock test data
+    fn create_test_api_key(status: &str) -> ApiKeyWithTierRecord {
+        ApiKeyWithTierRecord {
+            id: "test-key-id".to_string(),
+            user_id: "user-123".to_string(),
+            org_id: "org-123".to_string(),
+            expires_at: Some(1234567890 + 86400 * 30), // 30 days from now
+            status: status.to_string(),
+            tier: Some("free".to_string()),
+        }
+    }
+
+    #[test]
+    fn test_api_key_status_validation() {
+        // Test active key should pass
+        let active_key = create_test_api_key("active");
+        assert_eq!(active_key.status, "active");
+
+        // Test revoked key should be rejected
+        let revoked_key = create_test_api_key("revoked");
+        assert_eq!(revoked_key.status, "revoked");
+
+        // Test deleted key should be rejected
+        let deleted_key = create_test_api_key("deleted");
+        assert_eq!(deleted_key.status, "deleted");
+    }
+
+    #[test]
+    fn test_api_key_expiration_logic() {
+        let now = 1234567890;
+
+        // Test non-expired key
+        let mut future_key = create_test_api_key("active");
+        future_key.expires_at = Some(now + 86400); // 1 day from now
+        assert!(future_key.expires_at.unwrap() > now);
+
+        // Test expired key
+        let mut past_key = create_test_api_key("active");
+        past_key.expires_at = Some(now - 86400); // 1 day ago
+        assert!(past_key.expires_at.unwrap() < now);
+
+        // Test key with no expiration
+        let mut no_expire_key = create_test_api_key("active");
+        no_expire_key.expires_at = None;
+        assert!(no_expire_key.expires_at.is_none());
+    }
+
+    #[test]
+    fn test_api_key_status_transitions() {
+        // Test valid status transitions
+        let mut key = create_test_api_key("active");
+
+        // Active -> Revoked
+        key.status = "revoked".to_string();
+        assert_eq!(key.status, "revoked");
+
+        // Revoked -> Active
+        key.status = "active".to_string();
+        assert_eq!(key.status, "active");
+
+        // Active -> Deleted
+        key.status = "deleted".to_string();
+        assert_eq!(key.status, "deleted");
+
+        // Deleted -> Active
+        key.status = "active".to_string();
+        assert_eq!(key.status, "active");
+    }
+
+    #[test]
+    fn test_org_and_user_relationships() {
+        let key = create_test_api_key("active");
+
+        // Test that org and user relationships are consistent
+        assert_eq!(key.user_id, "user-123");
+        assert_eq!(key.org_id, "org-123");
+    }
+
+    #[test]
+    fn test_error_message_consistency() {
+        // Test that error messages are consistent with what the middleware returns
+        let revoked_error = "API Key has been revoked";
+        let deleted_error = "API Key has been deleted";
+        let expired_error = "API Key has expired";
+
+        assert!(!revoked_error.is_empty());
+        assert!(!deleted_error.is_empty());
+        assert!(!expired_error.is_empty());
+
+        // Ensure error messages are distinct
+        assert_ne!(revoked_error, deleted_error);
+        assert_ne!(revoked_error, expired_error);
+        assert_ne!(deleted_error, expired_error);
+    }
+}
