@@ -27,6 +27,7 @@ subtle = "2.6"
 regex = "1.11"
 urlencoding = "2.1"
 hex = "0.4"
+utoipa = { version = "5.3", features = ["preserve_order"] }
 
 [build-dependencies]
 toml = "1.0.7"
@@ -39,6 +40,11 @@ axum = "0.8"
 base64 = "0.22"
 
 [[bin]]
+name = "generate_openapi"
+path = "src/bin/generate_openapi.rs"
+required-features = ["openapi-gen"]
+
+[[bin]]
 name = "mock_oauth_server"
 path = "src/bin/mock_oauth_server.rs"
 required-features = ["test-utils"]
@@ -46,6 +52,7 @@ required-features = ["test-utils"]
 [features]
 default = []
 test-utils = ["dep:axum", "dep:tokio"]
+openapi-gen = []
 
 [dependencies.axum]
 version = "0.8"

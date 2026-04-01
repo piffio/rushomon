@@ -1,15 +1,19 @@
 use crate::utils::now_timestamp;
 use serde::{Deserialize, Deserializer, Serialize};
+use utoipa::ToSchema;
 
 /// Standard Google UTM parameters attached to a link.
 /// All fields are optional; only non-empty values are appended to the destination URL.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct UtmParams {
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "google")]
     pub utm_source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "cpc")]
     pub utm_medium: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "summer_sale")]
     pub utm_campaign: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub utm_term: Option<String>,
@@ -45,7 +49,7 @@ impl UtmParams {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub enum LinkStatus {
     #[serde(rename = "active")]
     Active,
@@ -65,19 +69,31 @@ impl LinkStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Link {
+    #[schema(example = "link-123456")]
     pub id: String,
+    #[schema(example = "org-789")]
     pub org_id: String,
+    #[schema(example = "abc123")]
     pub short_code: String,
+    #[schema(example = "https://example.com/very/long/url")]
     pub destination_url: String,
+    #[schema(example = "My Awesome Link")]
     pub title: Option<String>,
+    #[schema(example = "user-123")]
     pub created_by: String,
+    #[schema(example = 1609459200)]
     pub created_at: i64,
+    #[schema(example = 1609459300)]
     pub updated_at: Option<i64>,
+    #[schema(example = 1640995200)]
     pub expires_at: Option<i64>,
+    #[schema(example = "active")]
     pub status: LinkStatus,
+    #[schema(example = 42)]
     pub click_count: i64,
+    #[schema(example = json!(["marketing", "social"]))]
     pub tags: Vec<String>,
     /// UTM parameters baked into this link (Pro+ only).
     pub utm_params: Option<UtmParams>,
@@ -86,6 +102,7 @@ pub struct Link {
     pub forward_query_params: Option<bool>,
     /// HTTP redirect type: 301 (permanent) or 307 (temporary).
     /// Default is 301 for SEO, 307 available on Pro+ plans.
+    #[schema(example = "301")]
     pub redirect_type: String,
 }
 
@@ -176,33 +193,45 @@ fn default_redirect_type() -> String {
     "301".to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateLinkRequest {
+    #[schema(example = "https://example.com/very/long/url")]
     pub destination_url: String,
+    #[schema(example = "my-custom-code")]
     pub short_code: Option<String>,
+    #[schema(example = "My Awesome Link")]
     pub title: Option<String>,
+    #[schema(example = 1640995200)]
     pub expires_at: Option<i64>,
+    #[schema(example = json!(["marketing", "social"]))]
     pub tags: Option<Vec<String>>,
     pub utm_params: Option<UtmParams>,
     pub forward_query_params: Option<bool>,
     /// HTTP redirect type: 301 (permanent) or 307 (temporary).
     /// Default is 301, available on Pro+ plans.
     #[serde(default = "default_redirect_type")]
+    #[schema(example = "301")]
     pub redirect_type: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UpdateLinkRequest {
+    #[schema(example = "https://example.com/new/url")]
     pub destination_url: Option<String>,
+    #[schema(example = "Updated Title")]
     pub title: Option<String>,
+    #[schema(example = "disabled")]
     pub status: Option<LinkStatus>,
+    #[schema(example = 1640995200)]
     pub expires_at: Option<i64>,
+    #[schema(example = json!(["updated", "tag"]))]
     pub tags: Option<Vec<String>>,
     pub utm_params: Option<UtmParams>,
     pub forward_query_params: Option<bool>,
     /// HTTP redirect type: 301 (permanent) or 307 (temporary).
     /// Available on Pro+ plans.
+    #[schema(example = "307")]
     pub redirect_type: Option<String>,
 }
 

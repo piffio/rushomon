@@ -1,14 +1,17 @@
 use crate::models::Link;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Time range specification for analytics queries
 /// Extensible design that can grow to support custom ranges, timezones, comparisons, etc.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "type")]
 pub enum TimeRange {
     /// Simple days-based range (e.g., "last 7 days", "last 30 days")
+    #[schema(example = json!({"type": "days", "value": 7}))]
     Days { value: i64 },
     /// Custom date range with specific timestamps
+    #[schema(example = json!({"type": "custom", "start": 1609459200, "end": 1640995200}))]
     Custom { start: i64, end: i64 },
 }
 
@@ -498,56 +501,73 @@ pub struct AnalyticsEvent {
     pub city: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DailyClicks {
+    #[schema(example = "2024-01-15")]
     pub date: String,
+    #[schema(example = 42)]
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReferrerCount {
+    #[schema(example = "https://google.com")]
     pub referrer: String,
+    #[schema(example = 15)]
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CountryCount {
+    #[schema(example = "US")]
     pub country: String,
+    #[schema(example = 25)]
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserAgentCount {
+    #[schema(example = "Mozilla/5.0...")]
     pub user_agent: String,
+    #[schema(example = 10)]
     pub count: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TopLinkCount {
+    #[schema(example = "link-123")]
     pub link_id: String,
+    #[schema(example = "abc123")]
     pub short_code: String,
+    #[schema(example = "My Link")]
     pub title: Option<String>,
+    #[schema(example = 50)]
     pub count: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct OrgAnalyticsResponse {
+    #[schema(example = 1500)]
     pub total_clicks: i64,
+    #[schema(example = 75)]
     pub unique_links_clicked: i64,
     pub clicks_over_time: Vec<DailyClicks>,
     pub top_links: Vec<TopLinkCount>,
     pub top_referrers: Vec<ReferrerCount>,
     pub top_countries: Vec<CountryCount>,
     pub top_user_agents: Vec<UserAgentCount>,
+    /// Whether analytics data is gated due to tier limits
     #[serde(skip_serializing_if = "Option::is_none")]
     pub analytics_gated: Option<bool>,
+    /// Reason analytics are gated (e.g., "click_limit_exceeded", "retention_limited")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gated_reason: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct LinkAnalyticsResponse {
     pub link: Link,
+    #[schema(example = 150)]
     pub total_clicks_in_range: i64,
     pub clicks_over_time: Vec<DailyClicks>,
     pub top_referrers: Vec<ReferrerCount>,

@@ -1,18 +1,25 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Organization (team/tenant) model.
 ///
 /// Tier limits are enforced at the billing account level via `billing_account.tier`.
 /// The organization is linked to a billing account which contains the authoritative tier.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Organization {
+    #[schema(example = "org-123456")]
     pub id: String,
+    #[schema(example = "My Organization")]
     pub name: String,
+    #[schema(example = "my-org")]
     pub slug: String,
+    #[schema(example = 1609459200)]
     pub created_at: i64,
+    #[schema(example = "user-789")]
     pub created_by: String,
     /// Link to the billing account that owns this organization.
     /// Tier limits are enforced at the billing account level.
+    #[schema(example = "ba_abc123def456")]
     pub billing_account_id: Option<String>,
 }
 

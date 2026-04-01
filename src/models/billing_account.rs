@@ -1,5 +1,6 @@
 use crate::models::tier::Tier;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Billing Account represents the payment entity that owns one or more organizations.
 /// Tier limits and quotas are enforced at the billing account level, not per-organization.
@@ -8,12 +9,18 @@ use serde::{Deserialize, Serialize};
 /// For example:
 /// - Business tier ($29) = 10k links/month across ALL orgs in the billing account
 /// - Not 10k per org (which would be 30k for 3 orgs)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct BillingAccount {
+    #[schema(example = "ba_abc123def456")]
     pub id: String,
+    #[schema(example = "user-123456")]
     pub owner_user_id: String,
+    #[schema(example = "pro")]
     pub tier: String,
+    /// Polar customer ID for the billing account
+    #[schema(example = "cust_abc123")]
     pub provider_customer_id: Option<String>,
+    #[schema(example = 1609459200)]
     pub created_at: i64,
 }
 

@@ -1,13 +1,34 @@
 use crate::auth::authenticate_request;
 use crate::utils::{generate_short_code_with_length, now_timestamp};
 use hex; // Add hex crate for formatting
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use utoipa::ToSchema;
 use worker::*;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CreateApiKeyRequest {
+    #[schema(example = "My Production API Key")]
     pub name: String,
+    #[schema(example = 30)]
     pub expires_in_days: Option<i64>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct CreateApiKeyResponse {
+    #[schema(example = "key-123456")]
+    pub id: String,
+    #[schema(example = "My Production API Key")]
+    pub name: String,
+    #[schema(example = "ro_pat_...abcd")]
+    pub hint: String,
+    /// The raw token - show this ONLY ONCE to the user
+    #[schema(example = "ro_pat_abc123def456ghi789jkl012mno345pq")]
+    pub raw_token: String,
+    #[schema(example = 1609459200)]
+    pub created_at: i64,
+    #[schema(example = 1612137600)]
+    pub expires_at: Option<i64>,
 }
 
 pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {

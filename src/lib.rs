@@ -10,6 +10,7 @@ mod db;
 mod kv;
 mod middleware;
 mod models;
+pub mod openapi;
 mod router;
 mod scheduled;
 pub mod utils;
