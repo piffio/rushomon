@@ -1,8 +1,10 @@
 <script lang="ts">
-	import type { User } from '$lib/types/api';
-
 	interface Props {
-		user: User;
+		user: {
+			name: string | null;
+			email: string;
+			avatar_url: string | null;
+		};
 		size?: 'sm' | 'md' | 'lg';
 		className?: string;
 	}
@@ -12,13 +14,13 @@
 	const sizeClasses = {
 		sm: 'w-6 h-6',
 		md: 'w-8 h-8',
-		lg: 'w-12 h-12'
+		lg: 'w-12 h-12',
 	};
 
 	const textSizeClasses = {
 		sm: 'text-xs',
 		md: 'text-sm',
-		lg: 'text-base'
+		lg: 'text-base',
 	};
 
 	const sizeClass = $derived(sizeClasses[size]);

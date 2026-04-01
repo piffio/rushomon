@@ -4,6 +4,7 @@
     import { onMount } from "svelte";
     import { authApi } from "$lib/api/auth";
     import UserMenu from "$lib/components/UserMenu.svelte";
+    import Avatar from "$lib/components/Avatar.svelte";
     import type { User } from "$lib/types/api";
 
     type Module =
@@ -19,7 +20,7 @@
     let { children } = $props();
 
     const activeModule = $derived(
-        page.url.pathname.split("/").pop() || "dashboard",
+        page.url.pathname.split("/").pop() || "dashboard"
     );
 
     function navigateTo(module: Module) {
@@ -57,9 +58,7 @@
                 class="collapse-btn"
                 onclick={() => (sidebarCollapsed = !sidebarCollapsed)}
                 title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                aria-label={sidebarCollapsed
-                    ? "Expand sidebar"
-                    : "Collapse sidebar"}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
                 {#if sidebarCollapsed}
                     <!-- Expand arrow (points right) -->
@@ -205,20 +204,7 @@
                 <!-- User Info Header -->
                 {#if currentUser}
                     <div class="mobile-user-info">
-                        <div class="mobile-user-avatar">
-                            {#if currentUser.avatar_url}
-                                <img
-                                    src={currentUser.avatar_url}
-                                    alt={currentUser.name || currentUser.email}
-                                />
-                            {:else}
-                                <span
-                                    >{(currentUser.name || currentUser.email)
-                                        .charAt(0)
-                                        .toUpperCase()}</span
-                                >
-                            {/if}
-                        </div>
+                        <Avatar user={currentUser} size="lg" />
                         <div class="mobile-user-details">
                             <div class="mobile-user-name">
                                 {currentUser.name || "User"}
@@ -263,9 +249,7 @@
                 <!-- Admin Navigation -->
                 <a
                     href="/admin/dashboard"
-                    class="mobile-nav-item {activeModule === 'dashboard'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'dashboard' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">🏠</span>
@@ -273,9 +257,7 @@
                 </a>
                 <a
                     href="/admin/users"
-                    class="mobile-nav-item {activeModule === 'users'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'users' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">👥</span>
@@ -283,9 +265,7 @@
                 </a>
                 <a
                     href="/admin/billing"
-                    class="mobile-nav-item {activeModule === 'billing'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'billing' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">💳</span>
@@ -293,9 +273,7 @@
                 </a>
                 <a
                     href="/admin/links"
-                    class="mobile-nav-item {activeModule === 'links'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'links' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">🔗</span>
@@ -303,9 +281,7 @@
                 </a>
                 <a
                     href="/admin/blacklist"
-                    class="mobile-nav-item {activeModule === 'blacklist'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'blacklist' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">🚫</span>
@@ -313,9 +289,7 @@
                 </a>
                 <a
                     href="/admin/reports"
-                    class="mobile-nav-item {activeModule === 'reports'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'reports' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">🚨</span>
@@ -323,9 +297,7 @@
                 </a>
                 <a
                     href="/admin/api-keys"
-                    class="mobile-nav-item {activeModule === 'api-keys'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'api-keys' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">🔑</span>
@@ -333,9 +305,7 @@
                 </a>
                 <a
                     href="/admin/settings"
-                    class="mobile-nav-item {activeModule === 'settings'
-                        ? 'active'
-                        : ''}"
+                    class="mobile-nav-item {activeModule === 'settings' ? 'active' : ''}"
                     onclick={() => (mobileMenuOpen = false)}
                 >
                     <span class="mobile-nav-icon">⚙️</span>
@@ -578,27 +548,6 @@
         padding: 1rem;
         border-bottom: 1px solid #e2e8f0;
         margin-bottom: 0.5rem;
-    }
-
-    .mobile-user-avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        background: #dbeafe;
-        color: #2563eb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-        font-weight: 600;
-        flex-shrink: 0;
-        overflow: hidden;
-    }
-
-    .mobile-user-avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
     }
 
     .mobile-user-details {

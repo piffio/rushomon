@@ -3,6 +3,7 @@
 	import { resolveLogoUrl } from "$lib/api/client";
 	import { billingApi } from "$lib/api/billing";
 	import { tagsApi } from "$lib/api/links";
+	import Avatar from "$lib/components/Avatar.svelte";
 	import type { PageData } from "./$types";
 	import type {
 		OrgDetails,
@@ -10,7 +11,7 @@
 		OrgInvitation,
 		OrgWithRole,
 		OrgSettings,
-		TagWithCount,
+		TagWithCount
 	} from "$lib/types/api";
 	import type { BillingStatus } from "$lib/api/billing";
 	import LoadingButton from "$lib/components/LoadingButton.svelte";
@@ -173,7 +174,7 @@
 		try {
 			await orgsApi.removeMember(
 				orgDetails!.org.id,
-				confirmingRemoveMember.user_id,
+				confirmingRemoveMember.user_id
 			);
 			actionSuccess = `${memberEmail} removed from the organization.`;
 			await loadOrg();
@@ -193,17 +194,17 @@
 		return new Date(ts * 1000).toLocaleDateString(undefined, {
 			year: "numeric",
 			month: "short",
-			day: "numeric",
+			day: "numeric"
 		});
 	}
 
 	const isOwner = $derived(orgDetails?.org.role === "owner");
 	const isPro = $derived(
-		["pro", "business", "unlimited"].includes(orgDetails?.org.tier ?? ""),
+		["pro", "business", "unlimited"].includes(orgDetails?.org.tier ?? "")
 	);
 	// Business tier only allows team members (up to 20)
 	const canInviteMembers = $derived(
-		["business", "unlimited"].includes(orgDetails?.org.tier ?? ""),
+		["business", "unlimited"].includes(orgDetails?.org.tier ?? "")
 	);
 
 	// Org settings: forward_query_params
@@ -237,7 +238,7 @@
 		settingsError = "";
 		try {
 			orgSettings = await orgsApi.updateOrgSettings(orgDetails.org.id, {
-				forward_query_params: value,
+				forward_query_params: value
 			});
 			actionSuccess = "Organization settings updated.";
 			setTimeout(() => (actionSuccess = ""), 3000);
@@ -264,7 +265,7 @@
 			"image/png",
 			"image/jpeg",
 			"image/webp",
-			"image/svg+xml",
+			"image/svg+xml"
 		];
 		if (!allowedTypes.includes(file.type)) {
 			logoError = "Invalid file type. Allowed: PNG, JPEG, WebP, SVG.";
@@ -360,7 +361,7 @@
 			const result = await orgsApi.deleteOrg(
 				orgDetails.org.id,
 				deleteAction,
-				deleteAction === "migrate" ? targetOrgId : undefined,
+				deleteAction === "migrate" ? targetOrgId : undefined
 			);
 			// Redirect to dashboard after successful deletion
 			window.location.href = "/dashboard";
@@ -445,7 +446,7 @@
 		"bg-pink-100 text-pink-800",
 		"bg-indigo-100 text-indigo-800",
 		"bg-orange-100 text-orange-800",
-		"bg-teal-100 text-teal-800",
+		"bg-teal-100 text-teal-800"
 	];
 
 	function tagColor(tag: string): string {
@@ -460,9 +461,7 @@
 <div class="min-h-screen bg-gray-50">
 	<main class="container mx-auto px-4 py-8 max-w-3xl">
 		<div class="mb-6">
-			<h1 class="text-2xl font-bold text-gray-900">
-				Organization Settings
-			</h1>
+			<h1 class="text-2xl font-bold text-gray-900">Organization Settings</h1>
 		</div>
 
 		{#if loading}
@@ -472,9 +471,7 @@
 				></div>
 			</div>
 		{:else if error}
-			<div
-				class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700"
-			>
+			<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
 				{error}
 			</div>
 		{:else if orgDetails}
@@ -507,8 +504,7 @@
 							bind:value={newOrgName}
 							maxlength="100"
 							class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-							onkeydown={(e) =>
-								e.key === "Enter" && saveOrgName()}
+							onkeydown={(e) => e.key === "Enter" && saveOrgName()}
 						/>
 						<LoadingButton
 							onclick={saveOrgName}
@@ -541,7 +537,7 @@
 								</p>
 								<p class="text-xs text-gray-500 capitalize">
 									{orgDetails.org.tier} plan · Created {formatDate(
-										orgDetails.org.created_at,
+										orgDetails.org.created_at
 									)}
 								</p>
 							</div>
@@ -560,20 +556,16 @@
 
 			<!-- Pro Features / org settings card -->
 			{#if isPro}
-				<div
-					class="bg-white rounded-xl border border-gray-200 p-6 mb-6"
-				>
+				<div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
 					<h2 class="text-lg font-semibold text-gray-900 mb-1">
 						Link Defaults
 					</h2>
 					<p class="text-sm text-gray-500 mb-4">
-						Default settings applied to new and edited links.
-						Changes here do not retroactively update existing links.
+						Default settings applied to new and edited links. Changes here do
+						not retroactively update existing links.
 					</p>
 
-					<div
-						class="flex items-start gap-4 py-3 border-t border-gray-100"
-					>
+					<div class="flex items-start gap-4 py-3 border-t border-gray-100">
 						<div class="flex-1">
 							<label
 								for="org-forward-query-params"
@@ -582,9 +574,8 @@
 								Forward visitor query parameters by default
 							</label>
 							<p class="text-xs text-gray-500 mt-0.5">
-								When enabled, new links will forward visitor
-								query params to the destination URL by default.
-								Can be overridden per link.
+								When enabled, new links will forward visitor query params to the
+								destination URL by default. Can be overridden per link.
 							</p>
 						</div>
 						<div class="flex items-center gap-2">
@@ -612,12 +603,11 @@
 							<input
 								type="checkbox"
 								id="org-forward-query-params"
-								checked={orgSettings?.forward_query_params ??
-									false}
+								checked={orgSettings?.forward_query_params ?? false}
 								disabled={settingsSaving || !isOwner}
 								onchange={(e) =>
 									toggleForwardQueryParams(
-										(e.target as HTMLInputElement).checked,
+										(e.target as HTMLInputElement).checked
 									)}
 								class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
 							/>
@@ -636,19 +626,15 @@
 					Organization Logo
 				</h2>
 				<p class="text-sm text-gray-500 mb-4">
-					Used in QR codes and branding. PNG, JPEG, WebP or SVG — max
-					500 KB.
+					Used in QR codes and branding. PNG, JPEG, WebP or SVG — max 500 KB.
 				</p>
 
 				{#if !isPro}
 					<div
 						class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800"
 					>
-						Custom org logo requires a <strong>Pro plan</strong> or
-						above.
-						<a href="/billing" class="ml-1 underline font-medium"
-							>Upgrade</a
-						>
+						Custom org logo requires a <strong>Pro plan</strong> or above.
+						<a href="/billing" class="ml-1 underline font-medium">Upgrade</a>
 					</div>
 				{:else}
 					{#if orgDetails.org.logo_url}
@@ -659,9 +645,7 @@
 								class="w-16 h-16 object-contain rounded-lg border border-gray-200 bg-gray-50 p-1"
 							/>
 							<div>
-								<p class="text-sm font-medium text-gray-900">
-									Logo uploaded
-								</p>
+								<p class="text-sm font-medium text-gray-900">Logo uploaded</p>
 								<p class="text-xs text-gray-500">
 									Displayed in QR codes when embed is enabled.
 								</p>
@@ -720,9 +704,7 @@
 											d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
 										></path>
 									</svg>
-									{orgDetails.org.logo_url
-										? "Replace Logo"
-										: "Upload Logo"}
+									{orgDetails.org.logo_url ? "Replace Logo" : "Upload Logo"}
 								{/if}
 							</span>
 						</label>
@@ -757,26 +739,9 @@
 					{#each orgDetails.members as member}
 						<li class="flex items-center justify-between py-3">
 							<div class="flex items-center gap-3">
-								{#if member.avatar_url}
-									<img
-										src={member.avatar_url}
-										alt={member.name ?? member.email}
-										class="w-8 h-8 rounded-full"
-										referrerpolicy="no-referrer"
-									/>
-								{:else}
-									<div
-										class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium"
-									>
-										{(member.name ?? member.email)
-											.charAt(0)
-											.toUpperCase()}
-									</div>
-								{/if}
+								<Avatar user={member} size="sm" />
 								<div>
-									<p
-										class="text-sm font-medium text-gray-900"
-									>
+									<p class="text-sm font-medium text-gray-900">
 										{member.name ?? member.email}
 									</p>
 									{#if member.name}
@@ -797,8 +762,7 @@
 								</span>
 								{#if isOwner && member.user_id !== data.user?.id}
 									<button
-										onclick={() =>
-											handleRemoveMember(member)}
+										onclick={() => handleRemoveMember(member)}
 										class="text-xs text-red-500 hover:text-red-700 transition-colors"
 										aria-label="Remove member"
 									>
@@ -813,9 +777,7 @@
 
 			<!-- Invite Card (owner only) -->
 			{#if isOwner}
-				<div
-					class="bg-white rounded-xl border border-gray-200 p-6 mb-6"
-				>
+				<div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
 					<h2 class="text-lg font-semibold text-gray-900 mb-1">
 						Invite Members
 					</h2>
@@ -824,14 +786,13 @@
 						<div
 							class="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2 text-sm text-amber-800"
 						>
-							Inviting members requires the <strong
-								>Business plan</strong
-							>. Upgrade to collaborate with your team.
+							Inviting members requires the <strong>Business plan</strong>.
+							Upgrade to collaborate with your team.
 						</div>
 					{:else}
 						<p class="text-sm text-gray-500 mb-4">
-							Send an invitation by email. The invitee will have 7
-							days to accept.
+							Send an invitation by email. The invitee will have 7 days to
+							accept.
 						</p>
 						<div class="flex items-start gap-3">
 							<div class="flex-1">
@@ -840,8 +801,7 @@
 									bind:value={inviteEmail}
 									placeholder="colleague@example.com"
 									class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-									onkeydown={(e) =>
-										e.key === "Enter" && handleInvite()}
+									onkeydown={(e) => e.key === "Enter" && handleInvite()}
 								/>
 								{#if inviteError}
 									<p class="mt-1 text-sm text-red-600">
@@ -866,47 +826,29 @@
 						<!-- Pending Invitations -->
 						{#if orgDetails.pending_invitations.length > 0}
 							<div class="mt-5">
-								<h3
-									class="text-sm font-medium text-gray-700 mb-2"
-								>
+								<h3 class="text-sm font-medium text-gray-700 mb-2">
 									Pending Invitations
 								</h3>
 								<ul class="divide-y divide-gray-100">
 									{#each orgDetails.pending_invitations as inv}
-										<li
-											class="flex items-center justify-between py-2.5"
-										>
+										<li class="flex items-center justify-between py-2.5">
 											<div>
-												<p
-													class="text-sm text-gray-900"
-												>
+												<p class="text-sm text-gray-900">
 													{inv.email}
 												</p>
-												<p
-													class="text-xs text-gray-500"
-												>
-													Expires {formatDate(
-														inv.expires_at,
-													)}
+												<p class="text-xs text-gray-500">
+													Expires {formatDate(inv.expires_at)}
 												</p>
 											</div>
-											<div
-												class="flex items-center gap-3"
-											>
+											<div class="flex items-center gap-3">
 												<button
-													onclick={() =>
-														handleResendInvitation(
-															inv,
-														)}
+													onclick={() => handleResendInvitation(inv)}
 													class="text-xs text-orange-500 hover:text-orange-700 transition-colors"
 												>
 													Resend
 												</button>
 												<button
-													onclick={() =>
-														handleRevokeInvitation(
-															inv,
-														)}
+													onclick={() => handleRevokeInvitation(inv)}
 													class="text-xs text-red-500 hover:text-red-700 transition-colors"
 												>
 													Revoke
@@ -943,8 +885,8 @@
 					</a>
 				{:else}
 					<p class="text-sm text-gray-500">
-						Billing is managed by the owner of this billing account.
-						Contact them to change the plan.
+						Billing is managed by the owner of this billing account. Contact
+						them to change the plan.
 					</p>
 				{/if}
 			</div>
@@ -966,8 +908,8 @@
 					</div>
 				{:else if tags.length === 0}
 					<p class="text-sm text-gray-500">
-						No tags created yet. Tags are automatically created when
-						you add them to links.
+						No tags created yet. Tags are automatically created when you add
+						them to links.
 					</p>
 				{:else}
 					<div class="space-y-2">
@@ -978,7 +920,7 @@
 								<div class="flex items-center gap-3">
 									<span
 										class="inline-block w-3 h-3 rounded-full {tagColor(
-											tag.name,
+											tag.name
 										).split(' ')[0]}"
 									></span>
 									{#if editingTag === tag.name}
@@ -986,29 +928,22 @@
 											type="text"
 											bind:value={newTagName}
 											onkeydown={(e) => {
-												if (e.key === "Enter")
-													saveTagRename(tag.name);
-												if (e.key === "Escape")
-													cancelEditTag();
+												if (e.key === "Enter") saveTagRename(tag.name);
+												if (e.key === "Escape") cancelEditTag();
 											}}
 											class="px-2 py-1 text-sm border border-gray-300 rounded focus:border-orange-500 focus:outline-none"
 											maxlength="50"
 										/>
 									{:else}
-										<span class="font-medium text-gray-900"
-											>{tag.name}</span
-										>
+										<span class="font-medium text-gray-900">{tag.name}</span>
 									{/if}
-									<span class="text-sm text-gray-500"
-										>({tag.count} links)</span
-									>
+									<span class="text-sm text-gray-500">({tag.count} links)</span>
 								</div>
 
 								<div class="flex items-center gap-2">
 									{#if editingTag === tag.name}
 										<button
-											onclick={() =>
-												saveTagRename(tag.name)}
+											onclick={() => saveTagRename(tag.name)}
 											disabled={savingTag}
 											class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
@@ -1023,15 +958,13 @@
 										</button>
 									{:else}
 										<button
-											onclick={() =>
-												startEditTag(tag.name)}
+											onclick={() => startEditTag(tag.name)}
 											class="text-xs px-2 py-1 text-blue-600 hover:text-blue-700"
 										>
 											Rename
 										</button>
 										<button
-											onclick={() =>
-												startDeleteTag(tag.name)}
+											onclick={() => startDeleteTag(tag.name)}
 											class="text-xs px-2 py-1 text-red-600 hover:text-red-700"
 										>
 											Delete
@@ -1051,14 +984,13 @@
 									class="ml-3 p-3 bg-red-50 border border-red-200 rounded-lg"
 								>
 									<p class="text-sm text-red-800 mb-3">
-										Are you sure you want to delete the tag
-										"{tag.name}"? This will remove it from {tag.count}
+										Are you sure you want to delete the tag "{tag.name}"? This
+										will remove it from {tag.count}
 										link{tag.count === 1 ? "" : "s"}.
 									</p>
 									<div class="flex gap-2">
 										<button
-											onclick={() =>
-												confirmDeleteTag(tag.name)}
+											onclick={() => confirmDeleteTag(tag.name)}
 											class="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
 										>
 											Delete
@@ -1080,12 +1012,9 @@
 			<!-- Danger Zone (owner only, multiple orgs) -->
 			{#if isOwner}
 				<div class="bg-white rounded-xl border border-red-200 p-6">
-					<h2 class="text-lg font-semibold text-red-700 mb-2">
-						Danger Zone
-					</h2>
+					<h2 class="text-lg font-semibold text-red-700 mb-2">Danger Zone</h2>
 					<p class="text-sm text-gray-600 mb-4">
-						Deleting an organization is permanent and cannot be
-						undone.
+						Deleting an organization is permanent and cannot be undone.
 					</p>
 					<button
 						onclick={openDeleteModal}
@@ -1105,15 +1034,13 @@
 		class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
 	>
 		<div class="bg-white rounded-xl max-w-lg w-full p-6 shadow-2xl">
-			<h2 class="text-xl font-bold text-gray-900 mb-4">
-				Delete Organization
-			</h2>
+			<h2 class="text-xl font-bold text-gray-900 mb-4">Delete Organization</h2>
 
 			<div
 				class="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800"
 			>
-				<strong>Warning:</strong> This action cannot be undone. You are
-				about to delete <strong>{orgDetails.org.name}</strong>.
+				<strong>Warning:</strong> This action cannot be undone. You are about to
+				delete <strong>{orgDetails.org.name}</strong>.
 			</div>
 
 			<p class="text-sm text-gray-700 mb-4">
@@ -1138,12 +1065,9 @@
 						class="mt-0.5"
 					/>
 					<div class="flex-1">
-						<div class="font-medium text-gray-900">
-							Delete all links
-						</div>
+						<div class="font-medium text-gray-900">Delete all links</div>
 						<div class="text-sm text-gray-600 mt-1">
-							All links and analytics data will be permanently
-							removed.
+							All links and analytics data will be permanently removed.
 						</div>
 					</div>
 				</label>
@@ -1168,8 +1092,7 @@
 								Migrate links to another organization
 							</div>
 							<div class="text-sm text-gray-600 mt-1 mb-2">
-								Transfer all links to one of your other
-								organizations.
+								Transfer all links to one of your other organizations.
 							</div>
 							{#if deleteAction === "migrate"}
 								<select
@@ -1177,14 +1100,11 @@
 									class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
 								>
 									{#each userOrgs as org}
-										<option value={org.id}
-											>{org.name} ({org.tier} plan)</option
-										>
+										<option value={org.id}>{org.name} ({org.tier} plan)</option>
 									{/each}
 								</select>
 								<p class="text-xs text-gray-500 mt-1">
-									Make sure the target organization has enough
-									available slots.
+									Make sure the target organization has enough available slots.
 								</p>
 							{/if}
 						</div>
@@ -1247,8 +1167,7 @@
 		<div class="modal" role="dialog" aria-modal="true" tabindex="-1">
 			<div class="modal-header">
 				<h3>Remove Member?</h3>
-				<button class="modal-close" onclick={cancelRemoveMember}
-					>&times;</button
+				<button class="modal-close" onclick={cancelRemoveMember}>&times;</button
 				>
 			</div>
 			<div class="modal-body">
@@ -1256,8 +1175,7 @@
 					Are you sure you want to <strong
 						>remove {confirmingRemoveMember.email}</strong
 					>
-					from this organization? They will lose access to all links and
-					resources.
+					from this organization? They will lose access to all links and resources.
 				</p>
 			</div>
 			<div class="modal-footer">

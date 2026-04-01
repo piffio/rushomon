@@ -3,6 +3,7 @@
 	import { adminApi } from "$lib/api/admin";
 	import { authApi } from "$lib/api/auth";
 	import Pagination from "$lib/components/Pagination.svelte";
+	import Avatar from "$lib/components/Avatar.svelte";
 	import type { User } from "$lib/types/api";
 
 	let users = $state<User[]>([]);
@@ -56,10 +57,7 @@
 		}
 	}
 
-	async function handleRoleChange(
-		userId: string,
-		newRole: "admin" | "member",
-	) {
+	async function handleRoleChange(userId: string, newRole: "admin" | "member") {
 		confirmingUserId = userId;
 		confirmingRole = newRole;
 	}
@@ -71,11 +69,9 @@
 			loading = true;
 			const updatedUser = await adminApi.updateUserRole(
 				confirmingUserId,
-				confirmingRole,
+				confirmingRole
 			);
-			users = users.map((u) =>
-				u.id === updatedUser.id ? updatedUser : u,
-			);
+			users = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
 		} catch (err) {
 			error = "Failed to update user role";
 			console.error(err);
@@ -102,7 +98,7 @@
 			activeDropdown = userId;
 			dropdownPosition = {
 				top: rect.bottom + 4,
-				right: window.innerWidth - rect.right,
+				right: window.innerWidth - rect.right
 			};
 		}
 	}
@@ -125,14 +121,13 @@
 				if (currentlySuspended) {
 					await adminApi.unsuspendUser(String(userId));
 				} else {
-					await adminApi.suspendUser(
-						String(userId),
-						"Suspended by admin",
-					);
+					await adminApi.suspendUser(String(userId), "Suspended by admin");
 				}
 				await loadUsers();
 			} catch (err) {
-				error = currentlySuspended ? "Failed to unsuspend user" : "Failed to suspend user";
+				error = currentlySuspended
+					? "Failed to unsuspend user"
+					: "Failed to suspend user";
 				console.error(err);
 			} finally {
 				loading = false;
@@ -144,7 +139,7 @@
 				loading = true;
 				await adminApi.suspendUser(
 					String(confirmingSuspend),
-					"Suspended by admin",
+					"Suspended by admin"
 				);
 				await loadUsers();
 			} catch (err) {
@@ -247,20 +242,7 @@
 					<div class="user-card">
 						<div class="card-header">
 							<div class="user-info">
-								{#if user.avatar_url}
-									<img
-										src={user.avatar_url}
-										alt={user.name || user.email}
-										class="avatar"
-										referrerpolicy="no-referrer"
-									/>
-								{:else}
-									<div class="avatar-placeholder">
-										{(user.name || user.email)
-											.charAt(0)
-											.toUpperCase()}
-									</div>
-								{/if}
+								<Avatar {user} size="lg" />
 								<div class="user-details">
 									<h3>{user.name || "Unknown"}</h3>
 									<p class="email">{user.email}</p>
@@ -308,16 +290,20 @@
 						</div>
 						<div class="card-actions">
 							<button
-								onclick={() => handleRoleChange(user.id, user.role === 'admin' ? 'member' : 'admin')}
+								onclick={() =>
+									handleRoleChange(
+										user.id,
+										user.role === "admin" ? "member" : "admin"
+									)}
 								class="btn btn-secondary"
 							>
-								{user.role === 'admin' ? 'Demote' : 'Promote'}
+								{user.role === "admin" ? "Demote" : "Promote"}
 							</button>
 							<button
 								onclick={() => confirmSuspend(user.id, !!user.suspended_at)}
 								class="btn {user.suspended_at ? 'btn-success' : 'btn-danger'}"
 							>
-								{user.suspended_at ? 'Unsuspend' : 'Suspend'}
+								{user.suspended_at ? "Unsuspend" : "Suspend"}
 							</button>
 							<button
 								onclick={() => confirmDelete(user.id)}
@@ -351,29 +337,12 @@
 							<tr>
 								<td>
 									<div class="user-info">
-										{#if user.avatar_url}
-											<img
-												src={user.avatar_url}
-												alt={user.name || user.email}
-												class="avatar"
-												referrerpolicy="no-referrer"
-											/>
-										{:else}
-											<div class="avatar-placeholder">
-												{(user.name || user.email)
-													.charAt(0)
-													.toUpperCase()}
-											</div>
-										{/if}
-										<span class="user-name"
-											>{user.name || "Unknown"}</span
-										>
+										<Avatar {user} size="md" />
+										<span class="user-name">{user.name || "Unknown"}</span>
 									</div>
 								</td>
 								<td class="email">{user.email}</td>
-								<td class="provider"
-									>{user.oauth_provider || "Unknown"}</td
-								>
+								<td class="provider">{user.oauth_provider || "Unknown"}</td>
 								<td>
 									{#if user.role === "admin"}
 										<span class="badge admin">Admin</span>
@@ -383,9 +352,7 @@
 								</td>
 								<td>
 									{#if user.suspended_at}
-										<span class="badge suspended"
-											>Suspended</span
-										>
+										<span class="badge suspended">Suspended</span>
 									{:else}
 										<span class="badge active">Active</span>
 									{/if}
@@ -397,10 +364,7 @@
 											class="billing-link"
 											title="View billing account"
 										>
-											{user.billing_account_id.substring(
-												0,
-												12,
-											)}...
+											{user.billing_account_id.substring(0, 12)}...
 										</a>
 									{:else}
 										<span class="no-billing">N/A</span>
@@ -413,54 +377,39 @@
 											class="tier-badge-link {user.billing_account_tier ===
 											'unlimited'
 												? 'unlimited'
-												: user.billing_account_tier ===
-													  'business'
+												: user.billing_account_tier === 'business'
 													? 'business'
-													: user.billing_account_tier ===
-														  'pro'
+													: user.billing_account_tier === 'pro'
 														? 'pro'
 														: 'free'}"
 											title="Managed at billing account level"
 										>
-											{user.billing_account_tier
-												.charAt(0)
-												.toUpperCase() +
-												user.billing_account_tier.slice(
-													1,
-												)} 🔗
+											{user.billing_account_tier.charAt(0).toUpperCase() +
+												user.billing_account_tier.slice(1)} 🔗
 										</a>
 									{:else}
 										<span
-											class="tier-badge {getOrgTier(
-												user.org_id,
-											) === 'unlimited'
+											class="tier-badge {getOrgTier(user.org_id) === 'unlimited'
 												? 'unlimited'
 												: 'free'}"
 										>
-											{getOrgTier(user.org_id) ===
-											"unlimited"
+											{getOrgTier(user.org_id) === "unlimited"
 												? "Unlimited"
 												: "Free"}
 										</span>
 									{/if}
 								</td>
-								<td class="date"
-									>{formatDate(user.created_at)}</td
-								>
+								<td class="date">{formatDate(user.created_at)}</td>
 								<td>
 									{#if currentUser && user.id === currentUser.id}
-										<span class="no-actions"
-											>Cannot edit self</span
-										>
+										<span class="no-actions">Cannot edit self</span>
 									{:else}
 										<div class="dropdown-container">
 											<button
 												class="dropdown-toggle"
-												onclick={(e) =>
-													toggleDropdown(user.id, e)}
+												onclick={(e) => toggleDropdown(user.id, e)}
 												aria-label="Actions"
-												aria-expanded={activeDropdown ===
-													user.id}
+												aria-expanded={activeDropdown === user.id}
 											>
 												⋮
 											</button>
@@ -468,17 +417,13 @@
 												<div
 													class="dropdown-menu"
 													style="top: {dropdownPosition?.top ||
-														0}px; right: {dropdownPosition?.right ||
-														0}px;"
+														0}px; right: {dropdownPosition?.right || 0}px;"
 												>
 													{#if user.role === "member"}
 														<button
 															class="dropdown-item promote"
 															onclick={() => {
-																handleRoleChange(
-																	user.id,
-																	"admin",
-																);
+																handleRoleChange(user.id, "admin");
 																closeDropdown();
 															}}
 														>
@@ -488,10 +433,7 @@
 														<button
 															class="dropdown-item demote"
 															onclick={() => {
-																handleRoleChange(
-																	user.id,
-																	"member",
-																);
+																handleRoleChange(user.id, "member");
 																closeDropdown();
 															}}
 														>
@@ -502,9 +444,7 @@
 														<button
 															class="dropdown-item success"
 															onclick={() => {
-																handleActivate(
-																	user.id,
-																);
+																handleActivate(user.id);
 																closeDropdown();
 															}}
 														>
@@ -514,9 +454,7 @@
 														<button
 															class="dropdown-item suspend"
 															onclick={() => {
-																handleSuspend(
-																	user.id,
-																);
+																handleSuspend(user.id);
 																closeDropdown();
 															}}
 														>
@@ -526,9 +464,7 @@
 													<button
 														class="dropdown-item delete"
 														onclick={() => {
-															handleDelete(
-																user.id,
-															);
+															handleDelete(user.id);
 															closeDropdown();
 														}}
 													>
@@ -548,10 +484,10 @@
 				{#if totalPages > 1}
 					<div class="mt-6">
 						<Pagination
-							currentPage={currentPage}
-							totalPages={totalPages}
+							{currentPage}
+							{totalPages}
 							onPageChange={handlePageChange}
-							loading={loading}
+							{loading}
 						/>
 					</div>
 				{/if}
@@ -583,19 +519,15 @@
 						? "Promote to Admin?"
 						: "Demote to Member?"}
 				</h3>
-				<button class="modal-close" onclick={cancelRoleChange}
-					>&times;</button
-				>
+				<button class="modal-close" onclick={cancelRoleChange}>&times;</button>
 			</div>
 			<div class="modal-body">
 				<p>
 					{#if confirmingRole === "admin"}
-						Are you sure you want to <strong
-							>promote this user to admin</strong
+						Are you sure you want to <strong>promote this user to admin</strong
 						>? They will have full access to all admin features.
 					{:else}
-						Are you sure you want to <strong
-							>demote this admin to member</strong
+						Are you sure you want to <strong>demote this admin to member</strong
 						>? They will lose access to admin features.
 					{/if}
 				</p>
@@ -645,15 +577,12 @@
 		>
 			<div class="modal-header">
 				<h3>Suspend User?</h3>
-				<button class="modal-close" onclick={cancelSuspend}
-					>&times;</button
-				>
+				<button class="modal-close" onclick={cancelSuspend}>&times;</button>
 			</div>
 			<div class="modal-body">
 				<p>
-					Are you sure you want to <strong>suspend this user</strong>?
-					They will lose access to the platform and all their links
-					will be disabled.
+					Are you sure you want to <strong>suspend this user</strong>? They will
+					lose access to the platform and all their links will be disabled.
 				</p>
 			</div>
 			<div class="modal-footer">
@@ -699,19 +628,16 @@
 		>
 			<div class="modal-header">
 				<h3>Delete User?</h3>
-				<button class="modal-close" onclick={cancelDelete}
-					>&times;</button
-				>
+				<button class="modal-close" onclick={cancelDelete}>&times;</button>
 			</div>
 			<div class="modal-body">
 				<p>
-					Are you sure you want to <strong
-						>permanently delete this user</strong
+					Are you sure you want to <strong>permanently delete this user</strong
 					>?
 				</p>
 				<p class="warning">
-					⚠️ This action cannot be undone. The following will be
-					permanently deleted:
+					⚠️ This action cannot be undone. The following will be permanently
+					deleted:
 				</p>
 				<ul class="deletion-list">
 					<li>User account and profile information</li>
@@ -824,12 +750,6 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-	}
-
-	.card-header .avatar,
-	.avatar-placeholder {
-		width: 48px;
-		height: 48px;
 	}
 
 	.card-header .user-details h3 {
@@ -964,25 +884,6 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-	}
-
-	.avatar {
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		object-fit: cover;
-	}
-
-	.avatar-placeholder {
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		background: #e2e8f0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 600;
-		color: #64748b;
 	}
 
 	.user-name {

@@ -2,6 +2,7 @@
     import Logo from "./Logo.svelte";
     import UserMenu from "./UserMenu.svelte";
     import LoadingButton from "./LoadingButton.svelte";
+    import Avatar from "./Avatar.svelte";
     import { authApi } from "$lib/api/auth";
     import { orgsApi } from "$lib/api/orgs";
     import { billingApi } from "$lib/api/billing";
@@ -9,12 +10,7 @@
 
     interface Props {
         user?: User | null;
-        currentPage?:
-            | "landing"
-            | "dashboard"
-            | "analytics"
-            | "admin"
-            | "settings";
+        currentPage?: "landing" | "dashboard" | "analytics" | "admin" | "settings";
     }
 
     let { user, currentPage = "landing" }: Props = $props();
@@ -71,8 +67,7 @@
             billingApi
                 .getStatus()
                 .then((status) => {
-                    showBilling =
-                        status.is_billing_owner && status.tier !== "free";
+                    showBilling = status.is_billing_owner && status.tier !== "free";
                 })
                 .catch(() => {});
         }
@@ -110,9 +105,7 @@
     });
     const isBusinessTier = $derived(() => {
         if (!currentOrg) return false;
-        return (
-            currentOrg.tier === "business" || currentOrg.tier === "unlimited"
-        );
+        return currentOrg.tier === "business" || currentOrg.tier === "unlimited";
     });
     const hasReachedOrgLimit = $derived(() => {
         return (
@@ -220,8 +213,7 @@
                     {#if currentPage === "dashboard" || currentPage === "analytics" || currentPage === "settings"}
                         <div class="relative hidden md:block">
                             <button
-                                onclick={() =>
-                                    (orgSwitcherOpen = !orgSwitcherOpen)}
+                                onclick={() => (orgSwitcherOpen = !orgSwitcherOpen)}
                                 class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors max-w-[200px]"
                                 disabled={switchingOrg}
                                 aria-label="Organization switcher"
@@ -230,20 +222,14 @@
                                     <span
                                         class="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin flex-shrink-0"
                                     ></span>
-                                    <span class="truncate text-gray-400"
-                                        >Loading…</span
-                                    >
+                                    <span class="truncate text-gray-400">Loading…</span>
                                 {:else}
                                     <span
                                         class="w-5 h-5 rounded bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                                     >
-                                        {(currentOrg?.name ?? "O")
-                                            .charAt(0)
-                                            .toUpperCase()}
+                                        {(currentOrg?.name ?? "O").charAt(0).toUpperCase()}
                                     </span>
-                                    <span class="truncate"
-                                        >{currentOrg?.name ?? "My Org"}</span
-                                    >
+                                    <span class="truncate">{currentOrg?.name ?? "My Org"}</span>
                                 {/if}
                                 <svg
                                     class="w-3.5 h-3.5 flex-shrink-0 text-gray-500"
@@ -268,15 +254,12 @@
                                     class="fixed inset-0 z-40"
                                     onclick={() => (orgSwitcherOpen = false)}
                                     onkeydown={(e) =>
-                                        e.key === "Escape" &&
-                                        (orgSwitcherOpen = false)}
+                                        e.key === "Escape" && (orgSwitcherOpen = false)}
                                 ></div>
                                 <div
                                     class="absolute right-0 mt-1 w-72 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden"
                                 >
-                                    <div
-                                        class="px-3 py-2 border-b border-gray-100"
-                                    >
+                                    <div class="px-3 py-2 border-b border-gray-100">
                                         <p
                                             class="text-xs font-semibold text-gray-500 uppercase tracking-wider"
                                         >
@@ -287,8 +270,7 @@
                                         {#each orgs as org}
                                             <li>
                                                 <button
-                                                    onclick={() =>
-                                                        handleSwitchOrg(org.id)}
+                                                    onclick={() => handleSwitchOrg(org.id)}
                                                     class="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left hover:bg-gray-50 transition-colors {org.id ===
                                                     currentOrgId
                                                         ? 'bg-orange-50'
@@ -297,13 +279,9 @@
                                                     <span
                                                         class="w-6 h-6 rounded-md bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                                                     >
-                                                        {org.name
-                                                            .charAt(0)
-                                                            .toUpperCase()}
+                                                        {org.name.charAt(0).toUpperCase()}
                                                     </span>
-                                                    <span
-                                                        class="flex-1 min-w-0"
-                                                    >
+                                                    <span class="flex-1 min-w-0">
                                                         <span
                                                             class="block truncate font-medium text-gray-900"
                                                             >{org.name}</span
@@ -361,8 +339,7 @@
                                                     />
                                                 </svg>
                                                 Create Organization
-                                                <span
-                                                    class="ml-auto text-xs text-gray-500"
+                                                <span class="ml-auto text-xs text-gray-500"
                                                     >{ownedOrgCount()}/3</span
                                                 >
                                             </button>
@@ -383,10 +360,7 @@
                                                         d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                                                     />
                                                 </svg>
-                                                <span
-                                                    >{ownedOrgCount()}/3
-                                                    organizations created</span
-                                                >
+                                                <span>{ownedOrgCount()}/3 organizations created</span>
                                             </div>
                                         {:else if !isBusinessTier()}
                                             <div
@@ -438,8 +412,7 @@
                                             <button
                                                 onclick={() => {
                                                     orgSwitcherOpen = false;
-                                                    window.location.href =
-                                                        "/pricing";
+                                                    window.location.href = "/pricing";
                                                 }}
                                                 class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
                                             >
@@ -470,11 +443,7 @@
                     {/if}
 
                     <div class="user-menu-wrapper">
-                        <UserMenu
-                            {user}
-                            onLogout={handleLogout}
-                            {showBilling}
-                        />
+                        <UserMenu {user} onLogout={handleLogout} {showBilling} />
                     </div>
                 {:else}
                     <!-- Unauthenticated: Show Sign In button -->
@@ -525,21 +494,7 @@
                     <!-- Authenticated Mobile Nav -->
                     <!-- User Info Header -->
                     <div class="mobile-user-info">
-                        <div class="mobile-user-avatar">
-                            {#if user.avatar_url}
-                                <img
-                                    src={user.avatar_url}
-                                    alt={user.name || user.email}
-                                    referrerpolicy="no-referrer"
-                                />
-                            {:else}
-                                <span
-                                    >{(user.name || user.email)
-                                        .charAt(0)
-                                        .toUpperCase()}</span
-                                >
-                            {/if}
-                        </div>
+                        <Avatar {user} size="lg" />
                         <div class="mobile-user-details">
                             <div class="mobile-user-name">
                                 {user.name || "User"}
@@ -673,15 +628,12 @@
             onkeydown={(e) => e.key === "Escape" && (showCreateOrg = false)}
         ></div>
         <!-- Dialog -->
-        <div
-            class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
-        >
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-1">
                 Create Organization
             </h2>
             <p class="text-sm text-gray-500 mb-5">
-                Create a new workspace for your team. You'll be set as the
-                owner.
+                Create a new workspace for your team. You'll be set as the owner.
             </p>
 
             <label
@@ -697,8 +649,7 @@
                 maxlength="100"
                 use:focusOnMount
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-                onkeydown={(e: KeyboardEvent) =>
-                    e.key === "Enter" && handleCreateOrg()}
+                onkeydown={(e: KeyboardEvent) => e.key === "Enter" && handleCreateOrg()}
             />
             {#if createOrgError}
                 <p class="mt-2 text-sm text-red-600">{createOrgError}</p>
@@ -758,27 +709,6 @@
         padding: 1rem;
         border-bottom: 1px solid #e2e8f0;
         margin-bottom: 0.5rem;
-    }
-
-    .mobile-user-avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        background: #dbeafe;
-        color: #2563eb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-        font-weight: 600;
-        flex-shrink: 0;
-        overflow: hidden;
-    }
-
-    .mobile-user-avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
     }
 
     .mobile-user-details {
