@@ -3,7 +3,7 @@
   import type { PageData } from "./$types";
   import type { InviteInfo } from "$lib/types/api";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let inviteInfo = $state<InviteInfo | null>(null);
   let loading = $state(true);

@@ -1,18 +1,18 @@
 <script lang="ts">
-  import Header from "$lib/components/Header.svelte";
-  import Footer from "$lib/components/Footer.svelte";
-  import SEO from "$lib/components/SEO.svelte";
-  import PricingCard from "$lib/components/PricingCard.svelte";
   import { authApi } from "$lib/api/auth";
+  import type { BillingStatus, ProductPrice } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { apiClient } from "$lib/api/client";
-  import { onMount } from "svelte";
-  import type { PageData } from "./$types";
+  import Footer from "$lib/components/Footer.svelte";
+  import Header from "$lib/components/Header.svelte";
+  import PricingCard from "$lib/components/PricingCard.svelte";
+  import SEO from "$lib/components/SEO.svelte";
   import type { User } from "$lib/types/api";
-  import type { ProductPrice, BillingStatus } from "$lib/api/billing";
-  import { createPricingTiers, type PricingTier } from "../../config/pricing";
+  import { onMount } from "svelte";
+  import { createPricingTiers } from "../../config/pricing";
+  import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   const loginUrl = "/login";
 
@@ -81,7 +81,7 @@
 
   // Founder pricing state
   let founderPricingActive = $state(false);
-  let discountAmounts = $state({
+  const discountAmounts = $state({
     pro_monthly: 0,
     pro_annual: 0,
     business_monthly: 0,
@@ -203,7 +203,7 @@
   }
 
   // Compute pricing tiers reactively
-  let pricingTiers = $derived(
+  const pricingTiers = $derived(
     createPricingTiers(
       (tier: string, interval: string) =>
         getDisplayPriceWithFallback(
@@ -219,8 +219,7 @@
       currentUser,
       loginUrl,
       products,
-      billingStatus,
-      openPortal
+      billingStatus
     )
   );
 

@@ -1,7 +1,7 @@
-import { redirect } from "@sveltejs/kit";
-import type { LayoutLoad } from "./$types";
 import { browser } from "$app/environment";
 import { setSvelteKitFetch } from "$lib/api/client";
+import { redirect } from "@sveltejs/kit";
+import type { LayoutLoad } from "./$types";
 
 export const load: LayoutLoad = async ({ url, fetch }) => {
   // Set up SvelteKit fetch for API client to use
@@ -37,14 +37,19 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
     // For public routes, return user if authenticated but don't redirect
     // For protected routes, return user (already authenticated)
     return { user };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // For public routes, auth failure is okay - just don't include user
     if (isPublicRoute) {
       return {};
     }
 
     // For protected routes, auth failed - redirect to home
-    if (error?.status === 401) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "status" in error &&
+      error.status === 401
+    ) {
       throw redirect(302, "/");
     }
 

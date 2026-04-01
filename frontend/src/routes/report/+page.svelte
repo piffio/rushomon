@@ -7,7 +7,7 @@
   import { onMount } from "svelte";
   import type { User } from "$lib/types/api";
 
-  let { data } = $props();
+  const { data } = $props();
   let currentUser = $state<User | undefined>(undefined);
 
   onMount(async () => {
@@ -26,7 +26,7 @@
   let reason = $state("");
   let reporterEmail = $state("");
   let submitting = $state(false);
-  let toast = $state<{
+  const toast = $state<{
     message: string;
     type: "success" | "error";
     visible: boolean;

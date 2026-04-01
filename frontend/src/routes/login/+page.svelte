@@ -7,7 +7,7 @@
   import { authApi, type AuthProvider } from "$lib/api/auth";
   import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let providers = $state<AuthProvider[]>([]);
   let loading = $state(true);

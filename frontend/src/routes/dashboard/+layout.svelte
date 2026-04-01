@@ -8,7 +8,7 @@
     children: any;
   }
 
-  let { data, children }: Props = $props();
+  const { data, children }: Props = $props();
 
   const tabs = [
     { label: "My Links", href: "/dashboard", id: "links" },
@@ -30,7 +30,7 @@
     return false;
   }
 
-  let currentHeaderPage = $derived(
+  const currentHeaderPage = $derived(
     page.url.pathname.startsWith("/dashboard/analytics")
       ? ("analytics" as const)
       : ("dashboard" as const)

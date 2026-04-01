@@ -13,8 +13,8 @@
   let confirmingUserId = $state<string | null>(null);
   let confirmingRole = $state<"admin" | "member" | null>(null);
   let currentUser = $state<User | null>(null);
-  let tierLoading = $state(false);
-  let confirmingTierChange = $state<{
+  const tierLoading = $state(false);
+  const confirmingTierChange = $state<{
     userId: string;
     orgId: string;
     currentTier: string;
@@ -24,7 +24,7 @@
   let confirmingSuspend = $state<string | null>(null);
   let confirmingDelete = $state<string | null>(null);
   let dropdownPosition = $state<{ top: number; right: number } | null>(null);
-  let selectedNewTier = $state<string>("");
+  const selectedNewTier = $state<string>("");
 
   onMount(async () => {
     await loadUsers();

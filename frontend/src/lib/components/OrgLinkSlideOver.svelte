@@ -49,7 +49,7 @@
     onclose: () => void;
   }
 
-  let { link, days, onclose }: Props = $props();
+  const { link, days, onclose }: Props = $props();
 
   const SHORT_LINK_BASE =
     PUBLIC_VITE_SHORT_LINK_BASE_URL ||

@@ -7,7 +7,7 @@
   import type { PageData } from "./$types";
   import type { User } from "$lib/types/api";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let currentUser = $state<User | undefined>(undefined);
 

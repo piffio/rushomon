@@ -8,7 +8,7 @@
   import type { OrgWithRole } from "$lib/types/api";
   import type { BillingStatus } from "$lib/api/billing";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   // Version info from API
   let versionInfo = $state({

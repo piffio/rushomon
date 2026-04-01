@@ -45,7 +45,7 @@
     BarElement
   );
 
-  let { data } = $props();
+  const { data } = $props();
 
   // Get tier from page data
   const tier = $derived(data.tier || "free");

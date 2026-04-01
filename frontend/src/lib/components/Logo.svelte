@@ -4,7 +4,7 @@
     className?: string;
   }
 
-  let { href, className = "" }: Props = $props();
+  const { href, className = "" }: Props = $props();
 </script>
 
 <a

@@ -16,7 +16,7 @@
   let searchQuery = $state("");
   let tierFilter = $state("");
   let expandedId = $state<string | null>(null);
-  let accountDetails = $state<Record<string, BillingAccountDetails>>({});
+  const accountDetails = $state<Record<string, BillingAccountDetails>>({});
   let detailsLoading = $state<string | null>(null);
   let confirmingTierChange = $state<{
     accountId: string;

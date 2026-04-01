@@ -7,7 +7,7 @@
   import LoadingButton from "./LoadingButton.svelte";
   import { fade } from "svelte/transition";
 
-  let {
+  const {
     link,
     onDelete,
     onEdit,

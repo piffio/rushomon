@@ -16,7 +16,7 @@
     | "api-keys"
     | "settings";
 
-  let { children } = $props();
+  const { children } = $props();
 
   const activeModule = $derived(
     page.url.pathname.split("/").pop() || "dashboard"

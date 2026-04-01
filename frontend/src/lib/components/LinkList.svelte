@@ -2,7 +2,7 @@
   import LinkCard from "./LinkCard.svelte";
   import type { Link } from "$lib/types/api";
 
-  let {
+  const {
     links,
     loading = false,
     deletingLinkId = null as string | null,

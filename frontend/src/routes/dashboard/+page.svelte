@@ -17,7 +17,7 @@
     PaginatedResponse
   } from "$lib/types/api";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let links = $state<Link[]>([]);
   let pagination = $state<PaginationMeta | null>(null);
@@ -90,7 +90,7 @@
     selectedTags = d.initialTags || [];
   });
 
-  let linksUsagePercent = $derived(
+  const linksUsagePercent = $derived(
     usage?.limits.max_links_per_month
       ? Math.min(
           100,
@@ -102,7 +102,7 @@
         )
       : 0
   );
-  let linksAtLimit = $derived(
+  const linksAtLimit = $derived(
     usage?.limits.max_links_per_month
       ? usage.usage.links_created_this_month >= usage.limits.max_links_per_month
       : false

@@ -14,13 +14,18 @@ export interface PricingTier {
 }
 
 // Helper function to get actual price from database (not fallback)
+interface Product {
+  id: string;
+  price_amount: number;
+}
+
 function getActualPrice(
   plan: "pro" | "business",
   interval: "monthly" | "annual",
-  products: any[]
+  products: Product[]
 ): number {
   const settingKey = `product_${plan}_${interval}_id`;
-  const product = products.find((p: any) => p.id === settingKey);
+  const product = products.find((p: Product) => p.id === settingKey);
   return product?.price_amount || 0;
 }
 
@@ -38,42 +43,58 @@ function getTierHierarchy(tier: string): number {
   }
 }
 
+interface BillingStatus {
+  tier?: string;
+}
+
 // Helper function to check if a tier is the current plan
-function isCurrentPlan(tier: string, billingStatus: any): boolean {
-  if (!billingStatus || !billingStatus.tier) return false;
-  return billingStatus.tier.toLowerCase() === tier.toLowerCase();
+function isCurrentPlan(
+  tier: string,
+  billingStatus: BillingStatus | null
+): boolean {
+  return billingStatus?.tier === tier;
 }
 
 // Helper function to check if a tier is an upgrade
-function isUpgrade(tier: string, billingStatus: any): boolean {
-  if (!billingStatus || !billingStatus.tier) return true; // No current plan, everything is an upgrade
-  const currentTier = getTierHierarchy(billingStatus.tier.toLowerCase());
-  const targetTier = getTierHierarchy(tier.toLowerCase());
-  return targetTier > currentTier;
+function isUpgrade(tier: string, billingStatus: BillingStatus | null): boolean {
+  const currentTier = billingStatus?.tier || "free";
+  const tierHierarchy = { free: 0, pro: 1, business: 2 };
+  return (
+    tierHierarchy[tier as keyof typeof tierHierarchy] >
+    tierHierarchy[currentTier as keyof typeof tierHierarchy]
+  );
 }
 
 // Helper function to check if a tier is a downgrade
-function isDowngrade(tier: string, billingStatus: any): boolean {
-  if (!billingStatus || !billingStatus.tier) return false;
-  const currentTier = getTierHierarchy(billingStatus.tier.toLowerCase());
-  const targetTier = getTierHierarchy(tier.toLowerCase());
-  return targetTier < currentTier;
+function isDowngrade(
+  tier: string,
+  billingStatus: BillingStatus | null
+): boolean {
+  const currentTier = billingStatus?.tier || "free";
+  const tierHierarchy = { free: 0, pro: 1, business: 2 };
+  return (
+    tierHierarchy[tier as keyof typeof tierHierarchy] <
+    tierHierarchy[currentTier as keyof typeof tierHierarchy]
+  );
 }
 
 // Helper function to check if user is on free plan
-function isOnFreePlan(billingStatus: any): boolean {
-  return !billingStatus || billingStatus.tier?.toLowerCase() === "free";
+function isOnFreePlan(billingStatus: BillingStatus | null): boolean {
+  return billingStatus?.tier === "free";
+}
+
+interface User {
+  id?: string;
 }
 
 export const createPricingTiers = (
   getDisplayPriceWithFallback: (tier: string, interval: string) => number,
   founderPrice: (tier: string, interval: string) => number,
   billingInterval: string,
-  currentUser: any,
+  currentUser: User | undefined,
   loginUrl: string,
-  products: any[],
-  billingStatus: any,
-  openPortal: () => void
+  products: Product[],
+  billingStatus: BillingStatus | null
 ): PricingTier[] => [
   {
     tier: "free",

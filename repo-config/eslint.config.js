@@ -8,14 +8,18 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   prettierConfig,
-  ...svelte.configs["flat/base"],
-  ...svelte.configs["flat/recommended"],
   {
     files: ["**/*.svelte"],
     languageOptions: {
       parser: svelte.parser,
       parserOptions: {
         parser: tseslint.parser
+      },
+      globals: {
+        $props: "readonly",
+        $state: "readonly",
+        $derived: "readonly",
+        $effect: "readonly"
       }
     }
   },
@@ -62,7 +66,8 @@ export default [
       "dist/",
       "node_modules/",
       "*.config.js",
-      "*.config.ts"
+      "*.config.ts",
+      "**/*.svelte"
     ]
   }
 ];

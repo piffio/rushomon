@@ -30,9 +30,9 @@ SVELTE_CHECK_REQUIRED=true
 SVELTE_CHECK_ERROR_MSG="Svelte/TypeScript issues found! Please fix errors and warnings before committing."
 
 # ESLint checking - required for frontend code quality
-ESLINT_CHECK_ENABLED=false
+ESLINT_CHECK_ENABLED=true
 ESLINT_CHECK_COMMAND="check_eslint"
-ESLINT_CHECK_REQUIRED=false
+ESLINT_CHECK_REQUIRED=true
 ESLINT_CHECK_ERROR_MSG="ESLint issues found! Please fix linting errors before committing."
 AUTO_FORMAT_ESLINT_AND_STAGE=false
 

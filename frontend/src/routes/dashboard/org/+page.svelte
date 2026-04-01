@@ -15,7 +15,7 @@
   import type { BillingStatus } from "$lib/api/billing";
   import LoadingButton from "$lib/components/LoadingButton.svelte";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let orgDetails = $state<OrgDetails | null>(null);
   let loading = $state(true);
@@ -312,13 +312,13 @@
   let targetOrgId = $state("");
   let deleting = $state(false);
   let deleteError = $state("");
-  let confirmingTierChange = $state<{
+  const confirmingTierChange = $state<{
     userId: string;
     orgId: string;
     currentTier: string;
   } | null>(null);
   let confirmingRemoveMember = $state<OrgMember | null>(null);
-  let orgTiers = $state<Record<string, string>>({});
+  const orgTiers = $state<Record<string, string>>({});
   let linkCount = $state(0);
   let userOrgs = $state<OrgWithRole[]>([]);
   let canDelete = $state(false);

@@ -12,7 +12,7 @@
     currentPage?: "landing" | "dashboard" | "analytics" | "admin" | "settings";
   }
 
-  let { user, currentPage = "landing" }: Props = $props();
+  const { user, currentPage = "landing" }: Props = $props();
   let mobileMenuOpen = $state(false);
   let orgSwitcherOpen = $state(false);
   let showBilling = $state(false);

@@ -1,15 +1,14 @@
-import type { PageLoad } from "./$types";
 import { linksApi } from "$lib/api/links";
-import { usageApi } from "$lib/api/usage";
 import { orgsApi } from "$lib/api/orgs";
-import type { PaginatedResponse, Link, UsageResponse } from "$lib/types/api";
+import { usageApi } from "$lib/api/usage";
+import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ parent, url, depends }) => {
   // Declare dependency for invalidation
   depends("app:dashboard");
 
   // Get user data from layout (now client-side)
-  const parentData = (await parent()) as { user?: any };
+  const parentData = (await parent()) as { user?: unknown };
   const user = parentData.user;
 
   if (!user) {

@@ -26,7 +26,7 @@
   let discounts = $state<Discount[]>([]);
   let discountsLoading = $state(false);
   let discountsError = $state("");
-  let discountSlots = $state({
+  const discountSlots = $state({
     pro_monthly: "",
     pro_annual: "",
     business_monthly: "",
@@ -38,7 +38,7 @@
   let productsLoading = $state(false);
   let productsError = $state("");
   let syncingProducts = $state(false);
-  let productSlots = $state({
+  const productSlots = $state({
     pro_monthly: "",
     pro_annual: "",
     business_monthly: "",

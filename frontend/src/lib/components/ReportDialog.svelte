@@ -7,7 +7,7 @@
     onClose: () => void;
   }
 
-  let { linkId, linkUrl, onClose }: Props = $props();
+  const { linkId, linkUrl, onClose }: Props = $props();
 
   let reason = $state("");
   let reporterEmail = $state("");

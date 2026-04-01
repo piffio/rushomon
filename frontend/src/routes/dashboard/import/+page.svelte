@@ -4,7 +4,7 @@
   import type { ImportLinkRow, ImportBatchResult } from "$lib/api/links";
   import type { UsageResponse } from "$lib/types/api";
 
-  let { data }: { data: { user: unknown; usage: UsageResponse | null } } =
+  const { data }: { data: { user: unknown; usage: UsageResponse | null } } =
     $props();
 
   // ── Step state ────────────────────────────────────────────────────────────
@@ -120,13 +120,13 @@
   >([]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  let isProOrAbove = $derived(
+  const isProOrAbove = $derived(
     data.usage?.tier === "pro" ||
       data.usage?.tier === "business" ||
       data.usage?.tier === "unlimited"
   );
 
-  let mappingResult = $derived.by(() => {
+  const mappingResult = $derived.by(() => {
     return rawRows.map((row) => {
       const destCol = columnMap.destination_url;
       const scCol = columnMap.short_code;
@@ -162,7 +162,7 @@
     });
   });
 
-  let mappedRows = $derived(
+  const mappedRows = $derived(
     mappingResult.map(
       ({ destination_url, short_code, title, tags, expires_at }) => ({
         destination_url,
@@ -174,18 +174,18 @@
     ) as ImportLinkRow[]
   );
 
-  let truncatedCount = $derived(
+  const truncatedCount = $derived(
     mappingResult.filter((r) => r.wasTruncated).length
   );
 
-  let validRows = $derived.by((): ImportLinkRow[] => {
+  const validRows = $derived.by((): ImportLinkRow[] => {
     if (skipInvalidRows) {
       return mappedRows.filter((r) => isValidUrl(r.destination_url));
     }
     return mappedRows;
   });
 
-  let remainingQuota = $derived.by((): number | null => {
+  const remainingQuota = $derived.by((): number | null => {
     if (!data.usage?.limits.max_links_per_month) return null;
     return (
       data.usage.limits.max_links_per_month -

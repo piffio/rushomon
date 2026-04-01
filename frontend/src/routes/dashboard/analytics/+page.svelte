@@ -43,7 +43,7 @@
     ArcElement
   );
 
-  let { data } = $props();
+  const { data } = $props();
 
   const tier = $derived((data.tier as string) || "free");
 

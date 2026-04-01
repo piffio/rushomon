@@ -1,7 +1,7 @@
-import type { PageLoad } from "./$types";
 import { analyticsApi } from "$lib/api/analytics";
 import { usageApi } from "$lib/api/usage";
-import type { OrgAnalyticsResponse } from "$lib/types/api";
+import type { OrgAnalyticsResponse, UsageResponse } from "$lib/types/api";
+import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ parent, url }) => {
   await parent();
@@ -12,16 +12,18 @@ export const load: PageLoad = async ({ parent, url }) => {
 
   const isCustomRange = startParam !== null && endParam !== null;
 
-  const [analytics, usage]: [OrgAnalyticsResponse | null, any] =
-    await Promise.all([
-      isCustomRange
-        ? analyticsApi.getOrgAnalyticsCustomRange(
-            parseInt(startParam!),
-            parseInt(endParam!)
-          )
-        : analyticsApi.getOrgAnalytics(days),
-      usageApi.getUsage().catch(() => null)
-    ]);
+  const [analytics, usage]: [
+    OrgAnalyticsResponse | null,
+    UsageResponse | null
+  ] = await Promise.all([
+    isCustomRange
+      ? analyticsApi.getOrgAnalyticsCustomRange(
+          parseInt(startParam!),
+          parseInt(endParam!)
+        )
+      : analyticsApi.getOrgAnalytics(days),
+    usageApi.getUsage().catch(() => null)
+  ]);
 
   return {
     analytics,

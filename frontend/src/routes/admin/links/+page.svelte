@@ -19,7 +19,7 @@
   let blockReason = $state("");
   let activeDropdown = $state<string | null>(null);
   let dropdownPosition = $state<{ top: number; right: number } | null>(null);
-  let toast = $state<{
+  const toast = $state<{
     message: string;
     type: "success" | "error";
     visible: boolean;

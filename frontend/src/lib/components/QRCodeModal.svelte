@@ -16,7 +16,7 @@
     orgId?: string;
   }
 
-  let {
+  const {
     link,
     isOpen,
     onClose,
