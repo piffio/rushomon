@@ -1,5 +1,6 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
 use crate::utils::time::now_timestamp;
+use hex; // Add hex crate for formatting
 use sha2::{Digest, Sha256};
 use worker::{D1Database, console_log};
 use worker::{Request, Response, RouteContext}; // Assuming you have a time util, or use chrono
@@ -105,7 +106,7 @@ pub async fn authenticate_request(
         // 1. Hash the incoming token
         let mut hasher = Sha256::new();
         hasher.update(jwt.as_bytes());
-        let key_hash = format!("{:x}", hasher.finalize());
+        let key_hash = hex::encode(hasher.finalize());
 
         // 2. Query database directly for API key with current tier information
         let api_key_with_tier =

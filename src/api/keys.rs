@@ -1,5 +1,6 @@
 use crate::auth::authenticate_request;
 use crate::utils::{generate_short_code_with_length, now_timestamp};
+use hex; // Add hex crate for formatting
 use sha2::{Digest, Sha256};
 use worker::*;
 
@@ -64,7 +65,7 @@ pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> R
     // Hash the token for storage
     let mut hasher = Sha256::new();
     hasher.update(raw_token.as_bytes());
-    let key_hash = format!("{:x}", hasher.finalize());
+    let key_hash = hex::encode(hasher.finalize());
 
     let key_id = uuid::Uuid::new_v4().to_string();
 

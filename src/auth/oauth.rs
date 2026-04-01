@@ -21,7 +21,8 @@ const OAUTH_STATE_TTL_SECONDS: u64 = 600; // 10 minutes
 /// 2. Prevent information disclosure in logs
 /// 3. Protect against timing attacks
 fn generate_request_fingerprint(req: &Request) -> String {
-    use sha2::{Digest, Sha256};
+    use hex;
+    use sha2::{Digest, Sha256}; // Add hex crate for formatting
 
     let headers = req.headers();
 
@@ -40,7 +41,7 @@ fn generate_request_fingerprint(req: &Request) -> String {
     let combined = format!("{}|{}|{}", user_agent, ip, accept_language);
     let mut hasher = Sha256::new();
     hasher.update(combined.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
