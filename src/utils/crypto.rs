@@ -12,7 +12,7 @@ pub fn verify_polar_webhook_signature(
     signature_header: &str,
     secret: &str,
 ) -> Result<bool, String> {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     use sha2::Sha256;
 
     // Polar uses the secret as raw bytes, not base64-decoded
@@ -156,7 +156,7 @@ mod tests {
         timestamp: &str,
         secret: &str,
     ) -> String {
-        use hmac::{Hmac, Mac};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         let secret_bytes = secret

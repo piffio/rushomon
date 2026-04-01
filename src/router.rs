@@ -3737,16 +3737,18 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         Ok(_) => {
             // Hash sensitive fields for logging (privacy protection while maintaining correlation capability)
             let reporter_user_id_hash = reporter_user_id.as_ref().map(|id| {
-                use sha2::{Digest, Sha256};
+                use hex;
+                use sha2::{Digest, Sha256}; // Add hex crate for formatting
                 let mut hasher = Sha256::new();
                 hasher.update(id.as_bytes());
-                format!("{:x}", hasher.finalize())
+                hex::encode(hasher.finalize())
             });
             let reporter_email_hash = reporter_email_opt.as_ref().map(|email| {
-                use sha2::{Digest, Sha256};
+                use hex;
+                use sha2::{Digest, Sha256}; // Add hex crate for formatting
                 let mut hasher = Sha256::new();
                 hasher.update(email.as_bytes());
-                format!("{:x}", hasher.finalize())
+                hex::encode(hasher.finalize())
             });
 
             console_log!(

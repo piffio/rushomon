@@ -24,6 +24,7 @@ use axum::{
     response::{IntoResponse, Redirect},
     routing::{get, post},
 };
+use hex; // Add hex crate for formatting
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
@@ -136,12 +137,12 @@ async fn github_user() -> impl IntoResponse {
     let user_id_hash = {
         let mut hasher = Sha256::new();
         hasher.update(user.id.to_string().as_bytes());
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     };
     let user_login_hash = {
         let mut hasher = Sha256::new();
         hasher.update(user.login.as_bytes());
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     };
 
     println!(
@@ -243,12 +244,12 @@ async fn google_user() -> impl IntoResponse {
     let user_sub_hash = {
         let mut hasher = Sha256::new();
         hasher.update(user.sub.as_bytes());
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     };
     let user_email_hash = user.email.as_ref().map(|email| {
         let mut hasher = Sha256::new();
         hasher.update(email.as_bytes());
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     });
 
     println!(
