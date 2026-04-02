@@ -20,7 +20,7 @@ const latestStableVersion = stableSpecFiles.length > 0
 const config: Config = {
   title: 'Rushomon API Docs',
   tagline: 'API reference for the Rushomon URL shortener',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.svg',
 
   future: {
     v4: true,
