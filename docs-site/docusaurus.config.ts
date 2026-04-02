@@ -107,8 +107,7 @@ const config: Config = {
       logo: {
         alt: 'Rushomon Logo',
         src: 'img/logo.svg',
-        href: 'https://rushomon.cc',
-        target: '_self',
+        href: '/',
       },
       items: [
         {
