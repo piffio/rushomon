@@ -1,6 +1,6 @@
 {
   "name": "docs-site",
-  "version": "0.0.0",
+  "version": "0.6.2",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
@@ -17,8 +17,8 @@
     "clean-api-docs": "docusaurus clean-api-docs rushomon"
   },
   "dependencies": {
-    "@docusaurus/core": "3.9.2",
-    "@docusaurus/preset-classic": "3.9.2",
+    "@docusaurus/core": "^3.9.2",
+    "@docusaurus/preset-classic": "^3.9.2",
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
     "docusaurus-plugin-openapi-docs": "^4.7.1",
@@ -46,6 +46,6 @@
     ]
   },
   "engines": {
-    "node": ">=20.0"
+    "node": ">=22.0"
   }
 }
