@@ -1,4 +1,4 @@
-.PHONY: version-bump-patch version-bump-minor version-bump-major version-sync version-tag release version
+.PHONY: version-bump-patch version-bump-minor version-bump-major version-sync version-tag release version docs-gen
 
 # Get current version from Cargo.toml (package version only)
 CURRENT_VERSION := $(shell grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2)
@@ -32,11 +32,27 @@ version-sync:
 	@cd frontend && npm install --package-lock-only --silent
 	@echo "✅ Version synchronized"
 
+# Generate OpenAPI spec for main and the current version tag
+docs-gen:
+	@echo "📝 Generating OpenAPI specs..."
+	@VERSION=$$(grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2) && \
+	cargo build --bin generate_openapi --features openapi-gen -q && \
+	mkdir -p docs/openapi && \
+	OPENAPI_VERSION=main ./target/debug/generate_openapi > docs/openapi/main.json && \
+	echo "✅ Generated docs/openapi/main.json (version: main)" && \
+	./target/debug/generate_openapi > docs/openapi/v$$VERSION.json && \
+	echo "✅ Generated docs/openapi/v$$VERSION.json (version: $$VERSION)" && \
+	sed -i.bak "s|specPath: '\.\./docs/openapi/v[0-9][^']*\.json'|specPath: '../docs/openapi/v$$VERSION.json'|g" docs-site/docusaurus.config.ts && \
+	sed -i.bak "s|label: 'v[0-9][^']*'|label: 'v$$VERSION'|g" docs-site/docusaurus.config.ts && \
+	rm -f docs-site/docusaurus.config.ts.bak && \
+	echo "✅ Updated docs-site/docusaurus.config.ts to point to v$$VERSION"
+
 # Create git tag for current version (reads version at runtime)
-version-tag:
+version-tag: docs-gen
 	@VERSION=$$(grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2) && \
 	echo "🏷️  Creating git tag for v$$VERSION..." && \
-	git add Cargo.toml frontend/package.json frontend/package-lock.json && \
+	git add Cargo.toml frontend/package.json frontend/package-lock.json \
+		docs/openapi/v$$VERSION.json docs-site/docusaurus.config.ts && \
 	git commit -m "Bump version to v$$VERSION" && \
 	git tag -a "v$$VERSION" -m "Release v$$VERSION" && \
 	echo "✅ Tag v$$VERSION created. Run 'git push origin v$$VERSION' to push."
@@ -63,3 +79,4 @@ help:
 	@echo "🔧 Low-level targets:"
 	@echo "  make version-sync    - Sync version from Cargo.toml to frontend"
 	@echo "  make version-tag     - Create git tag for current version"
+	@echo "  make docs-gen        - Generate OpenAPI specs (main.json + vX.Y.Z.json)"

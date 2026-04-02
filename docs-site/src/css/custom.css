@@ -1,0 +1,46 @@
+/**
+ * Rushomon documentation site — custom theme.
+ * Primary color: orange (matches rushomon.cc brand).
+ */
+
+:root {
+  --ifm-color-primary: #f97316;
+  --ifm-color-primary-dark: #ea580c;
+  --ifm-color-primary-darker: #dc4a05;
+  --ifm-color-primary-darkest: #c2410c;
+  --ifm-color-primary-light: #fb923c;
+  --ifm-color-primary-lighter: #fdba74;
+  --ifm-color-primary-lightest: #fed7aa;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(249, 115, 22, 0.1);
+  --ifm-navbar-background-color: #ffffff;
+  --ifm-navbar-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #fb923c;
+  --ifm-color-primary-dark: #f97316;
+  --ifm-color-primary-darker: #ea580c;
+  --ifm-color-primary-darkest: #c2410c;
+  --ifm-color-primary-light: #fdba74;
+  --ifm-color-primary-lighter: #fed7aa;
+  --ifm-color-primary-lightest: #ffedd5;
+  --docusaurus-highlighted-code-line-bg: rgba(251, 146, 60, 0.15);
+  --ifm-navbar-background-color: #1c1c1e;
+}
+
+.navbar__brand {
+  font-weight: 700;
+}
+
+.hero--primary {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.openapi-explorer__request-btn {
+  background-color: var(--ifm-color-primary) !important;
+}
+
+.openapi-explorer__request-btn:hover {
+  background-color: var(--ifm-color-primary-dark) !important;
+}

@@ -5,6 +5,7 @@ use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
     LinkAnalyticsResponse, PaginatedResponse, PaginationMeta, Tier, TimeRange,
     link::{CreateLinkRequest, Link, LinkStatus, UpdateLinkRequest},
+    user::User,
 };
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use chrono::{Datelike, TimeZone};
@@ -1956,6 +1957,22 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
 }
 
 /// Handle get current user: GET /api/auth/me
+#[utoipa::path(
+    get,
+    path = "/api/auth/me",
+    tag = "Authentication",
+    summary = "Get current user",
+    description = "Returns information about the currently authenticated user",
+    responses(
+        (status = 200, description = "User information", body = User),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "User not found")
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,

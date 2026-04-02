@@ -1,0 +1,12 @@
+# Example wrangler config for the Rushomon docs Worker.
+# Actual configs are generated in CI (deploy-docs-*.yml workflows).
+# Copy and adjust for local testing: wrangler deploy --config wrangler.docs.example.toml
+
+name = "rushomon-docs-ENVIRONMENT"
+compatibility_date = "2026-02-10"
+workers_dev = false
+
+[assets]
+directory = "./build"
+binding = "ASSETS"
+not_found_handling = "404-page"

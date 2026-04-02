@@ -55,6 +55,9 @@ use utoipa::{Modify, OpenApi};
             crate::api::version::VersionResponse,
         ),
     ),
+    paths(
+        crate::router::handle_get_current_user,
+    ),
     modifiers(&SecurityAddon),
     tags(
         (name = "Authentication", description = "OAuth authentication and session management"),
@@ -69,7 +72,7 @@ use utoipa::{Modify, OpenApi};
     ),
     info(
         title = "Rushomon URL Shortener API",
-        version = "0.6.2",
+        version = env!("CARGO_PKG_VERSION"),
         description = r#"API documentation for the Rushomon URL shortener service.
 
 ## Authentication
@@ -85,15 +88,6 @@ Most endpoints require authentication using either:
    ```
    Authorization: Bearer ro_pat_...
    ```
-
-### Rate Limiting
-
-API requests are rate limited based on your subscription tier:
-- Free: 100 requests/minute
-- Pro: 500 requests/minute
-- Business: 2000 requests/minute
-- Unlimited: No limits
-
 ## Response Format
 
 All responses are JSON formatted. Error responses follow this structure:
@@ -114,7 +108,6 @@ List endpoints support pagination with `page` and `limit` query parameters:
     ),
     servers(
         (url = "https://api.rushomon.cc", description = "Production API"),
-        (url = "https://rushomon-staging.piffio.in", description = "Staging API"),
         (url = "http://localhost:8787", description = "Local development"),
     ),
 )]

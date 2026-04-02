@@ -28,6 +28,20 @@ frontend/.svelte-kit
 frontend/build
 frontend/.vercel
 
+# Generated OpenAPI specs
+docs/openapi/main.json    # regenerated in CI / local dev, never committed
+!docs/openapi/v*.json     # versioned tag specs are committed
+
+# Docusaurus docs site
+docs-site/build
+docs-site/.docusaurus
+docs-site/node_modules
+docs-site/docs/api/
+
+# Generated wrangler configs (docs)
+wrangler.docs-staging.toml
+wrangler.docs-production.toml
+
 # Logs
 *.log
 

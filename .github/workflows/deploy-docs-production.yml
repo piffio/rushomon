@@ -1,0 +1,129 @@
+name: Deploy Docs to Production
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-production-deploy
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  deploy-docs:
+    name: Deploy Docs to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME:-main}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "📌 Deploying docs for version: $TAG"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: '.'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '24'
+
+      - name: Cache npm
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-docs-node-${{ hashFiles('docs-site/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-docs-node-
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Generate OpenAPI spec for this release
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          echo "📝 Generating OpenAPI spec for $TAG..."
+          cargo build --bin generate_openapi --features openapi-gen 2>/dev/null
+          mkdir -p docs/openapi
+          ./target/debug/generate_openapi > "docs/openapi/${TAG}.json"
+          cp "docs/openapi/${TAG}.json" docs/openapi/main.json
+          echo "✅ Specs written: docs/openapi/${TAG}.json and docs/openapi/main.json"
+
+      - name: Install docs-site dependencies
+        working-directory: docs-site
+        run: npm ci
+
+      - name: Configure versioned OpenAPI specs
+        working-directory: docs-site
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          node scripts/configure-versions.mjs "$TAG"
+
+      - name: Generate OpenAPI docs
+        working-directory: docs-site
+        run: npm run docusaurus gen-api-docs all
+
+      - name: Build docs site
+        working-directory: docs-site
+        env:
+          DOCS_SITE_URL: https://doc.rushomon.cc
+        run: npm run build
+
+      - name: Generate wrangler docs production config
+        run: |
+          cat > wrangler.docs-production.toml << 'EOF'
+          name = "rushomon-docs-production"
+          compatibility_date = "2026-02-10"
+          workers_dev = false
+
+          [assets]
+          directory = "./docs-site/build"
+          binding = "ASSETS"
+          not_found_handling = "404-page"
+          EOF
+
+          echo "✅ Generated wrangler.docs-production.toml"
+
+      - name: Deploy docs to Cloudflare
+        run: |
+          echo "🚀 Deploying docs to production..."
+          wrangler deploy --config wrangler.docs-production.toml
+          echo "✅ Docs deployed to production"
+
+      - name: Smoke test docs site
+        run: |
+          DOCS_URL="https://doc.rushomon.cc"
+
+          echo "🧪 Smoke testing docs at $DOCS_URL"
+          sleep 10
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$DOCS_URL/")
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Docs homepage is up (HTTP 200)"
+          else
+            echo "⚠️  Docs homepage returned HTTP $STATUS (custom domain may not be configured yet)"
+          fi

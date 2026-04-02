@@ -77,6 +77,39 @@ jobs:
             # Continue anyway - We want to delete all resources
           fi
 
+      - name: Delete Ephemeral Docs Worker
+        id: delete_docs_worker
+        if: steps.check_deployment.outputs.should_cleanup == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ steps.pr_number.outputs.pr_number }}
+        run: |
+          DOCS_WORKER_NAME="rushomon-docs-pr-$PR_NUMBER"
+
+          echo "Attempting to delete docs worker: $DOCS_WORKER_NAME"
+
+          DELETE_RESPONSE=$(curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$DOCS_WORKER_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+
+          SUCCESS=$(echo "$DELETE_RESPONSE" | jq -r '.success // false')
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Successfully deleted docs worker: $DOCS_WORKER_NAME"
+            echo "docs_worker_result=success" >> $GITHUB_OUTPUT
+          else
+            ERROR_CODE=$(echo "$DELETE_RESPONSE" | jq -r '.errors[0].code // ""')
+            if [ "$ERROR_CODE" = "10007" ] || [ "$ERROR_CODE" = "10090" ]; then
+              echo "⚠️  Docs worker not found: $DOCS_WORKER_NAME (was not deployed or already deleted)"
+              echo "docs_worker_result=not_found" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️  Failed to delete docs worker: $DOCS_WORKER_NAME"
+              echo "Response: $DELETE_RESPONSE"
+              echo "docs_worker_result=failed" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Delete KV Namespace
         id: delete_kv
         if: steps.check_deployment.outputs.should_cleanup == 'true'
