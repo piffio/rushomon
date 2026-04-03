@@ -1,1085 +1,47 @@
 {
-  "components": {
-    "schemas": {
-      "BillingAccount": {
-        "description": "Billing Account represents the payment entity that owns one or more organizations.\nTier limits and quotas are enforced at the billing account level, not per-organization.\n\nThis prevents abuse where users could create multiple orgs to multiply their quotas.\nFor example:\n- Business tier ($29) = 10k links/month across ALL orgs in the billing account\n- Not 10k per org (which would be 30k for 3 orgs)",
-        "properties": {
-          "created_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "id": {
-            "example": "ba_abc123def456",
-            "type": "string"
-          },
-          "owner_user_id": {
-            "example": "user-123456",
-            "type": "string"
-          },
-          "provider_customer_id": {
-            "description": "Polar customer ID for the billing account",
-            "example": "cust_abc123",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tier": {
-            "example": "pro",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "owner_user_id",
-          "tier",
-          "created_at"
-        ],
-        "type": "object"
-      },
-      "CountryCount": {
-        "properties": {
-          "count": {
-            "example": 25,
-            "format": "int64",
-            "type": "integer"
-          },
-          "country": {
-            "example": "US",
-            "type": "string"
-          }
-        },
-        "required": [
-          "country",
-          "count"
-        ],
-        "type": "object"
-      },
-      "CreateApiKeyRequest": {
-        "properties": {
-          "expires_in_days": {
-            "example": 30,
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "name": {
-            "example": "My Production API Key",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "type": "object"
-      },
-      "CreateApiKeyResponse": {
-        "properties": {
-          "created_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "expires_at": {
-            "example": 1612137600,
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "hint": {
-            "example": "ro_pat_...abcd",
-            "type": "string"
-          },
-          "id": {
-            "example": "key-123456",
-            "type": "string"
-          },
-          "name": {
-            "example": "My Production API Key",
-            "type": "string"
-          },
-          "raw_token": {
-            "description": "The raw token - show this ONLY ONCE to the user",
-            "example": "ro_pat_abc123def456ghi789jkl012mno345pq",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "hint",
-          "raw_token",
-          "created_at"
-        ],
-        "type": "object"
-      },
-      "CreateLinkRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "destination_url": {
-            "example": "https://example.com/very/long/url",
-            "type": "string"
-          },
-          "expires_at": {
-            "example": 1640995200,
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "forward_query_params": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "redirect_type": {
-            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301, available on Pro+ plans.",
-            "example": "301",
-            "type": "string"
-          },
-          "short_code": {
-            "example": "my-custom-code",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tags": {
-            "example": [
-              "marketing",
-              "social"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "title": {
-            "example": "My Awesome Link",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UtmParams"
-              }
-            ]
-          }
-        },
-        "required": [
-          "destination_url"
-        ],
-        "type": "object"
-      },
-      "DailyClicks": {
-        "properties": {
-          "count": {
-            "example": 42,
-            "format": "int64",
-            "type": "integer"
-          },
-          "date": {
-            "example": "2024-01-15",
-            "type": "string"
-          }
-        },
-        "required": [
-          "date",
-          "count"
-        ],
-        "type": "object"
-      },
-      "Link": {
-        "properties": {
-          "click_count": {
-            "example": 42,
-            "format": "int64",
-            "type": "integer"
-          },
-          "created_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "created_by": {
-            "example": "user-123",
-            "type": "string"
-          },
-          "destination_url": {
-            "example": "https://example.com/very/long/url",
-            "type": "string"
-          },
-          "expires_at": {
-            "example": 1640995200,
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "forward_query_params": {
-            "description": "Whether to forward visitor query params to the destination (Pro+ only).\nNone = use org default (resolved at KV write time).",
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "id": {
-            "example": "link-123456",
-            "type": "string"
-          },
-          "org_id": {
-            "example": "org-789",
-            "type": "string"
-          },
-          "redirect_type": {
-            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301 for SEO, 307 available on Pro+ plans.",
-            "example": "301",
-            "type": "string"
-          },
-          "short_code": {
-            "example": "abc123",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/LinkStatus"
-          },
-          "tags": {
-            "example": [
-              "marketing",
-              "social"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "title": {
-            "example": "My Awesome Link",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updated_at": {
-            "example": 1609459300,
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "utm_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UtmParams",
-                "description": "UTM parameters baked into this link (Pro+ only)."
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "org_id",
-          "short_code",
-          "destination_url",
-          "created_by",
-          "created_at",
-          "status",
-          "click_count",
-          "tags",
-          "redirect_type"
-        ],
-        "type": "object"
-      },
-      "LinkAnalyticsResponse": {
-        "properties": {
-          "analytics_gated": {
-            "description": "Whether analytics data is gated due to tier limits",
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "clicks_over_time": {
-            "items": {
-              "$ref": "#/components/schemas/DailyClicks"
-            },
-            "type": "array"
-          },
-          "gated_reason": {
-            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "link": {
-            "$ref": "#/components/schemas/Link"
-          },
-          "top_countries": {
-            "items": {
-              "$ref": "#/components/schemas/CountryCount"
-            },
-            "type": "array"
-          },
-          "top_referrers": {
-            "items": {
-              "$ref": "#/components/schemas/ReferrerCount"
-            },
-            "type": "array"
-          },
-          "top_user_agents": {
-            "items": {
-              "$ref": "#/components/schemas/UserAgentCount"
-            },
-            "type": "array"
-          },
-          "total_clicks_in_range": {
-            "example": 150,
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "link",
-          "total_clicks_in_range",
-          "clicks_over_time",
-          "top_referrers",
-          "top_countries",
-          "top_user_agents"
-        ],
-        "type": "object"
-      },
-      "LinkStatus": {
-        "enum": [
-          "active",
-          "disabled",
-          "blocked"
-        ],
-        "type": "string"
-      },
-      "OrgAnalyticsResponse": {
-        "properties": {
-          "analytics_gated": {
-            "description": "Whether analytics data is gated due to tier limits",
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "clicks_over_time": {
-            "items": {
-              "$ref": "#/components/schemas/DailyClicks"
-            },
-            "type": "array"
-          },
-          "gated_reason": {
-            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "top_countries": {
-            "items": {
-              "$ref": "#/components/schemas/CountryCount"
-            },
-            "type": "array"
-          },
-          "top_links": {
-            "items": {
-              "$ref": "#/components/schemas/TopLinkCount"
-            },
-            "type": "array"
-          },
-          "top_referrers": {
-            "items": {
-              "$ref": "#/components/schemas/ReferrerCount"
-            },
-            "type": "array"
-          },
-          "top_user_agents": {
-            "items": {
-              "$ref": "#/components/schemas/UserAgentCount"
-            },
-            "type": "array"
-          },
-          "total_clicks": {
-            "example": 1500,
-            "format": "int64",
-            "type": "integer"
-          },
-          "unique_links_clicked": {
-            "example": 75,
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "total_clicks",
-          "unique_links_clicked",
-          "clicks_over_time",
-          "top_links",
-          "top_referrers",
-          "top_countries",
-          "top_user_agents"
-        ],
-        "type": "object"
-      },
-      "OrgInvitation": {
-        "properties": {
-          "accepted_at": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "created_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "email": {
-            "example": "newmember@example.com",
-            "type": "string"
-          },
-          "expires_at": {
-            "example": 1612137600,
-            "format": "int64",
-            "type": "integer"
-          },
-          "id": {
-            "example": "inv-123",
-            "type": "string"
-          },
-          "invited_by": {
-            "example": "user-789",
-            "type": "string"
-          },
-          "org_id": {
-            "example": "org-456",
-            "type": "string"
-          },
-          "role": {
-            "example": "member",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "org_id",
-          "invited_by",
-          "email",
-          "role",
-          "created_at",
-          "expires_at"
-        ],
-        "type": "object"
-      },
-      "OrgMember": {
-        "properties": {
-          "joined_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "org_id": {
-            "example": "org-123",
-            "type": "string"
-          },
-          "role": {
-            "example": "admin",
-            "type": "string"
-          },
-          "user_id": {
-            "example": "user-456",
-            "type": "string"
-          }
-        },
-        "required": [
-          "org_id",
-          "user_id",
-          "role",
-          "joined_at"
-        ],
-        "type": "object"
-      },
-      "OrgMemberWithUser": {
-        "properties": {
-          "avatar_url": {
-            "example": "https://avatars.githubusercontent.com/u/123456",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "email": {
-            "example": "user@example.com",
-            "type": "string"
-          },
-          "joined_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "name": {
-            "example": "John Doe",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "example": "admin",
-            "type": "string"
-          },
-          "user_id": {
-            "example": "user-456",
-            "type": "string"
-          }
-        },
-        "required": [
-          "user_id",
-          "email",
-          "role",
-          "joined_at"
-        ],
-        "type": "object"
-      },
-      "OrgWithRole": {
-        "description": "An organization with the current user's membership role attached",
-        "properties": {
-          "id": {
-            "example": "org-123",
-            "type": "string"
-          },
-          "joined_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "name": {
-            "example": "My Organization",
-            "type": "string"
-          },
-          "role": {
-            "example": "owner",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "role",
-          "joined_at"
-        ],
-        "type": "object"
-      },
-      "Organization": {
-        "description": "Organization (team/tenant) model.\n\nTier limits are enforced at the billing account level via `billing_account.tier`.\nThe organization is linked to a billing account which contains the authoritative tier.",
-        "properties": {
-          "billing_account_id": {
-            "description": "Link to the billing account that owns this organization.\nTier limits are enforced at the billing account level.",
-            "example": "ba_abc123def456",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "created_by": {
-            "example": "user-789",
-            "type": "string"
-          },
-          "id": {
-            "example": "org-123456",
-            "type": "string"
-          },
-          "name": {
-            "example": "My Organization",
-            "type": "string"
-          },
-          "slug": {
-            "example": "my-org",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "slug",
-          "created_at",
-          "created_by"
-        ],
-        "type": "object"
-      },
-      "PaginationMeta": {
-        "description": "Pagination metadata for paginated API responses",
-        "properties": {
-          "has_next": {
-            "description": "Whether there is a next page",
-            "example": true,
-            "type": "boolean"
-          },
-          "has_prev": {
-            "description": "Whether there is a previous page",
-            "example": false,
-            "type": "boolean"
-          },
-          "limit": {
-            "description": "Number of items per page",
-            "example": 20,
-            "format": "int64",
-            "type": "integer"
-          },
-          "page": {
-            "description": "Current page number (1-indexed)",
-            "example": 1,
-            "format": "int64",
-            "type": "integer"
-          },
-          "total": {
-            "description": "Total number of items across all pages",
-            "example": 150,
-            "format": "int64",
-            "type": "integer"
-          },
-          "total_pages": {
-            "description": "Total number of pages",
-            "example": 8,
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "total_pages",
-          "has_next",
-          "has_prev"
-        ],
-        "type": "object"
-      },
-      "ReferrerCount": {
-        "properties": {
-          "count": {
-            "example": 15,
-            "format": "int64",
-            "type": "integer"
-          },
-          "referrer": {
-            "example": "https://google.com",
-            "type": "string"
-          }
-        },
-        "required": [
-          "referrer",
-          "count"
-        ],
-        "type": "object"
-      },
-      "Tier": {
-        "enum": [
-          "free",
-          "pro",
-          "business",
-          "unlimited"
-        ],
-        "type": "string"
-      },
-      "TimeRange": {
-        "description": "Time range specification for analytics queries\nExtensible design that can grow to support custom ranges, timezones, comparisons, etc.",
-        "oneOf": [
-          {
-            "description": "Simple days-based range (e.g., \"last 7 days\", \"last 30 days\")",
-            "example": {
-              "type": "days",
-              "value": 7
-            },
-            "properties": {
-              "type": {
-                "enum": [
-                  "Days"
-                ],
-                "type": "string"
-              },
-              "value": {
-                "format": "int64",
-                "type": "integer"
-              }
-            },
-            "required": [
-              "value",
-              "type"
-            ],
-            "type": "object"
-          },
-          {
-            "description": "Custom date range with specific timestamps",
-            "example": {
-              "end": 1640995200,
-              "start": 1609459200,
-              "type": "custom"
-            },
-            "properties": {
-              "end": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "start": {
-                "format": "int64",
-                "type": "integer"
-              },
-              "type": {
-                "enum": [
-                  "Custom"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "start",
-              "end",
-              "type"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "TopLinkCount": {
-        "properties": {
-          "count": {
-            "example": 50,
-            "format": "int64",
-            "type": "integer"
-          },
-          "link_id": {
-            "example": "link-123",
-            "type": "string"
-          },
-          "short_code": {
-            "example": "abc123",
-            "type": "string"
-          },
-          "title": {
-            "example": "My Link",
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "link_id",
-          "short_code",
-          "count"
-        ],
-        "type": "object"
-      },
-      "UpdateLinkRequest": {
-        "properties": {
-          "destination_url": {
-            "example": "https://example.com/new/url",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "expires_at": {
-            "example": 1640995200,
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "forward_query_params": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "redirect_type": {
-            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nAvailable on Pro+ plans.",
-            "example": "307",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/LinkStatus"
-              }
-            ]
-          },
-          "tags": {
-            "example": [
-              "updated",
-              "tag"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "title": {
-            "example": "Updated Title",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UtmParams"
-              }
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "User": {
-        "properties": {
-          "avatar_url": {
-            "example": "https://avatars.githubusercontent.com/u/123456",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "example": 1609459200,
-            "format": "int64",
-            "type": "integer"
-          },
-          "email": {
-            "example": "user@example.com",
-            "type": "string"
-          },
-          "id": {
-            "example": "user-123456",
-            "type": "string"
-          },
-          "name": {
-            "example": "John Doe",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "oauth_id": {
-            "example": "123456",
-            "type": "string"
-          },
-          "oauth_provider": {
-            "example": "github",
-            "type": "string"
-          },
-          "org_id": {
-            "example": "org-789",
-            "type": "string"
-          },
-          "role": {
-            "example": "member",
-            "type": "string"
-          },
-          "suspended_at": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "suspended_by": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "suspension_reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "email",
-          "oauth_provider",
-          "oauth_id",
-          "org_id",
-          "role",
-          "created_at"
-        ],
-        "type": "object"
-      },
-      "UserAgentCount": {
-        "properties": {
-          "count": {
-            "example": 10,
-            "format": "int64",
-            "type": "integer"
-          },
-          "user_agent": {
-            "example": "Mozilla/5.0...",
-            "type": "string"
-          }
-        },
-        "required": [
-          "user_agent",
-          "count"
-        ],
-        "type": "object"
-      },
-      "UtmParams": {
-        "description": "Standard Google UTM parameters attached to a link.\nAll fields are optional; only non-empty values are appended to the destination URL.",
-        "properties": {
-          "utm_campaign": {
-            "example": "summer_sale",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_content": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_medium": {
-            "example": "cpc",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_ref": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_source": {
-            "example": "google",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_term": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "VersionResponse": {
-        "properties": {
-          "build_timestamp": {
-            "example": "2024-02-23T22:30:00Z",
-            "type": "string"
-          },
-          "git_commit": {
-            "example": "abc123def",
-            "type": "string"
-          },
-          "name": {
-            "example": "rushomon",
-            "type": "string"
-          },
-          "version": {
-            "example": "0.6.2",
-            "type": "string"
-          }
-        },
-        "required": [
-          "version",
-          "name",
-          "build_timestamp",
-          "git_commit"
-        ],
-        "type": "object"
-      }
-    },
-    "securitySchemes": {
-      "Bearer": {
-        "bearerFormat": "JWT or API Key",
-        "scheme": "bearer",
-        "type": "http"
-      }
-    }
-  },
+  "openapi": "3.1.0",
   "info": {
-    "contact": {
-      "email": "support@rushomon.cc",
-      "name": "Rushomon Support"
-    },
+    "title": "Rushomon URL Shortener API",
     "description": "API documentation for the Rushomon URL shortener service.\n\n## Authentication\n\nMost endpoints require authentication using either:\n- **Session cookies** (for web application users)\n- **Bearer tokens** (for API keys)\n\n### Using API Keys\n\n1. Create an API key in the dashboard (Pro tier or higher required)\n2. Include the key in the Authorization header:\n   ```\n   Authorization: Bearer ro_pat_...\n   ```\n## Response Format\n\nAll responses are JSON formatted. Error responses follow this structure:\n```json\n{\n  \"error\": \"Error message describing what went wrong\"\n}\n```\n\n## Pagination\n\nList endpoints support pagination with `page` and `limit` query parameters:\n- `page`: Page number (1-indexed, default: 1)\n- `limit`: Items per page (1-100, default: 20)\n",
+    "contact": {
+      "name": "Rushomon Support",
+      "email": "support@rushomon.cc"
+    },
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.html"
     },
-    "title": "API",
-    "version": "main"
+    "version": "0.6.2"
   },
-  "openapi": "3.1.0",
+  "servers": [
+    {
+      "url": "https://api.rushomon.cc",
+      "description": "Production API"
+    },
+    {
+      "url": "http://localhost:8787",
+      "description": "Local development"
+    }
+  ],
   "paths": {
     "/api/auth/me": {
       "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get current user",
         "description": "Returns information about the currently authenticated user",
         "operationId": "handle_get_current_user",
         "responses": {
           "200": {
+            "description": "User information",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/User"
                 }
               }
-            },
-            "description": "User information"
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -1095,60 +57,1098 @@
           {
             "session_cookie": []
           }
-        ],
-        "summary": "Get current user",
-        "tags": [
-          "Authentication"
         ]
       }
     }
   },
-  "servers": [
-    {
-      "description": "Production API",
-      "url": "https://api.rushomon.cc"
+  "components": {
+    "schemas": {
+      "BillingAccount": {
+        "type": "object",
+        "description": "Billing Account represents the payment entity that owns one or more organizations.\nTier limits and quotas are enforced at the billing account level, not per-organization.\n\nThis prevents abuse where users could create multiple orgs to multiply their quotas.\nFor example:\n- Business tier ($29) = 10k links/month across ALL orgs in the billing account\n- Not 10k per org (which would be 30k for 3 orgs)",
+        "required": [
+          "id",
+          "owner_user_id",
+          "tier",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ba_abc123def456"
+          },
+          "owner_user_id": {
+            "type": "string",
+            "example": "user-123456"
+          },
+          "tier": {
+            "type": "string",
+            "example": "pro"
+          },
+          "provider_customer_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Polar customer ID for the billing account",
+            "example": "cust_abc123"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          }
+        }
+      },
+      "CountryCount": {
+        "type": "object",
+        "required": [
+          "country",
+          "count"
+        ],
+        "properties": {
+          "country": {
+            "type": "string",
+            "example": "US"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "example": 25
+          }
+        }
+      },
+      "CreateApiKeyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "My Production API Key"
+          },
+          "expires_in_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "example": 30
+          }
+        }
+      },
+      "CreateApiKeyResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "raw_token",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "key-123456"
+          },
+          "name": {
+            "type": "string",
+            "example": "My Production API Key"
+          },
+          "hint": {
+            "type": "string",
+            "example": "ro_pat_...abcd"
+          },
+          "raw_token": {
+            "type": "string",
+            "description": "The raw token - show this ONLY ONCE to the user",
+            "example": "ro_pat_abc123def456ghi789jkl012mno345pq"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          },
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "example": 1612137600
+          }
+        }
+      },
+      "CreateLinkRequest": {
+        "type": "object",
+        "required": [
+          "destination_url"
+        ],
+        "properties": {
+          "destination_url": {
+            "type": "string",
+            "example": "https://example.com/very/long/url"
+          },
+          "short_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "my-custom-code"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "My Awesome Link"
+          },
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "example": 1640995200
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "marketing",
+              "social"
+            ]
+          },
+          "utm_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtmParams"
+              }
+            ]
+          },
+          "forward_query_params": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_type": {
+            "type": "string",
+            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301, available on Pro+ plans.",
+            "example": "301"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DailyClicks": {
+        "type": "object",
+        "required": [
+          "date",
+          "count"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "example": "2024-01-15"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42
+          }
+        }
+      },
+      "Link": {
+        "type": "object",
+        "required": [
+          "id",
+          "org_id",
+          "short_code",
+          "destination_url",
+          "created_by",
+          "created_at",
+          "status",
+          "click_count",
+          "tags",
+          "redirect_type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "link-123456"
+          },
+          "org_id": {
+            "type": "string",
+            "example": "org-789"
+          },
+          "short_code": {
+            "type": "string",
+            "example": "abc123"
+          },
+          "destination_url": {
+            "type": "string",
+            "example": "https://example.com/very/long/url"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "My Awesome Link"
+          },
+          "created_by": {
+            "type": "string",
+            "example": "user-123"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          },
+          "updated_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "example": 1609459300
+          },
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "example": 1640995200
+          },
+          "status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "click_count": {
+            "type": "integer",
+            "format": "int64",
+            "example": 42
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "marketing",
+              "social"
+            ]
+          },
+          "utm_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtmParams",
+                "description": "UTM parameters baked into this link (Pro+ only)."
+              }
+            ]
+          },
+          "forward_query_params": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether to forward visitor query params to the destination (Pro+ only).\nNone = use org default (resolved at KV write time)."
+          },
+          "redirect_type": {
+            "type": "string",
+            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301 for SEO, 307 available on Pro+ plans.",
+            "example": "301"
+          }
+        }
+      },
+      "LinkAnalyticsResponse": {
+        "type": "object",
+        "required": [
+          "link",
+          "total_clicks_in_range",
+          "clicks_over_time",
+          "top_referrers",
+          "top_countries",
+          "top_user_agents"
+        ],
+        "properties": {
+          "link": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "total_clicks_in_range": {
+            "type": "integer",
+            "format": "int64",
+            "example": 150
+          },
+          "clicks_over_time": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyClicks"
+            }
+          },
+          "top_referrers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferrerCount"
+            }
+          },
+          "top_countries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryCount"
+            }
+          },
+          "top_user_agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAgentCount"
+            }
+          },
+          "analytics_gated": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether analytics data is gated due to tier limits"
+          },
+          "gated_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")"
+          }
+        }
+      },
+      "LinkStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "disabled",
+          "blocked"
+        ]
+      },
+      "OrgAnalyticsResponse": {
+        "type": "object",
+        "required": [
+          "total_clicks",
+          "unique_links_clicked",
+          "clicks_over_time",
+          "top_links",
+          "top_referrers",
+          "top_countries",
+          "top_user_agents"
+        ],
+        "properties": {
+          "total_clicks": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1500
+          },
+          "unique_links_clicked": {
+            "type": "integer",
+            "format": "int64",
+            "example": 75
+          },
+          "clicks_over_time": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyClicks"
+            }
+          },
+          "top_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopLinkCount"
+            }
+          },
+          "top_referrers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferrerCount"
+            }
+          },
+          "top_countries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryCount"
+            }
+          },
+          "top_user_agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAgentCount"
+            }
+          },
+          "analytics_gated": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether analytics data is gated due to tier limits"
+          },
+          "gated_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")"
+          }
+        }
+      },
+      "OrgInvitation": {
+        "type": "object",
+        "required": [
+          "id",
+          "org_id",
+          "invited_by",
+          "email",
+          "role",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "inv-123"
+          },
+          "org_id": {
+            "type": "string",
+            "example": "org-456"
+          },
+          "invited_by": {
+            "type": "string",
+            "example": "user-789"
+          },
+          "email": {
+            "type": "string",
+            "example": "newmember@example.com"
+          },
+          "role": {
+            "type": "string",
+            "example": "member"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1612137600
+          },
+          "accepted_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "OrgMember": {
+        "type": "object",
+        "required": [
+          "org_id",
+          "user_id",
+          "role",
+          "joined_at"
+        ],
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "example": "org-123"
+          },
+          "user_id": {
+            "type": "string",
+            "example": "user-456"
+          },
+          "role": {
+            "type": "string",
+            "example": "admin"
+          },
+          "joined_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          }
+        }
+      },
+      "OrgMemberWithUser": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "role",
+          "joined_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "example": "user-456"
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "John Doe"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "https://avatars.githubusercontent.com/u/123456"
+          },
+          "role": {
+            "type": "string",
+            "example": "admin"
+          },
+          "joined_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          }
+        }
+      },
+      "OrgWithRole": {
+        "type": "object",
+        "description": "An organization with the current user's membership role attached",
+        "required": [
+          "id",
+          "name",
+          "role",
+          "joined_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "org-123"
+          },
+          "name": {
+            "type": "string",
+            "example": "My Organization"
+          },
+          "role": {
+            "type": "string",
+            "example": "owner"
+          },
+          "joined_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "description": "Organization (team/tenant) model.\n\nTier limits are enforced at the billing account level via `billing_account.tier`.\nThe organization is linked to a billing account which contains the authoritative tier.",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "created_at",
+          "created_by"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "org-123456"
+          },
+          "name": {
+            "type": "string",
+            "example": "My Organization"
+          },
+          "slug": {
+            "type": "string",
+            "example": "my-org"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          },
+          "created_by": {
+            "type": "string",
+            "example": "user-789"
+          },
+          "billing_account_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Link to the billing account that owns this organization.\nTier limits are enforced at the billing account level.",
+            "example": "ba_abc123def456"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for paginated API responses",
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "total_pages",
+          "has_next",
+          "has_prev"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Current page number (1-indexed)",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of items per page",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of items across all pages",
+            "example": 150
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of pages",
+            "example": 8
+          },
+          "has_next": {
+            "type": "boolean",
+            "description": "Whether there is a next page",
+            "example": true
+          },
+          "has_prev": {
+            "type": "boolean",
+            "description": "Whether there is a previous page",
+            "example": false
+          }
+        }
+      },
+      "ReferrerCount": {
+        "type": "object",
+        "required": [
+          "referrer",
+          "count"
+        ],
+        "properties": {
+          "referrer": {
+            "type": "string",
+            "example": "https://google.com"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "example": 15
+          }
+        }
+      },
+      "Tier": {
+        "type": "string",
+        "enum": [
+          "free",
+          "pro",
+          "business",
+          "unlimited"
+        ]
+      },
+      "TimeRange": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Simple days-based range (e.g., \"last 7 days\", \"last 30 days\")",
+            "required": [
+              "value",
+              "type"
+            ],
+            "properties": {
+              "value": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Days"
+                ]
+              }
+            },
+            "example": {
+              "type": "days",
+              "value": 7
+            }
+          },
+          {
+            "type": "object",
+            "description": "Custom date range with specific timestamps",
+            "required": [
+              "start",
+              "end",
+              "type"
+            ],
+            "properties": {
+              "start": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "end": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Custom"
+                ]
+              }
+            },
+            "example": {
+              "end": 1640995200,
+              "start": 1609459200,
+              "type": "custom"
+            }
+          }
+        ],
+        "description": "Time range specification for analytics queries\nExtensible design that can grow to support custom ranges, timezones, comparisons, etc."
+      },
+      "TopLinkCount": {
+        "type": "object",
+        "required": [
+          "link_id",
+          "short_code",
+          "count"
+        ],
+        "properties": {
+          "link_id": {
+            "type": "string",
+            "example": "link-123"
+          },
+          "short_code": {
+            "type": "string",
+            "example": "abc123"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "My Link"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "example": 50
+          }
+        }
+      },
+      "UpdateLinkRequest": {
+        "type": "object",
+        "properties": {
+          "destination_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "https://example.com/new/url"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Updated Title"
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LinkStatus"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "example": 1640995200
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "updated",
+              "tag"
+            ]
+          },
+          "utm_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtmParams"
+              }
+            ]
+          },
+          "forward_query_params": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nAvailable on Pro+ plans.",
+            "example": "307"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "oauth_provider",
+          "oauth_id",
+          "org_id",
+          "role",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "user-123456"
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "John Doe"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "https://avatars.githubusercontent.com/u/123456"
+          },
+          "oauth_provider": {
+            "type": "string",
+            "example": "github"
+          },
+          "oauth_id": {
+            "type": "string",
+            "example": "123456"
+          },
+          "org_id": {
+            "type": "string",
+            "example": "org-789"
+          },
+          "role": {
+            "type": "string",
+            "example": "member"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1609459200
+          },
+          "suspended_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "suspension_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suspended_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UserAgentCount": {
+        "type": "object",
+        "required": [
+          "user_agent",
+          "count"
+        ],
+        "properties": {
+          "user_agent": {
+            "type": "string",
+            "example": "Mozilla/5.0..."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "example": 10
+          }
+        }
+      },
+      "UtmParams": {
+        "type": "object",
+        "description": "Standard Google UTM parameters attached to a link.\nAll fields are optional; only non-empty values are appended to the destination URL.",
+        "properties": {
+          "utm_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "google"
+          },
+          "utm_medium": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "cpc"
+          },
+          "utm_campaign": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "summer_sale"
+          },
+          "utm_term": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "required": [
+          "version",
+          "name",
+          "build_timestamp",
+          "git_commit"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "example": "0.6.2"
+          },
+          "name": {
+            "type": "string",
+            "example": "rushomon"
+          },
+          "build_timestamp": {
+            "type": "string",
+            "example": "2024-02-23T22:30:00Z"
+          },
+          "git_commit": {
+            "type": "string",
+            "example": "abc123def"
+          }
+        }
+      }
     },
-    {
-      "description": "Local development",
-      "url": "http://localhost:8787"
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT or API Key"
+      }
     }
-  ],
+  },
   "tags": [
     {
-      "description": "OAuth authentication and session management",
-      "name": "Authentication"
+      "name": "Authentication",
+      "description": "OAuth authentication and session management"
     },
     {
-      "description": "URL shortening and link management",
-      "name": "Links"
+      "name": "Links",
+      "description": "URL shortening and link management"
     },
     {
-      "description": "Link analytics and statistics",
-      "name": "Analytics"
+      "name": "Analytics",
+      "description": "Link analytics and statistics"
     },
     {
-      "description": "Multi-tenant organization management",
-      "name": "Organizations"
+      "name": "Organizations",
+      "description": "Multi-tenant organization management"
     },
     {
-      "description": "API key management for programmatic access (Pro+ tier)",
-      "name": "API Keys"
+      "name": "API Keys",
+      "description": "API key management for programmatic access (Pro+ tier)"
     },
     {
-      "description": "Subscription and billing management",
-      "name": "Billing"
+      "name": "Billing",
+      "description": "Subscription and billing management"
     },
     {
-      "description": "Instance and organization settings",
-      "name": "Settings"
+      "name": "Settings",
+      "description": "Instance and organization settings"
     },
     {
-      "description": "Administrative endpoints (admin only)",
-      "name": "Admin"
+      "name": "Admin",
+      "description": "Administrative endpoints (admin only)"
     },
     {
-      "description": "Utility endpoints like version and title fetching",
-      "name": "Utilities"
+      "name": "Utilities",
+      "description": "Utility endpoints like version and title fetching"
     }
   ]
 }
