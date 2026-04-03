@@ -31,16 +31,6 @@ jobs:
         with:
           workspaces: '.'
 
-      - name: Generate OpenAPI spec from current code
-        run: |
-          echo "📝 Generating OpenAPI spec from current code..."
-          # Create temp output directory
-          mkdir -p /tmp/openapi
-          # Use the existing script but output to temp location
-          OUTPUT_DIR=/tmp/openapi ./scripts/generate-openapi.sh
-          mv /tmp/openapi/main.json /tmp/main-from-pr.json
-          echo "✅ Generated spec from PR code"
-
       - name: Check if OpenAPI spec exists
         id: check-spec
         run: |
@@ -52,39 +42,48 @@ jobs:
             echo "ℹ️  No existing docs/openapi/main.json found"
           fi
 
-      - name: Compare specs
-        if: steps.check-spec.outputs.spec_exists == 'true'
+      - name: Generate and check OpenAPI spec
         run: |
-          echo "🔍 Comparing specs..."
-          if ! diff -q docs/openapi/main.json /tmp/main-from-pr.json; then
-            echo ""
-            echo "❌ OpenAPI spec is out of date!"
-            echo ""
-            echo "The API changes in this PR require updating the OpenAPI spec."
-            echo ""
-            echo "To fix this locally:"
-            echo "  ./scripts/generate-openapi.sh"
-            echo "  git add docs/openapi/main.json"
-            echo "  git commit -m 'Update OpenAPI spec'"
-            echo ""
-            echo "Then push the updated spec to your PR branch."
-            exit 1
+          echo "📝 Generating OpenAPI spec from current code..."
+          if [ "${{ steps.check-spec.outputs.spec_exists }}" = "true" ]; then
+            # Spec exists - regenerate in place and check git diff
+            ./scripts/generate-openapi.sh
+            if ! git diff --quiet docs/openapi/main.json; then
+              echo ""
+              echo "❌ OpenAPI spec is out of date!"
+              echo ""
+              echo "The API changes in this PR require updating the OpenAPI spec."
+              echo ""
+              echo "Changes detected:"
+              git diff docs/openapi/main.json
+              echo ""
+              echo "To fix this locally:"
+              echo "  ./scripts/generate-openapi.sh"
+              echo "  git add docs/openapi/main.json"
+              echo "  git commit -m 'Update OpenAPI spec'"
+              echo ""
+              echo "Then push the updated spec to your PR branch."
+              exit 1
+            else
+              echo "✅ OpenAPI spec is up to date"
+            fi
           else
-            echo "✅ OpenAPI spec is up to date"
+            # No spec exists - generate and check if git would add it
+            ./scripts/generate-openapi.sh
+            if ! git diff --quiet --cached docs/openapi/main.json 2>/dev/null; then
+              echo ""
+              echo "❌ OpenAPI spec is missing!"
+              echo ""
+              echo "This PR adds Rust code but no OpenAPI spec exists."
+              echo ""
+              echo "To fix this locally:"
+              echo "  ./scripts/generate-openapi.sh"
+              echo "  git add docs/openapi/main.json"
+              echo "  git commit -m 'Add OpenAPI spec'"
+              echo ""
+              echo "Then push the spec to your PR branch."
+              exit 1
+            else
+              echo "✅ OpenAPI spec exists and is up to date"
+            fi
           fi
-
-      - name: Create spec if missing
-        if: steps.check-spec.outputs.spec_exists == 'false'
-        run: |
-          echo ""
-          echo "❌ OpenAPI spec is missing!"
-          echo ""
-          echo "This PR adds Rust code but no OpenAPI spec exists."
-          echo ""
-          echo "To fix this locally:"
-          echo "  ./scripts/generate-openapi.sh"
-          echo "  git add docs/openapi/main.json"
-          echo "  git commit -m 'Add OpenAPI spec'"
-          echo ""
-          echo "Then push the spec to your PR branch."
-          exit 1

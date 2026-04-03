@@ -31,7 +31,7 @@ SVELTE_CHECK_ERROR_MSG="Svelte/TypeScript issues found! Please fix errors and wa
 
 # OpenAPI spec validation - optional helper (PR check is primary guard)
 OPENAPI_CHECK_ENABLED=false
-OPENAPI_CHECK_COMMAND="git diff --cached --name-only | grep -E '^(src/|Cargo.toml)' >/dev/null && (mkdir -p /tmp/openapi && OUTPUT_DIR=/tmp/openapi ./scripts/generate-openapi.sh 2>/dev/null && (diff -q docs/openapi/main.json /tmp/openapi/main.json || (echo '⚠️  OpenAPI spec may be out of date!' && echo '💡 PR will fail if spec is not updated' && echo 'Run: ./scripts/generate-openapi.sh && git add docs/openapi/main.json'))) || echo 'No Rust changes detected'"
+OPENAPI_CHECK_COMMAND="git diff --cached --name-only | grep -E '^(src/|Cargo.toml)' >/dev/null && (if [ -f docs/openapi/main.json ]; then ./scripts/generate-openapi.sh 2>/dev/null && (git diff --quiet docs/openapi/main.json || (echo '⚠️  OpenAPI spec may be out of date!' && echo '💡 PR will fail if spec is not updated' && echo 'Run: ./scripts/generate-openapi.sh && git add docs/openapi/main.json')); else echo 'ℹ️  No OpenAPI spec exists yet'; fi) || echo 'No Rust changes detected'"
 OPENAPI_CHECK_REQUIRED=false
 OPENAPI_CHECK_ERROR_MSG="OpenAPI spec may be out of date! PR check will enforce this."
 
