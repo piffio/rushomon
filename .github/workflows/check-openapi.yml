@@ -68,22 +68,16 @@ jobs:
               echo "✅ OpenAPI spec is up to date"
             fi
           else
-            # No spec exists - generate and check if git would add it
-            ./scripts/generate-openapi.sh
-            if ! git diff --quiet --cached docs/openapi/main.json 2>/dev/null; then
-              echo ""
-              echo "❌ OpenAPI spec is missing!"
-              echo ""
-              echo "This PR adds Rust code but no OpenAPI spec exists."
-              echo ""
-              echo "To fix this locally:"
-              echo "  ./scripts/generate-openapi.sh"
-              echo "  git add docs/openapi/main.json"
-              echo "  git commit -m 'Add OpenAPI spec'"
-              echo ""
-              echo "Then push the spec to your PR branch."
-              exit 1
-            else
-              echo "✅ OpenAPI spec exists and is up to date"
-            fi
+            echo ""
+            echo "❌ OpenAPI spec is missing!"
+            echo ""
+            echo "This PR adds Rust code but no OpenAPI spec exists."
+            echo ""
+            echo "To fix this locally:"
+            echo "  ./scripts/generate-openapi.sh"
+            echo "  git add docs/openapi/main.json"
+            echo "  git commit -m 'Add OpenAPI spec'"
+            echo ""
+            echo "Then push the spec to your PR branch."
+            exit 1
           fi
