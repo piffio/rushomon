@@ -29,11 +29,11 @@ SVELTE_CHECK_COMMAND="cd frontend && (git diff --cached --name-only | grep -E '^
 SVELTE_CHECK_REQUIRED=true
 SVELTE_CHECK_ERROR_MSG="Svelte/TypeScript issues found! Please fix errors and warnings before committing."
 
-# OpenAPI spec validation - required if Rust files changed
-OPENAPI_CHECK_ENABLED=true
-OPENAPI_CHECK_COMMAND="git diff --cached --name-only | grep -E '^(src/|Cargo.toml)' >/dev/null && (cargo build --bin generate_openapi --features openapi-gen 2>/dev/null && ./target/debug/generate_openapi > /tmp/main-from-head.json && (diff -q docs/openapi/main.json /tmp/main-from-head.json || (echo '❌ OpenAPI spec is out of date!' && echo 'Run: cargo build --bin generate_openapi --features openapi-gen && ./target/debug/generate_openapi > docs/openapi/main.json && git add docs/openapi/main.json' && exit 1))) || echo 'No Rust changes detected'"
-OPENAPI_CHECK_REQUIRED=true
-OPENAPI_CHECK_ERROR_MSG="OpenAPI spec is out of date! Please update the spec before committing."
+# OpenAPI spec validation - optional helper (PR check is primary guard)
+OPENAPI_CHECK_ENABLED=false
+OPENAPI_CHECK_COMMAND="git diff --cached --name-only | grep -E '^(src/|Cargo.toml)' >/dev/null && (mkdir -p /tmp/openapi && OUTPUT_DIR=/tmp/openapi ./scripts/generate-openapi.sh 2>/dev/null && (diff -q docs/openapi/main.json /tmp/openapi/main.json || (echo '⚠️  OpenAPI spec may be out of date!' && echo '💡 PR will fail if spec is not updated' && echo 'Run: ./scripts/generate-openapi.sh && git add docs/openapi/main.json'))) || echo 'No Rust changes detected'"
+OPENAPI_CHECK_REQUIRED=false
+OPENAPI_CHECK_ERROR_MSG="OpenAPI spec may be out of date! PR check will enforce this."
 
 # Tool requirements
 CARGO_REQUIRED=true

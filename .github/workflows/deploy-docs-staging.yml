@@ -34,16 +34,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
-        with:
-          toolchain: stable
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          workspaces: '.'
-
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
@@ -59,14 +49,6 @@ jobs:
 
       - name: Install wrangler
         run: npm install -g wrangler
-
-      - name: Generate OpenAPI spec for main branch
-        run: |
-          echo "📝 Generating OpenAPI spec from HEAD..."
-          cargo build --bin generate_openapi --features openapi-gen 2>/dev/null
-          mkdir -p docs/openapi
-          ./target/debug/generate_openapi > docs/openapi/main.json
-          echo "✅ OpenAPI spec generated ($(wc -l < docs/openapi/main.json) lines)"
 
       - name: Install docs-site dependencies
         working-directory: docs-site

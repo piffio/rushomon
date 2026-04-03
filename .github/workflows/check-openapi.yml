@@ -1,0 +1,90 @@
+name: Check OpenAPI Spec
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+permissions:
+  contents: read
+
+jobs:
+  check-openapi:
+    name: Validate OpenAPI Spec
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: '.'
+
+      - name: Generate OpenAPI spec from current code
+        run: |
+          echo "📝 Generating OpenAPI spec from current code..."
+          # Create temp output directory
+          mkdir -p /tmp/openapi
+          # Use the existing script but output to temp location
+          OUTPUT_DIR=/tmp/openapi ./scripts/generate-openapi.sh
+          mv /tmp/openapi/main.json /tmp/main-from-pr.json
+          echo "✅ Generated spec from PR code"
+
+      - name: Check if OpenAPI spec exists
+        id: check-spec
+        run: |
+          if [ -f "docs/openapi/main.json" ]; then
+            echo "spec_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Found existing docs/openapi/main.json"
+          else
+            echo "spec_exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No existing docs/openapi/main.json found"
+          fi
+
+      - name: Compare specs
+        if: steps.check-spec.outputs.spec_exists == 'true'
+        run: |
+          echo "🔍 Comparing specs..."
+          if ! diff -q docs/openapi/main.json /tmp/main-from-pr.json; then
+            echo ""
+            echo "❌ OpenAPI spec is out of date!"
+            echo ""
+            echo "The API changes in this PR require updating the OpenAPI spec."
+            echo ""
+            echo "To fix this locally:"
+            echo "  ./scripts/generate-openapi.sh"
+            echo "  git add docs/openapi/main.json"
+            echo "  git commit -m 'Update OpenAPI spec'"
+            echo ""
+            echo "Then push the updated spec to your PR branch."
+            exit 1
+          else
+            echo "✅ OpenAPI spec is up to date"
+          fi
+
+      - name: Create spec if missing
+        if: steps.check-spec.outputs.spec_exists == 'false'
+        run: |
+          echo ""
+          echo "❌ OpenAPI spec is missing!"
+          echo ""
+          echo "This PR adds Rust code but no OpenAPI spec exists."
+          echo ""
+          echo "To fix this locally:"
+          echo "  ./scripts/generate-openapi.sh"
+          echo "  git add docs/openapi/main.json"
+          echo "  git commit -m 'Add OpenAPI spec'"
+          echo ""
+          echo "Then push the spec to your PR branch."
+          exit 1
