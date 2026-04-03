@@ -54,18 +54,6 @@ jobs:
         working-directory: docs-site
         run: npm ci
 
-      - name: Configure versioned OpenAPI specs
-        working-directory: docs-site
-        run: |
-          # Build versions.json from any committed v*.json specs in docs/openapi/
-          VERSIONS=$(ls ../docs/openapi/v*.json 2>/dev/null | xargs -I{} basename {} .json | sort -rV | tr '\n' ',' | sed 's/,$//')
-          if [ -n "$VERSIONS" ]; then
-            LATEST=$(echo "$VERSIONS" | cut -d',' -f1)
-            echo "📋 Found versioned specs: $VERSIONS (latest: $LATEST)"
-            node scripts/configure-versions.mjs "$LATEST"
-          else
-            echo "ℹ️  No versioned specs found — building main-only docs"
-          fi
 
       - name: Generate OpenAPI docs
         working-directory: docs-site

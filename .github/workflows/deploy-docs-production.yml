@@ -37,15 +37,6 @@ jobs:
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "📌 Deploying docs for version: $TAG"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
-        with:
-          toolchain: stable
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          workspaces: '.'
 
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -63,25 +54,51 @@ jobs:
       - name: Install wrangler
         run: npm install -g wrangler
 
-      - name: Generate OpenAPI spec for this release
+      - name: Validate versioned docs and versions.json
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          echo "📝 Generating OpenAPI spec for $TAG..."
-          cargo build --bin generate_openapi --features openapi-gen 2>/dev/null
-          mkdir -p docs/openapi
-          ./target/debug/generate_openapi > "docs/openapi/${TAG}.json"
+          echo "� Validating versioned docs for $TAG..."
+
+          # Check that TAG is in versions.json
+          if ! grep -q "\"${TAG}\"" docs-site/versions.json; then
+            echo "❌ Version ${TAG} not found in docs-site/versions.json"
+            echo "💡 Run 'make version-tag' to update versions.json before tagging"
+            exit 1
+          fi
+
+          # Check OpenAPI spec exists
+          if [ ! -f "docs/openapi/${TAG}.json" ]; then
+            echo "❌ Missing OpenAPI spec: docs/openapi/${TAG}.json"
+            echo "💡 Run 'make version-tag' to create versioned docs before tagging"
+            exit 1
+          fi
+
+          # Check versioned docs directory exists
+          if [ ! -d "docs-site/versioned_docs/version-${TAG}" ]; then
+            echo "❌ Missing versioned docs: docs-site/versioned_docs/version-${TAG}"
+            echo "💡 Run 'make version-tag' to create versioned docs before tagging"
+            exit 1
+          fi
+
+          # Check versioned sidebar exists
+          if [ ! -f "docs-site/versioned_sidebars/version-${TAG}-sidebars.json" ]; then
+            echo "❌ Missing versioned sidebar: docs-site/versioned_sidebars/version-${TAG}-sidebars.json"
+            echo "💡 Run 'make version-tag' to create versioned docs before tagging"
+            exit 1
+          fi
+
+          echo "✅ All versioned docs found for $TAG"
+
+      - name: Copy versioned spec to main.json
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
           cp "docs/openapi/${TAG}.json" docs/openapi/main.json
-          echo "✅ Specs written: docs/openapi/${TAG}.json and docs/openapi/main.json"
+          echo "✅ Copied ${TAG}.json to main.json"
 
       - name: Install docs-site dependencies
         working-directory: docs-site
         run: npm ci
 
-      - name: Configure versioned OpenAPI specs
-        working-directory: docs-site
-        run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          node scripts/configure-versions.mjs "$TAG"
 
       - name: Generate OpenAPI docs
         working-directory: docs-site
