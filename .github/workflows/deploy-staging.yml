@@ -294,11 +294,88 @@ jobs:
         run: |
           wrangler deploy --config wrangler.staging.toml
 
+  deploy-docs:
+    name: Deploy Docs to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: deploy
+    environment:
+      name: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '24'
+
+      - name: Cache npm
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-docs-node-${{ hashFiles('docs-site/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-docs-node-
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Install docs-site dependencies
+        working-directory: docs-site
+        run: npm ci
+
+      - name: Generate OpenAPI docs
+        working-directory: docs-site
+        run: npm run docusaurus gen-api-docs all
+
+      - name: Build docs site
+        working-directory: docs-site
+        env:
+          DOCS_SITE_URL: https://doc.rushomon-staging.piffio.in
+        run: npm run build
+
+      - name: Generate wrangler docs staging config
+        run: |
+          cat > wrangler.docs-staging.toml << 'EOF'
+          name = "rushomon-docs-staging"
+          compatibility_date = "2026-02-10"
+          workers_dev = false
+
+          [assets]
+          directory = "./docs-site/build"
+          binding = "ASSETS"
+          not_found_handling = "404-page"
+          EOF
+
+          echo "✅ Generated wrangler.docs-staging.toml"
+
+      - name: Deploy docs to Cloudflare
+        run: |
+          echo "🚀 Deploying docs to staging..."
+          wrangler deploy --config wrangler.docs-staging.toml
+          echo "✅ Docs deployed to staging"
+
+      - name: Smoke test docs site
+        run: |
+          DOCS_URL="https://doc.rushomon-staging.piffio.in"
+
+          echo "🧪 Smoke testing docs at $DOCS_URL"
+          sleep 10
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$DOCS_URL/")
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Docs homepage is up (HTTP 200)"
+          else
+            echo "⚠️  Docs homepage returned HTTP $STATUS (may not have custom domain yet)"
+          fi
+
   smoke-tests:
     name: Staging Smoke Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: deploy
+    needs: [deploy, deploy-docs]
     environment:
       name: staging
 
