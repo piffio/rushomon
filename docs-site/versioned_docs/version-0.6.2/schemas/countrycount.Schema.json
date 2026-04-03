@@ -1,0 +1,1 @@
+{"schema":{"properties":{"count":{"example":25,"format":"int64","type":"integer"},"country":{"example":"US","type":"string"}},"required":["country","count"],"type":"object","title":"CountryCount"},"schemaType":"response"}

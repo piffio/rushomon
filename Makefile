@@ -32,7 +32,7 @@ version-sync:
 	@cd frontend && npm install --package-lock-only --silent
 	@echo "✅ Version synchronized"
 
-# Generate OpenAPI spec for main and the current version tag
+# Generate OpenAPI spec for main and the current version tag, then snapshot as a Docusaurus version
 docs-gen:
 	@echo "📝 Generating OpenAPI specs..."
 	@VERSION=$$(grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2) && \
@@ -42,17 +42,20 @@ docs-gen:
 	echo "✅ Generated docs/openapi/main.json (version: main)" && \
 	./target/debug/generate_openapi > docs/openapi/v$$VERSION.json && \
 	echo "✅ Generated docs/openapi/v$$VERSION.json (version: $$VERSION)" && \
-	sed -i.bak "s|specPath: '\.\./docs/openapi/v[0-9][^']*\.json'|specPath: '../docs/openapi/v$$VERSION.json'|g" docs-site/docusaurus.config.ts && \
-	sed -i.bak "s|label: 'v[0-9][^']*'|label: 'v$$VERSION'|g" docs-site/docusaurus.config.ts && \
-	rm -f docs-site/docusaurus.config.ts.bak && \
-	echo "✅ Updated docs-site/docusaurus.config.ts to point to v$$VERSION"
+	cd docs-site && npm run gen-api-docs && \
+	echo "✅ Regenerated MDX from main.json" && \
+	npx docusaurus docs:version $$VERSION && \
+	echo "✅ Docusaurus version $$VERSION created (versioned_docs/version-$$VERSION/)"
 
 # Create git tag for current version (reads version at runtime)
 version-tag: docs-gen
 	@VERSION=$$(grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2) && \
 	echo "🏷️  Creating git tag for v$$VERSION..." && \
 	git add Cargo.toml frontend/package.json frontend/package-lock.json \
-		docs/openapi/v$$VERSION.json docs-site/docusaurus.config.ts && \
+		docs/openapi/v$$VERSION.json \
+		docs-site/versions.json \
+		docs-site/versioned_docs/version-$$VERSION \
+		docs-site/versioned_sidebars/version-$$VERSION-sidebars.json && \
 	git commit -m "Bump version to v$$VERSION" && \
 	git tag -a "v$$VERSION" -m "Release v$$VERSION" && \
 	echo "✅ Tag v$$VERSION created. Run 'git push origin v$$VERSION' to push."

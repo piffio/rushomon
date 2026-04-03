@@ -24,7 +24,7 @@ function HomepageHeader() {
           </Link>
           <Link
             className="button button--outline button--secondary button--lg"
-            to="/docs/api/rushomon-url-shortener-api">
+            to="/docs/api">
             API Reference
           </Link>
         </div>

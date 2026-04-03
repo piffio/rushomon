@@ -10,6 +10,11 @@
 
 # Generated API docs (regenerated from openapi.json in CI)
 docs/api/
+docs/api.info.mdx
+docs/authentication.tag.mdx
+docs/handle-get-current-user.*
+docs/schemas/
+docs/sidebar.ts
 
 # Misc
 .DS_Store

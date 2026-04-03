@@ -36,7 +36,7 @@ check_tool() {
     local tool="$1"
     local required="$2"
     local install_msg="$3"
-    
+
     if ! command -v "$tool" >/dev/null 2>&1; then
         if [ "$required" = true ]; then
             echo "❌ Required tool '$tool' not found"
@@ -57,16 +57,16 @@ run_check() {
     local required_var="$3"
     local error_msg_var="$4"
     local check_name="$5"
-    
+
     local enabled="${!enabled_var:-false}"
     local command="${!command_var}"
     local required="${!required_var:-false}"
     local error_msg="${!error_msg_var:-Check failed}"
-    
+
     if [ "$enabled" = true ]; then
         log_verbose "🔍 Running $check_name..."
         echo "🧪 Running $check_name..."
-        
+
         # Special handling for code formatting
         if [ "$check_name" = "code formatting" ]; then
             run_formatting_check "$command" "$error_msg" "$required"
@@ -77,7 +77,7 @@ run_check() {
             echo ""
             echo "❌ $error_msg"
             echo ""
-            
+
             if [ "$required" = true ]; then
                 echo "To skip this hook (not recommended):"
                 echo "  git commit --no-verify"
@@ -173,35 +173,36 @@ run_formatting_check() {
 main() {
     echo "🔍 Running pre-commit checks..."
     echo ""
-    
+
     # Check required tools
     log_verbose "🔧 Checking tool availability..."
-    
+
     if ! check_tool "cargo" "$CARGO_REQUIRED" "$CARGO_INSTALL_MSG"; then
         exit 1
     fi
-    
+
     # Optional tools
     if [ "$CODE_FORMATTING_ENABLED" = true ] && [ "$CODE_FORMATTING_REQUIRED" = true ]; then
         check_tool "rustfmt" true "$RUSTFMT_INSTALL_MSG"
     fi
-    
+
     if [ "$CLIPPY_ENABLED" = true ] && [ "$CLIPPY_REQUIRED" = true ]; then
         check_tool "cargo-clippy" true "$CLIPPY_INSTALL_MSG"
     fi
-    
+
     if [ "$SVELTE_CHECK_ENABLED" = true ] && [ "$SVELTE_CHECK_REQUIRED" = true ]; then
         check_tool "node" "$NODE_REQUIRED" "$NODE_INSTALL_MSG"
     fi
 
     echo ""
-    
+
     # Run checks
     run_check "UNIT_TESTS_ENABLED" "UNIT_TESTS_COMMAND" "UNIT_TESTS_REQUIRED" "UNIT_TESTS_ERROR_MSG" "unit tests"
     run_check "CODE_FORMATTING_ENABLED" "CODE_FORMATTING_COMMAND" "CODE_FORMATTING_REQUIRED" "CODE_FORMATTING_ERROR_MSG" "code formatting"
     run_check "CLIPPY_ENABLED" "CLIPPY_COMMAND" "CLIPPY_REQUIRED" "CLIPPY_ERROR_MSG" "clippy linting"
+    run_check "OPENAPI_CHECK_ENABLED" "OPENAPI_CHECK_COMMAND" "OPENAPI_CHECK_REQUIRED" "OPENAPI_CHECK_ERROR_MSG" "OpenAPI spec validation"
     run_check "SVELTE_CHECK_ENABLED" "SVELTE_CHECK_COMMAND" "SVELTE_CHECK_REQUIRED" "SVELTE_CHECK_ERROR_MSG" "Svelte/TypeScript checking"
-    
+
     echo ""
     echo "✅ All enabled checks passed! Proceeding with commit..."
 }

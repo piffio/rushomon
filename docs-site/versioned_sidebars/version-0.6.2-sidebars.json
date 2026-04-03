@@ -1,0 +1,191 @@
+{
+  "defaultSidebar": [
+    {
+      "type": "doc",
+      "id": "intro",
+      "label": "Getting Started"
+    },
+    {
+      "type": "category",
+      "label": "API",
+      "link": {
+        "type": "doc",
+        "id": "api"
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "Authentication",
+          "link": {
+            "type": "doc",
+            "id": "authentication"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-get-current-user",
+              "label": "Get current user",
+              "className": "api-method get"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Schemas",
+          "items": [
+            {
+              "type": "doc",
+              "id": "schemas/billingaccount",
+              "label": "BillingAccount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/countrycount",
+              "label": "CountryCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/createapikeyrequest",
+              "label": "CreateApiKeyRequest",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/createapikeyresponse",
+              "label": "CreateApiKeyResponse",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/createlinkrequest",
+              "label": "CreateLinkRequest",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/dailyclicks",
+              "label": "DailyClicks",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/link",
+              "label": "Link",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/linkanalyticsresponse",
+              "label": "LinkAnalyticsResponse",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/linkstatus",
+              "label": "LinkStatus",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/organalyticsresponse",
+              "label": "OrgAnalyticsResponse",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orginvitation",
+              "label": "OrgInvitation",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orgmember",
+              "label": "OrgMember",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orgmemberwithuser",
+              "label": "OrgMemberWithUser",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orgwithrole",
+              "label": "OrgWithRole",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/organization",
+              "label": "Organization",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/paginationmeta",
+              "label": "PaginationMeta",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/referrercount",
+              "label": "ReferrerCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/tier",
+              "label": "Tier",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/timerange",
+              "label": "TimeRange",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/toplinkcount",
+              "label": "TopLinkCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/updatelinkrequest",
+              "label": "UpdateLinkRequest",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/user",
+              "label": "User",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/useragentcount",
+              "label": "UserAgentCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/utmparams",
+              "label": "UtmParams",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/versionresponse",
+              "label": "VersionResponse",
+              "className": "schema"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

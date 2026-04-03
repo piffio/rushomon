@@ -29,6 +29,12 @@ SVELTE_CHECK_COMMAND="cd frontend && (git diff --cached --name-only | grep -E '^
 SVELTE_CHECK_REQUIRED=true
 SVELTE_CHECK_ERROR_MSG="Svelte/TypeScript issues found! Please fix errors and warnings before committing."
 
+# OpenAPI spec validation - required if Rust files changed
+OPENAPI_CHECK_ENABLED=true
+OPENAPI_CHECK_COMMAND="git diff --cached --name-only | grep -E '^(src/|Cargo.toml)' >/dev/null && (cargo build --bin generate_openapi --features openapi-gen 2>/dev/null && ./target/debug/generate_openapi > /tmp/main-from-head.json && (diff -q docs/openapi/main.json /tmp/main-from-head.json || (echo '❌ OpenAPI spec is out of date!' && echo 'Run: cargo build --bin generate_openapi --features openapi-gen && ./target/debug/generate_openapi > docs/openapi/main.json && git add docs/openapi/main.json' && exit 1))) || echo 'No Rust changes detected'"
+OPENAPI_CHECK_REQUIRED=true
+OPENAPI_CHECK_ERROR_MSG="OpenAPI spec is out of date! Please update the spec before committing."
+
 # Tool requirements
 CARGO_REQUIRED=true
 RUSTFMT_REQUIRED=true

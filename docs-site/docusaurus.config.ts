@@ -7,15 +7,12 @@ import {resolve} from 'path';
 
 const DOCS_SITE_URL = process.env.DOCS_SITE_URL || 'https://doc.rushomon.cc';
 
-// Check for stable spec files (committed versioned specs like v0.6.2.json)
-// This enables the stable version in the dropdown when any vX.Y.Z.json spec exists
-const OPENAPI_DIR = resolve(__dirname, '../docs/openapi');
-const stableSpecFiles = existsSync(OPENAPI_DIR)
-  ? require('fs').readdirSync(OPENAPI_DIR).filter((f: string) => /^v\d+\.\d+\.\d+\.json$/.test(f))
+// Read versions from the Docusaurus versions.json (created by `docusaurus docs:version`)
+const VERSIONS_JSON = resolve(__dirname, 'versions.json');
+const docusaurusVersions: string[] = existsSync(VERSIONS_JSON)
+  ? JSON.parse(readFileSync(VERSIONS_JSON, 'utf8'))
   : [];
-const latestStableVersion = stableSpecFiles.length > 0
-  ? stableSpecFiles.sort().reverse()[0].replace('.json', '')
-  : null;
+const latestStableVersion = docusaurusVersions.length > 0 ? docusaurusVersions[0] : null;
 
 const config: Config = {
   title: 'Rushomon API Docs',
@@ -51,6 +48,20 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           docItemComponent: '@theme/ApiItem',
+          lastVersion: latestStableVersion ?? 'current',
+          versions: {
+            current: {
+              label: 'main (unreleased)',
+              path: 'next',
+              banner: 'none',
+            },
+            ...(latestStableVersion ? {
+              [latestStableVersion]: {
+                label: `${latestStableVersion} (stable)`,
+                banner: 'none',
+              },
+            } : {}),
+          },
         },
         blog: false,
         theme: {
@@ -70,25 +81,13 @@ const config: Config = {
         config: {
           rushomon: {
             specPath: '../docs/openapi/main.json',
-            outputDir: 'docs/api',
+            outputDir: 'docs',
             showSchemas: true,
             sidebarOptions: {
               groupPathsBy: 'tag',
               categoryLinkSource: 'tag',
             },
           } satisfies OpenApiPlugin.Options,
-          ...(latestStableVersion ? {
-            rushomonStable: {
-              specPath: `../docs/openapi/${latestStableVersion}.json`,
-              outputDir: 'docs/api-stable',
-              showSchemas: true,
-              label: latestStableVersion,
-              sidebarOptions: {
-                groupPathsBy: 'tag',
-                categoryLinkSource: 'tag',
-              },
-            } satisfies OpenApiPlugin.Options,
-          } : {}),
         },
       },
     ],
@@ -111,25 +110,14 @@ const config: Config = {
       },
       items: [
         {
-          type: 'docSidebar',
-          sidebarId: 'defaultSidebar',
+          to: '/docs/api',
           position: 'left',
           label: 'API Reference',
         },
         ...(latestStableVersion ? [{
-          type: 'dropdown' as const,
-          label: 'Version',
+          type: 'docsVersionDropdown' as const,
           position: 'left' as const,
-          items: [
-            {
-              label: 'main (unreleased)',
-              to: '/docs/api/rushomon-url-shortener-api',
-            },
-            {
-              label: `${latestStableVersion} (stable)`,
-              to: '/docs/api-stable/rushomon-url-shortener-api',
-            },
-          ],
+          dropdownActiveClassDisabled: true,
         }] : []),
         {
           href: 'https://rushomon.cc',
