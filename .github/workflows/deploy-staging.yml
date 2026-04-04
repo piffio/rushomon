@@ -114,6 +114,7 @@ jobs:
           ENABLE_KV_RATE_LIMITING = "false"
           POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
           POLAR_SANDBOX = "true"
+          COLLISION_THRESHOLD = "${{ vars.COLLISION_THRESHOLD }}"
           EOF
 
           echo "✅ Generated wrangler.staging.toml"
@@ -213,6 +214,7 @@ jobs:
           ENABLE_KV_RATE_LIMITING = "false"
           POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
           POLAR_SANDBOX = "true"
+          COLLISION_THRESHOLD = "${{ vars.COLLISION_THRESHOLD }}"
           EOF
 
           echo "✅ Generated wrangler.staging.toml"

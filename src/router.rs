@@ -7,7 +7,14 @@ use crate::models::{
     link::{CreateLinkRequest, Link, LinkStatus, UpdateLinkRequest},
     user::User,
 };
-use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
+use crate::utils::{
+    generate_short_code_with_length, now_timestamp,
+    short_code::{
+        DEFAULT_COLLISION_THRESHOLD, DEFAULT_MIN_CUSTOM_CODE_LENGTH,
+        DEFAULT_MIN_RANDOM_CODE_LENGTH, DEFAULT_SYSTEM_MIN_CODE_LENGTH, MAX_SHORT_CODE_LENGTH,
+    },
+    validate_short_code, validate_url,
+};
 use chrono::{Datelike, TimeZone};
 use std::future::Future;
 use std::pin::Pin;
@@ -299,6 +306,59 @@ pub async fn handle_redirect(
     })
 }
 
+/// Internal helper to generate a unique short code starting at a minimum length
+/// and scaling up if collisions are detected.
+async fn generate_progressive_short_code(
+    kv: &worker::kv::KvStore,
+    db: &D1Database,
+    env: &Env,
+    admin_min_length: usize,
+    system_min_length: usize,
+) -> Result<String> {
+    // Move the parsing logic here!
+    let collision_threshold = env
+        .var("COLLISION_THRESHOLD")
+        .ok()
+        .and_then(|v| v.to_string().parse::<usize>().ok())
+        .unwrap_or(DEFAULT_COLLISION_THRESHOLD);
+
+    let mut current_length = admin_min_length.max(system_min_length);
+    let mut total_attempts = 0;
+    let mut current_length_attempts = 0;
+
+    loop {
+        let code = generate_short_code_with_length(current_length);
+
+        if !kv::links::short_code_exists(kv, &code).await? {
+            return Ok(code);
+        }
+
+        total_attempts += 1;
+        current_length_attempts += 1;
+
+        // Exhaustion Trigger: Dynamic threshold based on env var
+        if current_length_attempts >= collision_threshold {
+            current_length += 1;
+            current_length_attempts = 0;
+
+            let _ =
+                db::set_setting(db, "system_min_code_length", &current_length.to_string()).await;
+
+            if admin_min_length < current_length {
+                let _ = db::set_setting(db, "min_random_code_length", &current_length.to_string())
+                    .await;
+            }
+        }
+
+        // Scale the ultimate fail-safe based on the threshold too
+        if total_attempts > (collision_threshold * 3).max(20) {
+            return Err(Error::RustError(
+                "Failed to generate unique short code".into(),
+            ));
+        }
+    }
+}
+
 /// Handle link creation: POST /api/links
 pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
@@ -496,6 +556,27 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         return Response::error(error_msg, 403);
     }
 
+    // Fetch all settings in a single query for performance
+    let settings = db::get_all_settings(&db).await?;
+
+    let min_random_length = settings
+        .get("min_random_code_length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_MIN_RANDOM_CODE_LENGTH);
+
+    let min_custom_length = settings
+        .get("min_custom_code_length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_MIN_CUSTOM_CODE_LENGTH);
+
+    let system_min_length = settings
+        .get("system_min_code_length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_SYSTEM_MIN_CODE_LENGTH);
+
+    // Custom codes must respect the higher of the custom rule or system physical floor
+    let effective_custom_min = min_custom_length.max(system_min_length);
+
     // Generate or validate short code
     let short_code = if let Some(custom_code) = body.short_code {
         match validate_short_code(&custom_code) {
@@ -504,6 +585,16 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
                 return Response::error(format!("Invalid short code: {}", e), 400);
             }
         };
+
+        if custom_code.len() < effective_custom_min {
+            return Response::error(
+                format!(
+                    "Custom short code must be at least {} characters",
+                    effective_custom_min
+                ),
+                400,
+            );
+        }
 
         // Check if already exists
         let kv = ctx.kv("URL_MAPPINGS")?;
@@ -515,18 +606,8 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     } else {
         // Generate random code and check for collisions (very rare)
         let kv = ctx.kv("URL_MAPPINGS")?;
-        let mut code = generate_short_code();
-        let mut attempts = 0;
-
-        while kv::links::short_code_exists(&kv, &code).await? {
-            code = generate_short_code();
-            attempts += 1;
-            if attempts > 10 {
-                return Response::error("Failed to generate unique short code", 500);
-            }
-        }
-
-        code
+        generate_progressive_short_code(&kv, &db, &ctx.env, min_random_length, system_min_length)
+            .await?
     };
 
     // Validate and normalize tags if provided
@@ -1427,6 +1508,26 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
         format!("{}-{:02}", dt.year(), dt.month())
     };
 
+    let settings = db::get_all_settings(&db).await?;
+
+    // Note: The import function uses 'min_length' instead of 'min_random_length' for this variable
+    let min_length = settings
+        .get("min_random_code_length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_MIN_RANDOM_CODE_LENGTH);
+
+    let min_custom_length = settings
+        .get("min_custom_code_length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_MIN_CUSTOM_CODE_LENGTH);
+
+    let system_min_length = settings
+        .get("system_min_code_length")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_SYSTEM_MIN_CODE_LENGTH);
+
+    let effective_custom_min = min_custom_length.max(system_min_length);
+
     let mut created: usize = 0;
     let mut skipped: usize = 0;
     let mut failed: usize = 0;
@@ -1496,6 +1597,19 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                 continue;
             }
 
+            if provided_code.len() < effective_custom_min {
+                skipped += 1;
+                errors.push(ImportError {
+                    row: row_num,
+                    destination_url: destination_url.clone(),
+                    reason: format!(
+                        "Custom short code must be at least {} characters",
+                        effective_custom_min
+                    ),
+                });
+                continue;
+            }
+
             // Try provided code, then auto-suffix on conflict (promo → promo-1 → … → promo-10)
             let mut resolved: Option<String> = None;
             for attempt in 0u32..=10 {
@@ -1514,16 +1628,16 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                 Some(c) => short_code = c,
                 None => {
                     // All suffix attempts exhausted — fall back to a random code
-                    let mut fallback: Option<String> = None;
-                    for _ in 0..10u32 {
-                        let candidate = generate_short_code();
-                        if !kv::links::short_code_exists(&kv, &candidate).await? {
-                            fallback = Some(candidate);
-                            break;
-                        }
-                    }
-                    match fallback {
-                        Some(c) => {
+                    match generate_progressive_short_code(
+                        &kv,
+                        &db,
+                        &ctx.env,
+                        min_length,
+                        system_min_length,
+                    )
+                    .await
+                    {
+                        Ok(c) => {
                             warnings.push(ImportWarning {
                                 row: row_num,
                                 destination_url: destination_url.clone(),
@@ -1534,7 +1648,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                             });
                             short_code = c;
                         }
-                        None => {
+                        Err(_) => {
                             failed += 1;
                             errors.push(ImportError {
                                 row: row_num,
@@ -1548,18 +1662,12 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                 }
             }
         } else {
-            // Free tier OR Pro without provided code: auto-generate
-            let mut resolved: Option<String> = None;
-            for _ in 0..10u32 {
-                let candidate = generate_short_code();
-                if !kv::links::short_code_exists(&kv, &candidate).await? {
-                    resolved = Some(candidate);
-                    break;
-                }
-            }
-            match resolved {
-                Some(c) => short_code = c,
-                None => {
+            // Free tier OR Pro without provided code: auto-generate using progressive helper
+            match generate_progressive_short_code(&kv, &db, &ctx.env, min_length, system_min_length)
+                .await
+            {
+                Ok(c) => short_code = c,
+                Err(_) => {
                     failed += 1;
                     errors.push(ImportError {
                         row: row_num,
@@ -2749,6 +2857,21 @@ pub async fn handle_admin_update_setting(
         | "product_business_monthly_id"
         | "product_business_annual_id" => {
             // Any string is valid (discount UUID / product UUID / amount in cents, or empty string to clear)
+        }
+        "min_random_code_length" | "min_custom_code_length" => {
+            let val = value.parse::<usize>().unwrap_or(0);
+            let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+            let system_min = db::get_system_min_code_length(&db).await?;
+
+            if val < system_min || val > MAX_SHORT_CODE_LENGTH {
+                return Response::error(
+                    format!(
+                        "The namespace for lengths under {} is exhausted. Value must be between {} and {}.",
+                        system_min, system_min, MAX_SHORT_CODE_LENGTH
+                    ),
+                    400,
+                );
+            }
         }
         _ => return Response::error(format!("Unknown setting: {}", key), 400),
     }

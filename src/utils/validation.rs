@@ -1,3 +1,4 @@
+use crate::utils::short_code::MAX_SHORT_CODE_LENGTH;
 use url::Url;
 
 /// Reserved short codes that cannot be used (prevent conflicts with routes)
@@ -57,7 +58,7 @@ pub fn validate_url(url_str: &str) -> Result<String, String> {
 
 /// Validate a custom short code
 /// Rules:
-/// - 3-100 characters long
+/// - 1-100 characters long
 /// - Alphanumeric, hyphens, and forward slashes (a-z, A-Z, 0-9, -, /)
 /// - Cannot start or end with hyphen or forward slash
 /// - Cannot contain consecutive forward slashes
@@ -65,9 +66,12 @@ pub fn validate_url(url_str: &str) -> Result<String, String> {
 /// - Each segment 1-50 characters
 /// - No segment can be a reserved word
 pub fn validate_short_code(code: &str) -> Result<(), String> {
-    // Check length
-    if code.len() < 3 || code.len() > 100 {
-        return Err("Short code must be 3-100 characters long".to_string());
+    // Check length (Absolute system bounds)
+    if code.is_empty() || code.len() > MAX_SHORT_CODE_LENGTH {
+        return Err(format!(
+            "Short code must be between 1 and {} characters long",
+            MAX_SHORT_CODE_LENGTH
+        ));
     }
 
     // Check charset: alphanumeric, hyphens, and forward slashes only
@@ -182,9 +186,15 @@ mod tests {
 
     #[test]
     fn test_validate_short_code_accepts_valid_length() {
-        assert!(validate_short_code("abc").is_ok()); // 3 chars - minimum
-        // 100 chars - maximum, split into valid segments
-        assert!(validate_short_code(&format!("{}/{}", "a".repeat(49), "b".repeat(49))).is_ok());
+        assert!(validate_short_code("a").is_ok()); // 1 char - minimum
+
+        // Dynamically build a string of exactly MAX_SHORT_CODE_LENGTH characters,
+        // split by a '/' so no individual segment exceeds the 50-char limit
+        let half = (MAX_SHORT_CODE_LENGTH - 1) / 2;
+        let rest = MAX_SHORT_CODE_LENGTH - 1 - half;
+        let max_code = format!("{}/{}", "a".repeat(half), "b".repeat(rest));
+
+        assert!(validate_short_code(&max_code).is_ok());
     }
 
     #[test]
@@ -201,8 +211,6 @@ mod tests {
 
     #[test]
     fn test_validate_short_code_rejects_too_short() {
-        assert!(validate_short_code("ab").is_err()); // 2 chars
-        assert!(validate_short_code("a").is_err());
         assert!(validate_short_code("").is_err());
     }
 

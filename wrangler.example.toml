@@ -91,3 +91,9 @@ not_found_handling = "none"
 # ─── Polar secrets ───────────────────────────────────────────────────────────
 # wrangler secret put POLAR_ACCESS_TOKEN        (from Polar Dashboard → Settings → API)
 # wrangler secret put INTERNAL_WEBHOOK_SECRET   (generate: openssl rand -base64 32)
+
+# ─── Short code collision handling ───────────────────────────────────────────
+# The maximum retry attempts when generating a short code before increasing length.
+# Defaults to '3'. Higher will use more available namespace before increasing
+# code length, at the cost of performance when available namespace gets full.
+# COLLISION_THRESHOLD = "3"

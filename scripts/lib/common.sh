@@ -198,6 +198,7 @@ load_config_with_yq() {
   export ENABLE_KV_RATE_LIMITING=$(yq eval '.advanced.enable_kv_rate_limiting // false' "$config_file")
   export R2_BACKUP_BUCKET=$(yq eval '.advanced.r2_backup_bucket // ""' "$config_file")
   export R2_ASSETS_BUCKET_NAME=$(yq eval '.advanced.r2_assets_bucket_name // ""' "$config_file")
+  export COLLISION_THRESHOLD=$(yq eval '.advanced.collision_threshold // ""' "$config_file")
 
   # Cloudflare
   export CLOUDFLARE_ACCOUNT_ID=$(yq eval '.cloudflare.account_id // ""' "$config_file")

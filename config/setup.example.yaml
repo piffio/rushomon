@@ -109,6 +109,13 @@ advanced:
   # Will be created automatically if it doesn't exist
   r2_assets_bucket_name: "rushomon-production-assets"
 
+  # Short code collision handling
+  # The maximum retry attempts when generating a short code before increasing length.
+  # Defaults to '3'. Higher will use more available namespace before increasing
+  # code length, at the cost of performance when available namespace gets full.
+  # collision_threshold: "3"
+
+
 # Example configurations for different scenarios:
 
 # Example 1: Single domain deployment (simplest)

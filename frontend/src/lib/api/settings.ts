@@ -13,6 +13,21 @@ export interface ApiKeyCreateResponse extends ApiKey {
     raw_token: string;
 }
 
+export interface PublicSettings {
+    founder_pricing_active: boolean;
+    min_random_code_length: number;
+    min_custom_code_length: number;
+    system_min_code_length: number;
+    active_discount_amount_pro_monthly: number;
+    active_discount_amount_pro_annual: number;
+    active_discount_amount_business_monthly: number;
+    active_discount_amount_business_annual: number;
+}
+
+export const settingsApi = {
+    getPublicSettings: () => apiClient.get<PublicSettings>('/api/settings'),
+};
+
 export const apiKeysApi = {
     list: () => apiClient.get<ApiKey[]>('/api/settings/api-keys'),
     

@@ -2,13 +2,19 @@
 	import { linksApi } from "$lib/api/links";
 	import type { Link, ApiError, UtmParams } from "$lib/types/api";
 	import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
+	import { 
+		DEFAULT_MIN_CUSTOM_CODE_LENGTH,
+		MAX_SHORT_CODE_LENGTH
+	} from "$lib/constants";
 
 	let {
 		onLinkCreated,
 		isPro = false,
+		minShortCodeLength = DEFAULT_MIN_CUSTOM_CODE_LENGTH,
 	}: {
 		onLinkCreated: (link: Link) => void;
 		isPro?: boolean;
+		minShortCodeLength?: number;
 	} = $props();
 
 	let destinationUrl = $state("");
@@ -65,8 +71,8 @@
 		// Trim and validate short code
 		const trimmedShortCode = shortCode.trim();
 		if (trimmedShortCode) {
-			if (trimmedShortCode.length < 3 || trimmedShortCode.length > 100) {
-				error = "Custom code must be 3-100 characters";
+			if (trimmedShortCode.length < minShortCodeLength || trimmedShortCode.length > MAX_SHORT_CODE_LENGTH) {
+				error = `Custom code must be ${minShortCodeLength}-${MAX_SHORT_CODE_LENGTH} characters`;
 				isSubmitting = false;
 				return;
 			}
@@ -246,15 +252,11 @@
 
 		<!-- Custom Short Code -->
 		<div>
-			<label
-				for="short-code"
-				class="block text-sm font-medium text-gray-700 mb-1"
-			>
-				Custom Short Code
-				<span class="text-gray-500 text-xs font-normal"
-					>(Optional, 3-100 characters: letters, numbers, hyphens,
-					forward slashes)</span
-				>
+			<label for="short-code" class="block text-sm font-medium text-gray-700 mb-1">
+    			Custom Short Code
+				<span class="text-gray-500 text-xs font-normal">
+				(Optional, {minShortCodeLength}-{MAX_SHORT_CODE_LENGTH} characters: letters, numbers, hyphens, forward slashes)
+			</span>
 			</label>
 			<input
 				type="text"
