@@ -8,5 +8,4 @@ workers_dev = false
 
 [assets]
 directory = "./build"
-binding = "ASSETS"
 not_found_handling = "404-page"
