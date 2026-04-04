@@ -333,7 +333,7 @@ jobs:
       - name: Build docs site
         working-directory: docs-site
         env:
-          DOCS_SITE_URL: https://doc.rushomon-staging.piffio.in
+          DOCS_SITE_URL: https://${{ secrets.DOCS_DOMAIN }}
         run: npm run build
 
       - name: Generate wrangler docs staging config
@@ -358,12 +358,10 @@ jobs:
 
       - name: Smoke test docs site
         run: |
-          DOCS_URL="https://doc.rushomon-staging.piffio.in"
-
-          echo "🧪 Smoke testing docs at $DOCS_URL"
+          echo "🧪 Smoke testing docs at $DOCS_SITE_URL"
           sleep 10
 
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$DOCS_URL/")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$DOCS_SITE_URL/")
           if [ "$STATUS" = "200" ]; then
             echo "✅ Docs homepage is up (HTTP 200)"
           else
