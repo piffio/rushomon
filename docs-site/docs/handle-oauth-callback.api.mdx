@@ -1,0 +1,69 @@
+---
+id: handle-oauth-callback
+title: "OAuth callback"
+description: "Handles the OAuth provider callback. Validates the state parameter, exchanges the authorization code for tokens, creates or updates the user, issues a session cookie, and redirects to the dashboard"
+sidebar_label: "OAuth callback"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVk1v20YQ/SuD9cU2aMp2CiTlqWqQpE7dRpDj9mAZ1oockVsvd5nZoWVX0H8vZkl9OW6A9NiTqOWbrzczb7lUBYacTMPGO5WpX7QrLAbgCuHTsOUKGvIPpkCCXFs70/l9Cn9oawrNPSywZoRGk66RkRLAx7zSruxf65YrT+ZvLREg9wXC3BOwv0cXEsgJoydP0DZbp20QTyaEFgNoCBhCZ+7vDSagXQGEhSHMOQD7aFPoUM28pkIlyjdIMeJFoTJVxaruvORyt65DJWqTdFDZzfIZFcMXEidfv0CNSpQRiy8t0pNKlNM1qkyJiUoU4ZfWEBYqY2oxUSGvsNYqWyp+agQXmIwr1WqVPE/h7dX4fc9v5OtfAkXEd0W6FXBovAsY5P2r03P52Y8+7gkWfjfcgncQ2jzHEHtW+RrlaK6NbQnVKlE/nP/4gi+pwZrasIwHYoGFFKxYl8J9JBsdmzyyrW4TVSNXXppXIsdWcaUyNdCNGUgbBzttDEgPL/dwRL5o89jA4ehCJaolK/PA3IRsIM5SakPla+/SPFdfd+DS59pCgQ9ofVOj4z0f2WBgBVD5wNmb129eK2E2YN6S4acrob/j92fUhCRPs/j03lOtWWXq45+fhcbh6AJ+RWlp7Jn0qgOqZN07iRcpM27uxVPuHeuc5RFrbSSn0DaNJ/5pt6bNlIz7Q7jqUNKrZxM/uoDC563U2U193NQKYWN7Pb6EUHlidEggxJsc04mbuIMD2G+iHP7mAwO6ovHGcYB+QKMmbIHQBuNKQMMVUjZxJ3B8fLW38OH4GA4llwXOQDeN3VoihaPOpOO4F5a1gZR0j0+CkRQP4DrG6vkOcnqWwtsoQqDdGg/G7UsKHI7IAxukOPWmrJDW5RRHE3eewoXLbVtgtNtxsS8jFeoiFgkA0+k0/u4hMujrIH/XaL5L03QLPjiAcb+20I2QFDC0FjbbDJoQPl59+l16V2tmLFJ4R+RpBzP31voFcGUCBKY255Ywm7jpdPpXkM4tJeZEodhNVAYT1bmoMQRdInRzMxMqF5VmWKBjWJB35URN3Cp66odipEvjNgNxafYGoh9YaDYgWBiuYNroEqdR5qdRNaYQNW97zYQ4KB0ukyAIrq1nSHB4dmJcgY9YJFDgXLeWMziLQ9L7yuCCsQ7QIElkFJOz09Md+Pnp0UTU1pocXUDZsX6Lhh9Glyev0tOvtGSxWKSla1NP5aA3CwNdNlbQacW1lYVjw3ZvGWWhrjYL1YmUiFm3kbU2TswaH7jWbieP7gbaEcG9Ve7UQeTq/3Ol9zrI+MiDxvbExB4s+9vhRunGqERJfipRG3JuEyUKLYDlcqYDXpNdreS4u0jjvWGCnlm5O+faBvwGn4fj9drDd30ivJj/PT5tvxQetG0F0t1D/yWhFz4YvhF2/d2wjXsrf8hIYJXd3K52ruEP7z6r1eofEaeOUg==
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"OAuth callback"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/auth/callback"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Handles the OAuth provider callback. Validates the state parameter, exchanges the authorization code for tokens, creates or updates the user, issues a session cookie, and redirects to the dashboard
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-oauth-callback.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-oauth-callback.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-oauth-callback.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

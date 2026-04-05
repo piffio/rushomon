@@ -1,4 +1,4 @@
-.PHONY: version-bump-patch version-bump-minor version-bump-major version-sync version-tag release version docs-gen
+.PHONY: version-bump-patch version-bump-minor version-bump-major version-sync version-tag release version docs-gen docs-dev
 
 # Get current version from Cargo.toml (package version only)
 CURRENT_VERSION := $(shell grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2)
@@ -42,10 +42,28 @@ docs-gen:
 	echo "✅ Generated docs/openapi/main.json (version: main)" && \
 	./target/debug/generate_openapi > docs/openapi/v$$VERSION.json && \
 	echo "✅ Generated docs/openapi/v$$VERSION.json (version: $$VERSION)" && \
-	cd docs-site && npm run gen-api-docs && \
-	echo "✅ Regenerated MDX from main.json" && \
+	cp docs-site/docs/api.info.mdx /tmp/api.info.mdx.bak && \
+	cd docs-site && \
+	npm run clean-api-docs && npm run gen-api-docs && \
+	cp /tmp/api.info.mdx.bak docs/api.info.mdx && \
+	echo "✅ Regenerated MDX from main.json (api.info.mdx preserved)" && \
 	npx docusaurus docs:version $$VERSION && \
-	echo "✅ Docusaurus version $$VERSION created (versioned_docs/version-$$VERSION/)"
+	echo "✅ Docusaurus version $$VERSION created (versioned_docs/version-$$VERSION/)" && \
+	perl -0777 -i -pe 's/:::warning Unreleased \/ main branch[:::\n\s]+::://g' versioned_docs/version-$$VERSION/api.info.mdx && \
+	echo "✅ Removed Unreleased warning from versioned api.info.mdx"
+
+# Regenerate API docs from main OpenAPI spec without touching hand-crafted api.info.mdx
+docs-dev:
+	@echo "📝 Regenerating development API docs..."
+	@cp docs-site/docs/api.info.mdx /tmp/api.info.mdx.bak && \
+	cargo build --bin generate_openapi --features openapi-gen -q && \
+	mkdir -p docs/openapi && \
+	OPENAPI_VERSION=main ./target/debug/generate_openapi > docs/openapi/main.json && \
+	echo "✅ Generated docs/openapi/main.json" && \
+	cd docs-site && \
+	npm run clean-api-docs && npm run gen-api-docs && \
+	cp /tmp/api.info.mdx.bak docs/api.info.mdx && \
+	echo "✅ Regenerated MDX from main.json (api.info.mdx preserved)"
 
 # Create git tag for current version (reads version at runtime)
 version-tag: docs-gen
@@ -82,4 +100,5 @@ help:
 	@echo "🔧 Low-level targets:"
 	@echo "  make version-sync    - Sync version from Cargo.toml to frontend"
 	@echo "  make version-tag     - Create git tag for current version"
-	@echo "  make docs-gen        - Generate OpenAPI specs (main.json + vX.Y.Z.json)"
+	@echo "  make docs-gen        - Generate OpenAPI specs (main.json + vX.Y.Z.json) and create Docusaurus version"
+	@echo "  make docs-dev        - Regenerate API endpoint docs from main OpenAPI spec (preserves api.info.mdx)"

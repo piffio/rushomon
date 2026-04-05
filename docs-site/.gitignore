@@ -10,11 +10,18 @@
 
 # Generated API docs (regenerated from openapi.json in CI)
 docs/api/
-docs/api.info.mdx
+!docs/api.info.mdx          # hand-crafted intro page, now committed
 docs/authentication.tag.mdx
 docs/handle-get-current-user.*
 docs/schemas/
 docs/sidebar.ts
+
+# Generated endpoint docs (exclude these, use -f to add if needed)
+docs/*.api.mdx
+docs/*.ParamsDetails.json
+docs/*.RequestSchema.json
+docs/*.StatusCodes.json
+docs/*.tag.mdx
 
 # Misc
 .DS_Store

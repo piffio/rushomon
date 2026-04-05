@@ -17,8 +17,21 @@ async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tie
     Tier::Free
 }
 
-// ─── GET /api/orgs ─────────────────────────────────────────────────────────
-/// List all organizations the current user belongs to
+#[utoipa::path(
+    get,
+    path = "/api/orgs",
+    tag = "Organizations",
+    summary = "List user organizations",
+    description = "Returns all organizations the authenticated user belongs to, including their role in each org and the org's current billing tier. Also returns the active org_id from the current session",
+    responses(
+        (status = 200, description = "List of organizations with role and tier info"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_list_user_orgs(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -62,8 +75,23 @@ pub async fn handle_list_user_orgs(req: Request, ctx: RouteContext<()>) -> Resul
     }))
 }
 
-// ─── POST /api/orgs ─────────────────────────────────────────────────────────
-/// Create a new organization (respects tier org limits)
+#[utoipa::path(
+    post,
+    path = "/api/orgs",
+    tag = "Organizations",
+    summary = "Create an organization",
+    description = "Creates a new organization for the authenticated user. The user becomes the owner. Respects tier organization limits",
+    responses(
+        (status = 200, description = "New organization"),
+        (status = 400, description = "Missing name"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Org limit reached for current tier"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -153,8 +181,23 @@ pub async fn handle_create_org(mut req: Request, ctx: RouteContext<()>) -> Resul
     Ok(response)
 }
 
-// ─── POST /api/auth/switch-org ──────────────────────────────────────────────
-/// Switch the active org context: re-issues access token for the chosen org
+#[utoipa::path(
+    post,
+    path = "/api/auth/switch-org",
+    tag = "Organizations",
+    summary = "Switch active organization",
+    description = "Switches the authenticated user's active organization context. Re-issues a new access token (and refresh token) scoped to the chosen org. The user must be a member of the target org",
+    responses(
+        (status = 200, description = "Switched, new access token set in cookies"),
+        (status = 400, description = "Missing or invalid org_id"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Not a member of the target org"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_switch_org(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -227,8 +270,26 @@ pub async fn handle_switch_org(mut req: Request, ctx: RouteContext<()>) -> Resul
     Ok(response)
 }
 
-// ─── GET /api/orgs/:id ──────────────────────────────────────────────────────
-/// Get org details (members + pending invitations)
+#[utoipa::path(
+    get,
+    path = "/api/orgs/{id}",
+    tag = "Organizations",
+    summary = "Get organization",
+    description = "Returns org details including the member list with roles and pending invitations. The caller must be a member of the org",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Organization with members and invitations"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Not a member of this org"),
+        (status = 404, description = "Organization not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_org(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -281,8 +342,27 @@ pub async fn handle_get_org(req: Request, ctx: RouteContext<()>) -> Result<Respo
     }))
 }
 
-// ─── PATCH /api/orgs/:id ────────────────────────────────────────────────────
-/// Rename an organization (owner or admin only)
+#[utoipa::path(
+    patch,
+    path = "/api/orgs/{id}",
+    tag = "Organizations",
+    summary = "Update organization",
+    description = "Renames an organization. Requires owner or admin role within the org",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Updated organization"),
+        (status = 400, description = "Missing or empty name"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required"),
+        (status = 404, description = "Organization not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_update_org(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -342,8 +422,25 @@ pub async fn handle_update_org(mut req: Request, ctx: RouteContext<()>) -> Resul
     }))
 }
 
-// ─── GET /api/orgs/:id/settings ─────────────────────────────────────────────
-/// Get org-level settings (Pro+ only for query forwarding)
+#[utoipa::path(
+    get,
+    path = "/api/orgs/{id}/settings",
+    tag = "Organizations",
+    summary = "Get org settings",
+    description = "Returns organization-level settings. The query_forwarding_enabled setting is only available on Pro+ tiers",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Org settings"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Not a member of this org"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_org_settings(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -371,8 +468,26 @@ pub async fn handle_get_org_settings(req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
-// ─── PATCH /api/orgs/:id/settings ───────────────────────────────────────────
-/// Update org-level settings (owner/admin only, Pro+ required for query forwarding)
+#[utoipa::path(
+    patch,
+    path = "/api/orgs/{id}/settings",
+    tag = "Organizations",
+    summary = "Update org settings",
+    description = "Updates organization-level settings. query_forwarding_enabled requires Pro+ tier. Caller must be owner or admin",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Updated settings"),
+        (status = 400, description = "Invalid setting value"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required, or Pro+ required"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_update_org_settings(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -438,6 +553,28 @@ pub async fn handle_update_org_settings(
 /// - Owners can remove anyone except the last owner
 /// - Admins can remove members but not owners
 /// - Anyone can remove themselves
+#[utoipa::path(
+    delete,
+    path = "/api/orgs/{id}/members/{user_id}",
+    tag = "Organizations",
+    summary = "Remove a member",
+    description = "Removes a user from the organization. Owners can remove anyone except the last owner. Admins can remove members but not owners. Any member can remove themselves",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+        ("user_id" = String, Path, description = "User ID to remove"),
+    ),
+    responses(
+        (status = 200, description = "Member removed"),
+        (status = 400, description = "Cannot remove last owner"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Insufficient role"),
+        (status = 404, description = "Member not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_remove_member(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -508,8 +645,27 @@ pub async fn handle_remove_member(req: Request, ctx: RouteContext<()>) -> Result
     Response::ok("Member removed")
 }
 
-// ─── POST /api/orgs/:id/invitations ─────────────────────────────────────────
-/// Invite a user by email to an org (owner/admin only, respects tier member limits)
+#[utoipa::path(
+    post,
+    path = "/api/orgs/{id}/invitations",
+    tag = "Organizations",
+    summary = "Invite a member",
+    description = "Sends an email invitation to join the organization. Requires owner or admin role. Respects tier member limits. Sends an invitation email with a unique token",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Invitation created and email sent"),
+        (status = 400, description = "Invalid email or missing fields"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required, or member limit reached"),
+        (status = 409, description = "Already a member or invitation pending"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_create_invitation(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -621,8 +777,27 @@ pub async fn handle_create_invitation(mut req: Request, ctx: RouteContext<()>) -
     Response::from_json(&serde_json::json!({ "invitation": invitation }))
 }
 
-// ─── DELETE /api/orgs/:id/invitations/:invitation_id ────────────────────────
-/// Revoke a pending invitation (owner or admin only)
+#[utoipa::path(
+    delete,
+    path = "/api/orgs/{id}/invitations/{invitation_id}",
+    tag = "Organizations",
+    summary = "Revoke an invitation",
+    description = "Cancels a pending invitation. Requires owner or admin role",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+        ("invitation_id" = String, Path, description = "Invitation ID"),
+    ),
+    responses(
+        (status = 200, description = "Invitation revoked"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required"),
+        (status = 404, description = "Invitation not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_revoke_invitation(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -662,8 +837,27 @@ pub async fn handle_revoke_invitation(req: Request, ctx: RouteContext<()>) -> Re
     Response::ok("Invitation revoked")
 }
 
-// ─── POST /api/orgs/:id/invitations/:invitation_id/resend ────────────────────
-/// Resend a pending invitation email (owner or admin only)
+#[utoipa::path(
+    post,
+    path = "/api/orgs/{id}/invitations/{invitation_id}/resend",
+    tag = "Organizations",
+    summary = "Resend an invitation",
+    description = "Resends the invitation email for a pending invitation. Requires owner or admin role",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+        ("invitation_id" = String, Path, description = "Invitation ID"),
+    ),
+    responses(
+        (status = 200, description = "Invitation email resent"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required"),
+        (status = 404, description = "Invitation not found or already accepted"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_resend_invitation(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -753,8 +947,20 @@ pub async fn handle_resend_invitation(req: Request, ctx: RouteContext<()>) -> Re
     }))
 }
 
-// ─── GET /api/invite/:token (public) ────────────────────────────────────────
-/// Validate an invite token and return org/inviter info (no auth required)
+#[utoipa::path(
+    get,
+    path = "/api/invite/{token}",
+    tag = "Organizations",
+    summary = "Get invite info",
+    description = "Validates an invitation token and returns the organization name and inviter details. Public endpoint — no authentication required. Used by the accept-invite page to show context before the user logs in",
+    params(
+        ("token" = String, Path, description = "Invitation token"),
+    ),
+    responses(
+        (status = 200, description = "Invitation details"),
+        (status = 404, description = "Token not found, expired, or already accepted"),
+    )
+)]
 pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let token = ctx
         .param("token")
@@ -801,8 +1007,27 @@ pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
-// ─── POST /api/invite/:token/accept (auth required) ─────────────────────────
-/// Accept an invitation: validates token, adds user to org, re-issues access token
+#[utoipa::path(
+    post,
+    path = "/api/invite/{token}/accept",
+    tag = "Organizations",
+    summary = "Accept an invitation",
+    description = "Accepts a pending invitation. Validates the token, verifies the caller's email matches the invited email, adds the user to the organization as the invited role, marks the invitation as accepted, and re-issues a new access token scoped to the new org",
+    params(
+        ("token" = String, Path, description = "Invitation token"),
+    ),
+    responses(
+        (status = 200, description = "Invitation accepted, new access token set"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Caller email does not match invitation"),
+        (status = 404, description = "Invitation not found or already accepted"),
+        (status = 409, description = "Already a member of this org"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_accept_invite(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -917,6 +1142,26 @@ pub async fn handle_accept_invite(req: Request, ctx: RouteContext<()>) -> Result
 /// Upload an org logo (owner/admin + Pro+ only).
 /// Accepts multipart/form-data with a field named "logo".
 /// Max 500 KB; accepted: image/png, image/jpeg, image/webp, image/svg+xml.
+#[utoipa::path(
+    post,
+    path = "/api/orgs/{id}/logo",
+    tag = "Organizations",
+    summary = "Upload org logo",
+    description = "Uploads an organization logo. Accepts multipart/form-data with a field named 'logo'. Max 500 KB. Accepted formats: image/png, image/jpeg, image/webp, image/svg+xml. Requires owner or admin role and Pro+ tier",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Logo uploaded, returns the URL"),
+        (status = 400, description = "Missing file, too large, or unsupported format"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required, or Pro+ required"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_upload_org_logo(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -1001,8 +1246,20 @@ pub async fn handle_upload_org_logo(mut req: Request, ctx: RouteContext<()>) -> 
     Ok(crate::add_cors_headers(response, origin, &ctx.env))
 }
 
-// ─── GET /api/orgs/:id/logo ───────────────────────────────────────────────────
-/// Serve the org logo from R2. Public endpoint (no auth required).
+#[utoipa::path(
+    get,
+    path = "/api/orgs/{id}/logo",
+    tag = "Organizations",
+    summary = "Get org logo",
+    description = "Serves the organization logo from R2 storage. Public endpoint — no authentication required",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Logo image"),
+        (status = 404, description = "No logo found for this org"),
+    )
+)]
 pub async fn handle_get_org_logo(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let org_id = ctx
         .param("id")
@@ -1045,8 +1302,26 @@ pub async fn handle_get_org_logo(_req: Request, ctx: RouteContext<()>) -> Result
     }
 }
 
-// ─── DELETE /api/orgs/:id/logo ────────────────────────────────────────────────
-/// Delete the org logo (owner/admin + Pro+ only).
+#[utoipa::path(
+    delete,
+    path = "/api/orgs/{id}/logo",
+    tag = "Organizations",
+    summary = "Delete org logo",
+    description = "Removes the organization logo from R2 storage. Requires owner or admin role and Pro+ tier",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Logo deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner or admin required, or Pro+ required"),
+        (status = 404, description = "No logo to delete"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_delete_org_logo(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -1086,6 +1361,27 @@ pub async fn handle_delete_org_logo(req: Request, ctx: RouteContext<()>) -> Resu
     Ok(crate::add_cors_headers(response, origin, &ctx.env))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/orgs/{id}",
+    tag = "Organizations",
+    summary = "Delete an organization",
+    description = "Permanently deletes an organization. Requires owner role and the user must belong to at least one other org. Links can either be migrated to another org or deleted",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
+    responses(
+        (status = 200, description = "Organization deleted"),
+        (status = 400, description = "Cannot delete last org or invalid migration target"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Owner required"),
+        (status = 404, description = "Organization not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 // ─── DELETE /api/orgs/:id ───────────────────────────────────────────────────
 /// Delete an organization (owner only, must have multiple orgs)
 /// Supports migrating links to another org or deleting them

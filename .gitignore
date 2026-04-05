@@ -29,7 +29,7 @@ frontend/build
 frontend/.vercel
 
 # Generated OpenAPI specs
-docs/openapi/main.json    # regenerated in CI / local dev, never committed
+!docs/openapi/main.json    # source of truth for API docs, now committed
 !docs/openapi/v*.json     # versioned tag specs are committed
 
 # Docusaurus docs site

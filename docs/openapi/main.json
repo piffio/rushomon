@@ -1,47 +1,2733 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "Rushomon URL Shortener API",
-    "description": "API documentation for the Rushomon URL shortener service.\n\n## Authentication\n\nMost endpoints require authentication using either:\n- **Session cookies** (for web application users)\n- **Bearer tokens** (for API keys)\n\n### Using API Keys\n\n1. Create an API key in the dashboard (Pro tier or higher required)\n2. Include the key in the Authorization header:\n   ```\n   Authorization: Bearer ro_pat_...\n   ```\n## Response Format\n\nAll responses are JSON formatted. Error responses follow this structure:\n```json\n{\n  \"error\": \"Error message describing what went wrong\"\n}\n```\n\n## Pagination\n\nList endpoints support pagination with `page` and `limit` query parameters:\n- `page`: Page number (1-indexed, default: 1)\n- `limit`: Items per page (1-100, default: 20)\n",
-    "contact": {
-      "name": "Rushomon Support",
-      "email": "support@rushomon.cc"
+  "components": {
+    "schemas": {
+      "BillingAccount": {
+        "description": "Billing Account represents the payment entity that owns one or more organizations.\nTier limits and quotas are enforced at the billing account level, not per-organization.\n\nThis prevents abuse where users could create multiple orgs to multiply their quotas.\nFor example:\n- Business tier ($29) = 10k links/month across ALL orgs in the billing account\n- Not 10k per org (which would be 30k for 3 orgs)",
+        "properties": {
+          "created_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "example": "ba_abc123def456",
+            "type": "string"
+          },
+          "owner_user_id": {
+            "example": "user-123456",
+            "type": "string"
+          },
+          "provider_customer_id": {
+            "description": "Polar customer ID for the billing account",
+            "example": "cust_abc123",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "example": "pro",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner_user_id",
+          "tier",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "CountryCount": {
+        "properties": {
+          "count": {
+            "example": 25,
+            "format": "int64",
+            "type": "integer"
+          },
+          "country": {
+            "example": "US",
+            "type": "string"
+          }
+        },
+        "required": [
+          "country",
+          "count"
+        ],
+        "type": "object"
+      },
+      "CreateApiKeyRequest": {
+        "properties": {
+          "expires_in_days": {
+            "example": 30,
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name": {
+            "example": "My Production API Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateApiKeyResponse": {
+        "properties": {
+          "created_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "example": 1612137600,
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "hint": {
+            "example": "ro_pat_...abcd",
+            "type": "string"
+          },
+          "id": {
+            "example": "key-123456",
+            "type": "string"
+          },
+          "name": {
+            "example": "My Production API Key",
+            "type": "string"
+          },
+          "raw_token": {
+            "description": "The raw token - show this ONLY ONCE to the user",
+            "example": "ro_pat_abc123def456ghi789jkl012mno345pq",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "raw_token",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "CreateLinkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "destination_url": {
+            "example": "https://example.com/very/long/url",
+            "type": "string"
+          },
+          "expires_at": {
+            "example": 1640995200,
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "forward_query_params": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_type": {
+            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301, available on Pro+ plans.",
+            "example": "301",
+            "type": "string"
+          },
+          "short_code": {
+            "example": "my-custom-code",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "example": [
+              "marketing",
+              "social"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "title": {
+            "example": "My Awesome Link",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtmParams"
+              }
+            ]
+          }
+        },
+        "required": [
+          "destination_url"
+        ],
+        "type": "object"
+      },
+      "DailyClicks": {
+        "properties": {
+          "count": {
+            "example": 42,
+            "format": "int64",
+            "type": "integer"
+          },
+          "date": {
+            "example": "2024-01-15",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "count"
+        ],
+        "type": "object"
+      },
+      "Link": {
+        "properties": {
+          "click_count": {
+            "example": 42,
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_by": {
+            "example": "user-123",
+            "type": "string"
+          },
+          "destination_url": {
+            "example": "https://example.com/very/long/url",
+            "type": "string"
+          },
+          "expires_at": {
+            "example": 1640995200,
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "forward_query_params": {
+            "description": "Whether to forward visitor query params to the destination (Pro+ only).\nNone = use org default (resolved at KV write time).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "id": {
+            "example": "link-123456",
+            "type": "string"
+          },
+          "org_id": {
+            "example": "org-789",
+            "type": "string"
+          },
+          "redirect_type": {
+            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301 for SEO, 307 available on Pro+ plans.",
+            "example": "301",
+            "type": "string"
+          },
+          "short_code": {
+            "example": "abc123",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "tags": {
+            "example": [
+              "marketing",
+              "social"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "example": "My Awesome Link",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "example": 1609459300,
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "utm_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtmParams",
+                "description": "UTM parameters baked into this link (Pro+ only)."
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "org_id",
+          "short_code",
+          "destination_url",
+          "created_by",
+          "created_at",
+          "status",
+          "click_count",
+          "tags",
+          "redirect_type"
+        ],
+        "type": "object"
+      },
+      "LinkAnalyticsResponse": {
+        "properties": {
+          "analytics_gated": {
+            "description": "Whether analytics data is gated due to tier limits",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "clicks_over_time": {
+            "items": {
+              "$ref": "#/components/schemas/DailyClicks"
+            },
+            "type": "array"
+          },
+          "gated_reason": {
+            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/Link"
+          },
+          "top_countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryCount"
+            },
+            "type": "array"
+          },
+          "top_referrers": {
+            "items": {
+              "$ref": "#/components/schemas/ReferrerCount"
+            },
+            "type": "array"
+          },
+          "top_user_agents": {
+            "items": {
+              "$ref": "#/components/schemas/UserAgentCount"
+            },
+            "type": "array"
+          },
+          "total_clicks_in_range": {
+            "example": 150,
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "link",
+          "total_clicks_in_range",
+          "clicks_over_time",
+          "top_referrers",
+          "top_countries",
+          "top_user_agents"
+        ],
+        "type": "object"
+      },
+      "LinkStatus": {
+        "enum": [
+          "active",
+          "disabled",
+          "blocked"
+        ],
+        "type": "string"
+      },
+      "OrgAnalyticsResponse": {
+        "properties": {
+          "analytics_gated": {
+            "description": "Whether analytics data is gated due to tier limits",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "clicks_over_time": {
+            "items": {
+              "$ref": "#/components/schemas/DailyClicks"
+            },
+            "type": "array"
+          },
+          "gated_reason": {
+            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "top_countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryCount"
+            },
+            "type": "array"
+          },
+          "top_links": {
+            "items": {
+              "$ref": "#/components/schemas/TopLinkCount"
+            },
+            "type": "array"
+          },
+          "top_referrers": {
+            "items": {
+              "$ref": "#/components/schemas/ReferrerCount"
+            },
+            "type": "array"
+          },
+          "top_user_agents": {
+            "items": {
+              "$ref": "#/components/schemas/UserAgentCount"
+            },
+            "type": "array"
+          },
+          "total_clicks": {
+            "example": 1500,
+            "format": "int64",
+            "type": "integer"
+          },
+          "unique_links_clicked": {
+            "example": 75,
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_clicks",
+          "unique_links_clicked",
+          "clicks_over_time",
+          "top_links",
+          "top_referrers",
+          "top_countries",
+          "top_user_agents"
+        ],
+        "type": "object"
+      },
+      "OrgInvitation": {
+        "properties": {
+          "accepted_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "email": {
+            "example": "newmember@example.com",
+            "type": "string"
+          },
+          "expires_at": {
+            "example": 1612137600,
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "example": "inv-123",
+            "type": "string"
+          },
+          "invited_by": {
+            "example": "user-789",
+            "type": "string"
+          },
+          "org_id": {
+            "example": "org-456",
+            "type": "string"
+          },
+          "role": {
+            "example": "member",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "org_id",
+          "invited_by",
+          "email",
+          "role",
+          "created_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "OrgMember": {
+        "properties": {
+          "joined_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "org_id": {
+            "example": "org-123",
+            "type": "string"
+          },
+          "role": {
+            "example": "admin",
+            "type": "string"
+          },
+          "user_id": {
+            "example": "user-456",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org_id",
+          "user_id",
+          "role",
+          "joined_at"
+        ],
+        "type": "object"
+      },
+      "OrgMemberWithUser": {
+        "properties": {
+          "avatar_url": {
+            "example": "https://avatars.githubusercontent.com/u/123456",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "example": "user@example.com",
+            "type": "string"
+          },
+          "joined_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "example": "John Doe",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "example": "admin",
+            "type": "string"
+          },
+          "user_id": {
+            "example": "user-456",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "role",
+          "joined_at"
+        ],
+        "type": "object"
+      },
+      "OrgWithRole": {
+        "description": "An organization with the current user's membership role attached",
+        "properties": {
+          "id": {
+            "example": "org-123",
+            "type": "string"
+          },
+          "joined_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "example": "My Organization",
+            "type": "string"
+          },
+          "role": {
+            "example": "owner",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "joined_at"
+        ],
+        "type": "object"
+      },
+      "Organization": {
+        "description": "Organization (team/tenant) model.\n\nTier limits are enforced at the billing account level via `billing_account.tier`.\nThe organization is linked to a billing account which contains the authoritative tier.",
+        "properties": {
+          "billing_account_id": {
+            "description": "Link to the billing account that owns this organization.\nTier limits are enforced at the billing account level.",
+            "example": "ba_abc123def456",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_by": {
+            "example": "user-789",
+            "type": "string"
+          },
+          "id": {
+            "example": "org-123456",
+            "type": "string"
+          },
+          "name": {
+            "example": "My Organization",
+            "type": "string"
+          },
+          "slug": {
+            "example": "my-org",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "created_at",
+          "created_by"
+        ],
+        "type": "object"
+      },
+      "PaginationMeta": {
+        "description": "Pagination metadata for paginated API responses",
+        "properties": {
+          "has_next": {
+            "description": "Whether there is a next page",
+            "example": true,
+            "type": "boolean"
+          },
+          "has_prev": {
+            "description": "Whether there is a previous page",
+            "example": false,
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Number of items per page",
+            "example": 20,
+            "format": "int64",
+            "type": "integer"
+          },
+          "page": {
+            "description": "Current page number (1-indexed)",
+            "example": 1,
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of items across all pages",
+            "example": 150,
+            "format": "int64",
+            "type": "integer"
+          },
+          "total_pages": {
+            "description": "Total number of pages",
+            "example": 8,
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "total_pages",
+          "has_next",
+          "has_prev"
+        ],
+        "type": "object"
+      },
+      "ReferrerCount": {
+        "properties": {
+          "count": {
+            "example": 15,
+            "format": "int64",
+            "type": "integer"
+          },
+          "referrer": {
+            "example": "https://google.com",
+            "type": "string"
+          }
+        },
+        "required": [
+          "referrer",
+          "count"
+        ],
+        "type": "object"
+      },
+      "Tier": {
+        "enum": [
+          "free",
+          "pro",
+          "business",
+          "unlimited"
+        ],
+        "type": "string"
+      },
+      "TimeRange": {
+        "description": "Time range specification for analytics queries\nExtensible design that can grow to support custom ranges, timezones, comparisons, etc.",
+        "oneOf": [
+          {
+            "description": "Simple days-based range (e.g., \"last 7 days\", \"last 30 days\")",
+            "example": {
+              "type": "days",
+              "value": 7
+            },
+            "properties": {
+              "type": {
+                "enum": [
+                  "Days"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "value",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Custom date range with specific timestamps",
+            "example": {
+              "end": 1640995200,
+              "start": 1609459200,
+              "type": "custom"
+            },
+            "properties": {
+              "end": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "start": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "Custom"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "TopLinkCount": {
+        "properties": {
+          "count": {
+            "example": 50,
+            "format": "int64",
+            "type": "integer"
+          },
+          "link_id": {
+            "example": "link-123",
+            "type": "string"
+          },
+          "short_code": {
+            "example": "abc123",
+            "type": "string"
+          },
+          "title": {
+            "example": "My Link",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "link_id",
+          "short_code",
+          "count"
+        ],
+        "type": "object"
+      },
+      "UpdateLinkRequest": {
+        "properties": {
+          "destination_url": {
+            "example": "https://example.com/new/url",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "example": 1640995200,
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "forward_query_params": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_type": {
+            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nAvailable on Pro+ plans.",
+            "example": "307",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LinkStatus"
+              }
+            ]
+          },
+          "tags": {
+            "example": [
+              "updated",
+              "tag"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "title": {
+            "example": "Updated Title",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtmParams"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "User": {
+        "properties": {
+          "avatar_url": {
+            "example": "https://avatars.githubusercontent.com/u/123456",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "example": 1609459200,
+            "format": "int64",
+            "type": "integer"
+          },
+          "email": {
+            "example": "user@example.com",
+            "type": "string"
+          },
+          "id": {
+            "example": "user-123456",
+            "type": "string"
+          },
+          "name": {
+            "example": "John Doe",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "oauth_id": {
+            "example": "123456",
+            "type": "string"
+          },
+          "oauth_provider": {
+            "example": "github",
+            "type": "string"
+          },
+          "org_id": {
+            "example": "org-789",
+            "type": "string"
+          },
+          "role": {
+            "example": "member",
+            "type": "string"
+          },
+          "suspended_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "suspended_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suspension_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "oauth_provider",
+          "oauth_id",
+          "org_id",
+          "role",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "UserAgentCount": {
+        "properties": {
+          "count": {
+            "example": 10,
+            "format": "int64",
+            "type": "integer"
+          },
+          "user_agent": {
+            "example": "Mozilla/5.0...",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_agent",
+          "count"
+        ],
+        "type": "object"
+      },
+      "UtmParams": {
+        "description": "Standard Google UTM parameters attached to a link.\nAll fields are optional; only non-empty values are appended to the destination URL.",
+        "properties": {
+          "utm_campaign": {
+            "example": "summer_sale",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_medium": {
+            "example": "cpc",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_source": {
+            "example": "google",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_term": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "VersionResponse": {
+        "properties": {
+          "build_timestamp": {
+            "example": "2024-02-23T22:30:00Z",
+            "type": "string"
+          },
+          "git_commit": {
+            "example": "abc123def",
+            "type": "string"
+          },
+          "name": {
+            "example": "rushomon",
+            "type": "string"
+          },
+          "version": {
+            "example": "0.6.2",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "name",
+          "build_timestamp",
+          "git_commit"
+        ],
+        "type": "object"
+      }
     },
+    "securitySchemes": {
+      "Bearer": {
+        "bearerFormat": "JWT or API Key",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "contact": {
+      "email": "support@rushomon.cc",
+      "name": "Rushomon Support"
+    },
+    "description": "API documentation for the Rushomon URL shortener service.\n\n## Authentication\n\nMost endpoints require authentication using either:\n- **Session cookies** (for web application users)\n- **Bearer tokens** (for API keys)\n\n### Using API Keys\n\n1. Create an API key in the dashboard (Pro tier or higher required)\n2. Include the key in the Authorization header:\n   ```\n   Authorization: Bearer ro_pat_...\n   ```\n## Response Format\n\nAll responses are JSON formatted. Error responses follow this structure:\n```json\n{\n  \"error\": \"Error message describing what went wrong\"\n}\n```\n\n## Pagination\n\nList endpoints support pagination with `page` and `limit` query parameters:\n- `page`: Page number (1-indexed, default: 1)\n- `limit`: Items per page (1-100, default: 20)\n",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.html"
     },
-    "version": "0.6.2"
+    "title": "Rushomon URL Shortener API",
+    "version": "main"
   },
-  "servers": [
-    {
-      "url": "https://api.rushomon.cc",
-      "description": "Production API"
-    },
-    {
-      "url": "http://localhost:8787",
-      "description": "Local development"
-    }
-  ],
+  "openapi": "3.1.0",
   "paths": {
-    "/api/auth/me": {
+    "/api/admin/api-keys": {
       "get": {
+        "operationId": "handle_admin_list_api_keys",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Search by name or user",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of API keys"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List all API keys",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/api-keys/{id}": {
+      "delete": {
+        "operationId": "handle_admin_revoke_api_key",
+        "parameters": [
+          {
+            "description": "API key ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key revoked"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Revoke an API key",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/api-keys/{id}/delete": {
+      "post": {
+        "operationId": "handle_admin_delete_api_key",
+        "parameters": [
+          {
+            "description": "API key ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Soft-delete an API key",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/api-keys/{id}/reactivate": {
+      "post": {
+        "operationId": "handle_admin_reactivate_api_key",
+        "parameters": [
+          {
+            "description": "API key ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key reactivated"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Reactivate an API key",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/api-keys/{id}/restore": {
+      "post": {
+        "operationId": "handle_admin_restore_api_key",
+        "parameters": [
+          {
+            "description": "API key ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Key restored"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Restore a deleted API key",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/billing-accounts": {
+      "get": {
+        "operationId": "handle_admin_list_billing_accounts",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Search by email or org name",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by tier",
+            "in": "query",
+            "name": "tier",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of billing accounts"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List billing accounts",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/billing-accounts/{id}": {
+      "get": {
+        "operationId": "handle_admin_get_billing_account",
+        "parameters": [
+          {
+            "description": "Billing account ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Billing account details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get billing account details",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/billing-accounts/{id}/reset": {
+      "post": {
+        "operationId": "handle_admin_reset_billing_account",
+        "parameters": [
+          {
+            "description": "Billing account ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Billing account reset to free"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Billing account not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Reset billing account to free tier",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/billing-accounts/{id}/reset-counter": {
+      "post": {
+        "operationId": "handle_admin_reset_billing_account_counter",
+        "parameters": [
+          {
+            "description": "Billing account ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counter reset"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Reset billing account monthly counter",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/billing-accounts/{id}/subscription": {
+      "put": {
+        "operationId": "handle_admin_update_subscription_status",
+        "parameters": [
+          {
+            "description": "Billing account ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription status updated"
+          },
+          "400": {
+            "description": "Missing status"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "No subscription found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update subscription status",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/billing-accounts/{id}/tier": {
+      "put": {
+        "operationId": "handle_admin_update_billing_account_tier",
+        "parameters": [
+          {
+            "description": "Billing account ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tier updated"
+          },
+          "400": {
+            "description": "Invalid tier"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update billing account tier",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/blacklist": {
+      "get": {
+        "operationId": "handle_admin_get_blacklist",
+        "responses": {
+          "200": {
+            "description": "Array of blacklist entries"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List blacklisted destinations",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "post": {
+        "operationId": "handle_admin_block_destination",
+        "responses": {
+          "200": {
+            "description": "Destination blocked"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Block a destination",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/blacklist/{id}": {
+      "delete": {
+        "operationId": "handle_admin_remove_blacklist",
+        "parameters": [
+          {
+            "description": "Blacklist entry ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entry removed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Remove blacklist entry",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/cron/downgrade": {
+      "post": {
+        "description": "Manually triggers the expired-subscription downgrade cron job. Downgrades all billing accounts whose subscriptions have expired to the Free tier",
+        "operationId": "handle_cron_trigger_downgrade",
+        "responses": {
+          "200": {
+            "description": "Downgrade job completed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Trigger subscription downgrade job",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/discounts": {
+      "get": {
+        "operationId": "handle_admin_list_discounts",
+        "responses": {
+          "200": {
+            "description": "Discounts from Polar"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List Polar discounts",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/links": {
+      "get": {
+        "operationId": "handle_admin_list_links",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by org ID",
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by creator email",
+            "in": "query",
+            "name": "email",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by destination domain",
+            "in": "query",
+            "name": "domain",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of all links"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List all links (moderation)",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/links/{id}": {
+      "delete": {
+        "operationId": "handle_admin_delete_link",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Hard delete a link",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "handle_admin_update_link_status",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          },
+          "400": {
+            "description": "Invalid status value"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update link status",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/links/{id}/sync-kv": {
+      "post": {
+        "operationId": "handle_admin_sync_link_kv",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "KV entry synced"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Re-sync link KV entry",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/orgs/{id}/reset-counter": {
+      "post": {
+        "operationId": "handle_admin_reset_monthly_counter",
+        "parameters": [
+          {
+            "description": "Org ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counter reset"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Reset org monthly counter",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/products": {
+      "get": {
+        "operationId": "handle_admin_list_products",
+        "responses": {
+          "200": {
+            "description": "Products from Polar"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List Polar products",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/products/save": {
+      "post": {
+        "operationId": "handle_admin_save_products",
+        "responses": {
+          "200": {
+            "description": "Products cached in database"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Sync and cache products from Polar",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/products/sync": {
+      "post": {
+        "operationId": "handle_admin_sync_products",
+        "responses": {
+          "200": {
+            "description": "Products fetched from Polar"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "503": {
+            "description": "Billing not configured"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Sync products from Polar",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/reports": {
+      "get": {
+        "operationId": "handle_admin_get_reports",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (10-100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by status: pending, reviewed, dismissed",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of reports"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List abuse reports",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/reports/pending/count": {
+      "get": {
+        "operationId": "handle_admin_get_pending_reports_count",
+        "responses": {
+          "200": {
+            "description": "Count of pending reports"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get pending reports count",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/reports/{id}": {
+      "get": {
+        "operationId": "handle_admin_get_report",
+        "parameters": [
+          {
+            "description": "Report ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "Report not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get a single abuse report",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "handle_admin_update_report",
+        "parameters": [
+          {
+            "description": "Report ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report updated"
+          },
+          "400": {
+            "description": "Invalid status"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update report status",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/settings": {
+      "get": {
+        "operationId": "handle_admin_get_settings",
+        "responses": {
+          "200": {
+            "description": "Key-value map of all settings"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get system settings",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "handle_admin_update_setting",
+        "responses": {
+          "200": {
+            "description": "Updated settings map"
+          },
+          "400": {
+            "description": "Unknown or invalid setting value"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update a system setting",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "operationId": "handle_admin_list_users",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (max 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of users"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List all users",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/users/{id}": {
+      "delete": {
+        "operationId": "handle_admin_delete_user",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          },
+          "400": {
+            "description": "Cannot delete self or last org admin"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Delete a user",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "get": {
+        "operationId": "handle_admin_get_user",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get a user",
+        "tags": [
+          "Admin"
+        ]
+      },
+      "put": {
+        "operationId": "handle_admin_update_user_role",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated user"
+          },
+          "400": {
+            "description": "Invalid role or cannot demote last admin"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update user role",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/users/{id}/suspend": {
+      "put": {
+        "operationId": "handle_admin_suspend_user",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User suspended"
+          },
+          "400": {
+            "description": "Cannot suspend self or last admin"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Suspend a user",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/admin/users/{id}/unsuspend": {
+      "put": {
+        "operationId": "handle_admin_unsuspend_user",
+        "parameters": [
+          {
+            "description": "User ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unsuspended"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Admin required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Unsuspend a user",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/api/analytics/org": {
+      "get": {
+        "description": "Returns aggregate click analytics for the entire organization. Includes total clicks, unique links clicked, clicks over time, top links, referrers, countries, and user agents. The time range is capped by tier retention (7 days Free, 365 days Pro, unlimited Business/Unlimited)",
+        "operationId": "handle_get_org_analytics",
+        "parameters": [
+          {
+            "description": "Number of days to look back (default: 7)",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix timestamp range start (alternative to days)",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix timestamp range end",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Org analytics response with clicks, top links, referrers, countries, and user agents"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get org-level analytics",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "description": "Handles the OAuth provider callback. Validates the state parameter, exchanges the authorization code for tokens, creates or updates the user, issues a session cookie, and redirects to the dashboard",
+        "operationId": "handle_oauth_callback",
+        "parameters": [
+          {
+            "description": "Authorization code from the OAuth provider",
+            "in": "query",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "CSRF state token",
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to dashboard on success or home on failure"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "OAuth callback",
         "tags": [
           "Authentication"
+        ]
+      }
+    },
+    "/api/auth/github": {
+      "get": {
+        "description": "Redirects the user to GitHub to begin the OAuth 2.0 authorization flow",
+        "operationId": "handle_github_login",
+        "responses": {
+          "302": {
+            "description": "Redirect to GitHub authorization URL"
+          },
+          "404": {
+            "description": "GitHub OAuth not configured"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Initiate GitHub OAuth",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/auth/google": {
+      "get": {
+        "description": "Redirects the user to Google to begin the OAuth 2.0 authorization flow",
+        "operationId": "handle_google_login",
+        "responses": {
+          "302": {
+            "description": "Redirect to Google authorization URL"
+          },
+          "404": {
+            "description": "Google OAuth not configured"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Initiate Google OAuth",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "description": "Deletes the server-side session and clears all auth cookies (access token, refresh token, legacy session)",
+        "operationId": "handle_logout",
+        "responses": {
+          "200": {
+            "description": "Logged out successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
         ],
-        "summary": "Get current user",
+        "summary": "Logout",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
         "description": "Returns information about the currently authenticated user",
         "operationId": "handle_get_current_user",
         "responses": {
           "200": {
-            "description": "User information",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/User"
                 }
               }
-            }
+            },
+            "description": "User information"
           },
           "401": {
             "description": "Unauthorized"
@@ -57,1098 +2743,1677 @@
           {
             "session_cookie": []
           }
+        ],
+        "summary": "Get current user",
+        "tags": [
+          "Authentication"
         ]
       }
-    }
-  },
-  "components": {
-    "schemas": {
-      "BillingAccount": {
-        "type": "object",
-        "description": "Billing Account represents the payment entity that owns one or more organizations.\nTier limits and quotas are enforced at the billing account level, not per-organization.\n\nThis prevents abuse where users could create multiple orgs to multiply their quotas.\nFor example:\n- Business tier ($29) = 10k links/month across ALL orgs in the billing account\n- Not 10k per org (which would be 30k for 3 orgs)",
-        "required": [
-          "id",
-          "owner_user_id",
-          "tier",
-          "created_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "ba_abc123def456"
-          },
-          "owner_user_id": {
-            "type": "string",
-            "example": "user-123456"
-          },
-          "tier": {
-            "type": "string",
-            "example": "pro"
-          },
-          "provider_customer_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Polar customer ID for the billing account",
-            "example": "cust_abc123"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          }
-        }
-      },
-      "CountryCount": {
-        "type": "object",
-        "required": [
-          "country",
-          "count"
-        ],
-        "properties": {
-          "country": {
-            "type": "string",
-            "example": "US"
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64",
-            "example": 25
-          }
-        }
-      },
-      "CreateApiKeyRequest": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "example": "My Production API Key"
-          },
-          "expires_in_days": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "example": 30
-          }
-        }
-      },
-      "CreateApiKeyResponse": {
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "hint",
-          "raw_token",
-          "created_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "key-123456"
-          },
-          "name": {
-            "type": "string",
-            "example": "My Production API Key"
-          },
-          "hint": {
-            "type": "string",
-            "example": "ro_pat_...abcd"
-          },
-          "raw_token": {
-            "type": "string",
-            "description": "The raw token - show this ONLY ONCE to the user",
-            "example": "ro_pat_abc123def456ghi789jkl012mno345pq"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          },
-          "expires_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "example": 1612137600
-          }
-        }
-      },
-      "CreateLinkRequest": {
-        "type": "object",
-        "required": [
-          "destination_url"
-        ],
-        "properties": {
-          "destination_url": {
-            "type": "string",
-            "example": "https://example.com/very/long/url"
-          },
-          "short_code": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "my-custom-code"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "My Awesome Link"
-          },
-          "expires_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "example": 1640995200
-          },
-          "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "example": [
-              "marketing",
-              "social"
-            ]
-          },
-          "utm_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UtmParams"
-              }
-            ]
-          },
-          "forward_query_params": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "redirect_type": {
-            "type": "string",
-            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301, available on Pro+ plans.",
-            "example": "301"
+    },
+    "/api/auth/providers": {
+      "get": {
+        "description": "Returns the list of OAuth providers configured and enabled on this instance",
+        "operationId": "handle_list_auth_providers",
+        "responses": {
+          "200": {
+            "description": "List of enabled providers"
           }
         },
-        "additionalProperties": false
-      },
-      "DailyClicks": {
-        "type": "object",
-        "required": [
-          "date",
-          "count"
-        ],
-        "properties": {
-          "date": {
-            "type": "string",
-            "example": "2024-01-15"
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64",
-            "example": 42
-          }
-        }
-      },
-      "Link": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "short_code",
-          "destination_url",
-          "created_by",
-          "created_at",
-          "status",
-          "click_count",
-          "tags",
-          "redirect_type"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "link-123456"
-          },
-          "org_id": {
-            "type": "string",
-            "example": "org-789"
-          },
-          "short_code": {
-            "type": "string",
-            "example": "abc123"
-          },
-          "destination_url": {
-            "type": "string",
-            "example": "https://example.com/very/long/url"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "My Awesome Link"
-          },
-          "created_by": {
-            "type": "string",
-            "example": "user-123"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          },
-          "updated_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "example": 1609459300
-          },
-          "expires_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "example": 1640995200
-          },
-          "status": {
-            "$ref": "#/components/schemas/LinkStatus"
-          },
-          "click_count": {
-            "type": "integer",
-            "format": "int64",
-            "example": 42
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "example": [
-              "marketing",
-              "social"
-            ]
-          },
-          "utm_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UtmParams",
-                "description": "UTM parameters baked into this link (Pro+ only)."
-              }
-            ]
-          },
-          "forward_query_params": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Whether to forward visitor query params to the destination (Pro+ only).\nNone = use org default (resolved at KV write time)."
-          },
-          "redirect_type": {
-            "type": "string",
-            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301 for SEO, 307 available on Pro+ plans.",
-            "example": "301"
-          }
-        }
-      },
-      "LinkAnalyticsResponse": {
-        "type": "object",
-        "required": [
-          "link",
-          "total_clicks_in_range",
-          "clicks_over_time",
-          "top_referrers",
-          "top_countries",
-          "top_user_agents"
-        ],
-        "properties": {
-          "link": {
-            "$ref": "#/components/schemas/Link"
-          },
-          "total_clicks_in_range": {
-            "type": "integer",
-            "format": "int64",
-            "example": 150
-          },
-          "clicks_over_time": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DailyClicks"
-            }
-          },
-          "top_referrers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReferrerCount"
-            }
-          },
-          "top_countries": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CountryCount"
-            }
-          },
-          "top_user_agents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserAgentCount"
-            }
-          },
-          "analytics_gated": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Whether analytics data is gated due to tier limits"
-          },
-          "gated_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")"
-          }
-        }
-      },
-      "LinkStatus": {
-        "type": "string",
-        "enum": [
-          "active",
-          "disabled",
-          "blocked"
+        "summary": "List enabled OAuth providers",
+        "tags": [
+          "Authentication"
         ]
-      },
-      "OrgAnalyticsResponse": {
-        "type": "object",
-        "required": [
-          "total_clicks",
-          "unique_links_clicked",
-          "clicks_over_time",
-          "top_links",
-          "top_referrers",
-          "top_countries",
-          "top_user_agents"
-        ],
-        "properties": {
-          "total_clicks": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1500
-          },
-          "unique_links_clicked": {
-            "type": "integer",
-            "format": "int64",
-            "example": 75
-          },
-          "clicks_over_time": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DailyClicks"
-            }
-          },
-          "top_links": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TopLinkCount"
-            }
-          },
-          "top_referrers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReferrerCount"
-            }
-          },
-          "top_countries": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CountryCount"
-            }
-          },
-          "top_user_agents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserAgentCount"
-            }
-          },
-          "analytics_gated": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Whether analytics data is gated due to tier limits"
-          },
-          "gated_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Reason analytics are gated (e.g., \"click_limit_exceeded\", \"retention_limited\")"
-          }
-        }
-      },
-      "OrgInvitation": {
-        "type": "object",
-        "required": [
-          "id",
-          "org_id",
-          "invited_by",
-          "email",
-          "role",
-          "created_at",
-          "expires_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "inv-123"
-          },
-          "org_id": {
-            "type": "string",
-            "example": "org-456"
-          },
-          "invited_by": {
-            "type": "string",
-            "example": "user-789"
-          },
-          "email": {
-            "type": "string",
-            "example": "newmember@example.com"
-          },
-          "role": {
-            "type": "string",
-            "example": "member"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          },
-          "expires_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1612137600
-          },
-          "accepted_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          }
-        }
-      },
-      "OrgMember": {
-        "type": "object",
-        "required": [
-          "org_id",
-          "user_id",
-          "role",
-          "joined_at"
-        ],
-        "properties": {
-          "org_id": {
-            "type": "string",
-            "example": "org-123"
-          },
-          "user_id": {
-            "type": "string",
-            "example": "user-456"
-          },
-          "role": {
-            "type": "string",
-            "example": "admin"
-          },
-          "joined_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          }
-        }
-      },
-      "OrgMemberWithUser": {
-        "type": "object",
-        "required": [
-          "user_id",
-          "email",
-          "role",
-          "joined_at"
-        ],
-        "properties": {
-          "user_id": {
-            "type": "string",
-            "example": "user-456"
-          },
-          "email": {
-            "type": "string",
-            "example": "user@example.com"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "John Doe"
-          },
-          "avatar_url": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "https://avatars.githubusercontent.com/u/123456"
-          },
-          "role": {
-            "type": "string",
-            "example": "admin"
-          },
-          "joined_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          }
-        }
-      },
-      "OrgWithRole": {
-        "type": "object",
-        "description": "An organization with the current user's membership role attached",
-        "required": [
-          "id",
-          "name",
-          "role",
-          "joined_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "org-123"
-          },
-          "name": {
-            "type": "string",
-            "example": "My Organization"
-          },
-          "role": {
-            "type": "string",
-            "example": "owner"
-          },
-          "joined_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          }
-        }
-      },
-      "Organization": {
-        "type": "object",
-        "description": "Organization (team/tenant) model.\n\nTier limits are enforced at the billing account level via `billing_account.tier`.\nThe organization is linked to a billing account which contains the authoritative tier.",
-        "required": [
-          "id",
-          "name",
-          "slug",
-          "created_at",
-          "created_by"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "org-123456"
-          },
-          "name": {
-            "type": "string",
-            "example": "My Organization"
-          },
-          "slug": {
-            "type": "string",
-            "example": "my-org"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          },
-          "created_by": {
-            "type": "string",
-            "example": "user-789"
-          },
-          "billing_account_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Link to the billing account that owns this organization.\nTier limits are enforced at the billing account level.",
-            "example": "ba_abc123def456"
-          }
-        }
-      },
-      "PaginationMeta": {
-        "type": "object",
-        "description": "Pagination metadata for paginated API responses",
-        "required": [
-          "page",
-          "limit",
-          "total",
-          "total_pages",
-          "has_next",
-          "has_prev"
-        ],
-        "properties": {
-          "page": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Current page number (1-indexed)",
-            "example": 1
-          },
-          "limit": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Number of items per page",
-            "example": 20
-          },
-          "total": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total number of items across all pages",
-            "example": 150
-          },
-          "total_pages": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total number of pages",
-            "example": 8
-          },
-          "has_next": {
-            "type": "boolean",
-            "description": "Whether there is a next page",
-            "example": true
-          },
-          "has_prev": {
-            "type": "boolean",
-            "description": "Whether there is a previous page",
-            "example": false
-          }
-        }
-      },
-      "ReferrerCount": {
-        "type": "object",
-        "required": [
-          "referrer",
-          "count"
-        ],
-        "properties": {
-          "referrer": {
-            "type": "string",
-            "example": "https://google.com"
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64",
-            "example": 15
-          }
-        }
-      },
-      "Tier": {
-        "type": "string",
-        "enum": [
-          "free",
-          "pro",
-          "business",
-          "unlimited"
-        ]
-      },
-      "TimeRange": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Simple days-based range (e.g., \"last 7 days\", \"last 30 days\")",
-            "required": [
-              "value",
-              "type"
-            ],
-            "properties": {
-              "value": {
-                "type": "integer",
-                "format": "int64"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "Days"
-                ]
-              }
-            },
-            "example": {
-              "type": "days",
-              "value": 7
-            }
-          },
-          {
-            "type": "object",
-            "description": "Custom date range with specific timestamps",
-            "required": [
-              "start",
-              "end",
-              "type"
-            ],
-            "properties": {
-              "start": {
-                "type": "integer",
-                "format": "int64"
-              },
-              "end": {
-                "type": "integer",
-                "format": "int64"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "Custom"
-                ]
-              }
-            },
-            "example": {
-              "end": 1640995200,
-              "start": 1609459200,
-              "type": "custom"
-            }
-          }
-        ],
-        "description": "Time range specification for analytics queries\nExtensible design that can grow to support custom ranges, timezones, comparisons, etc."
-      },
-      "TopLinkCount": {
-        "type": "object",
-        "required": [
-          "link_id",
-          "short_code",
-          "count"
-        ],
-        "properties": {
-          "link_id": {
-            "type": "string",
-            "example": "link-123"
-          },
-          "short_code": {
-            "type": "string",
-            "example": "abc123"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "My Link"
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64",
-            "example": 50
-          }
-        }
-      },
-      "UpdateLinkRequest": {
-        "type": "object",
-        "properties": {
-          "destination_url": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "https://example.com/new/url"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "Updated Title"
-          },
-          "status": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/LinkStatus"
-              }
-            ]
-          },
-          "expires_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "example": 1640995200
-          },
-          "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "example": [
-              "updated",
-              "tag"
-            ]
-          },
-          "utm_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/UtmParams"
-              }
-            ]
-          },
-          "forward_query_params": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "redirect_type": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nAvailable on Pro+ plans.",
-            "example": "307"
-          }
-        }
-      },
-      "User": {
-        "type": "object",
-        "required": [
-          "id",
-          "email",
-          "oauth_provider",
-          "oauth_id",
-          "org_id",
-          "role",
-          "created_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "user-123456"
-          },
-          "email": {
-            "type": "string",
-            "example": "user@example.com"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "John Doe"
-          },
-          "avatar_url": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "https://avatars.githubusercontent.com/u/123456"
-          },
-          "oauth_provider": {
-            "type": "string",
-            "example": "github"
-          },
-          "oauth_id": {
-            "type": "string",
-            "example": "123456"
-          },
-          "org_id": {
-            "type": "string",
-            "example": "org-789"
-          },
-          "role": {
-            "type": "string",
-            "example": "member"
-          },
-          "created_at": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1609459200
-          },
-          "suspended_at": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "suspension_reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "suspended_by": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "UserAgentCount": {
-        "type": "object",
-        "required": [
-          "user_agent",
-          "count"
-        ],
-        "properties": {
-          "user_agent": {
-            "type": "string",
-            "example": "Mozilla/5.0..."
-          },
-          "count": {
-            "type": "integer",
-            "format": "int64",
-            "example": 10
-          }
-        }
-      },
-      "UtmParams": {
-        "type": "object",
-        "description": "Standard Google UTM parameters attached to a link.\nAll fields are optional; only non-empty values are appended to the destination URL.",
-        "properties": {
-          "utm_source": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "google"
-          },
-          "utm_medium": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "cpc"
-          },
-          "utm_campaign": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "example": "summer_sale"
-          },
-          "utm_term": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_content": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "utm_ref": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "VersionResponse": {
-        "type": "object",
-        "required": [
-          "version",
-          "name",
-          "build_timestamp",
-          "git_commit"
-        ],
-        "properties": {
-          "version": {
-            "type": "string",
-            "example": "0.6.2"
-          },
-          "name": {
-            "type": "string",
-            "example": "rushomon"
-          },
-          "build_timestamp": {
-            "type": "string",
-            "example": "2024-02-23T22:30:00Z"
-          },
-          "git_commit": {
-            "type": "string",
-            "example": "abc123def"
-          }
-        }
       }
     },
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT or API Key"
+    "/api/auth/refresh": {
+      "post": {
+        "description": "Validates the refresh token from the httpOnly cookie and issues a new short-lived access token. Rate limited to 30 requests per hour per session",
+        "operationId": "handle_token_refresh",
+        "responses": {
+          "200": {
+            "description": "Access token refreshed, new cookie set"
+          },
+          "401": {
+            "description": "Missing, invalid, or expired refresh token"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Refresh access token",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/auth/switch-org": {
+      "post": {
+        "description": "Switches the authenticated user's active organization context. Re-issues a new access token (and refresh token) scoped to the chosen org. The user must be a member of the target org",
+        "operationId": "handle_switch_org",
+        "responses": {
+          "200": {
+            "description": "Switched, new access token set in cookies"
+          },
+          "400": {
+            "description": "Missing or invalid org_id"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Not a member of the target org"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Switch active organization",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/billing/checkout": {
+      "post": {
+        "description": "Creates a Polar Checkout session for the given product/price ID and returns the hosted checkout URL. Optionally accepts a discount code. The caller must be the billing account owner",
+        "operationId": "handle_create_checkout",
+        "responses": {
+          "200": {
+            "description": "Checkout URL"
+          },
+          "400": {
+            "description": "Missing product_id or invalid request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "502": {
+            "description": "Polar API error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Create checkout session",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/portal": {
+      "post": {
+        "description": "Generates a Polar Customer Portal URL for the authenticated user. The frontend should redirect the user to the returned URL to manage their subscription, payment methods, and invoices",
+        "operationId": "handle_portal",
+        "responses": {
+          "200": {
+            "description": "Portal URL"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "No billing account or customer ID found"
+          },
+          "502": {
+            "description": "Polar API error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get customer portal URL",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/status": {
+      "get": {
+        "description": "Returns the billing account tier, active subscription details (status, period end, cancel-at-period-end), and whether the caller is the billing owner. Auto-creates a billing account for new users if one does not exist",
+        "operationId": "handle_get_status",
+        "responses": {
+          "200": {
+            "description": "Billing status object"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get billing status",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/billing/webhook": {
+      "post": {
+        "description": "Receives and processes Polar webhook events (subscription created/updated/cancelled, order created). Verifies the webhook signature before processing. Returns 200 for success or known-skip, 400 for malformed payloads, 503 for transient failures",
+        "operationId": "handle_webhook",
+        "responses": {
+          "200": {
+            "description": "Event processed or intentionally skipped"
+          },
+          "400": {
+            "description": "Invalid or malformed webhook payload"
+          },
+          "503": {
+            "description": "Transient infrastructure failure"
+          }
+        },
+        "summary": "Polar webhook receiver",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/invite/{token}": {
+      "get": {
+        "description": "Validates an invitation token and returns the organization name and inviter details. Public endpoint — no authentication required. Used by the accept-invite page to show context before the user logs in",
+        "operationId": "handle_get_invite_info",
+        "parameters": [
+          {
+            "description": "Invitation token",
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation details"
+          },
+          "404": {
+            "description": "Token not found, expired, or already accepted"
+          }
+        },
+        "summary": "Get invite info",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/invite/{token}/accept": {
+      "post": {
+        "description": "Accepts a pending invitation. Validates the token, verifies the caller's email matches the invited email, adds the user to the organization as the invited role, marks the invitation as accepted, and re-issues a new access token scoped to the new org",
+        "operationId": "handle_accept_invite",
+        "parameters": [
+          {
+            "description": "Invitation token",
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation accepted, new access token set"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Caller email does not match invitation"
+          },
+          "404": {
+            "description": "Invitation not found or already accepted"
+          },
+          "409": {
+            "description": "Already a member of this org"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Accept an invitation",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/keys": {
+      "get": {
+        "description": "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars)",
+        "operationId": "handle_list_api_keys",
+        "responses": {
+          "200": {
+            "description": "Array of active API keys"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List API keys",
+        "tags": [
+          "API Keys"
+        ]
+      },
+      "post": {
+        "description": "Generates a new personal access token (PAT) for programmatic API access. The raw token is returned only once — copy it immediately. Requires Pro tier or higher",
+        "operationId": "handle_create_api_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          },
+          "description": "API key creation payload",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateApiKeyResponse"
+                }
+              }
+            },
+            "description": "API key created with raw token"
+          },
+          "400": {
+            "description": "Empty name"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Plan does not support API keys"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Create an API key",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/keys/{id}": {
+      "delete": {
+        "description": "Soft-deletes an API key owned by the authenticated user. Returns 204 on success",
+        "operationId": "handle_revoke_api_key",
+        "parameters": [
+          {
+            "description": "API key ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Key revoked"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Key not found or not owned by user"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Revoke an API key",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/api/links": {
+      "get": {
+        "description": "Returns a paginated list of links for the authenticated organization",
+        "operationId": "handle_list_links",
+        "parameters": [
+          {
+            "description": "Page number (default: 1)",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page (default: 50, max: 100)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by tag",
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search by title or URL",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort field: created_at, click_count",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort order: asc, desc",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of links"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List links",
+        "tags": [
+          "Links"
+        ]
+      },
+      "post": {
+        "description": "Creates a new short link for the authenticated organization. Respects monthly tier limits. Optionally accepts a custom short code (Pro+), UTM parameters (Pro+), tags, expiry, and redirect type",
+        "operationId": "handle_create_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLinkRequest"
+              }
+            }
+          },
+          "description": "Link creation payload",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            },
+            "description": "Link created"
+          },
+          "400": {
+            "description": "Invalid request body or URL"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Monthly link limit reached for current tier"
+          },
+          "409": {
+            "description": "Short code already in use"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Create a link",
+        "tags": [
+          "Links"
+        ]
+      }
+    },
+    "/api/links/by-code/{code}": {
+      "get": {
+        "description": "Looks up a link by its short code instead of its internal ID",
+        "operationId": "handle_get_link_by_code",
+        "parameters": [
+          {
+            "description": "Short code of the link",
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            },
+            "description": "Link details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get a link by short code",
+        "tags": [
+          "Links"
+        ]
+      }
+    },
+    "/api/links/export": {
+      "get": {
+        "description": "Exports all active links for the authenticated organization as a CSV file. Returns a text/csv response with a Content-Disposition attachment header",
+        "operationId": "handle_export_links",
+        "responses": {
+          "200": {
+            "description": "CSV file download"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Export links as CSV",
+        "tags": [
+          "Links"
+        ]
+      }
+    },
+    "/api/links/import": {
+      "post": {
+        "description": "Bulk-imports links from a CSV payload. Accepts a JSON array of rows parsed from CSV. Each row must have at least a destination_url. Returns counts of created, skipped (duplicate short codes), and failed rows",
+        "operationId": "handle_import_links",
+        "responses": {
+          "200": {
+            "description": "Import result with created/skipped/failed counts"
+          },
+          "400": {
+            "description": "Invalid request body"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Import links from CSV",
+        "tags": [
+          "Links"
+        ]
+      }
+    },
+    "/api/links/{id}": {
+      "delete": {
+        "description": "Soft-deletes a link belonging to the authenticated organization and removes its KV mapping so it stops redirecting",
+        "operationId": "handle_delete_link",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Link deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Delete a link",
+        "tags": [
+          "Links"
+        ]
+      },
+      "get": {
+        "description": "Returns details for a single link belonging to the authenticated organization",
+        "operationId": "handle_get_link",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            },
+            "description": "Link details"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get a link",
+        "tags": [
+          "Links"
+        ]
+      },
+      "put": {
+        "description": "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Updates are written to both D1 and KV atomically",
+        "operationId": "handle_update_link",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLinkRequest"
+              }
+            }
+          },
+          "description": "Fields to update (all optional)",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            },
+            "description": "Updated link"
+          },
+          "400": {
+            "description": "Invalid request body"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update a link",
+        "tags": [
+          "Links"
+        ]
+      }
+    },
+    "/api/links/{id}/analytics": {
+      "get": {
+        "description": "Returns click analytics for a single link. The time range is capped according to the organization's tier retention window (7 days for Free, 365 days for Pro, unlimited for Business/Unlimited)",
+        "operationId": "handle_get_link_analytics",
+        "parameters": [
+          {
+            "description": "Link ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of days to look back (default: 7)",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix timestamp range start (alternative to days)",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix timestamp range end",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics data for the link"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get link analytics",
+        "tags": [
+          "Links"
+        ]
+      }
+    },
+    "/api/orgs": {
+      "get": {
+        "description": "Returns all organizations the authenticated user belongs to, including their role in each org and the org's current billing tier. Also returns the active org_id from the current session",
+        "operationId": "handle_list_user_orgs",
+        "responses": {
+          "200": {
+            "description": "List of organizations with role and tier info"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List user organizations",
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "post": {
+        "description": "Creates a new organization for the authenticated user. The user becomes the owner. Respects tier organization limits",
+        "operationId": "handle_create_org",
+        "responses": {
+          "200": {
+            "description": "New organization"
+          },
+          "400": {
+            "description": "Missing name"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Org limit reached for current tier"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Create an organization",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}": {
+      "delete": {
+        "description": "Permanently deletes an organization. Requires owner role and the user must belong to at least one other org. Links can either be migrated to another org or deleted",
+        "operationId": "handle_delete_org",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization deleted"
+          },
+          "400": {
+            "description": "Cannot delete last org or invalid migration target"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner required"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Delete an organization",
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "get": {
+        "description": "Returns org details including the member list with roles and pending invitations. The caller must be a member of the org",
+        "operationId": "handle_get_org",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization with members and invitations"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Not a member of this org"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get organization",
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "patch": {
+        "description": "Renames an organization. Requires owner or admin role within the org",
+        "operationId": "handle_update_org",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated organization"
+          },
+          "400": {
+            "description": "Missing or empty name"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update organization",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}/invitations": {
+      "post": {
+        "description": "Sends an email invitation to join the organization. Requires owner or admin role. Respects tier member limits. Sends an invitation email with a unique token",
+        "operationId": "handle_create_invitation",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation created and email sent"
+          },
+          "400": {
+            "description": "Invalid email or missing fields"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required, or member limit reached"
+          },
+          "409": {
+            "description": "Already a member or invitation pending"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Invite a member",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}/invitations/{invitation_id}": {
+      "delete": {
+        "description": "Cancels a pending invitation. Requires owner or admin role",
+        "operationId": "handle_revoke_invitation",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Invitation ID",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation revoked"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required"
+          },
+          "404": {
+            "description": "Invitation not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Revoke an invitation",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}/invitations/{invitation_id}/resend": {
+      "post": {
+        "description": "Resends the invitation email for a pending invitation. Requires owner or admin role",
+        "operationId": "handle_resend_invitation",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Invitation ID",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation email resent"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required"
+          },
+          "404": {
+            "description": "Invitation not found or already accepted"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Resend an invitation",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}/logo": {
+      "delete": {
+        "description": "Removes the organization logo from R2 storage. Requires owner or admin role and Pro+ tier",
+        "operationId": "handle_delete_org_logo",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logo deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required, or Pro+ required"
+          },
+          "404": {
+            "description": "No logo to delete"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Delete org logo",
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "get": {
+        "description": "Serves the organization logo from R2 storage. Public endpoint — no authentication required",
+        "operationId": "handle_get_org_logo",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logo image"
+          },
+          "404": {
+            "description": "No logo found for this org"
+          }
+        },
+        "summary": "Get org logo",
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "post": {
+        "description": "Uploads an organization logo. Accepts multipart/form-data with a field named 'logo'. Max 500 KB. Accepted formats: image/png, image/jpeg, image/webp, image/svg+xml. Requires owner or admin role and Pro+ tier",
+        "operationId": "handle_upload_org_logo",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logo uploaded, returns the URL"
+          },
+          "400": {
+            "description": "Missing file, too large, or unsupported format"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required, or Pro+ required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Upload org logo",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}/members/{user_id}": {
+      "delete": {
+        "description": "Removes a user from the organization. Owners can remove anyone except the last owner. Admins can remove members but not owners. Any member can remove themselves",
+        "operationId": "handle_remove_member",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User ID to remove",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member removed"
+          },
+          "400": {
+            "description": "Cannot remove last owner"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient role"
+          },
+          "404": {
+            "description": "Member not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Remove a member",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/orgs/{id}/settings": {
+      "get": {
+        "description": "Returns organization-level settings. The query_forwarding_enabled setting is only available on Pro+ tiers",
+        "operationId": "handle_get_org_settings",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Org settings"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Not a member of this org"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get org settings",
+        "tags": [
+          "Organizations"
+        ]
+      },
+      "patch": {
+        "description": "Updates organization-level settings. query_forwarding_enabled requires Pro+ tier. Caller must be owner or admin",
+        "operationId": "handle_update_org_settings",
+        "parameters": [
+          {
+            "description": "Organization ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated settings"
+          },
+          "400": {
+            "description": "Invalid setting value"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner or admin required, or Pro+ required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Update org settings",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/api/reports/links": {
+      "post": {
+        "description": "Submits an abuse report for a link. Accepts both authenticated and anonymous submissions. Duplicate reports for the same link, reason, and reporter within 24 hours are rejected",
+        "operationId": "handle_report_link",
+        "responses": {
+          "200": {
+            "description": "Report submitted successfully"
+          },
+          "400": {
+            "description": "Missing required fields"
+          },
+          "404": {
+            "description": "Link not found or already removed"
+          },
+          "422": {
+            "description": "Link is already disabled"
+          },
+          "429": {
+            "description": "Duplicate report within 24 hours"
+          }
+        },
+        "summary": "Report a link for abuse",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/settings/public": {
+      "get": {
+        "description": "Returns non-sensitive public settings needed by the frontend, including founder pricing status and active discount amounts for each plan tier",
+        "operationId": "handle_get_public_settings",
+        "responses": {
+          "200": {
+            "description": "Public settings object"
+          }
+        },
+        "summary": "Get public settings",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "description": "Returns all tags used within the authenticated organization, each with a usage count reflecting the number of active links carrying that tag",
+        "operationId": "handle_get_org_tags",
+        "responses": {
+          "200": {
+            "description": "Array of tags with usage counts"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "List org tags",
+        "tags": [
+          "Tags"
+        ]
+      }
+    },
+    "/api/tags/{name}": {
+      "delete": {
+        "description": "Removes a tag from all links in the authenticated organization and deletes it",
+        "operationId": "handle_delete_org_tag",
+        "parameters": [
+          {
+            "description": "Tag name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Tag deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Failed to delete tag"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Delete a tag",
+        "tags": [
+          "Tags"
+        ]
+      },
+      "patch": {
+        "description": "Renames a tag across all links in the authenticated organization. Returns the updated tag list",
+        "operationId": "handle_rename_org_tag",
+        "parameters": [
+          {
+            "description": "Current tag name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated tag list"
+          },
+          "400": {
+            "description": "Missing or invalid new tag name"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Rename a tag",
+        "tags": [
+          "Tags"
+        ]
+      }
+    },
+    "/api/usage": {
+      "get": {
+        "description": "Returns the authenticated organization's tier, feature limits, current monthly link usage, tag count, and the date/time of the next monthly counter reset",
+        "operationId": "handle_get_usage",
+        "responses": {
+          "200": {
+            "description": "Usage and limits for the current org"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ],
+        "summary": "Get current usage",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "description": "Returns the running application version, package name, build timestamp, and git commit hash",
+        "operationId": "handle_version",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": "Version information"
+          }
+        },
+        "summary": "Get application version",
+        "tags": [
+          "System"
+        ]
       }
     }
   },
+  "servers": [
+    {
+      "description": "Production API",
+      "url": "https://api.rushomon.cc"
+    },
+    {
+      "description": "Local development",
+      "url": "http://localhost:8787"
+    }
+  ],
   "tags": [
     {
-      "name": "Authentication",
-      "description": "OAuth authentication and session management"
+      "description": "OAuth authentication and session management",
+      "name": "Authentication"
     },
     {
-      "name": "Links",
-      "description": "URL shortening and link management"
+      "description": "URL shortening and link management",
+      "name": "Links"
     },
     {
-      "name": "Analytics",
-      "description": "Link analytics and statistics"
+      "description": "Link analytics and statistics",
+      "name": "Analytics"
     },
     {
-      "name": "Organizations",
-      "description": "Multi-tenant organization management"
+      "description": "Multi-tenant organization management",
+      "name": "Organizations"
     },
     {
-      "name": "API Keys",
-      "description": "API key management for programmatic access (Pro+ tier)"
+      "description": "API key management for programmatic access (Pro+ tier)",
+      "name": "API Keys"
     },
     {
-      "name": "Billing",
-      "description": "Subscription and billing management"
+      "description": "Subscription and billing management",
+      "name": "Billing"
     },
     {
-      "name": "Settings",
-      "description": "Instance and organization settings"
+      "description": "Instance and organization settings",
+      "name": "Settings"
     },
     {
-      "name": "Admin",
-      "description": "Administrative endpoints (admin only)"
+      "description": "Tier usage and limit information",
+      "name": "Usage"
     },
     {
-      "name": "Utilities",
-      "description": "Utility endpoints like version and title fetching"
+      "description": "Link tag management",
+      "name": "Tags"
+    },
+    {
+      "description": "Abuse reporting",
+      "name": "Reports"
+    },
+    {
+      "description": "System information endpoints",
+      "name": "System"
+    },
+    {
+      "description": "Administrative endpoints (admin role required)",
+      "name": "Admin"
     }
   ]
 }

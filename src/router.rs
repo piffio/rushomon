@@ -299,7 +299,25 @@ pub async fn handle_redirect(
     })
 }
 
-/// Handle link creation: POST /api/links
+#[utoipa::path(
+    post,
+    path = "/api/links",
+    tag = "Links",
+    summary = "Create a link",
+    description = "Creates a new short link for the authenticated organization. Respects monthly tier limits. Optionally accepts a custom short code (Pro+), UTM parameters (Pro+), tags, expiry, and redirect type",
+    request_body(content = CreateLinkRequest, description = "Link creation payload"),
+    responses(
+        (status = 201, description = "Link created", body = Link),
+        (status = 400, description = "Invalid request body or URL"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Monthly link limit reached for current tier"),
+        (status = 409, description = "Short code already in use"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -642,7 +660,29 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     Response::from_json(&link)
 }
 
-/// Handle listing links: GET /api/links
+#[utoipa::path(
+    get,
+    path = "/api/links",
+    tag = "Links",
+    summary = "List links",
+    description = "Returns a paginated list of links for the authenticated organization",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number (default: 1)"),
+        ("limit" = Option<i64>, Query, description = "Items per page (default: 50, max: 100)"),
+        ("tag" = Option<String>, Query, description = "Filter by tag"),
+        ("search" = Option<String>, Query, description = "Search by title or URL"),
+        ("sort" = Option<String>, Query, description = "Sort field: created_at, click_count"),
+        ("order" = Option<String>, Query, description = "Sort order: asc, desc"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of links"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -772,7 +812,25 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
     Response::from_json(&response)
 }
 
-/// Handle getting a single link: GET /api/links/{id}
+#[utoipa::path(
+    get,
+    path = "/api/links/{id}",
+    tag = "Links",
+    summary = "Get a link",
+    description = "Returns details for a single link belonging to the authenticated organization",
+    params(
+        ("id" = String, Path, description = "Link ID"),
+    ),
+    responses(
+        (status = 200, description = "Link details", body = Link),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -797,7 +855,25 @@ pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Resp
     }
 }
 
-/// Handle getting a link by short_code: GET /api/links/by-code/{code}
+#[utoipa::path(
+    get,
+    path = "/api/links/by-code/{code}",
+    tag = "Links",
+    summary = "Get a link by short code",
+    description = "Looks up a link by its short code instead of its internal ID",
+    params(
+        ("code" = String, Path, description = "Short code of the link"),
+    ),
+    responses(
+        (status = 200, description = "Link details", body = Link),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_link_by_code(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -819,7 +895,28 @@ pub async fn handle_get_link_by_code(req: Request, ctx: RouteContext<()>) -> Res
     }
 }
 
-/// Handle getting analytics for a link: GET /api/links/{id}/analytics
+#[utoipa::path(
+    get,
+    path = "/api/links/{id}/analytics",
+    tag = "Links",
+    summary = "Get link analytics",
+    description = "Returns click analytics for a single link. The time range is capped according to the organization's tier retention window (7 days for Free, 365 days for Pro, unlimited for Business/Unlimited)",
+    params(
+        ("id" = String, Path, description = "Link ID"),
+        ("days" = Option<i64>, Query, description = "Number of days to look back (default: 7)"),
+        ("start" = Option<i64>, Query, description = "Unix timestamp range start (alternative to days)"),
+        ("end" = Option<i64>, Query, description = "Unix timestamp range end"),
+    ),
+    responses(
+        (status = 200, description = "Analytics data for the link"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -952,7 +1049,25 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
     Response::from_json(&response)
 }
 
-/// Handle link deletion: DELETE /api/links/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/links/{id}",
+    tag = "Links",
+    summary = "Delete a link",
+    description = "Soft-deletes a link belonging to the authenticated organization and removes its KV mapping so it stops redirecting",
+    params(
+        ("id" = String, Path, description = "Link ID"),
+    ),
+    responses(
+        (status = 200, description = "Link deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_delete_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate request
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -987,7 +1102,27 @@ pub async fn handle_delete_link(req: Request, ctx: RouteContext<()>) -> Result<R
     Response::empty()
 }
 
-/// Handle link update: PUT /api/links/:id
+#[utoipa::path(
+    put,
+    path = "/api/links/{id}",
+    tag = "Links",
+    summary = "Update a link",
+    description = "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Updates are written to both D1 and KV atomically",
+    params(
+        ("id" = String, Path, description = "Link ID"),
+    ),
+    request_body(content = UpdateLinkRequest, description = "Fields to update (all optional)"),
+    responses(
+        (status = 200, description = "Updated link", body = Link),
+        (status = 400, description = "Invalid request body"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Authenticate
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
@@ -1277,7 +1412,21 @@ struct ImportResponse {
 
 // ─── Export handler ───────────────────────────────────────────────────────────
 
-/// Handle CSV export of all org links: GET /api/links/export
+#[utoipa::path(
+    get,
+    path = "/api/links/export",
+    tag = "Links",
+    summary = "Export links as CSV",
+    description = "Exports all active links for the authenticated organization as a CSV file. Returns a text/csv response with a Content-Disposition attachment header",
+    responses(
+        (status = 200, description = "CSV file download"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_export_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -1380,7 +1529,22 @@ pub async fn handle_export_links(req: Request, ctx: RouteContext<()>) -> Result<
 
 // ─── Import handler ───────────────────────────────────────────────────────────
 
-/// Handle batch import of links from CSV (normalised JSON): POST /api/links/import
+#[utoipa::path(
+    post,
+    path = "/api/links/import",
+    tag = "Links",
+    summary = "Import links from CSV",
+    description = "Bulk-imports links from a CSV payload. Accepts a JSON array of rows parsed from CSV. Each row must have at least a destination_url. Returns counts of created, skipped (duplicate short codes), and failed rows",
+    responses(
+        (status = 200, description = "Import result with created/skipped/failed counts"),
+        (status = 400, description = "Invalid request body"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -1680,7 +1844,16 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
     })
 }
 
-/// Returns the list of enabled OAuth providers: GET /api/auth/providers
+#[utoipa::path(
+    get,
+    path = "/api/auth/providers",
+    tag = "Authentication",
+    summary = "List enabled OAuth providers",
+    description = "Returns the list of OAuth providers configured and enabled on this instance",
+    responses(
+        (status = 200, description = "List of enabled providers"),
+    )
+)]
 pub async fn handle_list_auth_providers(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     use serde_json::json;
 
@@ -1711,7 +1884,18 @@ fn oauth_redirect_uri(ctx: &RouteContext<()>) -> Result<(String, String)> {
     Ok((scheme.to_string(), redirect_uri))
 }
 
-/// Handle GitHub OAuth initiation: GET /api/auth/github
+#[utoipa::path(
+    get,
+    path = "/api/auth/github",
+    tag = "Authentication",
+    summary = "Initiate GitHub OAuth",
+    description = "Redirects the user to GitHub to begin the OAuth 2.0 authorization flow",
+    responses(
+        (status = 302, description = "Redirect to GitHub authorization URL"),
+        (status = 404, description = "GitHub OAuth not configured"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
@@ -1763,7 +1947,18 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
     auth::oauth::initiate_oauth(&req, &kv, &auth::providers::GITHUB, &redirect_uri, &ctx.env).await
 }
 
-/// Handle Google OAuth initiation: GET /api/auth/google
+#[utoipa::path(
+    get,
+    path = "/api/auth/google",
+    tag = "Authentication",
+    summary = "Initiate Google OAuth",
+    description = "Redirects the user to Google to begin the OAuth 2.0 authorization flow",
+    responses(
+        (status = 302, description = "Redirect to Google authorization URL"),
+        (status = 404, description = "Google OAuth not configured"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn handle_google_login(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
@@ -1814,7 +2009,21 @@ pub async fn handle_google_login(req: Request, ctx: RouteContext<()>) -> Result<
     auth::oauth::initiate_oauth(&req, &kv, &auth::providers::GOOGLE, &redirect_uri, &ctx.env).await
 }
 
-/// Handle OAuth callback: GET /api/auth/callback
+#[utoipa::path(
+    get,
+    path = "/api/auth/callback",
+    tag = "Authentication",
+    summary = "OAuth callback",
+    description = "Handles the OAuth provider callback. Validates the state parameter, exchanges the authorization code for tokens, creates or updates the user, issues a session cookie, and redirects to the dashboard",
+    params(
+        ("code" = String, Query, description = "Authorization code from the OAuth provider"),
+        ("state" = String, Query, description = "CSRF state token"),
+    ),
+    responses(
+        (status = 302, description = "Redirect to dashboard on success or home on failure"),
+        (status = 429, description = "Rate limit exceeded"),
+    )
+)]
 pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
@@ -2027,8 +2236,21 @@ pub async fn handle_get_current_user(req: Request, ctx: RouteContext<()>) -> Res
     }
 }
 
-/// Handle getting usage info: GET /api/usage
-/// Returns tier, limits, and current usage for the authenticated org
+#[utoipa::path(
+    get,
+    path = "/api/usage",
+    tag = "Usage",
+    summary = "Get current usage",
+    description = "Returns the authenticated organization's tier, feature limits, current monthly link usage, tag count, and the date/time of the next monthly counter reset",
+    responses(
+        (status = 200, description = "Usage and limits for the current org"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2093,8 +2315,21 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
     Response::from_json(&usage)
 }
 
-/// Handle getting org tags: GET /api/tags
-/// Returns all tags for the authenticated org with usage counts
+#[utoipa::path(
+    get,
+    path = "/api/tags",
+    tag = "Tags",
+    summary = "List org tags",
+    description = "Returns all tags used within the authenticated organization, each with a usage count reflecting the number of active links carrying that tag",
+    responses(
+        (status = 200, description = "Array of tags with usage counts"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_org_tags(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2108,8 +2343,21 @@ pub async fn handle_get_org_tags(req: Request, ctx: RouteContext<()>) -> Result<
     Response::from_json(&tags)
 }
 
-/// Handle token refresh: POST /api/auth/refresh
-/// Validates refresh token from cookie and returns new access token
+#[utoipa::path(
+    post,
+    path = "/api/auth/refresh",
+    tag = "Authentication",
+    summary = "Refresh access token",
+    description = "Validates the refresh token from the httpOnly cookie and issues a new short-lived access token. Rate limited to 30 requests per hour per session",
+    responses(
+        (status = 200, description = "Access token refreshed, new cookie set"),
+        (status = 401, description = "Missing, invalid, or expired refresh token"),
+        (status = 429, description = "Rate limit exceeded"),
+    ),
+    security(
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let kv = ctx.kv("URL_MAPPINGS")?;
 
@@ -2250,7 +2498,21 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
     Ok(response)
 }
 
-/// Handle logout: POST /api/auth/logout
+#[utoipa::path(
+    post,
+    path = "/api/auth/logout",
+    tag = "Authentication",
+    summary = "Logout",
+    description = "Deletes the server-side session and clears all auth cookies (access token, refresh token, legacy session)",
+    responses(
+        (status = 200, description = "Logged out successfully"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2279,7 +2541,22 @@ pub async fn handle_logout(req: Request, ctx: RouteContext<()>) -> Result<Respon
     Ok(response)
 }
 
-/// Handle listing all users: GET /api/admin/users (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/users",
+    tag = "Admin",
+    summary = "List all users",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number"),
+        ("limit" = Option<i64>, Query, description = "Items per page (max 100)"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of users"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2327,7 +2604,20 @@ pub async fn handle_admin_list_users(req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
-/// Handle getting a single user: GET /api/admin/users/:id (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/users/{id}",
+    tag = "Admin",
+    summary = "Get a user",
+    params(("id" = String, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "User details"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2351,7 +2641,19 @@ pub async fn handle_admin_get_user(req: Request, ctx: RouteContext<()>) -> Resul
     }
 }
 
-/// Handle listing Polar discounts: GET /api/admin/discounts (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/discounts",
+    tag = "Admin",
+    summary = "List Polar discounts",
+    responses(
+        (status = 200, description = "Discounts from Polar"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 503, description = "Billing not configured"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_list_discounts(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2376,7 +2678,19 @@ pub async fn handle_admin_list_discounts(req: Request, ctx: RouteContext<()>) ->
     }
 }
 
-/// Handle listing Polar products: GET /api/admin/products (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/products",
+    tag = "Admin",
+    summary = "List Polar products",
+    responses(
+        (status = 200, description = "Products from Polar"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 503, description = "Billing not configured"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_list_products(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2507,7 +2821,19 @@ pub async fn handle_billing_pricing(_req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
-/// Handle syncing products from Polar: POST /api/admin/products/sync (admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/products/sync",
+    tag = "Admin",
+    summary = "Sync products from Polar",
+    responses(
+        (status = 200, description = "Products fetched from Polar"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 503, description = "Billing not configured"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_sync_products(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2537,7 +2863,19 @@ pub async fn handle_admin_sync_products(req: Request, ctx: RouteContext<()>) -> 
     }
 }
 
-/// Handle saving complete product configuration: POST /api/admin/products/save (admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/products/save",
+    tag = "Admin",
+    summary = "Sync and cache products from Polar",
+    responses(
+        (status = 200, description = "Products cached in database"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 503, description = "Billing not configured"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_save_products(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2658,7 +2996,18 @@ async fn cache_products_from_polar(
     Ok(())
 }
 
-/// Handle getting all settings: GET /api/admin/settings (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/settings",
+    tag = "Admin",
+    summary = "Get system settings",
+    responses(
+        (status = 200, description = "Key-value map of all settings"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_settings(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2680,7 +3029,19 @@ pub async fn handle_admin_get_settings(req: Request, ctx: RouteContext<()>) -> R
     Response::from_json(&serde_json::Value::Object(settings_map))
 }
 
-/// Handle updating a setting: PUT /api/admin/settings (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/settings",
+    tag = "Admin",
+    summary = "Update a system setting",
+    responses(
+        (status = 200, description = "Updated settings map"),
+        (status = 400, description = "Unknown or invalid setting value"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_update_setting(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -2766,7 +3127,19 @@ pub async fn handle_admin_update_setting(
     Response::from_json(&serde_json::Value::Object(settings_map))
 }
 
-/// Handle resetting monthly counter: POST /api/admin/orgs/:id/reset-counter (admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/orgs/{id}/reset-counter",
+    tag = "Admin",
+    summary = "Reset org monthly counter",
+    params(("id" = String, Path, description = "Org ID")),
+    responses(
+        (status = 200, description = "Counter reset"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_reset_monthly_counter(
     req: Request,
     ctx: RouteContext<()>,
@@ -2843,7 +3216,25 @@ pub async fn handle_admin_reset_monthly_counter(
     }
 }
 
-/// Handle listing all links for admin moderation: GET /api/admin/links (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/links",
+    tag = "Admin",
+    summary = "List all links (moderation)",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number"),
+        ("limit" = Option<i64>, Query, description = "Items per page (max 100)"),
+        ("org" = Option<String>, Query, description = "Filter by org ID"),
+        ("email" = Option<String>, Query, description = "Filter by creator email"),
+        ("domain" = Option<String>, Query, description = "Filter by destination domain"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of all links"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -2920,7 +3311,20 @@ pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Res
     }))
 }
 
-/// Handle updating a link's status: PUT /api/admin/links/:id (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/links/{id}",
+    tag = "Admin",
+    summary = "Update link status",
+    params(("id" = String, Path, description = "Link ID")),
+    responses(
+        (status = 200, description = "Status updated"),
+        (status = 400, description = "Invalid status value"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_update_link_status(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -3007,7 +3411,20 @@ pub async fn handle_admin_update_link_status(
     }))
 }
 
-/// Handle deleting a link: DELETE /api/admin/links/:id (admin only)
+#[utoipa::path(
+    delete,
+    path = "/api/admin/links/{id}",
+    tag = "Admin",
+    summary = "Hard delete a link",
+    params(("id" = String, Path, description = "Link ID")),
+    responses(
+        (status = 200, description = "Link deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_delete_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3044,7 +3461,20 @@ pub async fn handle_admin_delete_link(req: Request, ctx: RouteContext<()>) -> Re
     }))
 }
 
-/// Handle re-syncing a link's KV entry: POST /api/admin/links/:id/sync-kv (admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/links/{id}/sync-kv",
+    tag = "Admin",
+    summary = "Re-sync link KV entry",
+    params(("id" = String, Path, description = "Link ID")),
+    responses(
+        (status = 200, description = "KV entry synced"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Link not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3118,7 +3548,19 @@ pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> R
     }))
 }
 
-/// Handle blocking a destination: POST /api/admin/blacklist (admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/blacklist",
+    tag = "Admin",
+    summary = "Block a destination",
+    responses(
+        (status = 200, description = "Destination blocked"),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_block_destination(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -3280,7 +3722,18 @@ pub async fn handle_admin_block_destination(
     }))
 }
 
-/// Handle getting blacklist entries: GET /api/admin/blacklist (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/blacklist",
+    tag = "Admin",
+    summary = "List blacklisted destinations",
+    responses(
+        (status = 200, description = "Array of blacklist entries"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_blacklist(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3297,7 +3750,19 @@ pub async fn handle_admin_get_blacklist(req: Request, ctx: RouteContext<()>) -> 
     Response::from_json(&entries)
 }
 
-/// Handle removing blacklist entry: DELETE /api/admin/blacklist/:id (admin only)
+#[utoipa::path(
+    delete,
+    path = "/api/admin/blacklist/{id}",
+    tag = "Admin",
+    summary = "Remove blacklist entry",
+    params(("id" = String, Path, description = "Blacklist entry ID")),
+    responses(
+        (status = 200, description = "Entry removed"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_remove_blacklist(
     req: Request,
     ctx: RouteContext<()>,
@@ -3325,7 +3790,21 @@ pub async fn handle_admin_remove_blacklist(
     }))
 }
 
-/// Handle suspending a user: PUT /api/admin/users/:id/suspend (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/users/{id}/suspend",
+    tag = "Admin",
+    summary = "Suspend a user",
+    params(("id" = String, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "User suspended"),
+        (status = 400, description = "Cannot suspend self or last admin"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_suspend_user(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -3409,7 +3888,19 @@ pub async fn handle_admin_suspend_user(
     }))
 }
 
-/// Handle unsuspending a user: PUT /api/admin/users/:id/unsuspend (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/users/{id}/unsuspend",
+    tag = "Admin",
+    summary = "Unsuspend a user",
+    params(("id" = String, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "User unsuspended"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_unsuspend_user(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3434,7 +3925,21 @@ pub async fn handle_admin_unsuspend_user(req: Request, ctx: RouteContext<()>) ->
     }))
 }
 
-/// Handle deleting a user: DELETE /api/admin/users/:id (admin only)
+#[utoipa::path(
+    delete,
+    path = "/api/admin/users/{id}",
+    tag = "Admin",
+    summary = "Delete a user",
+    params(("id" = String, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "User deleted"),
+        (status = 400, description = "Cannot delete self or last org admin"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_delete_user(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3504,7 +4009,21 @@ pub async fn handle_admin_delete_user(mut req: Request, ctx: RouteContext<()>) -
     }))
 }
 
-/// Handle updating user role: PUT /api/admin/users/:id (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/users/{id}",
+    tag = "Admin",
+    summary = "Update user role",
+    params(("id" = String, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "Updated user"),
+        (status = 400, description = "Invalid role or cannot demote last admin"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_update_user_role(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -3623,7 +4142,20 @@ pub async fn handle_admin_update_user_role(
     }
 }
 
-/// Handle abuse report submission: POST /api/reports/links
+#[utoipa::path(
+    post,
+    path = "/api/reports/links",
+    tag = "Reports",
+    summary = "Report a link for abuse",
+    description = "Submits an abuse report for a link. Accepts both authenticated and anonymous submissions. Duplicate reports for the same link, reason, and reporter within 24 hours are rejected",
+    responses(
+        (status = 200, description = "Report submitted successfully"),
+        (status = 400, description = "Missing required fields"),
+        (status = 404, description = "Link not found or already removed"),
+        (status = 422, description = "Link is already disabled"),
+        (status = 429, description = "Duplicate report within 24 hours"),
+    )
+)]
 pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Parse request body
     let body: serde_json::Value = match req.json().await {
@@ -3799,7 +4331,23 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     }
 }
 
-/// Handle getting reports for admin: GET /api/admin/reports
+#[utoipa::path(
+    get,
+    path = "/api/admin/reports",
+    tag = "Admin",
+    summary = "List abuse reports",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number"),
+        ("limit" = Option<u32>, Query, description = "Items per page (10-100)"),
+        ("status" = Option<String>, Query, description = "Filter by status: pending, reviewed, dismissed"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of reports"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_reports(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3859,7 +4407,20 @@ pub async fn handle_admin_get_reports(req: Request, ctx: RouteContext<()>) -> Re
     }
 }
 
-/// Handle getting a single report: GET /api/admin/reports/:id
+#[utoipa::path(
+    get,
+    path = "/api/admin/reports/{id}",
+    tag = "Admin",
+    summary = "Get a single abuse report",
+    params(("id" = String, Path, description = "Report ID")),
+    responses(
+        (status = 200, description = "Report details"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Report not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_report(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -3883,7 +4444,20 @@ pub async fn handle_admin_get_report(req: Request, ctx: RouteContext<()>) -> Res
     }
 }
 
-/// Handle updating report status: PUT /api/admin/reports/:id
+#[utoipa::path(
+    put,
+    path = "/api/admin/reports/{id}",
+    tag = "Admin",
+    summary = "Update report status",
+    params(("id" = String, Path, description = "Report ID")),
+    responses(
+        (status = 200, description = "Report updated"),
+        (status = 400, description = "Invalid status"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_update_report(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -3941,7 +4515,18 @@ pub async fn handle_admin_update_report(
     }
 }
 
-/// Handle getting pending reports count: GET /api/admin/reports/pending/count
+#[utoipa::path(
+    get,
+    path = "/api/admin/reports/pending/count",
+    tag = "Admin",
+    summary = "Get pending reports count",
+    responses(
+        (status = 200, description = "Count of pending reports"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_pending_reports_count(
     req: Request,
     ctx: RouteContext<()>,
@@ -3975,7 +4560,24 @@ pub async fn handle_admin_get_pending_reports_count(
     }
 }
 
-/// Handle listing all billing accounts: GET /api/admin/billing-accounts (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/billing-accounts",
+    tag = "Admin",
+    summary = "List billing accounts",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number"),
+        ("limit" = Option<i64>, Query, description = "Items per page"),
+        ("search" = Option<String>, Query, description = "Search by email or org name"),
+        ("tier" = Option<String>, Query, description = "Filter by tier"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of billing accounts"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_list_billing_accounts(
     req: Request,
     ctx: RouteContext<()>,
@@ -4053,7 +4655,20 @@ pub async fn handle_admin_list_billing_accounts(
     }
 }
 
-/// Handle getting billing account details: GET /api/admin/billing-accounts/:id (admin only)
+#[utoipa::path(
+    get,
+    path = "/api/admin/billing-accounts/{id}",
+    tag = "Admin",
+    summary = "Get billing account details",
+    params(("id" = String, Path, description = "Billing account ID")),
+    responses(
+        (status = 200, description = "Billing account details"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_get_billing_account(
     req: Request,
     ctx: RouteContext<()>,
@@ -4091,7 +4706,20 @@ pub async fn handle_admin_get_billing_account(
     }
 }
 
-/// Handle updating billing account tier: PUT /api/admin/billing-accounts/:id/tier (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/billing-accounts/{id}/tier",
+    tag = "Admin",
+    summary = "Update billing account tier",
+    params(("id" = String, Path, description = "Billing account ID")),
+    responses(
+        (status = 200, description = "Tier updated"),
+        (status = 400, description = "Invalid tier"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_update_billing_account_tier(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -4165,7 +4793,19 @@ pub async fn handle_admin_update_billing_account_tier(
     }
 }
 
-/// Handle resetting billing account counter: POST /api/admin/billing-accounts/:id/reset-counter (admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/billing-accounts/{id}/reset-counter",
+    tag = "Admin",
+    summary = "Reset billing account monthly counter",
+    params(("id" = String, Path, description = "Billing account ID")),
+    responses(
+        (status = 200, description = "Counter reset"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_reset_billing_account_counter(
     req: Request,
     ctx: RouteContext<()>,
@@ -4222,7 +4862,21 @@ pub async fn handle_admin_reset_billing_account_counter(
     }
 }
 
-/// Handle updating subscription status: PUT /api/admin/billing-accounts/:id/subscription (admin only)
+#[utoipa::path(
+    put,
+    path = "/api/admin/billing-accounts/{id}/subscription",
+    tag = "Admin",
+    summary = "Update subscription status",
+    params(("id" = String, Path, description = "Billing account ID")),
+    responses(
+        (status = 200, description = "Subscription status updated"),
+        (status = 400, description = "Missing status"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "No subscription found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_update_subscription_status(
     mut req: Request,
     ctx: RouteContext<()>,
@@ -4331,7 +4985,25 @@ fn extract_query_param(query: &str, name: &str) -> Result<String> {
 
 // ─── Tag Management ─────────────────────────────────────────────────────────────
 
-/// Handle deleting a tag: DELETE /api/tags/:name
+#[utoipa::path(
+    delete,
+    path = "/api/tags/{name}",
+    tag = "Tags",
+    summary = "Delete a tag",
+    description = "Removes a tag from all links in the authenticated organization and deletes it",
+    params(
+        ("name" = String, Path, description = "Tag name"),
+    ),
+    responses(
+        (status = 204, description = "Tag deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Failed to delete tag"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_delete_org_tag(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -4364,7 +5036,25 @@ pub async fn handle_delete_org_tag(req: Request, ctx: RouteContext<()>) -> Resul
     }
 }
 
-/// Handle renaming a tag: PATCH /api/tags/:name
+#[utoipa::path(
+    patch,
+    path = "/api/tags/{name}",
+    tag = "Tags",
+    summary = "Rename a tag",
+    description = "Renames a tag across all links in the authenticated organization. Returns the updated tag list",
+    params(
+        ("name" = String, Path, description = "Current tag name"),
+    ),
+    responses(
+        (status = 200, description = "Updated tag list"),
+        (status = 400, description = "Missing or invalid new tag name"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_rename_org_tag(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -4432,7 +5122,24 @@ pub async fn handle_rename_org_tag(mut req: Request, ctx: RouteContext<()>) -> R
     }
 }
 
-/// Handle listing all API keys (admin only): GET /api/admin/api-keys
+#[utoipa::path(
+    get,
+    path = "/api/admin/api-keys",
+    tag = "Admin",
+    summary = "List all API keys",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number"),
+        ("limit" = Option<i64>, Query, description = "Items per page (max 100)"),
+        ("search" = Option<String>, Query, description = "Search by name or user"),
+        ("status" = Option<String>, Query, description = "Filter by status"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of API keys"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -4485,7 +5192,19 @@ pub async fn handle_admin_list_api_keys(req: Request, ctx: RouteContext<()>) -> 
     }
 }
 
-/// Handle revoking an API key (admin only): DELETE /api/admin/api-keys/:id
+#[utoipa::path(
+    delete,
+    path = "/api/admin/api-keys/{id}",
+    tag = "Admin",
+    summary = "Revoke an API key",
+    params(("id" = String, Path, description = "API key ID")),
+    responses(
+        (status = 200, description = "Key revoked"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -4535,7 +5254,19 @@ pub async fn handle_admin_revoke_api_key(req: Request, ctx: RouteContext<()>) ->
     }
 }
 
-/// Handle reactivating an API key (admin only): POST /api/admin/api-keys/:id/reactivate
+#[utoipa::path(
+    post,
+    path = "/api/admin/api-keys/{id}/reactivate",
+    tag = "Admin",
+    summary = "Reactivate an API key",
+    params(("id" = String, Path, description = "API key ID")),
+    responses(
+        (status = 200, description = "Key reactivated"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_reactivate_api_key(
     req: Request,
     ctx: RouteContext<()>,
@@ -4589,7 +5320,19 @@ pub async fn handle_admin_reactivate_api_key(
     }
 }
 
-/// Handle deleting (soft) an API key (admin only): POST /api/admin/api-keys/:id/delete
+#[utoipa::path(
+    post,
+    path = "/api/admin/api-keys/{id}/delete",
+    tag = "Admin",
+    summary = "Soft-delete an API key",
+    params(("id" = String, Path, description = "API key ID")),
+    responses(
+        (status = 200, description = "Key deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_delete_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -4639,7 +5382,19 @@ pub async fn handle_admin_delete_api_key(req: Request, ctx: RouteContext<()>) ->
     }
 }
 
-/// Handle restoring a deleted API key (admin only): POST /api/admin/api-keys/:id/restore
+#[utoipa::path(
+    post,
+    path = "/api/admin/api-keys/{id}/restore",
+    tag = "Admin",
+    summary = "Restore a deleted API key",
+    params(("id" = String, Path, description = "API key ID")),
+    responses(
+        (status = 200, description = "Key restored"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_restore_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,

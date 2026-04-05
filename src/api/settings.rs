@@ -1,8 +1,16 @@
 use crate::db;
 use worker::*;
 
-/// Public endpoint to expose non-sensitive settings
-/// Returns founder pricing status and discount amounts needed for pricing page
+#[utoipa::path(
+    get,
+    path = "/api/settings/public",
+    tag = "Settings",
+    summary = "Get public settings",
+    description = "Returns non-sensitive public settings needed by the frontend, including founder pricing status and active discount amounts for each plan tier",
+    responses(
+        (status = 200, description = "Public settings object"),
+    )
+)]
 pub async fn handle_get_public_settings(
     _req: Request,
     ctx: worker::RouteContext<()>,

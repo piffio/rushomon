@@ -1,0 +1,69 @@
+---
+id: handle-resend-invitation
+title: "Resend an invitation"
+description: "Resends the invitation email for a pending invitation. Requires owner or admin role"
+sidebar_label: "Resend an invitation"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1Vttu2zgQ/ZXB5CUJFNlpC7TQ02avcDfbGHGCfYiNmBYnEjcSqZJUXNfQvy+GlB07TgtsgX2yTJ3h3M6c0RoludyqxiujMcNrcqSlA18SKP2kvOAXQLVQFTwYCwIa0lLpYud1Ctf0uVWWHJilJguMk7XSYE1FmKBpyAbkSGKGpdCyonsbXN0/X4MJNsKKmjxZh9nd+kVsV7YQWn2NEY1+xQQVHzfCl5igFjVhhkpigjaGIzHztqUEXV5SLTBbo181jHLeKl1g1yUvnYyek/6miy3k/j96mzHYNUY7cvz+zXDIP9+MIJY9FMpjl+C74fkh/laL1pfGqq8kI+jtIejqRV82IQf8u+8GoY2HB9NqGcwrS0KuQOQ5NZ4v6BJ0lLdW+VXo2c8kLFnM7mZcXEfOcaFyYx4VhdNZgl4U3OC9jjqcJViTLw1zpDHOBz74EjMciEYNjC3cYK1kN3huAB/sdqMbRFYhB2WfXufR2BrZ5iG3i/EIE2xtxbT0vnHZgH2ltnWlqY1O8xwPOXJpclGBpCeqTFNzb3bvyAaDigGlcT778P7De+SUNzWaMDli9zeVWuMiPP1ubC08Zvjx7xuu9cV4BH/SCntGMZMiEJMNs9hfaIHSD4Zvyo32Ivf8GMjD7Gubxlj/025OWy5f94cwiSgmxH6yHIU0ect5RkKwDLA+bG1vry/BlcZ6YpJx4VVO6VRP9dERXLS+JO1VHoz58C/jPJCWjVHauw0XQewBoXUsMqR8STab6jM4PZ1EMkEkkzs9hWOOZUkLEE1TPVuSdSfRJNYYvHkkvTXglB5pxRgO8Qhug6++3o5Pz1P4xZLwBEJv8KB0yFsKVy6MsBKOx9aAV3GySlWUZLejdTLVb1IY6bxqJQW7nSsu+omNAZckZEgSAObzefjdQ2TQ52HNfSP8fZqmz+CjI7juRQUihTiBiyoIR9QaEJbg4+TqE/euFt6TTOE3a43dwTyYqjJL8KVy4Lxtc99ayqZ6Pp//47hza/Y5RWK7KWYwxXhFTc6JgiDyZsGlXJbCw5K0h6U1upjiVHfhpp4UY1EovSXEpdojRE9YaLYgWCpfwrwRBc1BaAnzStXKz+FzS3YFz1sjECXiMnZCoNt6QRaOz8+UlvSFZAKSHkRb+QzOA0n6uzIYeaodNGTZM7HJ+XC4A38zPJnykqpUTtoRz1g/RRd/jC/P3qbDAy1ZLpdpodvU2GLQm7mBKJqK0Wnp64oHzitf7Q0jD9RkO1BRpFjM4kTWQmk2Y42shd6JI25vpuzeVt0b6KgRLFr/17bvtcnTFz9oqj7YUJd1L+h3KBrF3wW2cJhgFtbojqqHs4MtG4R9liALK9+xXi+Eo1tbdR0fBy7whknwSVglFlxTFn/l+Fli9iAqR98px/H1Znbh8Fvj1az6Q6FZpZ9E1fI/TPCRVvFbJCyPHwng5XfIj7jfq2A363b26/hqcoMJsubufKhs18tis8TXr/tYryPihnW167Yug86yq677F7RQmXE=
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Resend an invitation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/orgs/{id}/invitations/{invitation_id}/resend"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Resends the invitation email for a pending invitation. Requires owner or admin role
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-resend-invitation.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-resend-invitation.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-resend-invitation.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

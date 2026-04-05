@@ -1,0 +1,69 @@
+---
+id: handle-update-link
+title: "Update a link"
+description: "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Updates are written to both D1 and KV atomically"
+sidebar_label: "Update a link"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "put api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a link"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/api/links/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Updates are written to both D1 and KV atomically
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-update-link.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-update-link.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-update-link.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

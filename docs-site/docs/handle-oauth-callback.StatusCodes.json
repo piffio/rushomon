@@ -1,0 +1,1 @@
+{"responses":{"302":{"description":"Redirect to dashboard on success or home on failure"},"429":{"description":"Rate limit exceeded"}}}
