@@ -31,6 +31,25 @@ pub struct CreateApiKeyResponse {
     pub expires_at: Option<i64>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/keys",
+    tag = "API Keys",
+    summary = "Create an API key",
+    description = "Generates a new personal access token (PAT) for programmatic API access. The raw token is returned only once — copy it immediately. Requires Pro tier or higher",
+    request_body(content = CreateApiKeyRequest, description = "API key creation payload"),
+    responses(
+        (status = 200, description = "API key created with raw token", body = CreateApiKeyResponse),
+        (status = 400, description = "Empty name"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Plan does not support API keys"),
+        (status = 404, description = "Organization not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -125,6 +144,21 @@ pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> R
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/keys",
+    tag = "API Keys",
+    summary = "List API keys",
+    description = "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars)",
+    responses(
+        (status = 200, description = "Array of active API keys"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,
@@ -146,6 +180,25 @@ pub async fn handle_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result
     Response::from_json(&keys)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/keys/{id}",
+    tag = "API Keys",
+    summary = "Revoke an API key",
+    description = "Soft-deletes an API key owned by the authenticated user. Returns 204 on success",
+    params(
+        ("id" = String, Path, description = "API key ID"),
+    ),
+    responses(
+        (status = 204, description = "Key revoked"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Key not found or not owned by user"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,

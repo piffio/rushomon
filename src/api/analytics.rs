@@ -85,7 +85,27 @@ pub fn parse_time_range_from_query_with_now(query: &str, now: i64) -> TimeRange 
     }
 }
 
-/// Handle getting org-level aggregate analytics: GET /api/analytics/org
+#[utoipa::path(
+    get,
+    path = "/api/analytics/org",
+    tag = "Analytics",
+    summary = "Get org-level analytics",
+    description = "Returns aggregate click analytics for the entire organization. Includes total clicks, unique links clicked, clicks over time, top links, referrers, countries, and user agents. The time range is capped by tier retention (7 days Free, 365 days Pro, unlimited Business/Unlimited)",
+    params(
+        ("days" = Option<i64>, Query, description = "Number of days to look back (default: 7)"),
+        ("start" = Option<i64>, Query, description = "Unix timestamp range start (alternative to days)"),
+        ("end" = Option<i64>, Query, description = "Unix timestamp range end"),
+    ),
+    responses(
+        (status = 200, description = "Org analytics response with clicks, top links, referrers, countries, and user agents"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Organization not found"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_org_analytics(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(ctx) => ctx,

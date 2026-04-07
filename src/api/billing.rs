@@ -66,8 +66,21 @@ async fn resolve_billing_account_id(
     }
 }
 
-// ─── GET /api/billing/status ─────────────────────────────────────────────────
-/// Returns the billing/subscription status for the authenticated user's billing account.
+#[utoipa::path(
+    get,
+    path = "/api/billing/status",
+    tag = "Billing",
+    summary = "Get billing status",
+    description = "Returns the billing account tier, active subscription details (status, period end, cancel-at-period-end), and whether the caller is the billing owner. Auto-creates a billing account for new users if one does not exist",
+    responses(
+        (status = 200, description = "Billing status object"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_get_status(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(c) => c,
@@ -144,8 +157,23 @@ pub async fn handle_get_status(req: Request, ctx: RouteContext<()>) -> Result<Re
     }
 }
 
-// ─── POST /api/billing/checkout ──────────────────────────────────────────────
-/// Creates a Polar Checkout session and returns the hosted checkout URL.
+#[utoipa::path(
+    post,
+    path = "/api/billing/checkout",
+    tag = "Billing",
+    summary = "Create checkout session",
+    description = "Creates a Polar Checkout session for the given product/price ID and returns the hosted checkout URL. Optionally accepts a discount code. The caller must be the billing account owner",
+    responses(
+        (status = 200, description = "Checkout URL"),
+        (status = 400, description = "Missing product_id or invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 502, description = "Polar API error"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(c) => c,
@@ -315,6 +343,18 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
 ///   - 400 (no retry): malformed / unprocessable payload
 ///   - 503 (retry):   transient infrastructure failures (DB, Polar API)
 ///   - 200:           event processed successfully or intentionally skipped
+#[utoipa::path(
+    post,
+    path = "/api/billing/webhook",
+    tag = "Billing",
+    summary = "Polar webhook receiver",
+    description = "Receives and processes Polar webhook events (subscription created/updated/cancelled, order created). Verifies the webhook signature before processing. Returns 200 for success or known-skip, 400 for malformed payloads, 503 for transient failures",
+    responses(
+        (status = 200, description = "Event processed or intentionally skipped"),
+        (status = 400, description = "Invalid or malformed webhook payload"),
+        (status = 503, description = "Transient infrastructure failure"),
+    )
+)]
 pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // ── 1. Verify signature ──────────────────────────────────────────────────
     let webhook_secret = match ctx.env.secret("POLAR_WEBHOOK_SECRET") {
@@ -781,6 +821,20 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
 // ─── POST /api/admin/billing-accounts/:id/reset ──────────────────────────────
 /// Resets a billing account to free tier with no active subscriptions.
 /// Admin-only.
+#[utoipa::path(
+    post,
+    path = "/api/admin/billing-accounts/{id}/reset",
+    tag = "Admin",
+    summary = "Reset billing account to free tier",
+    params(("id" = String, Path, description = "Billing account ID")),
+    responses(
+        (status = 200, description = "Billing account reset to free"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Billing account not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_admin_reset_billing_account(
     req: Request,
     ctx: RouteContext<()>,
@@ -841,6 +895,19 @@ pub async fn handle_admin_reset_billing_account(
 /// Manually triggers the expired-subscription downgrade job.
 /// Identical logic to the scheduled cron handler but exposed as an admin HTTP endpoint.
 /// Useful for testing and for the admin console.
+#[utoipa::path(
+    post,
+    path = "/api/admin/cron/downgrade",
+    tag = "Admin",
+    summary = "Trigger subscription downgrade job",
+    description = "Manually triggers the expired-subscription downgrade cron job. Downgrades all billing accounts whose subscriptions have expired to the Free tier",
+    responses(
+        (status = 200, description = "Downgrade job completed"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
 pub async fn handle_cron_trigger_downgrade(
     req: Request,
     ctx: RouteContext<()>,
@@ -921,9 +988,23 @@ pub async fn handle_cron_trigger_downgrade(
     }))
 }
 
-// ─── POST /api/billing/portal ─────────────────────────────────────────────────
-/// Generates a Polar Customer Portal URL for the authenticated user.
-/// The frontend receives the URL and redirects the user.
+#[utoipa::path(
+    post,
+    path = "/api/billing/portal",
+    tag = "Billing",
+    summary = "Get customer portal URL",
+    description = "Generates a Polar Customer Portal URL for the authenticated user. The frontend should redirect the user to the returned URL to manage their subscription, payment methods, and invoices",
+    responses(
+        (status = 200, description = "Portal URL"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "No billing account or customer ID found"),
+        (status = 502, description = "Polar API error"),
+    ),
+    security(
+        ("Bearer" = []),
+        ("session_cookie" = [])
+    )
+)]
 pub async fn handle_portal(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let user_ctx = match auth::authenticate_request(&req, &ctx).await {
         Ok(c) => c,

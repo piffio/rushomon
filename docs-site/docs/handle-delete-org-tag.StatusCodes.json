@@ -1,0 +1,1 @@
+{"responses":{"204":{"description":"Tag deleted"},"401":{"description":"Unauthorized"},"500":{"description":"Failed to delete tag"}}}

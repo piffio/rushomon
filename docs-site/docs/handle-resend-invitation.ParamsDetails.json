@@ -1,0 +1,1 @@
+{"parameters":[{"description":"Organization ID","in":"path","name":"id","required":true,"schema":{"type":"string"}},{"description":"Invitation ID","in":"path","name":"invitation_id","required":true,"schema":{"type":"string"}}]}

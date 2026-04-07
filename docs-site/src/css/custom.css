@@ -44,3 +44,9 @@
 .openapi-explorer__request-btn:hover {
   background-color: var(--ifm-color-primary-dark) !important;
 }
+
+/* Hide Docusaurus docs version badge - keep OpenAPI badge */
+.docs-version-current .theme-doc-version-badge,
+[class*="docVersion"] .theme-doc-version-badge {
+  display: none !important;
+}

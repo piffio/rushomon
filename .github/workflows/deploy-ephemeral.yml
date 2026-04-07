@@ -3,7 +3,6 @@ name: Deploy Ephemeral Environment
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
-    # Only trigger if code files change (skip docs-only changes)
     paths:
       - 'src/**'
       - 'tests/**'
@@ -12,6 +11,9 @@ on:
       - 'wrangler.example.toml'
       - 'migrations/**'
       - 'frontend/**'
+      - 'docs/**'
+      - 'docs-site/**'
+      - 'Makefile'
       - '.github/workflows/deploy-ephemeral.yml'
       - '.github/workflows/cleanup-ephemeral.yml'
 

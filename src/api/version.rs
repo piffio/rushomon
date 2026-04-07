@@ -14,8 +14,16 @@ pub struct VersionResponse {
     pub git_commit: String,
 }
 
-/// Handle version endpoint: GET /api/version
-/// Returns the current application version and build information
+#[utoipa::path(
+    get,
+    path = "/api/version",
+    tag = "System",
+    summary = "Get application version",
+    description = "Returns the running application version, package name, build timestamp, and git commit hash",
+    responses(
+        (status = 200, description = "Version information", body = VersionResponse),
+    )
+)]
 pub async fn handle_version(_req: Request, _ctx: RouteContext<()>) -> Result<Response> {
     let version = env!("CARGO_PKG_VERSION");
 
