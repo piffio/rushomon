@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Paginated list of all links"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}

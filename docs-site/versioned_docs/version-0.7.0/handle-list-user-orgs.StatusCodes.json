@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"List of organizations with role and tier info"},"401":{"description":"Unauthorized"}}}

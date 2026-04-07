@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Organization deleted"},"400":{"description":"Cannot delete last org or invalid migration target"},"401":{"description":"Unauthorized"},"403":{"description":"Owner required"},"404":{"description":"Organization not found"}}}

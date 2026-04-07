@@ -1,0 +1,69 @@
+---
+id: handle-revoke-invitation
+title: "Revoke an invitation"
+description: "Cancels a pending invitation. Requires owner or admin role"
+sidebar_label: "Revoke an invitation"
+hide_title: true
+hide_table_of_contents: true
+api: eJylVttu20YQ/ZXB+MU2aEpOAiTgU93ELZS6teEL+mAZ1oo7Jrcmd5ndoRVH4L8Xs6RkyXYCNH0StTyzcztzhkvUFHJvGjbOYoYflc2pCqCgIauNLcDYB8NKXqdwTl9a4ymAW1jy4DwoXRsL3lWECbqGfERONGZYKqsruvX04O7p9ukaTLBRXtXE5ANm18tnIZz6QlnzLWJh8gkTNHLcKC4xQatqwgyNxgR9H47GjH1LCYa8pFphtkR+bAQV2BtbYNclz51M1uF838Uacvsfvd0IODTOBgry/s14LD/fjaAvkcYuwXfjw5fQK6taLp0331agty9Bp89asoo24t/90L91DHeutVoqhYHy1ht+jK35lZQnj9n1jdQwUAhSj9y5e0Px9CZBVoX0catxAW8SrIlLJ1TQVBFTbDyXmOFINWbkfBFGS6O70VOl5WCz7B1KPP7hdaaceafbPKZwdDbBBFtfCfGYm5CNxEnq21C62tk0z/ElC05crirQ9ECVa2qyvHVHNhpVAihd4OzD+w/vUbJdledC2t/3d1WkJc7j02/O14oxw89/X0pHjs4m8Ac94sAZ4UoPxGTFHfEXq2/snZObcmdZ5SyPVCsjMYW2aZznXzZzWrP1fDiEix4lfd9OVqLQLm8lz77vd84DlwRr26vzEwil80zCJSm8ySmd2qnd2YGjlkuybPJoLId/usBAVjfOWA4ryoHaAkIbREbIcEk+m9oD2N+/6HkEPY/C/j7sSiwLmoNqmurJknzY6036GgO7e7JrA0npnh4FIyHuwFX0NdQ7yOlhCh89KSZQdoUHY2PeWoVy7pTXsHvmHbDpB6g0RUl+PUF7U/smhYnNq1ZTtNu44mgYzD7gkpSOSQLAbDaLv1uIDIY8vLttFN+mafoE3tmB80E2oKeQJHBUVbBWE1Ce4PPF6V/Su1oxk07h2HvnNzB3rqrcArg0AQL7NufWUza1s9nsnyCdW4rPKZLYTTGDKfZX1BSCKgh63syllItSMSzIMiy8s8UUp7aLNw2kOFOFsWtCnJgtQgyEhWYNgoXhEmaNKmgGymqYVaY2PIMvLflHeNoLkSg9LhMnBLat5+Rh9/DAWE1fSSeg6U61FWdwGEky3JXBhKkO0JAXzyQmh+PxBvzNeG8qa6gyOdlAMmPDFB39fnZy8DYdv9CSxWKRFrZNnS9Gg1kYqaKpBJ2WXFcycGy42hpGGaiL9UD1IiVi1k9krYwVs8YFrpXdiOM8bgSh7Nbe3BroXiNEtP7n2h4kiOkrj5pqiCmmvxwE+xpVY2TB+yJgglnchxuqHc+21uVNgiKbYrpczlWgK191nRzHTsvqSPBBeaPmUjGRdhPkWWN2p6pAP0h293w1mfDyW+HVZIZDZUWDH1TVyj9M8J4e+2+JuBp+JoDn3xE/436rcN1Nt7E4Px2fHF8eY4KiqRufGuv1MV/t5+XrXpbLHnEputl1a6dRR8VZ1/0Ltxt4+w==
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Revoke an invitation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/orgs/{id}/invitations/{invitation_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Cancels a pending invitation. Requires owner or admin role
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-revoke-invitation.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-revoke-invitation.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-revoke-invitation.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
