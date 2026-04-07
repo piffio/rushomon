@@ -54,9 +54,37 @@ fn generate_openapi_spec() {
     println!("📁 OpenAPI output directory: docs/api");
 }
 
+fn sync_package_json_version(package_json_path: &Path, version: &str, name: &str) {
+    println!("🔄 Syncing version {} to {}", version, name);
+
+    let package_json =
+        fs::read_to_string(package_json_path).unwrap_or_else(|_| panic!("Failed to read {}", name));
+
+    // Parse and update version
+    let mut package: serde_json::Value =
+        serde_json::from_str(&package_json).unwrap_or_else(|_| panic!("Failed to parse {}", name));
+
+    if let Some(obj) = package.as_object_mut() {
+        obj.insert(
+            "version".to_string(),
+            serde_json::Value::String(version.to_string()),
+        );
+    }
+
+    // Write back to package.json
+    let updated_json = serde_json::to_string_pretty(&package)
+        .unwrap_or_else(|_| panic!("Failed to serialize {}", name));
+
+    fs::write(package_json_path, updated_json)
+        .unwrap_or_else(|_| panic!("Failed to write updated {}", name));
+
+    println!("✅ {} version synchronized to {}", name, version);
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=frontend/package.json");
+    println!("cargo:rerun-if-changed=docs-site/package.json");
 
     // Set build information for version API
     set_build_info();
@@ -74,33 +102,10 @@ fn main() {
         .and_then(|v| v.as_str())
         .expect("Version not found in Cargo.toml");
 
-    println!("🔄 Syncing version {} to frontend", version);
-
-    // Update frontend/package.json
-    let package_json_path = Path::new("frontend/package.json");
-    let package_json =
-        fs::read_to_string(package_json_path).expect("Failed to read frontend/package.json");
-
-    // Parse and update version
-    let mut package: serde_json::Value =
-        serde_json::from_str(&package_json).expect("Failed to parse frontend/package.json");
-
-    if let Some(obj) = package.as_object_mut() {
-        obj.insert(
-            "version".to_string(),
-            serde_json::Value::String(version.to_string()),
-        );
-    }
-
-    // Write back to package.json
-    let updated_json =
-        serde_json::to_string_pretty(&package).expect("Failed to serialize updated package.json");
-
-    fs::write(package_json_path, updated_json)
-        .expect("Failed to write updated frontend/package.json");
-
-    println!("✅ Frontend version synchronized to {}", version);
+    // Sync version to both package.json files
+    sync_package_json_version(Path::new("frontend/package.json"), version, "frontend");
+    sync_package_json_version(Path::new("docs-site/package.json"), version, "docs-site");
 
     // Note: package-lock.json will be updated by running `npm install --package-lock-only`
-    // This is handled in the Makefile version-sync target
+    // This is handled in the Makefile version-sync target for both frontend and docs-site
 }
