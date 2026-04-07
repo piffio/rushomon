@@ -340,32 +340,34 @@ jobs:
       - name: Validate versioned docs and versions.json
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          echo "🔍 Validating versioned docs for $TAG..."
+          # Strip "v" prefix from tag for version comparisons
+          VERSION="${TAG#v}"
+          echo "🔍 Validating versioned docs for $TAG (version: $VERSION)..."
 
-          # Check that TAG is in versions.json
-          if ! grep -q "\"${TAG}\"" docs-site/versions.json; then
-            echo "❌ Version ${TAG} not found in docs-site/versions.json"
+          # Check that VERSION is in versions.json
+          if ! grep -q "\"${VERSION}\"" docs-site/versions.json; then
+            echo "❌ Version ${VERSION} not found in docs-site/versions.json"
             echo "💡 Run 'make version-tag' to update versions.json before tagging"
             exit 1
           fi
 
           # Check OpenAPI spec exists
-          if [ ! -f "docs/openapi/${TAG}.json" ]; then
-            echo "❌ Missing OpenAPI spec: docs/openapi/${TAG}.json"
+          if [ ! -f "docs/openapi/${VERSION}.json" ]; then
+            echo "❌ Missing OpenAPI spec: docs/openapi/${VERSION}.json"
             echo "💡 Run 'make version-tag' to create versioned docs before tagging"
             exit 1
           fi
 
           # Check versioned docs directory exists
-          if [ ! -d "docs-site/versioned_docs/version-${TAG}" ]; then
-            echo "❌ Missing versioned docs: docs-site/versioned_docs/version-${TAG}"
+          if [ ! -d "docs-site/versioned_docs/version-${VERSION}" ]; then
+            echo "❌ Missing versioned docs: docs-site/versioned_docs/version-${VERSION}"
             echo "💡 Run 'make version-tag' to create versioned docs before tagging"
             exit 1
           fi
 
           # Check versioned sidebar exists
-          if [ ! -f "docs-site/versioned_sidebars/version-${TAG}-sidebars.json" ]; then
-            echo "❌ Missing versioned sidebar: docs-site/versioned_sidebars/version-${TAG}-sidebars.json"
+          if [ ! -f "docs-site/versioned_sidebars/version-${VERSION}-sidebars.json" ]; then
+            echo "❌ Missing versioned sidebar: docs-site/versioned_sidebars/version-${VERSION}-sidebars.json"
             echo "💡 Run 'make version-tag' to create versioned docs before tagging"
             exit 1
           fi
@@ -375,8 +377,9 @@ jobs:
       - name: Copy versioned spec to main.json
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          cp "docs/openapi/${TAG}.json" docs/openapi/main.json
-          echo "✅ Copied ${TAG}.json to main.json"
+          VERSION="${TAG#v}"
+          cp "docs/openapi/${VERSION}.json" docs/openapi/main.json
+          echo "✅ Copied ${VERSION}.json to main.json"
 
       - name: Install docs-site dependencies
         working-directory: docs-site
