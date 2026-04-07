@@ -6,7 +6,10 @@
     import { authApi } from "$lib/api/auth";
     import { orgsApi } from "$lib/api/orgs";
     import { billingApi } from "$lib/api/billing";
+    import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
     import type { User, OrgWithRole } from "$lib/types/api";
+
+    const DOCS_URL = PUBLIC_VITE_DOCS_URL || "https://github.com/piffio/rushomon/";
 
     interface Props {
         user?: User | null;
@@ -173,7 +176,7 @@
                         Pricing
                     </a>
                     <a
-                        href="https://github.com/piffio/rushomon/"
+                        href={DOCS_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors"
@@ -513,7 +516,7 @@
                         <span>Account Settings</span>
                     </a>
                     <a
-                        href="https://github.com/piffio/rushomon/"
+                        href={DOCS_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="mobile-nav-item"
@@ -587,7 +590,7 @@
                         <span>Pricing</span>
                     </a>
                     <a
-                        href="https://github.com/piffio/rushomon/"
+                        href={DOCS_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="mobile-nav-item"

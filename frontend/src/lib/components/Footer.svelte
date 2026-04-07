@@ -1,3 +1,9 @@
+<script lang="ts">
+    import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
+
+    const DOCS_URL = PUBLIC_VITE_DOCS_URL || "https://github.com/piffio/rushomon/";
+</script>
+
 <footer class="bg-gray-50 border-t border-gray-200 mt-auto">
 	<div class="container mx-auto px-4 py-8">
 		<div class="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -28,7 +34,7 @@
 					</li>
 					<li>
 						<a
-							href="https://github.com/piffio/rushomon/"
+							href={DOCS_URL}
 							target="_blank"
 							rel="noopener noreferrer"
 							class="text-gray-600 hover:text-orange-600 transition-colors"

@@ -3,6 +3,9 @@
     import type { User } from "$lib/types/api";
     import Avatar from "./Avatar.svelte";
     import { clickOutside } from "$lib/utils/clickOutside";
+    import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
+
+    const DOCS_URL = PUBLIC_VITE_DOCS_URL || "https://github.com/piffio/rushomon";
 
     interface Props {
         user: User;
@@ -106,7 +109,7 @@
                 </a>
             {/if}
             <a
-                href="https://github.com/piffio/rushomon"
+                href={DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 role="menuitem"

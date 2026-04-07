@@ -260,6 +260,7 @@ jobs:
           PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
           PUBLIC_VITE_SITE_URL: https://${{ secrets.WEB_DOMAIN }}
+          PUBLIC_VITE_DOCS_URL: https://${{ secrets.DOCS_DOMAIN }}
         run: npm run build
 
       - name: Apply database migrations

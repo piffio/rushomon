@@ -308,11 +308,13 @@ jobs:
           PUBLIC_VITE_API_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
           PUBLIC_VITE_SITE_URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
+          PUBLIC_VITE_DOCS_URL: https://rushomon-docs-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}
         run: |
           echo "🔨 Building frontend for unified Worker (ephemeral)"
           echo "   API Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
           echo "   Short Link Base URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
           echo "   Site URL: https://rushomon-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
+          echo "   Docs URL: https://rushomon-docs-pr-${{ steps.pr_number.outputs.pr_number }}.${{ secrets.WORKERS_DOMAIN }}"
           npm run build
 
       - name: Set Worker Secrets
