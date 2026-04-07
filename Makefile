@@ -27,9 +27,10 @@ version-bump-major:
 
 # Sync version without bumping
 version-sync:
-	@echo "🔄 Syncing version to frontend..."
+	@echo "🔄 Syncing version to frontend and docs-site..."
 	@cargo build --quiet
 	@cd frontend && npm install --package-lock-only --silent
+	@cd docs-site && npm install --package-lock-only --silent
 	@echo "✅ Version synchronized"
 
 # Generate OpenAPI spec for main and the current version tag, then snapshot as a Docusaurus version
@@ -69,7 +70,9 @@ docs-dev:
 version-tag: docs-gen
 	@VERSION=$$(grep -E '^version\s*=' Cargo.toml | head -1 | cut -d'"' -f2) && \
 	echo "🏷️  Creating git tag for v$$VERSION..." && \
-	git add Cargo.toml frontend/package.json frontend/package-lock.json \
+	git add Cargo.toml \
+		frontend/package.json frontend/package-lock.json \
+		docs-site/package.json docs-site/package-lock.json \
 		docs/openapi/v$$VERSION.json \
 		docs-site/versions.json \
 		docs-site/versioned_docs/version-$$VERSION \
