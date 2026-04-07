@@ -1,0 +1,69 @@
+---
+id: handle-get-link-analytics
+title: "Get link analytics"
+description: "Returns click analytics for a single link. The time range is capped according to the organization's tier retention window (7 days for Free, 365 days for Pro, unlimited for Business/Unlimited)"
+sidebar_label: "Get link analytics"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVktzGkcQ/itdo0OQag3IcSzXniIntkuO4lB6VA6GEsNOszthdmY90yuMKf57qmeXBSzZFSepHHICmn580/31Yy0UhszrirSzIhVXSLW3ATKjswVIK82KdBZg7jxICNrmBsFou+jDTYFAukTw0uYIOkAmqwoVyCxzXmmbAzmgAsH5XFr9SXKM7wKQRg8eCS0LYKmtckvonYGSqybSa4+YwPfPf9iJRt4lUFujS02oouhlHbTFEAa3W/GxSISr0MdIF0qkopBWGbzLke4Y9V33IpGISnpZIqEPIn2//iwRl9ou4OJnkQjNPytJhUiElSWKVGglEuHxQ609KpGSrzERISuwlCJdC1pVrBXIa5uLzSb53Pm7upyhBzdv3kcOjHMLmMlsAT2Fc1kbSuHseBv9Q41+tQvPRgcA5tKEAwRz50tJjNTS82ci2ULSljBH/ximW6s/xnoGkmXVFjWQ9AQ9aQi9laTvkcFy/C9hixb/DTi06gsgmn/+EYQJ24fK2YCBLZ4Oh/xxCOu86w8lSUZSMt+ZaWKTiGfD04c2t1bWVDivP6FqlJ49VIrss45g7mqrOCMiYFZ7TavI1ZcoPXqRvp9wrgKGoJ29y5xbaIzSSSJI5kzs6CuISSJKpMJxU+RIkf5UiFQMZKUHjDgM1lptBvsdEtDfP94eI+9UncX+PR9diETU3nC7EVUhHbDPvq9D4Upn+1kmHlb00mXSgMJ7NK4q0dKBj3QwMKxQuEDpi7MXZ4JftE3BNdexKcs2EWsxi99ebwv79vcbcJ7BwS/I1IjF5xo3iruac7yYYW3njj1lzpLMiL9iKTVjCnVVOU8/7r+pY9tVK4TrRour+hlPRhegXFbzO+Ns6qjS2d5eXUIonCe06IETrzPsj+3YHh3BeU0FT8ssGrPwVxeIG6By2lKAluogDxSBB2QOqKlAn47tEzg5uW64Ag1XwskJ9BjLEmcgq8rsLNGH48akyTGQW6DtDPhJC1yxDkM8gtsYq813YOlpH37yKAlB2q0+aBvfrWQoZk56Bb2Rd81KcB4KnRdxOTSdezy2T/twYTNTK4x2ey7O2zZqABcoVXwkAEyn0/h5oJFC+w7v7ipJd/1+f6d8dARXbbdDQyF+wLkx0A0BkB7h7fVv76AZHoSqD6+8d35PZ+6McUugQgcI5OuMao/p2E6n0z8CV27NMccC2W4sUhiLxkWJIcgcoeHNjFO5LCTBEi3B0jubj8XYbqKnlhQjmWvbEeJSHxCiJSxUnRIsNRUwrWSOU5BWwTQuzSnE2Qm7ZRiJ0uilHATBNuuqd/pEW4UfUSXQLanTSJLWVwoXhGWACj1HRjY5HQ731J8Oj8dWJMLoDG1A7rG2i87fjC6ffN8fPpgly+Wyn9u673w+aM3CQOaVYe1+QaXhhiNN5qAZuaGuu4ZqhhQPs6YjS6ktm1UuUCntHo43SHGAw/4gPGjnZkLwyPo/3EvtFCT8SIPKtGmJFVi3K+K9kJWONeNFkog0nj+79EwSwXOaFdfrmQx4681mw+JmLcftoYOcmb1d/MWMfsNt9Cj0Ba52J9K9NDWrNAvoL2P4G7fQV7BsT6J/E0xz4XwlaKOwCznhH15zzG8sSO9qO41hdxQ/GrkVSrvaD71FpJXYTDZ7Z8ibVzfMo5o51h3N3XaebU+c9eN+1+tG44bX0mbThYlriiNtNn8CPS1vOg==
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get link analytics"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/links/{id}/analytics"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns click analytics for a single link. The time range is capped according to the organization's tier retention window (7 days for Free, 365 days for Pro, unlimited for Business/Unlimited)
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-get-link-analytics.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-link-analytics.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-link-analytics.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

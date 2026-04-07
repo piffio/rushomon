@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Destination blocked"},"400":{"description":"Invalid request"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}
