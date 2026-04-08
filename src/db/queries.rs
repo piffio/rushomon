@@ -4109,3 +4109,194 @@ mod api_key_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod admin_link_serialization_tests {
+    use super::*;
+
+    #[test]
+    fn test_admin_link_base_deserializes_i64_as_bool() {
+        // Test that AdminLinkBase can deserialize forward_query_params as i64
+        let json = r#"{
+            "id": "test-id",
+            "org_id": "org-1",
+            "short_code": "abc123",
+            "destination_url": "https://example.com",
+            "title": null,
+            "created_by": "user-1",
+            "created_at": 1234567890,
+            "updated_at": null,
+            "expires_at": null,
+            "status": "active",
+            "click_count": 0,
+            "utm_params": null,
+            "forward_query_params": 1,
+            "redirect_type": "301",
+            "creator_email": "test@example.com",
+            "org_name": "Test Org"
+        }"#;
+
+        let admin_link: AdminLinkBase = serde_json::from_str(json).unwrap();
+        assert_eq!(admin_link.forward_query_params, Some(1));
+    }
+
+    #[test]
+    fn test_admin_link_base_serializes_i64_as_bool() {
+        // Test that AdminLinkBase serializes forward_query_params as bool
+        let admin_link = AdminLinkBase {
+            id: "test-id".to_string(),
+            org_id: "org-1".to_string(),
+            short_code: "abc123".to_string(),
+            destination_url: "https://example.com".to_string(),
+            title: None,
+            created_by: "user-1".to_string(),
+            created_at: 1234567890,
+            updated_at: None,
+            expires_at: None,
+            status: "active".to_string(),
+            click_count: 0,
+            utm_params: None,
+            forward_query_params: Some(1),
+            redirect_type: "301".to_string(),
+            creator_email: "test@example.com".to_string(),
+            org_name: "Test Org".to_string(),
+        };
+
+        let json = serde_json::to_string(&admin_link).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Should serialize as boolean true
+        assert_eq!(parsed["forward_query_params"], true);
+    }
+
+    #[test]
+    fn test_admin_link_base_serializes_zero_as_false() {
+        let admin_link = AdminLinkBase {
+            id: "test-id".to_string(),
+            org_id: "org-1".to_string(),
+            short_code: "abc123".to_string(),
+            destination_url: "https://example.com".to_string(),
+            title: None,
+            created_by: "user-1".to_string(),
+            created_at: 1234567890,
+            updated_at: None,
+            expires_at: None,
+            status: "active".to_string(),
+            click_count: 0,
+            utm_params: None,
+            forward_query_params: Some(0),
+            redirect_type: "301".to_string(),
+            creator_email: "test@example.com".to_string(),
+            org_name: "Test Org".to_string(),
+        };
+
+        let json = serde_json::to_string(&admin_link).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Should serialize as boolean false
+        assert_eq!(parsed["forward_query_params"], false);
+    }
+
+    #[test]
+    fn test_admin_link_base_serializes_null_as_none() {
+        let admin_link = AdminLinkBase {
+            id: "test-id".to_string(),
+            org_id: "org-1".to_string(),
+            short_code: "abc123".to_string(),
+            destination_url: "https://example.com".to_string(),
+            title: None,
+            created_by: "user-1".to_string(),
+            created_at: 1234567890,
+            updated_at: None,
+            expires_at: None,
+            status: "active".to_string(),
+            click_count: 0,
+            utm_params: None,
+            forward_query_params: None,
+            redirect_type: "301".to_string(),
+            creator_email: "test@example.com".to_string(),
+            org_name: "Test Org".to_string(),
+        };
+
+        let json = serde_json::to_string(&admin_link).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Should serialize as null
+        assert!(parsed["forward_query_params"].is_null());
+    }
+
+    #[test]
+    fn test_link_report_query_result_deserializes_i64_as_bool() {
+        let json = r#"{
+            "id": "report-1",
+            "link_id": "link-1",
+            "reason": "spam",
+            "reporter_user_id": null,
+            "reporter_email": null,
+            "status": "pending",
+            "admin_notes": null,
+            "reviewed_by": null,
+            "reviewed_at": null,
+            "created_at": 1234567890,
+            "link__id": "link-1",
+            "link__org_id": "org-1",
+            "link__short_code": "abc123",
+            "link__destination_url": "https://example.com",
+            "link__title": null,
+            "link__created_by": "user-1",
+            "link__created_at": 1234567890,
+            "link__updated_at": null,
+            "link__expires_at": null,
+            "link__status": "active",
+            "link__click_count": 0,
+            "link__utm_params": null,
+            "link__forward_query_params": 1,
+            "link__redirect_type": "301",
+            "link__creator_email": "test@example.com",
+            "link__org_name": "Test Org",
+            "report_count": 1
+        }"#;
+
+        let result: LinkReportQueryResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.link__forward_query_params, Some(1));
+    }
+
+    #[test]
+    fn test_link_report_query_result_serializes_i64_as_bool() {
+        let result = LinkReportQueryResult {
+            id: "report-1".to_string(),
+            link_id: "link-1".to_string(),
+            reason: "spam".to_string(),
+            reporter_user_id: None,
+            reporter_email: None,
+            status: "pending".to_string(),
+            admin_notes: None,
+            reviewed_by: None,
+            reviewed_at: None,
+            created_at: 1234567890,
+            link__id: "link-1".to_string(),
+            link__org_id: "org-1".to_string(),
+            link__short_code: "abc123".to_string(),
+            link__destination_url: "https://example.com".to_string(),
+            link__title: None,
+            link__created_by: "user-1".to_string(),
+            link__created_at: 1234567890,
+            link__updated_at: None,
+            link__expires_at: None,
+            link__status: "active".to_string(),
+            link__click_count: 0,
+            link__utm_params: None,
+            link__forward_query_params: Some(1),
+            link__redirect_type: "301".to_string(),
+            link__creator_email: "test@example.com".to_string(),
+            link__org_name: "Test Org".to_string(),
+            report_count: 1,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Should serialize as boolean true
+        assert_eq!(parsed["link__forward_query_params"], true);
+    }
+}
