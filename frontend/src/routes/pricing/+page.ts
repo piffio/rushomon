@@ -1,13 +1,13 @@
-import type { PageLoad } from './$types';
+import type { PageLoad } from "./$types";
 import type { User } from "$lib/types/api";
 
 export const prerender = true;
 export const ssr = true;
 
 export const load: PageLoad = async () => {
-	// Static adapter - no server-side data fetching
-	return {
-		user: undefined as User | undefined,
-		settings: null
-	};
+  // Static adapter - no server-side data fetching
+  return {
+    user: undefined as User | undefined,
+    settings: null
+  };
 };
