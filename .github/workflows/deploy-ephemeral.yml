@@ -509,7 +509,10 @@ jobs:
           echo "----------------------------------------"
           echo "Testing $DEPLOYMENT_URL/..."
 
-          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$DEPLOYMENT_URL/" || echo "FAILED")
+          HEALTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+            "$DEPLOYMENT_URL/" || echo "FAILED")
           HTTP_CODE=$(echo "$HEALTH_RESPONSE" | tail -n1 | cut -d: -f2)
           RESPONSE_BODY=$(echo "$HEALTH_RESPONSE" | sed '$d')
 
@@ -532,7 +535,10 @@ jobs:
           echo "Testing /smoke-test redirect (public endpoint)..."
 
           REDIRECT_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -I "$DEPLOYMENT_URL/smoke-test" || echo "FAILED")
+            -I \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: */*" \
+            "$DEPLOYMENT_URL/smoke-test" || echo "FAILED")
           REDIRECT_HTTP_CODE=$(echo "$REDIRECT_RESPONSE" | tail -n1 | cut -d: -f2)
 
           echo "Redirect HTTP: $REDIRECT_HTTP_CODE"
@@ -565,6 +571,8 @@ jobs:
             echo -n "  $endpoint: "
 
             AUTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              -H "Accept: application/json" \
               "$DEPLOYMENT_URL$endpoint" || echo "FAILED")
             AUTH_HTTP_CODE=$(echo "$AUTH_RESPONSE" | tail -n1 | cut -d: -f2)
 
@@ -587,7 +595,10 @@ jobs:
           echo "Testing that nonexistent short codes redirect to /404..."
 
           NOT_FOUND_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -I "$DEPLOYMENT_URL/doesnotexist999" || echo "FAILED")
+            -I \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: */*" \
+            "$DEPLOYMENT_URL/doesnotexist999" || echo "FAILED")
           NOT_FOUND_HTTP_CODE=$(echo "$NOT_FOUND_RESPONSE" | tail -n1 | cut -d: -f2)
 
           echo "HTTP Status: $NOT_FOUND_HTTP_CODE"
@@ -617,7 +628,10 @@ jobs:
           for endpoint in "/" "/favicon.ico" "/404"; do
             echo -n "  $endpoint: "
 
-            ENDPOINT_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" "$DEPLOYMENT_URL$endpoint" || echo "FAILED")
+            ENDPOINT_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+              "$DEPLOYMENT_URL$endpoint" || echo "FAILED")
             ENDPOINT_HTTP_CODE=$(echo "$ENDPOINT_RESPONSE" | tail -n1 | cut -d: -f2)
             if [ "$ENDPOINT_HTTP_CODE" = "200" ]; then
               echo "✅ Accessible"
@@ -628,7 +642,10 @@ jobs:
 
           # Test that protected endpoint returns 401
           echo -n "  /api/links (protected): "
-          PROTECTED_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$DEPLOYMENT_URL/api/links" || echo "FAILED")
+          PROTECTED_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: application/json" \
+            "$DEPLOYMENT_URL/api/links" || echo "FAILED")
           PROTECTED_HTTP_CODE=$(echo "$PROTECTED_RESPONSE" | tail -n1 | cut -d: -f2)
           if [ "$PROTECTED_HTTP_CODE" = "401" ]; then
             echo "✅ Correctly protected"
