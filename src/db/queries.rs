@@ -3,9 +3,21 @@ use crate::models::{
     user::CreateUserData,
 };
 use crate::utils::now_timestamp;
+use serde::Serializer;
 use wasm_bindgen::JsValue;
 use worker::d1::D1Database;
 use worker::*;
+
+/// Serialize Option<i64> as Option<bool> for JSON responses (0 = false, 1 = true, NULL = None)
+fn serialize_optional_int_as_bool<S>(value: &Option<i64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match value {
+        Some(v) => serializer.serialize_some(&(*v != 0)),
+        None => serializer.serialize_none(),
+    }
+}
 
 /// Get the total number of users on the instance
 pub async fn get_user_count(db: &D1Database) -> Result<i64> {
@@ -1882,7 +1894,8 @@ pub struct AdminLinkBase {
     pub status: String,
     pub click_count: i64,
     pub utm_params: Option<String>,
-    pub forward_query_params: Option<bool>,
+    #[serde(serialize_with = "serialize_optional_int_as_bool")]
+    pub forward_query_params: Option<i64>, // Stored as INTEGER in D1 (0/1/NULL)
     pub redirect_type: String,
     pub creator_email: String,
     pub org_name: String,
@@ -1952,7 +1965,8 @@ pub struct LinkReportQueryResult {
     pub link__status: String,
     pub link__click_count: i64,
     pub link__utm_params: Option<String>,
-    pub link__forward_query_params: Option<bool>,
+    #[serde(serialize_with = "serialize_optional_int_as_bool")]
+    pub link__forward_query_params: Option<i64>, // Stored as INTEGER in D1 (0/1/NULL)
     pub link__redirect_type: String,
     pub link__creator_email: String,
     pub link__org_name: String,
