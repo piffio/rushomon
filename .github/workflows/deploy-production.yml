@@ -450,7 +450,12 @@ jobs:
           # Test 1: Web domain homepage loads
           echo "🏠 Test 1: Web Domain Homepage"
           echo "------------------------------"
-          HOMEPAGE_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" "$WEB_URL/" || echo "FAILED")
+          HOMEPAGE_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            -H "Connection: keep-alive" \
+            "$WEB_URL/" || echo "FAILED")
           HOMEPAGE_HTTP_CODE=$(echo "$HOMEPAGE_RESPONSE" | tail -n1 | cut -d: -f2)
 
           if [ "$HOMEPAGE_HTTP_CODE" = "200" ]; then
@@ -467,7 +472,10 @@ jobs:
           echo "🔄 Test 2: Redirect Domain Root"
           echo "-------------------------------"
           ROOT_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -I "$REDIRECT_URL/" || echo "FAILED")
+            -I \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: */*" \
+            "$REDIRECT_URL/" || echo "FAILED")
           ROOT_HTTP_CODE=$(echo "$ROOT_RESPONSE" | tail -n1 | cut -d: -f2)
 
           if [ "$ROOT_HTTP_CODE" = "301" ]; then
@@ -483,7 +491,10 @@ jobs:
           echo "🔗 Test 3: Nonexistent Short Code"
           echo "---------------------------------"
           NOT_FOUND_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -I "$REDIRECT_URL/doesnotexist999" || echo "FAILED")
+            -I \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: */*" \
+            "$REDIRECT_URL/doesnotexist999" || echo "FAILED")
           NOT_FOUND_HTTP_CODE=$(echo "$NOT_FOUND_RESPONSE" | tail -n1 | cut -d: -f2)
 
           if [ "$NOT_FOUND_HTTP_CODE" = "302" ]; then
@@ -500,6 +511,8 @@ jobs:
           for endpoint in "/api/links" "/api/auth/me"; do
             echo -n "  $endpoint: "
             AUTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              -H "Accept: application/json" \
               "$WEB_URL$endpoint" || echo "FAILED")
             AUTH_HTTP_CODE=$(echo "$AUTH_RESPONSE" | tail -n1 | cut -d: -f2)
 
@@ -515,7 +528,12 @@ jobs:
           echo ""
           echo "📄 Test 5: 404 Page Accessibility"
           echo "---------------------------------"
-          PAGE_404_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" "$WEB_URL/404" || echo "FAILED")
+          PAGE_404_RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            -H "Connection: keep-alive" \
+            "$WEB_URL/404" || echo "FAILED")
           PAGE_404_HTTP_CODE=$(echo "$PAGE_404_RESPONSE" | tail -n1 | cut -d: -f2)
 
           if [ "$PAGE_404_HTTP_CODE" = "200" ]; then

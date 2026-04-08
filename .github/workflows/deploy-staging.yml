@@ -364,7 +364,10 @@ jobs:
           echo "🧪 Smoke testing docs at $DOCS_SITE_URL"
           sleep 10
 
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$DOCS_SITE_URL/")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+            "$DOCS_SITE_URL/")
           if [ "$STATUS" = "200" ]; then
             echo "✅ Docs homepage is up (HTTP 200)"
           else
@@ -385,19 +388,28 @@ jobs:
           STAGING_URL="https://${{ secrets.WEB_DOMAIN }}"
 
           echo "Testing root endpoint..."
-          if ! curl -sf --max-time 10 "$STAGING_URL/" >/dev/null; then
+          if ! curl -sf --max-time 10 \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+            "$STAGING_URL/" >/dev/null; then
             echo "Error: Root endpoint not responding"
             exit 1
           fi
 
           echo "Testing API authentication..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${STAGING_URL}/api/links")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: application/json" \
+            "${STAGING_URL}/api/links")
           if [ "$STATUS" != "401" ]; then
             echo "Warning: Expected 401, got $STATUS"
           fi
 
           echo "Testing OAuth redirect..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${STAGING_URL}/api/auth/github")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: */*" \
+            "${STAGING_URL}/api/auth/github")
           if [ "$STATUS" != "302" ]; then
             echo "Warning: Expected 302 for OAuth, got $STATUS"
           fi
