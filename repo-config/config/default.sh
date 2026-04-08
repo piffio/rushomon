@@ -29,6 +29,20 @@ SVELTE_CHECK_COMMAND="cd frontend && (git diff --cached --name-only | grep -E '^
 SVELTE_CHECK_REQUIRED=true
 SVELTE_CHECK_ERROR_MSG="Svelte/TypeScript issues found! Please fix errors and warnings before committing."
 
+# ESLint checking - required for frontend code quality
+ESLINT_CHECK_ENABLED=true
+ESLINT_CHECK_COMMAND="run_eslint_check"
+ESLINT_CHECK_REQUIRED=true
+ESLINT_CHECK_ERROR_MSG="ESLint issues found! Please fix linting errors before committing."
+AUTO_FORMAT_ESLINT_AND_STAGE=false
+
+# Frontend formatting - required for frontend code consistency
+FRONTEND_FORMATTING_ENABLED=true
+FRONTEND_FORMATTING_COMMAND="check_frontend_formatting"
+FRONTEND_FORMATTING_REQUIRED=true
+FRONTEND_FORMATTING_ERROR_MSG="Frontend formatting issues! Make sure to stage the formatted files before committing."
+AUTO_FORMAT_FRONTEND_AND_STAGE=false
+
 # OpenAPI spec validation - optional helper (PR check is primary guard)
 OPENAPI_CHECK_ENABLED=false
 OPENAPI_CHECK_COMMAND="git diff --cached --name-only | grep -E '^(src/|Cargo.toml)' >/dev/null && (if [ -f docs/openapi/main.json ]; then ./scripts/generate-openapi.sh 2>/dev/null && (git diff --quiet docs/openapi/main.json || (echo '⚠️  OpenAPI spec may be out of date!' && echo '💡 PR will fail if spec is not updated' && echo 'Run: ./scripts/generate-openapi.sh && git add docs/openapi/main.json')); else echo 'ℹ️  No OpenAPI spec exists yet'; fi) || echo 'No Rust changes detected'"
@@ -40,12 +54,16 @@ CARGO_REQUIRED=true
 RUSTFMT_REQUIRED=true
 CLIPPY_REQUIRED=true
 NODE_REQUIRED=true
+PRETTIER_REQUIRED=true
+ESLINT_REQUIRED=true
 
 # Tool installation instructions
 CARGO_INSTALL_MSG="Install Rust: https://rustup.rs/"
 RUSTFMT_INSTALL_MSG="Install rustfmt: rustup component add rustfmt"
 CLIPPY_INSTALL_MSG="Install clippy: rustup component add clippy"
 NODE_INSTALL_MSG="Install Node.js: https://nodejs.org/ or use your system package manager"
+PRETTIER_INSTALL_MSG="Install Prettier: cd frontend && npm install"
+ESLINT_INSTALL_MSG="Install ESLint: cd frontend && npm install"
 
 # Hook settings
 PRE_COMMIT_TIMEOUT_SECONDS=300

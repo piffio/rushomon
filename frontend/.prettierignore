@@ -1,0 +1,12 @@
+node_modules/
+build/
+.svelte-kit/
+dist/
+*.log
+.DS_Store
+.env*
+coverage/
+.nyc_output/
+.cache/
+.temp/
+tmp/
