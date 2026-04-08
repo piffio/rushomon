@@ -67,12 +67,12 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      - name: ESLint
-        run: npm run lint
-        working-directory: frontend
-
       - name: Prettier format check
         run: npm run format:check
+        working-directory: frontend
+
+      - name: ESLint
+        run: npm run lint
         working-directory: frontend
 
   unit-tests:
