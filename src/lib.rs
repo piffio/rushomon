@@ -11,8 +11,10 @@ mod kv;
 mod middleware;
 mod models;
 pub mod openapi;
+mod repositories;
 mod router;
 mod scheduled;
+mod services;
 pub mod utils;
 
 // Thread-local storage for deferred analytics futures from redirect handlers.
@@ -510,9 +512,9 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         // Abuse report route (public, can be called by anyone)
         .post_async("/api/reports/links", router::handle_report_link)
         // Tags routes
-        .get_async("/api/tags", router::handle_get_org_tags)
-        .delete_async("/api/tags/:name", router::handle_delete_org_tag)
-        .patch_async("/api/tags/:name", router::handle_rename_org_tag)
+        .get_async("/api/tags", crate::api::tags::handle_get_org_tags)
+        .delete_async("/api/tags/:name", crate::api::tags::handle_delete_org_tag)
+        .patch_async("/api/tags/:name", crate::api::tags::handle_rename_org_tag)
         // Public settings route
         .get_async(
             "/api/settings",

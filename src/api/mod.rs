@@ -4,5 +4,6 @@ pub mod keys;
 pub mod links;
 pub mod orgs;
 pub mod settings;
+pub mod tags;
 pub mod title_fetch;
 pub mod version;

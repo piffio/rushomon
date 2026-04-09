@@ -83,9 +83,9 @@ use utoipa::{Modify, OpenApi};
         crate::api::analytics::handle_get_org_analytics,
 
         // Tags
-        crate::router::handle_get_org_tags,
-        crate::router::handle_delete_org_tag,
-        crate::router::handle_rename_org_tag,
+        crate::api::tags::handle_get_org_tags,
+        crate::api::tags::handle_delete_org_tag,
+        crate::api::tags::handle_rename_org_tag,
 
         // Organizations
         crate::api::orgs::handle_list_user_orgs,
