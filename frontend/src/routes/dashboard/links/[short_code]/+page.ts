@@ -1,14 +1,15 @@
-import type { PageLoad } from "./$types";
 import { linksApi } from "$lib/api/links";
 import { usageApi } from "$lib/api/usage";
 import type {
   Link,
   LinkAnalyticsResponse,
-  UsageResponse
+  UsageResponse,
+  User
 } from "$lib/types/api";
+import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ params, parent, url }) => {
-  const parentData = (await parent()) as { user?: any };
+  const parentData = (await parent()) as { user?: User };
   const user = parentData.user;
 
   if (!user) {
@@ -38,14 +39,16 @@ export const load: PageLoad = async ({ params, parent, url }) => {
       error: null,
       tier: usage?.tier || "free"
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to load link analytics:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to load analytics";
     return {
       user,
       link: null,
       analytics: null,
       days: 7,
-      error: error?.message || "Failed to load analytics",
+      error: errorMessage,
       tier: "free"
     };
   }

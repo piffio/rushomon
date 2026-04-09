@@ -142,8 +142,9 @@
     try {
       await orgsApi.createOrg(name);
       window.location.reload();
-    } catch (e: any) {
-      createOrgError = e?.message ?? "Failed to create organization.";
+    } catch (e: unknown) {
+      createOrgError =
+        e instanceof Error ? e.message : "Failed to create organization.";
     } finally {
       creatingOrg = false;
     }

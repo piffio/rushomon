@@ -62,8 +62,9 @@
       orgDetails = await orgsApi.getOrg(currentOrgId);
       await loadOrgSettings(currentOrgId);
       await loadTags();
-    } catch (e: any) {
-      error = e?.message ?? "Failed to load organization details.";
+    } catch (e: unknown) {
+      error =
+        e instanceof Error ? e.message : "Failed to load organization details.";
     } finally {
       loading = false;
     }
@@ -105,8 +106,12 @@
       editingName = false;
       actionSuccess = "Organization name updated.";
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      nameError = e?.message ?? "Failed to save name.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        nameError = e.message;
+      } else {
+        nameError = "Failed to save name.";
+      }
     } finally {
       savingName = false;
     }
@@ -127,8 +132,12 @@
       inviteSuccess = `Invitation sent to ${email}.`;
       inviteEmail = "";
       await loadOrg();
-    } catch (e: any) {
-      inviteError = e?.message ?? "Failed to send invitation.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        inviteError = e.message;
+      } else {
+        inviteError = "Failed to send invitation.";
+      }
     } finally {
       inviting = false;
     }
@@ -143,8 +152,12 @@
       actionSuccess = `Invitation to ${inv.email} revoked.`;
       await loadOrg();
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      actionError = e?.message ?? "Failed to revoke invitation.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        actionError = e.message;
+      } else {
+        actionError = "Failed to revoke invitation.";
+      }
     }
   }
 
@@ -156,8 +169,12 @@
       await orgsApi.resendInvitation(orgDetails.org.id, inv.id);
       actionSuccess = `Invitation resent to ${inv.email}.`;
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      actionError = e?.message ?? "Failed to resend invitation.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        actionError = e.message;
+      } else {
+        actionError = "Failed to resend invitation.";
+      }
     }
   }
 
@@ -179,8 +196,12 @@
       actionSuccess = `${memberEmail} removed from the organization.`;
       await loadOrg();
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      actionError = e?.message ?? "Failed to remove member.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        actionError = e.message;
+      } else {
+        actionError = "Failed to remove member.";
+      }
     } finally {
       confirmingRemoveMember = null;
     }
@@ -225,8 +246,12 @@
     tagsError = "";
     try {
       tags = await tagsApi.list();
-    } catch (e: any) {
-      tagsError = e?.message ?? "Failed to load tags.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        tagsError = e.message;
+      } else {
+        tagsError = "Failed to load tags.";
+      }
     } finally {
       tagsLoading = false;
     }
@@ -242,8 +267,12 @@
       });
       actionSuccess = "Organization settings updated.";
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      settingsError = e?.message ?? "Failed to update settings.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        settingsError = e.message;
+      } else {
+        settingsError = "Failed to update settings.";
+      }
     } finally {
       settingsSaving = false;
     }
@@ -283,8 +312,12 @@
       orgDetails.org.logo_url = result.logo_url;
       actionSuccess = "Logo uploaded successfully.";
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      logoError = e?.message ?? "Failed to upload logo.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        logoError = e.message;
+      } else {
+        logoError = "Failed to upload logo.";
+      }
     } finally {
       logoUploading = false;
       input.value = "";
@@ -300,8 +333,12 @@
       orgDetails.org.logo_url = null;
       actionSuccess = "Logo removed.";
       setTimeout(() => (actionSuccess = ""), 3000);
-    } catch (e: any) {
-      logoError = e?.message ?? "Failed to remove logo.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        logoError = e.message;
+      } else {
+        logoError = "Failed to remove logo.";
+      }
     } finally {
       logoDeleting = false;
     }
@@ -359,8 +396,12 @@
       );
       // Redirect to dashboard after successful deletion
       window.location.href = "/dashboard";
-    } catch (e: any) {
-      deleteError = e?.message ?? "Failed to delete organization.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        deleteError = e.message;
+      } else {
+        deleteError = "Failed to delete organization.";
+      }
     } finally {
       deleting = false;
     }
@@ -402,8 +443,12 @@
       actionSuccess = `Tag renamed from "${oldName}" to "${trimmed}".`;
       setTimeout(() => (actionSuccess = ""), 3000);
       cancelEditTag();
-    } catch (e: any) {
-      tagError = e?.message ?? "Failed to rename tag.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        tagError = e.message;
+      } else {
+        tagError = "Failed to rename tag.";
+      }
     } finally {
       savingTag = false;
     }
@@ -425,8 +470,12 @@
       actionSuccess = `Tag "${tagName}" deleted successfully.`;
       setTimeout(() => (actionSuccess = ""), 3000);
       cancelDeleteTag();
-    } catch (e: any) {
-      actionError = e?.message ?? "Failed to delete tag.";
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        actionError = e.message;
+      } else {
+        actionError = "Failed to delete tag.";
+      }
       setTimeout(() => (actionError = ""), 3000);
     }
   }

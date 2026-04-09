@@ -1,11 +1,12 @@
 <script lang="ts">
   import { page } from "$app/state";
   import Header from "$lib/components/Header.svelte";
+  import type { Snippet } from "svelte";
   import type { LayoutData } from "./$types";
 
   interface Props {
     data: LayoutData;
-    children: any;
+    children: Snippet;
   }
 
   const { data, children }: Props = $props();

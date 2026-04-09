@@ -42,9 +42,14 @@
 
       // Load reports if authenticated and admin
       await Promise.all([loadReports(), loadPendingCount()]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Authentication error:", err);
-      if (err.message?.includes("401") || err.status === 401) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorStatus =
+        err && typeof err === "object" && "status" in err
+          ? (err as { status: number }).status
+          : undefined;
+      if (errorMessage.includes("401") || errorStatus === 401) {
         // Not authenticated, redirect to login
         window.location.href = authApi.getLoginUrl();
         return;

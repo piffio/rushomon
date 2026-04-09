@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from "svelte";
+  import { linksApi, tagsApi } from "$lib/api/links";
+  import TagInput from "$lib/components/TagInput.svelte";
   import type {
     Link,
     LinkStatus,
@@ -7,9 +8,8 @@
     UsageResponse,
     UtmParams
   } from "$lib/types/api";
-  import { linksApi, tagsApi } from "$lib/api/links";
-  import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
-  import TagInput from "$lib/components/TagInput.svelte";
+  import { debounce, fetchUrlTitle } from "$lib/utils/url-title";
+  import { createEventDispatcher, onMount } from "svelte";
 
   interface Props {
     link?: Link | null;
@@ -212,6 +212,8 @@
           }
         : undefined;
 
+      // TODO: Review in the future if we can avoid this
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const linkData: any = {
         destination_url: destinationUrl,
         title: title || undefined,
@@ -246,8 +248,8 @@
       // Reset form and close modal
       resetForm();
       isOpen = false;
-    } catch (err: any) {
-      error = err.message || "An error occurred";
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : "An error occurred";
     } finally {
       loading = false;
     }

@@ -11,11 +11,31 @@
     Link,
     PaginationMeta,
     TagWithCount,
-    UsageResponse
+    UsageResponse,
+    User
   } from "$lib/types/api";
   import { onDestroy, onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
-  import type { PageData } from "./$types";
+
+  interface PageData {
+    user: User | null;
+    paginatedLinks: {
+      data: Link[];
+      pagination: PaginationMeta;
+      stats: {
+        total_links: number;
+        active_links: number;
+        total_clicks: number;
+      } | null;
+    } | null;
+    usage: UsageResponse | null;
+    orgLogoUrl: string | null;
+    orgId: string;
+    initialSearch: string;
+    initialStatus: "all" | "active" | "disabled";
+    initialSort: string;
+    initialTags: string[];
+  }
 
   const { data }: { data: PageData } = $props();
 
@@ -54,11 +74,17 @@
 
   // Initialize from data props using derived
   $effect(() => {
-    search = (data as any).initialSearch || "";
-    status = (data as any).initialStatus || "all";
-    sort = (data as any).initialSort || "created";
-    selectedTags = (data as any).initialTags || [];
-    orgId = (data as any).orgId || "";
+    search = data.initialSearch || "";
+    status = data.initialStatus || "all";
+    sort =
+      (data.initialSort as
+        | "created"
+        | "updated"
+        | "clicks"
+        | "title"
+        | "code") || "created";
+    selectedTags = data.initialTags || [];
+    orgId = data.orgId || "";
   });
 
   onMount(async () => {
@@ -80,14 +106,19 @@
       pagination = null;
       stats = null;
     }
-    const d = data as Record<string, any>;
-    usage = (d.usage as UsageResponse) || null;
-    orgLogoUrl = (d as any).orgLogoUrl ?? null;
+    usage = data.usage || null;
+    orgLogoUrl = data.orgLogoUrl ?? null;
     // Update filter states from data
-    search = d.initialSearch || "";
-    status = d.initialStatus || "all";
-    sort = d.initialSort || "created";
-    selectedTags = d.initialTags || [];
+    search = data.initialSearch || "";
+    status = data.initialStatus || "all";
+    sort =
+      (data.initialSort as
+        | "created"
+        | "updated"
+        | "clicks"
+        | "title"
+        | "code") || "created";
+    selectedTags = data.initialTags || [];
   });
 
   const linksUsagePercent = $derived(

@@ -109,8 +109,12 @@
       newlyGeneratedToken = res.raw_token;
       // Refresh the list immediately
       apiKeys = await apiKeysApi.list();
-    } catch (e: any) {
-      if (e?.status === 403) {
+    } catch (e: unknown) {
+      const errorStatus =
+        e && typeof e === "object" && "status" in e
+          ? (e as { status: number }).status
+          : undefined;
+      if (errorStatus === 403) {
         createError =
           "API keys are available on Pro plans and higher. Upgrade your plan to access this feature.";
       } else {

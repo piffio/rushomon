@@ -1,6 +1,6 @@
 <script lang="ts">
   import { adminApi, type Discount, type Product } from "$lib/api/admin";
-  import { billingApi } from "$lib/api/billing";
+  import { billingApi, type ProductPrice } from "$lib/api/billing";
   import { onMount } from "svelte";
 
   let settings = $state<Record<string, string>>({});
@@ -45,7 +45,7 @@
     business_annual: ""
   });
 
-  let currentPricing = $state<any[]>([]);
+  let currentPricing = $state<ProductPrice[]>([]);
   let initialProductSlots = $state({
     pro_monthly: "",
     pro_annual: "",
@@ -263,7 +263,7 @@
     if (!currentPricing || currentPricing.length === 0) return "Not configured";
 
     const settingKey = `product_${slot}_id`;
-    const product = currentPricing.find((p: any) => p.id === settingKey);
+    const product = currentPricing.find((p) => p.id === settingKey);
     if (!product) return "Not configured";
 
     const amount = product.price_amount || 0;

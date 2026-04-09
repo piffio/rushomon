@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { linksApi } from "$lib/api/links";
   import type {
     Link,
-    UpdateLinkRequest,
     LinkStatus,
+    UpdateLinkRequest,
     UtmParams
   } from "$lib/types/api";
-  import { linksApi } from "$lib/api/links";
+  import { createEventDispatcher } from "svelte";
   import LoadingButton from "./LoadingButton.svelte";
 
   let {
@@ -128,8 +128,8 @@
       dispatch("updated", updatedLink);
       dispatch("close");
       isOpen = false;
-    } catch (err: any) {
-      error = err.message || "Failed to update link";
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : "Failed to update link";
     } finally {
       isSubmitting = false;
     }

@@ -86,12 +86,14 @@
         reporterEmail = "";
         goto("/?message=report-submitted");
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
 
       // Handle specific error responses from backend
-      if (err?.data) {
-        const errorData = err.data;
+      if (err && typeof err === "object" && "data" in err) {
+        const errorData = (
+          err as { data: { error_type?: string; message?: string } }
+        ).data;
         if (errorData.error_type === "link_not_found") {
           showToast("This link doesn't exist or has been removed.", "error");
         } else if (errorData.error_type === "link_already_disabled") {
@@ -106,10 +108,11 @@
           );
         }
       } else {
-        showToast(
-          err?.message || "Failed to submit report. Please try again.",
-          "error"
-        );
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Failed to submit report. Please try again.";
+        showToast(errorMessage, "error");
       }
     } finally {
       submitting = false;

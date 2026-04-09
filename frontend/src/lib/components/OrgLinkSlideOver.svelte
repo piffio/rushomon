@@ -150,8 +150,8 @@
     try {
       analytics = await linksApi.getAnalytics(link.link_id, days);
       setTimeout(() => createClicksChart(), 0);
-    } catch (e: any) {
-      error = e?.message ?? "Failed to load analytics";
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : "Failed to load analytics";
     } finally {
       loading = false;
     }

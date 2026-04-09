@@ -1,7 +1,7 @@
 <script lang="ts">
   import { orgsApi } from "$lib/api/orgs";
-  import type { PageData } from "./$types";
   import type { InviteInfo } from "$lib/types/api";
+  import type { PageData } from "./$types";
 
   const { data }: { data: PageData } = $props();
 
@@ -42,8 +42,8 @@
       setTimeout(() => {
         window.location.href = "/dashboard";
       }, 1500);
-    } catch (e: any) {
-      error = e?.message ?? "Failed to accept invitation.";
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : "Failed to accept invitation.";
     } finally {
       accepting = false;
     }

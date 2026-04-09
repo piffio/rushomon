@@ -1,6 +1,7 @@
 import { linksApi } from "$lib/api/links";
 import { orgsApi } from "$lib/api/orgs";
 import { usageApi } from "$lib/api/usage";
+import type { User } from "$lib/types/api";
 import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ parent, url, depends }) => {
@@ -8,7 +9,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
   depends("app:dashboard");
 
   // Get user data from layout (now client-side)
-  const parentData = (await parent()) as { user?: any };
+  const parentData = (await parent()) as { user?: User };
   const user = parentData.user;
 
   if (!user) {

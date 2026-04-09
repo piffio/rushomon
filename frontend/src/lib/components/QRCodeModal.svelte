@@ -196,8 +196,11 @@
 
       // Clear the file input
       target.value = "";
-    } catch (error: any) {
-      uploadError = error.message || "Failed to upload logo. Please try again.";
+    } catch (error: unknown) {
+      uploadError =
+        error instanceof Error
+          ? error.message
+          : "Failed to upload logo. Please try again.";
     } finally {
       isUploading = false;
     }
