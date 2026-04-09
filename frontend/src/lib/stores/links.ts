@@ -1,5 +1,5 @@
-import { writable } from 'svelte/store';
-import type { Link } from '$lib/types/api';
+import { writable } from "svelte/store";
+import type { Link } from "$lib/types/api";
 
 export const links = writable<Link[]>([]);
 export const linksLoading = writable<boolean>(false);

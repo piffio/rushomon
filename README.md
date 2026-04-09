@@ -226,78 +226,9 @@ npx wrangler pages deploy build --project-name=rushomon-ui --branch=main
 
 ## Development
 
-### Repository Configuration
+For development setup, testing, and contribution guidelines, see **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
-This project uses a sophisticated repository configuration system for consistent development experience. See [repo-config/README.md](repo-config/README.md) for complete setup and customization instructions.
-
-**Quick Setup:**
-```bash
-./repo-config/scripts/setup.sh
-```
-
-This installs:
-- **Pre-commit hooks** with unit tests, formatting, and linting
-- **Configurable checks** (personalize via `repo-config/config/user.sh`)
-
-### Project Structure
-
-```
-rushomon/
-├── src/                    # Backend (Rust Worker)
-│   ├── lib.rs              # Wasm entry point
-│   ├── router.rs           # Route handlers
-│   ├── models/             # Data models
-│   ├── auth/               # OAuth & session management
-│   ├── api/                # API endpoints
-│   ├── db/                 # D1 queries
-│   ├── kv/                 # KV operations
-│   ├── utils/              # Utilities (short codes, validation)
-│   └── bin/                # Binary utilities
-├── frontend/               # Frontend (SvelteKit)
-│   ├── src/
-│   │   ├── routes/         # SvelteKit routes
-│   │   └── lib/            # Shared components and utilities
-├── docs/                   # Documentation
-├── migrations/             # D1 schema migrations
-├── scripts/                # Utility scripts
-├── tests/                  # Test suite
-├── repo-config/            # Repository configuration system
-├── .github/                # GitHub workflows
-├── Cargo.toml              # Rust dependencies
-├── wrangler.example.toml   # Cloudflare config template
-└── README.md               # This file
-```
-
-### Running Tests
-
-#### Backend Tests
-
-Rushomon comes with an extensive test suite including unit tests and integration tests for the Rust backend.
-
-```bash
-# Run unit tests
-cargo test
-
-# Run integration tests (includes mock OAuth server)
-./scripts/run-integration-tests.sh
-```
-
-**Integration Tests**: The project includes a mock OAuth server for testing the complete authentication flow without requiring real GitHub OAuth credentials. The integration test script automatically starts the mock server, runs all tests, and cleans up afterward.
-
-#### Frontend Tests
-
-Currently there aren't dedicated unit tests for the frontend, but you should at least run the type checker and build test to ensure the frontend is working correctly.
-
-```bash
-# Navigate to frontend directory
-cd frontend
-
-# Run type checking
-npm run check
-
-# Run build test
-npm run build
-```
+The project uses a sophisticated repository configuration system with pre-commit hooks for code quality. See [repo-config/README.md](repo-config/README.md) for setup details.
 
 ## Data Model
 
@@ -352,7 +283,7 @@ AGPL-3.0
 
 ## Contributing
 
-Contributions welcome! Please open an issue first to discuss proposed changes.
+For contribution guidelines, development setup, and code style, see **[CONTRIBUTING.md](./CONTRIBUTING.md)**.
 
 ## Support
 

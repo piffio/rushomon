@@ -71,9 +71,10 @@ fn sync_package_json_version(package_json_path: &Path, version: &str, name: &str
         );
     }
 
-    // Write back to package.json
-    let updated_json = serde_json::to_string_pretty(&package)
+    // Write back to package.json (trailing newline required by prettier)
+    let mut updated_json = serde_json::to_string_pretty(&package)
         .unwrap_or_else(|_| panic!("Failed to serialize {}", name));
+    updated_json.push('\n');
 
     fs::write(package_json_path, updated_json)
         .unwrap_or_else(|_| panic!("Failed to write updated {}", name));

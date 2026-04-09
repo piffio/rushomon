@@ -42,6 +42,39 @@ jobs:
       - name: Linting
         run: cargo clippy -- -D warnings
 
+  frontend-lint:
+    name: Frontend Lint & Format
+    runs-on: ubuntu-latest
+    env:
+      ACTIONS_NODE_VERSION: "24"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+
+      - name: Cache npm
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Prettier format check
+        run: npm run format:check
+        working-directory: frontend
+
+      - name: ESLint
+        run: npm run lint
+        working-directory: frontend
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
