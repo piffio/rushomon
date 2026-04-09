@@ -1,23 +1,23 @@
 <script lang="ts">
+  import { goto, invalidate } from "$app/navigation";
+  import { linksApi, tagsApi } from "$lib/api/links";
   import LinkList from "$lib/components/LinkList.svelte";
   import LinkModal from "$lib/components/LinkModal.svelte";
-  import QRCodeModal from "$lib/components/QRCodeModal.svelte";
   import Pagination from "$lib/components/Pagination.svelte";
+  import QRCodeModal from "$lib/components/QRCodeModal.svelte";
   import SearchFilterBar from "$lib/components/SearchFilterBar.svelte";
-  import { linksApi, tagsApi } from "$lib/api/links";
-  import { goto, invalidate } from "$app/navigation";
-  import { onDestroy, onMount } from "svelte";
-  import type { PageData } from "./$types";
   import type {
-    Link,
     ApiError,
+    Link,
     PaginationMeta,
-    UsageResponse,
     TagWithCount,
-    PaginatedResponse
+    UsageResponse
   } from "$lib/types/api";
+  import { onDestroy, onMount } from "svelte";
+  import { SvelteURLSearchParams } from "svelte/reactivity";
+  import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let links = $state<Link[]>([]);
   let pagination = $state<PaginationMeta | null>(null);
@@ -90,7 +90,7 @@
     selectedTags = d.initialTags || [];
   });
 
-  let linksUsagePercent = $derived(
+  const linksUsagePercent = $derived(
     usage?.limits.max_links_per_month
       ? Math.min(
           100,
@@ -102,7 +102,7 @@
         )
       : 0
   );
-  let linksAtLimit = $derived(
+  const linksAtLimit = $derived(
     usage?.limits.max_links_per_month
       ? usage.usage.links_created_this_month >= usage.limits.max_links_per_month
       : false
@@ -131,7 +131,7 @@
     const diffHours = Math.floor((diffSeconds % (60 * 60 * 24)) / (60 * 60));
     const diffMinutes = Math.floor((diffSeconds % (60 * 60)) / 60);
 
-    let text = "";
+    let text: string;
     if (diffDays > 0) {
       text = `in ${diffDays}d ${diffHours}h`;
     } else if (diffHours > 0) {
@@ -226,7 +226,7 @@
     error = "";
 
     try {
-      const params = new URLSearchParams();
+      const params = new SvelteURLSearchParams();
       params.set("page", page.toString());
       if (search.trim()) params.set("search", search.trim());
       if (status !== "all") params.set("status", status);
@@ -270,8 +270,7 @@
     const {
       search: newSearch,
       status: newStatus,
-      sort: newSort,
-      tags: newTags
+      sort: newSort
     } = event.detail;
 
     search = newSearch;
@@ -282,7 +281,7 @@
     error = "";
 
     try {
-      const params = new URLSearchParams();
+      const params = new SvelteURLSearchParams();
       params.set("page", "1");
       if (search.trim()) params.set("search", search.trim());
       if (status !== "all") params.set("status", status);

@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { adminApi } from "$lib/api/admin";
   import Pagination from "$lib/components/Pagination.svelte";
   import type {
-    BillingAccountWithStats,
-    BillingAccountDetails
+    BillingAccountDetails,
+    BillingAccountWithStats
   } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   let accounts = $state<BillingAccountWithStats[]>([]);
   let total = $state(0);
@@ -16,7 +16,7 @@
   let searchQuery = $state("");
   let tierFilter = $state("");
   let expandedId = $state<string | null>(null);
-  let accountDetails = $state<Record<string, BillingAccountDetails>>({});
+  const accountDetails = $state<Record<string, BillingAccountDetails>>({});
   let detailsLoading = $state<string | null>(null);
   let confirmingTierChange = $state<{
     accountId: string;
@@ -573,7 +573,7 @@
                     <p class="no-orgs">No organizations yet</p>
                   {:else}
                     <div class="orgs-list">
-                      {#each details.organizations as org}
+                      {#each details.organizations as org (org.id)}
                         <div class="org-card">
                           <div class="org-header">
                             <h5>{org.name}</h5>
@@ -649,7 +649,7 @@
           organizations linked to this account.
         </p>
         <div class="tier-options">
-          {#each ["free", "pro", "business", "unlimited"] as tier}
+          {#each ["free", "pro", "business", "unlimited"] as tier (tier)}
             <button
               class="tier-option {tier === confirmingTierChange.currentTier
                 ? 'current'

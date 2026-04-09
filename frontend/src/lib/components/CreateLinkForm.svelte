@@ -3,7 +3,7 @@
   import type { Link, ApiError, UtmParams } from "$lib/types/api";
   import { fetchUrlTitle, debounce } from "$lib/utils/url-title";
 
-  let {
+  const {
     onLinkCreated,
     isPro = false
   }: {

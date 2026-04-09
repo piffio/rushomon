@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Header from "$lib/components/Header.svelte";
   import { page } from "$app/state";
+  import Header from "$lib/components/Header.svelte";
   import type { LayoutData } from "./$types";
 
   interface Props {
@@ -8,7 +8,7 @@
     children: any;
   }
 
-  let { data, children }: Props = $props();
+  const { data, children }: Props = $props();
 
   const tabs = [
     { label: "My Links", href: "/dashboard", id: "links" },
@@ -30,7 +30,7 @@
     return false;
   }
 
-  let currentHeaderPage = $derived(
+  const currentHeaderPage = $derived(
     page.url.pathname.startsWith("/dashboard/analytics")
       ? ("analytics" as const)
       : ("dashboard" as const)
@@ -44,7 +44,7 @@
   <div class="border-b border-gray-200 bg-white">
     <div class="max-w-6xl mx-auto px-6">
       <nav class="flex gap-0 -mb-px" aria-label="Dashboard navigation">
-        {#each tabs as tab}
+        {#each tabs as tab (tab.href)}
           <a
             href={tab.href}
             class="relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap

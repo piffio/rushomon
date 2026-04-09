@@ -1,18 +1,18 @@
 <script lang="ts">
-  import Header from "$lib/components/Header.svelte";
-  import Footer from "$lib/components/Footer.svelte";
-  import SEO from "$lib/components/SEO.svelte";
-  import PricingCard from "$lib/components/PricingCard.svelte";
   import { authApi } from "$lib/api/auth";
+  import type { BillingStatus, ProductPrice } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { apiClient } from "$lib/api/client";
-  import { onMount } from "svelte";
-  import type { PageData } from "./$types";
+  import Footer from "$lib/components/Footer.svelte";
+  import Header from "$lib/components/Header.svelte";
+  import PricingCard from "$lib/components/PricingCard.svelte";
+  import SEO from "$lib/components/SEO.svelte";
   import type { User } from "$lib/types/api";
-  import type { ProductPrice, BillingStatus } from "$lib/api/billing";
-  import { createPricingTiers, type PricingTier } from "../../config/pricing";
+  import { onMount } from "svelte";
+  import { createPricingTiers } from "../../config/pricing";
+  import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data: _data }: { data: PageData } = $props();
 
   const loginUrl = "/login";
 
@@ -24,30 +24,22 @@
 
   // Dynamic pricing from API
   let products = $state<ProductPrice[]>([]);
-  let pricingLoading = $state(true);
-  let pricingError = $state<string | null>(null);
 
   // Billing status for logged-in users
   let billingStatus = $state<BillingStatus | null>(null);
-  let billingLoading = $state(true);
-  let billingError = $state<string | null>(null);
 
   // Helper function to get price by plan and interval
   function getPrice(
     plan: "pro" | "business",
     interval: "monthly" | "annual"
   ): number {
-    const settingKey = `product_${plan}_${interval}_id`;
-    const product = products.find((p) => p.id === settingKey);
+    const product = products.find(
+      (p) =>
+        p.polar_product_id ===
+          (plan === "pro" ? "product_pro" : "product_business") &&
+        p.recurring_interval === interval
+    );
     return product?.price_amount || 0;
-  }
-
-  // Helper function to get display price in euros
-  function getDisplayPrice(
-    plan: "pro" | "business",
-    interval: "monthly" | "annual"
-  ): number {
-    return Math.round(getPrice(plan, interval) / 100);
   }
 
   // Fallback prices for when database is empty or API fails
@@ -81,7 +73,7 @@
 
   // Founder pricing state
   let founderPricingActive = $state(false);
-  let discountAmounts = $state({
+  const discountAmounts = $state({
     pro_monthly: 0,
     pro_annual: 0,
     business_monthly: 0,
@@ -108,9 +100,6 @@
       products = pricing.products;
     } catch (error) {
       console.error("Failed to fetch pricing:", error);
-      pricingError = "Failed to load pricing information";
-    } finally {
-      pricingLoading = false;
     }
 
     // Fetch settings on client side using apiClient
@@ -147,17 +136,11 @@
             billingStatus = await billingApi.getStatus();
           } catch (error) {
             console.warn("Failed to fetch billing status:", error);
-            billingError = "Failed to load billing information";
-          } finally {
-            billingLoading = false;
           }
-        } else {
-          billingLoading = false;
         }
       })
       .catch(() => {
         currentUser = undefined;
-        billingLoading = false;
       });
   });
 
@@ -203,7 +186,7 @@
   }
 
   // Compute pricing tiers reactively
-  let pricingTiers = $derived(
+  const pricingTiers = $derived(
     createPricingTiers(
       (tier: string, interval: string) =>
         getDisplayPriceWithFallback(
@@ -219,8 +202,7 @@
       currentUser,
       loginUrl,
       products,
-      billingStatus,
-      openPortal
+      billingStatus
     )
   );
 

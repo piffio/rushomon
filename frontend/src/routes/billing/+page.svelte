@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import Header from "$lib/components/Header.svelte";
-  import Footer from "$lib/components/Footer.svelte";
   import { authApi } from "$lib/api/auth";
+  import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { orgsApi } from "$lib/api/orgs";
-  import type { User, OrgWithRole } from "$lib/types/api";
-  import type { BillingStatus } from "$lib/api/billing";
+  import Footer from "$lib/components/Footer.svelte";
+  import Header from "$lib/components/Header.svelte";
+  import type { OrgWithRole, User } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   let currentUser = $state<User | undefined>(undefined);
   let billingStatus = $state<BillingStatus | null>(null);
@@ -222,7 +222,7 @@
             Organizations on this plan
           </p>
           <ul class="divide-y divide-gray-100">
-            {#each orgs as org}
+            {#each orgs as org (org.id)}
               <li
                 class="flex items-center justify-between py-3 first:pt-0 last:pb-0"
               >

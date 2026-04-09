@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { adminApi } from "$lib/api/admin";
   import Pagination from "$lib/components/Pagination.svelte";
   import type { AdminLink, ApiError } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   let links = $state<AdminLink[]>([]);
   let total = $state(0);
@@ -19,7 +19,7 @@
   let blockReason = $state("");
   let activeDropdown = $state<string | null>(null);
   let dropdownPosition = $state<{ top: number; right: number } | null>(null);
-  let toast = $state<{
+  const toast = $state<{
     message: string;
     type: "success" | "error";
     visible: boolean;
@@ -146,7 +146,7 @@
     try {
       const urlObj = new URL(url);
       return urlObj.hostname;
-    } catch (e) {
+    } catch {
       // If URL parsing fails, try to extract domain manually
       // Remove protocol and path, keep just the domain
       const withoutProtocol = url.replace(/^https?:\/\//, "");

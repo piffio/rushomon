@@ -1,13 +1,13 @@
 <script lang="ts">
+  import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
+  import { authApi } from "$lib/api/auth";
+  import { billingApi } from "$lib/api/billing";
+  import { orgsApi } from "$lib/api/orgs";
+  import type { OrgWithRole, User } from "$lib/types/api";
+  import Avatar from "./Avatar.svelte";
+  import LoadingButton from "./LoadingButton.svelte";
   import Logo from "./Logo.svelte";
   import UserMenu from "./UserMenu.svelte";
-  import LoadingButton from "./LoadingButton.svelte";
-  import Avatar from "./Avatar.svelte";
-  import { authApi } from "$lib/api/auth";
-  import { orgsApi } from "$lib/api/orgs";
-  import { billingApi } from "$lib/api/billing";
-  import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
-  import type { User, OrgWithRole } from "$lib/types/api";
 
   const DOCS_URL =
     PUBLIC_VITE_DOCS_URL || "https://github.com/piffio/rushomon/";
@@ -17,7 +17,7 @@
     currentPage?: "landing" | "dashboard" | "analytics" | "admin" | "settings";
   }
 
-  let { user, currentPage = "landing" }: Props = $props();
+  const { user, currentPage = "landing" }: Props = $props();
   let mobileMenuOpen = $state(false);
   let orgSwitcherOpen = $state(false);
   let showBilling = $state(false);
@@ -271,7 +271,7 @@
                     </p>
                   </div>
                   <ul class="py-1 max-h-60 overflow-y-auto">
-                    {#each orgs as org}
+                    {#each orgs as org (org.id)}
                       <li>
                         <button
                           onclick={() => handleSwitchOrg(org.id)}

@@ -9,7 +9,7 @@
     className?: string;
   }
 
-  let { user, size = "md", className = "" }: Props = $props();
+  const { user, size = "md", className = "" }: Props = $props();
 
   const sizeClasses = {
     sm: "w-6 h-6",

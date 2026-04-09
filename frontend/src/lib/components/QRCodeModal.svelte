@@ -1,11 +1,11 @@
 <script lang="ts">
-  import QRCodeStyling from "qr-code-styling";
-  import type { Link } from "$lib/types/api";
   import {
     PUBLIC_VITE_API_BASE_URL,
     PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
   import { orgsApi } from "$lib/api/orgs";
+  import type { Link } from "$lib/types/api";
+  import QRCodeStyling from "qr-code-styling";
 
   interface Props {
     link: Link | null;
@@ -16,7 +16,7 @@
     orgId?: string;
   }
 
-  let {
+  const {
     link,
     isOpen,
     onClose,
@@ -108,6 +108,7 @@
 
   async function renderQR() {
     if (!container || !shortUrl) return;
+    // eslint-disable-next-line svelte/no-dom-manipulating
     container.innerHTML = "";
     const opts = getQROptions(selectedSize, useLogoInQR && isPro);
     qrInstance = new QRCodeStyling(opts);
@@ -206,7 +207,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen && link}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="fixed inset-0 z-50 overflow-y-auto"
     aria-labelledby="qr-modal-title"
@@ -283,7 +284,7 @@
           <div class="mb-4">
             <p class="text-xs font-medium text-gray-500 mb-2">Size</p>
             <div class="flex gap-2">
-              {#each sizes as size}
+              {#each sizes as size (size)}
                 <button
                   onclick={() => selectSize(size)}
                   class="flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors

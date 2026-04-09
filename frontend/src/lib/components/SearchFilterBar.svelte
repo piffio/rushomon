@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
   import type { TagWithCount } from "$lib/types/api";
+  import { createEventDispatcher } from "svelte";
 
   interface FilterState {
     search: string;
@@ -15,7 +15,7 @@
     sort = $bindable("created"),
     selectedTags = $bindable<string[]>([]),
     availableTags = [],
-    resultCount = 0,
+    resultCount: _resultCount = 0,
     totalCount = 0,
     currentPage = 1,
     pageSize = 10,
@@ -147,7 +147,7 @@
     return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
   }
 
-  const unselectedTags = $derived(
+  const _unselectedTags = $derived(
     availableTags.filter((t) => !selectedTags.includes(t.name))
   );
 

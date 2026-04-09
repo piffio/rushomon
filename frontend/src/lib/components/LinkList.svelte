@@ -1,8 +1,8 @@
 <script lang="ts">
-  import LinkCard from "./LinkCard.svelte";
   import type { Link } from "$lib/types/api";
+  import LinkCard from "./LinkCard.svelte";
 
-  let {
+  const {
     links,
     loading = false,
     deletingLinkId = null as string | null,
@@ -29,7 +29,7 @@
   {#if loading}
     <!-- Loading State -->
     <div class="space-y-4">
-      {#each [1, 2, 3] as _}
+      {#each [1, 2, 3] as _, i (i)}
         <div
           class="border-2 border-gray-200 rounded-2xl p-6 animate-pulse transition-all duration-300"
         >

@@ -1,32 +1,31 @@
 <script lang="ts">
+  import { browser } from "$app/environment";
+  import { goto } from "$app/navigation";
+  import { analyticsApi } from "$lib/api/analytics";
+  import OrgLinkSlideOver from "$lib/components/OrgLinkSlideOver.svelte";
   import type {
     OrgAnalyticsResponse,
     TopLinkCount,
     UserAgentCount
   } from "$lib/types/api";
-  import { analyticsApi } from "$lib/api/analytics";
-  import { linksApi } from "$lib/api/links";
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
-  import { onMount, onDestroy } from "svelte";
   import {
+    ArcElement,
+    CategoryScale,
     Chart,
+    DoughnutController,
+    Filler,
+    Legend,
+    LinearScale,
     LineController,
     LineElement,
     PointElement,
-    LinearScale,
-    CategoryScale,
-    Filler,
-    Tooltip,
-    Legend,
-    DoughnutController,
-    ArcElement
+    Tooltip
   } from "chart.js";
-  import { UAParser } from "ua-parser-js";
   import countries from "i18n-iso-countries";
   import enLocale from "i18n-iso-countries/langs/en.json";
-  import OrgLinkSlideOver from "$lib/components/OrgLinkSlideOver.svelte";
-  import { browser } from "$app/environment";
+  import { onDestroy, onMount } from "svelte";
+  import { SvelteMap, SvelteURLSearchParams } from "svelte/reactivity";
+  import { UAParser } from "ua-parser-js";
 
   countries.registerLocale(enLocale);
 
@@ -43,7 +42,7 @@
     ArcElement
   );
 
-  let { data } = $props();
+  const { data } = $props();
 
   const tier = $derived((data.tier as string) || "free");
 
@@ -100,23 +99,6 @@
     }
   });
 
-  // ── Derived display data (filtered client-side for breakdowns) ────────────
-  const displayReferrers = $derived(() => {
-    if (!analytics) return [];
-    if (activeReferrers.length === 0) return analytics.top_referrers;
-    return analytics.top_referrers.filter((r) =>
-      activeReferrers.includes(r.referrer)
-    );
-  });
-
-  const displayCountries = $derived(() => {
-    if (!analytics) return [];
-    if (activeCountries.length === 0) return analytics.top_countries;
-    return analytics.top_countries.filter((c) =>
-      activeCountries.includes(c.country)
-    );
-  });
-
   // User agent parsing
   interface ParsedUA {
     browser: string;
@@ -139,7 +121,7 @@
     parsed: ParsedUA[],
     key: "browser" | "os"
   ): { name: string; count: number }[] {
-    const map = new Map<string, number>();
+    const map = new SvelteMap<string, number>();
     for (const p of parsed) map.set(p[key], (map.get(p[key]) || 0) + p.count);
     return Array.from(map.entries())
       .map(([name, count]) => ({ name, count }))
@@ -352,7 +334,7 @@
       return;
     }
     loadingRange = range.value;
-    const params = new URLSearchParams();
+    const params = new SvelteURLSearchParams();
     if (range.value !== 7) params.set("days", range.value.toString());
     const q = params.toString();
     goto(`/dashboard/analytics${q ? `?${q}` : ""}`, {
@@ -447,7 +429,6 @@
     filterDebounce = setTimeout(async () => {
       filterLoading = true;
       try {
-        const params = buildFilteredParams();
         let result: OrgAnalyticsResponse;
         if (data.isCustomRange && data.startParam && data.endParam) {
           result = await analyticsApi.getOrgAnalyticsCustomRange(
@@ -463,14 +444,6 @@
         filterLoading = false;
       }
     }, 300);
-  }
-
-  function buildFilteredParams(): URLSearchParams {
-    const params = new URLSearchParams();
-    if (activeCountries.length === 1) params.set("country", activeCountries[0]);
-    if (activeReferrers.length === 1)
-      params.set("referrer", activeReferrers[0]);
-    return params;
   }
 
   const hasActiveFilters = $derived(
@@ -531,7 +504,7 @@
 
         <div class="flex items-center gap-2 flex-wrap">
           <!-- Preset time range buttons -->
-          {#each timeRanges as range}
+          {#each timeRanges as range (range.value)}
             {@const isLocked = !hasTierAccess(range.minTier)}
             {@const isSelected =
               !data.isCustomRange && currentDays === range.value}
@@ -721,7 +694,7 @@
       {#if hasActiveFilters}
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs text-gray-500 font-medium">Filtered by:</span>
-          {#each activeCountries as code}
+          {#each activeCountries as code (code)}
             <span
               class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-blue-50 text-blue-700 border border-blue-200"
             >
@@ -733,7 +706,7 @@
               >
             </span>
           {/each}
-          {#each activeReferrers as ref}
+          {#each activeReferrers as ref (ref)}
             <span
               class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-purple-50 text-purple-700 border border-purple-200"
             >
@@ -833,14 +806,14 @@
             <h2 class="text-sm font-semibold text-gray-700 mb-4">Top links</h2>
             {#if analytics.top_links.length > 0}
               <div class="space-y-1">
-                {#each analytics.top_links as link, i}
+                {#each analytics.top_links as link, idx (link.short_code)}
                   <button
                     class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors group text-left"
                     onclick={() => (slideOverLink = link)}
                   >
                     <div class="flex items-center gap-2 min-w-0">
                       <span class="text-xs text-gray-400 w-4 flex-shrink-0"
-                        >{i + 1}</span
+                        >{idx + 1}</span
                       >
                       <div class="min-w-0">
                         <span
@@ -886,7 +859,7 @@
             </h2>
             {#if analytics.top_referrers.length > 0}
               <div class="space-y-1">
-                {#each analytics.top_referrers as ref}
+                {#each analytics.top_referrers as ref (ref.referrer)}
                   <button
                     class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left {activeReferrers.includes(
                       ref.referrer
@@ -931,7 +904,7 @@
           {#if analytics.top_countries.length > 0}
             {@const maxCount = analytics.top_countries[0]?.count ?? 1}
             <div class="space-y-1">
-              {#each analytics.top_countries as country}
+              {#each analytics.top_countries as country (country.country)}
                 <div
                   class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm"
                 >
@@ -999,7 +972,7 @@
       {:else}
         <!-- Loading skeleton -->
         <div class="space-y-4">
-          {#each [1, 2, 3] as _}
+          {#each [1, 2, 3] as _, i (i)}
             <div
               class="bg-white rounded-xl border border-gray-200 p-5 h-32 animate-pulse"
             ></div>

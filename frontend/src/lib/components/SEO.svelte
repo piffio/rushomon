@@ -10,7 +10,7 @@
     noindex?: boolean;
   }
 
-  let props: Props = $props();
+  const props: Props = $props();
 
   const siteUrl = $derived(
     browser

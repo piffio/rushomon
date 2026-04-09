@@ -1,13 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { goto } from "$app/navigation";
   import { adminApi } from "$lib/api/admin";
   import { authApi } from "$lib/api/auth";
   import type {
-    LinkReportWithLink,
     AdminReportsResponse,
+    LinkReportWithLink,
     User
   } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   let reports = $state<LinkReportWithLink[]>([]);
   let loading = $state(false);
@@ -414,7 +413,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              {#each reports as report, index}
+              {#each reports as report, index (report.id)}
                 <tr>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <div class="text-sm text-gray-900">

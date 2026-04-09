@@ -1,10 +1,11 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
+  import type { ImportBatchResult, ImportLinkRow } from "$lib/api/links";
   import { linksApi } from "$lib/api/links";
-  import type { ImportLinkRow, ImportBatchResult } from "$lib/api/links";
   import type { UsageResponse } from "$lib/types/api";
+  import { SvelteMap } from "svelte/reactivity";
 
-  let { data }: { data: { user: unknown; usage: UsageResponse | null } } =
+  const { data }: { data: { user: unknown; usage: UsageResponse | null } } =
     $props();
 
   // ── Step state ────────────────────────────────────────────────────────────
@@ -120,13 +121,13 @@
   >([]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  let isProOrAbove = $derived(
+  const isProOrAbove = $derived(
     data.usage?.tier === "pro" ||
       data.usage?.tier === "business" ||
       data.usage?.tier === "unlimited"
   );
 
-  let mappingResult = $derived.by(() => {
+  const mappingResult = $derived.by(() => {
     return rawRows.map((row) => {
       const destCol = columnMap.destination_url;
       const scCol = columnMap.short_code;
@@ -162,7 +163,7 @@
     });
   });
 
-  let mappedRows = $derived(
+  const mappedRows = $derived(
     mappingResult.map(
       ({ destination_url, short_code, title, tags, expires_at }) => ({
         destination_url,
@@ -174,18 +175,18 @@
     ) as ImportLinkRow[]
   );
 
-  let truncatedCount = $derived(
+  const truncatedCount = $derived(
     mappingResult.filter((r) => r.wasTruncated).length
   );
 
-  let validRows = $derived.by((): ImportLinkRow[] => {
+  const validRows = $derived.by((): ImportLinkRow[] => {
     if (skipInvalidRows) {
       return mappedRows.filter((r) => isValidUrl(r.destination_url));
     }
     return mappedRows;
   });
 
-  let remainingQuota = $derived.by((): number | null => {
+  const remainingQuota = $derived.by((): number | null => {
     if (!data.usage?.limits.max_links_per_month) return null;
     return (
       data.usage.limits.max_links_per_month -
@@ -329,7 +330,7 @@
   }
 
   function validatePreviewRows() {
-    const errors = new Map<number, string>();
+    const errors = new SvelteMap<number, string>();
     const preview = mappedRows.slice(0, PREVIEW_COUNT);
     preview.forEach((row, i) => {
       if (!row.destination_url) {
@@ -482,7 +483,7 @@
         </div>
         <div class="flex items-center justify-center sm:justify-end">
           <ol class="flex items-center gap-0">
-            {#each STEPS as label, i}
+            {#each STEPS as label, i (i)}
               {@const n = i + 1}
               {@const done = step > n}
               {@const active = step === n}
@@ -600,7 +601,7 @@
         </p>
 
         <div class="space-y-4">
-          {#each COLUMN_DEFS as def}
+          {#each COLUMN_DEFS as def (def.key)}
             {@const isShortCode = def.key === "short_code"}
             {@const disabled = isShortCode && !isProOrAbove}
             <div class="flex items-center gap-4">
@@ -621,7 +622,7 @@
                 class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <option value="">— not mapped —</option>
-                {#each csvHeaders as header}
+                {#each csvHeaders as header (header)}
                   <option value={header}>{header}</option>
                 {/each}
               </select>
@@ -683,7 +684,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each preview as row, i}
+              {#each preview as row, i (i)}
                 {@const hasError = validationErrors.has(i)}
                 <tr
                   class="border-t border-gray-100 {hasError ? 'bg-red-50' : ''}"
@@ -926,7 +927,7 @@
               <div
                 class="max-h-40 overflow-y-auto rounded-xl border border-amber-100 divide-y divide-amber-100"
               >
-                {#each allWarnings as warn}
+                {#each allWarnings as warn, warnIdx (warnIdx)}
                   <div class="px-3 py-2 text-xs flex gap-2">
                     <span class="text-gray-400 shrink-0">Row {warn.row}</span>
                     <span class="font-mono text-gray-600 truncate"
@@ -968,7 +969,7 @@
               <div
                 class="max-h-48 overflow-y-auto rounded-xl border border-red-100 divide-y divide-red-100"
               >
-                {#each allErrors.slice(0, 50) as err}
+                {#each allErrors.slice(0, 50) as err, errIdx (errIdx)}
                   <div class="px-3 py-2 text-xs flex gap-2">
                     <span class="text-gray-400 shrink-0">Row {err.row}</span>
                     <span class="font-mono text-gray-600 truncate"

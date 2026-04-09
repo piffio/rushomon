@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { adminApi } from "$lib/api/admin";
   import { authApi } from "$lib/api/auth";
-  import Pagination from "$lib/components/Pagination.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
+  import Pagination from "$lib/components/Pagination.svelte";
   import type { User } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   let users = $state<User[]>([]);
   let total = $state(0);
@@ -14,18 +14,11 @@
   let confirmingUserId = $state<string | null>(null);
   let confirmingRole = $state<"admin" | "member" | null>(null);
   let currentUser = $state<User | null>(null);
-  let tierLoading = $state(false);
-  let confirmingTierChange = $state<{
-    userId: string;
-    orgId: string;
-    currentTier: string;
-  } | null>(null);
   let orgTiers = $state<Record<string, string>>({});
   let activeDropdown = $state<string | null>(null);
   let confirmingSuspend = $state<string | null>(null);
   let confirmingDelete = $state<string | null>(null);
   let dropdownPosition = $state<{ top: number; right: number } | null>(null);
-  let selectedNewTier = $state<string>("");
 
   onMount(async () => {
     await loadUsers();

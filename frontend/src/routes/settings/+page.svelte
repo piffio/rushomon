@@ -1,14 +1,14 @@
 <script lang="ts">
-  import Header from "$lib/components/Header.svelte";
-  import { orgsApi } from "$lib/api/orgs";
+  import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { apiClient } from "$lib/api/client";
+  import { orgsApi } from "$lib/api/orgs";
   import { apiKeysApi, type ApiKey } from "$lib/api/settings";
-  import type { PageData } from "./$types";
+  import Header from "$lib/components/Header.svelte";
   import type { OrgWithRole } from "$lib/types/api";
-  import type { BillingStatus } from "$lib/api/billing";
+  import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   // Version info from API
   let versionInfo = $state({
@@ -133,7 +133,7 @@
       await apiKeysApi.revoke(keyToDelete);
       apiKeys = apiKeys.filter((k) => k.id !== keyToDelete);
       keyToDelete = null;
-    } catch (e) {
+    } catch {
       alert("Failed to revoke key");
     } finally {
       isDeletingKey = false;
@@ -218,7 +218,7 @@
             </p>
           {:else}
             <ul class="divide-y divide-gray-100">
-              {#each userOrgs as org}
+              {#each userOrgs as org (org.id)}
                 <li
                   class="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                 >
@@ -323,7 +323,7 @@
             </p>
           {:else}
             <ul class="divide-y divide-gray-100 border-t border-gray-100">
-              {#each apiKeys as key}
+              {#each apiKeys as key (key.id)}
                 <li
                   class="flex items-center justify-between py-4 first:pt-4 last:pb-0"
                 >

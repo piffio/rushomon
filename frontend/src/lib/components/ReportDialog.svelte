@@ -7,7 +7,7 @@
     onClose: () => void;
   }
 
-  let { linkId, linkUrl, onClose }: Props = $props();
+  const { linkId, linkUrl, onClose }: Props = $props();
 
   let reason = $state("");
   let reporterEmail = $state("");
@@ -90,7 +90,7 @@
           <label for="reason">Reason for reporting *</label>
           <select id="reason" bind:value={reason} required>
             <option value="">Select a reason...</option>
-            {#each reportReasons as option}
+            {#each reportReasons as option (option.value)}
               <option value={option.value}>{option.label}</option>
             {/each}
           </select>

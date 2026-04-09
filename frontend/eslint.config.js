@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import prettierConfig from "eslint-config-prettier";
 import prettier from "eslint-plugin-prettier";
 import svelte from "eslint-plugin-svelte";
+import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default [
@@ -16,21 +17,29 @@ export default [
       parser: svelte.parser,
       parserOptions: {
         parser: tseslint.parser
+      },
+      globals: {
+        ...globals.browser
       }
+    },
+    rules: {
+      "prefer-const": "off"
     }
   },
   {
     files: ["**/*.js", "**/*.ts"],
     languageOptions: {
-      parser: tseslint.parser
+      parser: tseslint.parser,
+      globals: {
+        ...globals.browser
+      }
     }
   },
   {
-    files: ["scripts/**/*.js"],
+    files: ["scripts/**/*.js", "src/routes/sitemap.xml/+server.ts"],
     languageOptions: {
       globals: {
-        process: "readonly",
-        console: "readonly"
+        ...globals.node
       }
     }
   },
@@ -43,9 +52,15 @@ export default [
     },
     rules: {
       "svelte/no-at-html-tags": "off",
+      "svelte/no-navigation-without-resolve": "off",
+      "svelte/prefer-writable-derived": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_" }
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_"
+        }
       ],
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
@@ -53,6 +68,12 @@ export default [
       "prefer-const": "error",
       "no-var": "error",
       "prettier/prettier": "error"
+    }
+  },
+  {
+    files: ["**/*.svelte"],
+    rules: {
+      "prefer-const": "off"
     }
   },
   {

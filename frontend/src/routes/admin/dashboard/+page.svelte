@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { adminApi } from "$lib/api/admin";
 
-  let stats = $state({
+  const stats = $state({
     totalUsers: 0,
     totalLinks: 0,
     totalClicks: 0,

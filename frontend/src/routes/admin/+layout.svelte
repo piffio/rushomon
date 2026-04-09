@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { onMount } from "svelte";
+  import { page } from "$app/state";
   import { authApi } from "$lib/api/auth";
-  import UserMenu from "$lib/components/UserMenu.svelte";
   import Avatar from "$lib/components/Avatar.svelte";
+  import UserMenu from "$lib/components/UserMenu.svelte";
   import type { User } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   type Module =
     | "dashboard"
@@ -17,7 +17,7 @@
     | "api-keys"
     | "settings";
 
-  let { children } = $props();
+  const { children } = $props();
 
   const activeModule = $derived(
     page.url.pathname.split("/").pop() || "dashboard"
@@ -30,7 +30,6 @@
   let sidebarCollapsed = $state(true); // Collapsed by default on desktop
   let mobileMenuOpen = $state(false);
   let currentUser = $state<User | null>(null);
-  const isOnDashboard = $derived(page.url.pathname === "/dashboard");
 
   onMount(async () => {
     try {

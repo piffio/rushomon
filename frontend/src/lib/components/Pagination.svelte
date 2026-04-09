@@ -1,5 +1,5 @@
 <script lang="ts">
-  let {
+  const {
     currentPage,
     totalPages,
     onPageChange,
@@ -80,7 +80,7 @@
 
   <!-- Page Numbers -->
   <div class="flex items-center gap-2">
-    {#each visiblePages() as page}
+    {#each visiblePages() as page (page)}
       {#if page === "..."}
         <span class="px-3 py-2 text-gray-500">...</span>
       {:else}

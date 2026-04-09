@@ -1,31 +1,32 @@
 <script lang="ts">
-  import type { LinkAnalyticsResponse, UserAgentCount } from "$lib/types/api";
+  import { browser } from "$app/environment";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import {
     PUBLIC_VITE_API_BASE_URL,
     PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
-  import { onMount, onDestroy } from "svelte";
+  import type { UserAgentCount } from "$lib/types/api";
   import {
+    ArcElement,
+    BarController,
+    BarElement,
+    CategoryScale,
     Chart,
+    DoughnutController,
+    Filler,
+    Legend,
+    LinearScale,
     LineController,
     LineElement,
     PointElement,
-    LinearScale,
-    CategoryScale,
-    Filler,
-    Tooltip,
-    Legend,
-    DoughnutController,
-    ArcElement,
-    BarController,
-    BarElement
+    Tooltip
   } from "chart.js";
-  import { UAParser } from "ua-parser-js";
   import countries from "i18n-iso-countries";
   import enLocale from "i18n-iso-countries/langs/en.json";
-  import { browser } from "$app/environment";
+  import { onDestroy, onMount } from "svelte";
+  import { SvelteMap, SvelteURLSearchParams } from "svelte/reactivity";
+  import { UAParser } from "ua-parser-js";
 
   // Register the English locale for browser environment
   countries.registerLocale(enLocale);
@@ -45,7 +46,7 @@
     BarElement
   );
 
-  let { data } = $props();
+  const { data } = $props();
 
   // Get tier from page data
   const tier = $derived(data.tier || "free");
@@ -122,7 +123,7 @@
     // Set loading state for this specific range
     loadingRange = range.value;
 
-    const params = new URLSearchParams(page.url.searchParams);
+    const params = new SvelteURLSearchParams(page.url.searchParams);
     if (range.value === 7) {
       params.delete("days");
     } else {
@@ -187,7 +188,7 @@
   function aggregateByBrowser(
     parsed: ParsedUA[]
   ): { name: string; count: number }[] {
-    const map = new Map<string, number>();
+    const map = new SvelteMap<string, number>();
     for (const p of parsed) {
       map.set(p.browser, (map.get(p.browser) || 0) + p.count);
     }
@@ -200,7 +201,7 @@
   function aggregateByOS(
     parsed: ParsedUA[]
   ): { name: string; count: number }[] {
-    const map = new Map<string, number>();
+    const map = new SvelteMap<string, number>();
     for (const p of parsed) {
       map.set(p.os, (map.get(p.os) || 0) + p.count);
     }
@@ -560,7 +561,7 @@
       <div
         class="time-range-grid flex items-center gap-2 mb-6 flex-wrap relative md:flex-row"
       >
-        {#each timeRanges as range}
+        {#each timeRanges as range (range.value)}
           {@const isLocked = !hasTierAccess(range.minTier)}
           {@const isSelected = days === range.value}
           <div class="relative">
@@ -751,11 +752,11 @@
             {/if}
           {:else}
             <div class="space-y-3">
-              {#each analytics.top_referrers as ref, i}
+              {#each analytics.top_referrers as ref, refIdx (ref.referrer)}
                 {@const maxCount = analytics.top_referrers[0].count}
                 <div class="flex items-center gap-3">
                   <span class="text-xs text-gray-400 w-5 text-right"
-                    >{i + 1}</span
+                    >{refIdx + 1}</span
                   >
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between mb-1">
@@ -801,7 +802,7 @@
             {/if}
           {:else}
             <div class="space-y-3">
-              {#each analytics.top_countries as country, i}
+              {#each analytics.top_countries as country (country.country)}
                 {@const maxCount = analytics.top_countries[0].count}
                 <div class="flex items-center gap-3">
                   <span class="text-lg">{countryFlag(country.country)}</span>

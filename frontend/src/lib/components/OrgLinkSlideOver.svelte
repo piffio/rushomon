@@ -1,32 +1,27 @@
 <script lang="ts">
-  import type {
-    TopLinkCount,
-    LinkAnalyticsResponse,
-    UserAgentCount
-  } from "$lib/types/api";
-  import { linksApi } from "$lib/api/links";
+  import { browser } from "$app/environment";
   import {
-    PUBLIC_VITE_SHORT_LINK_BASE_URL,
-    PUBLIC_VITE_API_BASE_URL
+    PUBLIC_VITE_API_BASE_URL,
+    PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
-  import { onMount, onDestroy } from "svelte";
+  import { linksApi } from "$lib/api/links";
+  import type { LinkAnalyticsResponse, TopLinkCount } from "$lib/types/api";
   import {
+    ArcElement,
+    CategoryScale,
     Chart,
+    DoughnutController,
+    Filler,
+    Legend,
+    LinearScale,
     LineController,
     LineElement,
     PointElement,
-    LinearScale,
-    CategoryScale,
-    Filler,
-    Tooltip,
-    Legend,
-    DoughnutController,
-    ArcElement
+    Tooltip
   } from "chart.js";
-  import { UAParser } from "ua-parser-js";
   import countries from "i18n-iso-countries";
   import enLocale from "i18n-iso-countries/langs/en.json";
-  import { browser } from "$app/environment";
+  import { onDestroy, onMount } from "svelte";
 
   countries.registerLocale(enLocale);
 
@@ -49,7 +44,7 @@
     onclose: () => void;
   }
 
-  let { link, days, onclose }: Props = $props();
+  const { link, days, onclose }: Props = $props();
 
   const SHORT_LINK_BASE =
     PUBLIC_VITE_SHORT_LINK_BASE_URL ||
@@ -67,7 +62,7 @@
   let clicksChartCanvas: HTMLCanvasElement = $state(null!);
   let clicksChart: Chart | null = null;
 
-  const chartColors = [
+  const _chartColors = [
     "#f97316",
     "#3b82f6",
     "#10b981",
@@ -295,7 +290,7 @@
   <div class="flex-1 overflow-y-auto p-5 space-y-5">
     {#if loading}
       <div class="space-y-4">
-        {#each [1, 2, 3] as _}
+        {#each [1, 2, 3] as _, i (i)}
           <div class="bg-gray-100 rounded-xl h-24 animate-pulse"></div>
         {/each}
       </div>
@@ -331,7 +326,7 @@
             Top referrers
           </h3>
           <div class="space-y-1.5">
-            {#each analytics.top_referrers.slice(0, 5) as ref}
+            {#each analytics.top_referrers.slice(0, 5) as ref (ref.referrer)}
               <div class="flex items-center justify-between gap-3 text-sm">
                 <span class="text-gray-700 truncate">{ref.referrer}</span>
                 <div class="flex items-center gap-2 flex-shrink-0">
@@ -363,7 +358,7 @@
             Top countries
           </h3>
           <div class="space-y-1.5">
-            {#each analytics.top_countries.slice(0, 5) as country}
+            {#each analytics.top_countries.slice(0, 5) as country (country.country)}
               <div class="flex items-center justify-between gap-3 text-sm">
                 <span class="flex items-center gap-1.5 text-gray-700 truncate">
                   <span>{countryFlag(country.country)}</span>

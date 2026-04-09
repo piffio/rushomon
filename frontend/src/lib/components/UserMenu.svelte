@@ -13,7 +13,7 @@
     showBilling?: boolean;
   }
 
-  let { user, onLogout, showBilling = false }: Props = $props();
+  const { user, onLogout, showBilling = false }: Props = $props();
   let showMenu = $state(false);
   let isLoggingOut = $state(false);
 

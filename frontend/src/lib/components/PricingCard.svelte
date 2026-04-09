@@ -162,7 +162,7 @@
   <!-- Features -->
   <div class="pricing-features">
     <ul class="space-y-3">
-      {#each features as feature}
+      {#each features as feature (feature)}
         <li class="flex items-start">
           <svg
             class="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"

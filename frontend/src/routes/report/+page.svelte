@@ -1,13 +1,14 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { apiClient } from "$lib/api/client";
   import { authApi } from "$lib/api/auth";
-  import SEO from "$lib/components/SEO.svelte";
+  import { apiClient } from "$lib/api/client";
   import LoadingButton from "$lib/components/LoadingButton.svelte";
-  import { onMount } from "svelte";
+  import SEO from "$lib/components/SEO.svelte";
   import type { User } from "$lib/types/api";
+  import { onMount } from "svelte";
+  import type { PageData } from "./$types";
 
-  let { data } = $props();
+  const { data: _data }: { data: PageData } = $props();
   let currentUser = $state<User | undefined>(undefined);
 
   onMount(async () => {
@@ -15,7 +16,7 @@
     try {
       const user = await authApi.me();
       currentUser = user;
-    } catch (error) {
+    } catch {
       // User not authenticated, that's fine for public pages
       currentUser = undefined;
     }
@@ -26,7 +27,7 @@
   let reason = $state("");
   let reporterEmail = $state("");
   let submitting = $state(false);
-  let toast = $state<{
+  const toast = $state<{
     message: string;
     type: "success" | "error";
     visible: boolean;
@@ -297,7 +298,7 @@
           <label for="report-reason">Reason for Report</label>
           <select id="report-reason" bind:value={reason} class="form-select">
             <option value="">Select a reason</option>
-            {#each reportReasons as reasonOption}
+            {#each reportReasons as reasonOption (reasonOption.value)}
               <option value={reasonOption.value}>{reasonOption.label}</option>
             {/each}
           </select>

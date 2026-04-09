@@ -1,22 +1,22 @@
 <script lang="ts">
-  import { orgsApi } from "$lib/api/orgs";
-  import { resolveLogoUrl } from "$lib/api/client";
+  import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
+  import { resolveLogoUrl } from "$lib/api/client";
   import { tagsApi } from "$lib/api/links";
+  import { orgsApi } from "$lib/api/orgs";
   import Avatar from "$lib/components/Avatar.svelte";
-  import type { PageData } from "./$types";
+  import LoadingButton from "$lib/components/LoadingButton.svelte";
   import type {
     OrgDetails,
-    OrgMember,
     OrgInvitation,
-    OrgWithRole,
+    OrgMember,
     OrgSettings,
+    OrgWithRole,
     TagWithCount
   } from "$lib/types/api";
-  import type { BillingStatus } from "$lib/api/billing";
-  import LoadingButton from "$lib/components/LoadingButton.svelte";
+  import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let orgDetails = $state<OrgDetails | null>(null);
   let loading = $state(true);
@@ -313,13 +313,7 @@
   let targetOrgId = $state("");
   let deleting = $state(false);
   let deleteError = $state("");
-  let confirmingTierChange = $state<{
-    userId: string;
-    orgId: string;
-    currentTier: string;
-  } | null>(null);
   let confirmingRemoveMember = $state<OrgMember | null>(null);
-  let orgTiers = $state<Record<string, string>>({});
   let linkCount = $state(0);
   let userOrgs = $state<OrgWithRole[]>([]);
   let canDelete = $state(false);
@@ -335,7 +329,7 @@
       // Get link count from usage API
       const usage = await orgsApi.getUsage();
       linkCount = usage.usage?.links_created_this_month || 0;
-    } catch (e) {
+    } catch {
       canDelete = false;
     }
   }
@@ -358,7 +352,7 @@
     deleting = true;
     deleteError = "";
     try {
-      const result = await orgsApi.deleteOrg(
+      await orgsApi.deleteOrg(
         orgDetails.org.id,
         deleteAction,
         deleteAction === "migrate" ? targetOrgId : undefined
@@ -736,7 +730,7 @@
         </h2>
 
         <ul class="divide-y divide-gray-100">
-          {#each orgDetails.members as member}
+          {#each orgDetails.members as member (member.user_id)}
             <li class="flex items-center justify-between py-3">
               <div class="flex items-center gap-3">
                 <Avatar user={member} size="sm" />
@@ -830,7 +824,7 @@
                   Pending Invitations
                 </h3>
                 <ul class="divide-y divide-gray-100">
-                  {#each orgDetails.pending_invitations as inv}
+                  {#each orgDetails.pending_invitations as inv (inv.id)}
                     <li class="flex items-center justify-between py-2.5">
                       <div>
                         <p class="text-sm text-gray-900">
@@ -1099,7 +1093,7 @@
                   bind:value={targetOrgId}
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                 >
-                  {#each userOrgs as org}
+                  {#each userOrgs as org (org.id)}
                     <option value={org.id}>{org.name} ({org.tier} plan)</option>
                   {/each}
                 </select>

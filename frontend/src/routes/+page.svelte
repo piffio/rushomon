@@ -7,7 +7,7 @@
   import { page } from "$app/state";
   import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let mounted = $state(false);
   let signupsDisabled = $state(false);

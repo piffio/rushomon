@@ -1,8 +1,7 @@
-import type { PageLoad } from "./$types";
 import { linksApi } from "$lib/api/links";
-import { usageApi } from "$lib/api/usage";
 import { orgsApi } from "$lib/api/orgs";
-import type { PaginatedResponse, Link, UsageResponse } from "$lib/types/api";
+import { usageApi } from "$lib/api/usage";
+import type { PageLoad } from "./$types";
 
 export const load: PageLoad = async ({ parent, url, depends }) => {
   // Declare dependency for invalidation

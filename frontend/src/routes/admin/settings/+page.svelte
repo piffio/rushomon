@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { adminApi, type Discount, type Product } from "$lib/api/admin";
   import { billingApi } from "$lib/api/billing";
+  import { onMount } from "svelte";
 
   let settings = $state<Record<string, string>>({});
   let loading = $state(false);
@@ -26,7 +26,7 @@
   let discounts = $state<Discount[]>([]);
   let discountsLoading = $state(false);
   let discountsError = $state("");
-  let discountSlots = $state({
+  const discountSlots = $state({
     pro_monthly: "",
     pro_annual: "",
     business_monthly: "",
@@ -38,7 +38,7 @@
   let productsLoading = $state(false);
   let productsError = $state("");
   let syncingProducts = $state(false);
-  let productSlots = $state({
+  const productSlots = $state({
     pro_monthly: "",
     pro_annual: "",
     business_monthly: "",
@@ -46,8 +46,6 @@
   });
 
   let currentPricing = $state<any[]>([]);
-  let pricingLoading = $state(false);
-  let pricingError = $state("");
   let initialProductSlots = $state({
     pro_monthly: "",
     pro_annual: "",
@@ -88,7 +86,7 @@
 
     const basePriceCents = basePrices[slot];
     const basePrice = basePriceCents / 100; // Convert cents to euros
-    let discountedPrice = basePrice;
+    let discountedPrice: number;
 
     if (discount.type === "fixed") {
       discountedPrice = Math.max(0, basePrice - (discount.amount || 0) / 100);
@@ -151,16 +149,12 @@
 
   async function loadCurrentPricing() {
     try {
-      pricingLoading = true;
       // Use the billing API to get pricing data from backend
       const data = await billingApi.getPricing();
       currentPricing = data.products || [];
     } catch (err) {
       console.error("Failed to load current pricing:", err);
-      pricingError = "Failed to load current pricing data";
       currentPricing = [];
-    } finally {
-      pricingLoading = false;
     }
   }
 
@@ -264,16 +258,6 @@
     }
   }
 
-  // Check if there are unsaved changes
-  function hasUnsavedChanges(): boolean {
-    return (
-      productSlots.pro_monthly !== initialProductSlots.pro_monthly ||
-      productSlots.pro_annual !== initialProductSlots.pro_annual ||
-      productSlots.business_monthly !== initialProductSlots.business_monthly ||
-      productSlots.business_annual !== initialProductSlots.business_annual
-    );
-  }
-
   // Get current price for a product slot
   function getCurrentPrice(slot: keyof typeof productSlots): string {
     if (!currentPricing || currentPricing.length === 0) return "Not configured";
@@ -283,7 +267,6 @@
     if (!product) return "Not configured";
 
     const amount = product.price_amount || 0;
-    const currency = product.price_currency || "EUR";
     const interval = product.recurring_interval;
 
     const price = (amount / 100).toFixed(2);
@@ -451,19 +434,6 @@
     }
   }
 
-  async function handleUpdateSetting(key: string, value: string) {
-    try {
-      saving = true;
-      settings = await adminApi.updateSetting(key, value);
-      showToastMessage("Setting updated");
-    } catch (err) {
-      console.error("Failed to update setting:", err);
-      showToastMessage("Failed to update setting");
-    } finally {
-      saving = false;
-    }
-  }
-
   function showToastMessage(message: string) {
     toastMessage = message;
     showToast = true;
@@ -586,7 +556,7 @@
           </p>
         {:else}
           <div class="product-grid">
-            {#each [{ key: "product_pro_monthly_id", label: "Pro Monthly", slot: "pro_monthly" as const }, { key: "product_pro_annual_id", label: "Pro Annual", slot: "pro_annual" as const }, { key: "product_business_monthly_id", label: "Business Monthly", slot: "business_monthly" as const }, { key: "product_business_annual_id", label: "Business Annual", slot: "business_annual" as const }] as row}
+            {#each [{ key: "product_pro_monthly_id", label: "Pro Monthly", slot: "pro_monthly" as const }, { key: "product_pro_annual_id", label: "Pro Annual", slot: "pro_annual" as const }, { key: "product_business_monthly_id", label: "Business Monthly", slot: "business_monthly" as const }, { key: "product_business_annual_id", label: "Business Annual", slot: "business_annual" as const }] as row (row.key)}
               <div
                 class="product-row"
                 class:unsaved={productSlots[row.slot] !==
@@ -638,7 +608,7 @@
                     class="product-select"
                   >
                     <option value="">Select product</option>
-                    {#each products.filter((p) => !p.is_archived) as p}
+                    {#each products.filter((p) => !p.is_archived) as p (p.id)}
                       <option value={p.id}
                         >{p.name} ({p.prices.length > 0
                           ? `€${(p.prices[0].price_amount / 100).toFixed(2)}`
@@ -671,7 +641,7 @@
           </p>
         {:else}
           <div class="discount-grid">
-            {#each [{ key: "active_discount_pro_monthly", label: "Pro", interval: "Monthly", slot: "pro_monthly" as const, basePrice: 9 }, { key: "active_discount_pro_annual", label: "Pro", interval: "Annual", slot: "pro_annual" as const, basePrice: 90 }, { key: "active_discount_business_monthly", label: "Business", interval: "Monthly", slot: "business_monthly" as const, basePrice: 29 }, { key: "active_discount_business_annual", label: "Business", interval: "Annual", slot: "business_annual" as const, basePrice: 290 }] as row}
+            {#each [{ key: "active_discount_pro_monthly", label: "Pro", interval: "Monthly", slot: "pro_monthly" as const, basePrice: 9 }, { key: "active_discount_pro_annual", label: "Pro", interval: "Annual", slot: "pro_annual" as const, basePrice: 90 }, { key: "active_discount_business_monthly", label: "Business", interval: "Monthly", slot: "business_monthly" as const, basePrice: 29 }, { key: "active_discount_business_annual", label: "Business", interval: "Annual", slot: "business_annual" as const, basePrice: 290 }] as row (row.key)}
               <div class="discount-row">
                 <div class="discount-label-section">
                   <label class="discount-label" for="discount-{row.slot}">
@@ -709,7 +679,7 @@
                   class="tier-select"
                 >
                   <option value="">— None —</option>
-                  {#each getDiscountsForSlot(row.slot) as d}
+                  {#each getDiscountsForSlot(row.slot) as d (d.id)}
                     <option value={d.id}
                       >{formatDiscountLabel(d, row.slot)}</option
                     >

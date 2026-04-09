@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { authApi, type AuthProvider } from "$lib/api/auth";
   import Logo from "$lib/components/Logo.svelte";
   import SEO from "$lib/components/SEO.svelte";
-  import { authApi, type AuthProvider } from "$lib/api/auth";
+  import { onMount } from "svelte";
   import type { PageData } from "./$types";
 
-  let { data }: { data: PageData } = $props();
+  const { data }: { data: PageData } = $props();
 
   let providers = $state<AuthProvider[]>([]);
   let loading = $state(true);
@@ -132,7 +132,7 @@
         </div>
       {:else}
         <div class="flex flex-col gap-3">
-          {#each providers as provider}
+          {#each providers as provider (provider.name)}
             {@const icon = getProviderIcon(provider.name)}
             {@const redirect = page.url.searchParams.get("redirect")}
             {@const isLoading = signingInProvider === provider.name}

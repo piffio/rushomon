@@ -1,10 +1,8 @@
 <script lang="ts">
-  import type { HTMLButtonAttributes } from "svelte/elements";
-
   type Variant = "primary" | "secondary" | "danger" | "ghost";
   type Size = "sm" | "md" | "lg";
 
-  let {
+  const {
     loading = false,
     disabled = false,
     variant = "primary" as Variant,

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { adminApi } from "$lib/api/admin";
   import type { BlacklistEntry } from "$lib/types/api";
+  import { onMount } from "svelte";
 
   let entries = $state<BlacklistEntry[]>([]);
   let loading = $state(false);
@@ -173,7 +173,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each entries as entry}
+          {#each entries as entry (entry.id)}
             <tr>
               <td class="destination-cell">
                 <code>{entry.destination}</code>

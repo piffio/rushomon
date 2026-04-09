@@ -1,13 +1,13 @@
 <script lang="ts">
-  import Header from "$lib/components/Header.svelte";
-  import Footer from "$lib/components/Footer.svelte";
-  import SEO from "$lib/components/SEO.svelte";
   import { authApi } from "$lib/api/auth";
+  import Footer from "$lib/components/Footer.svelte";
+  import Header from "$lib/components/Header.svelte";
+  import SEO from "$lib/components/SEO.svelte";
+  import type { User } from "$lib/types/api";
   import { onMount } from "svelte";
   import type { PageData } from "./$types";
-  import type { User } from "$lib/types/api";
 
-  let { data }: { data: PageData } = $props();
+  const { data: _data }: { data: PageData } = $props();
 
   let currentUser = $state<User | undefined>(undefined);
 
@@ -16,7 +16,7 @@
     try {
       const user = await authApi.me();
       currentUser = user;
-    } catch (error) {
+    } catch {
       // User not authenticated, that's fine for public pages
       currentUser = undefined;
     }
