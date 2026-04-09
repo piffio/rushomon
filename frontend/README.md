@@ -84,21 +84,81 @@ src/
 
 ## Components
 
+### Avatar.svelte
+
+User avatar component with fallback initials.
+
+### EditLinkModal.svelte
+
+Modal for editing existing link details.
+
+### Footer.svelte
+
+Site footer with links and branding.
+
 ### Header.svelte
 
 Navigation header with user menu and logout.
 
-### CreateLinkForm.svelte
+### LinkCard.svelte
 
-Form for creating new short links with validation.
+Individual link card with copy, click count, and delete actions.
 
 ### LinkList.svelte
 
 Displays paginated list of links with loading/empty states.
 
-### LinkCard.svelte
+### LinkModal.svelte
 
-Individual link card with copy, click count, and delete actions.
+Modal for creating new short links with validation.
+
+### LoadingButton.svelte
+
+Button component with loading state indicator.
+
+### Logo.svelte
+
+Site logo component.
+
+### NotFound.svelte
+
+404 error page component.
+
+### OrgLinkSlideOver.svelte
+
+Slide-over panel for organization link management.
+
+### Pagination.svelte
+
+Pagination controls for list views.
+
+### PricingCard.svelte
+
+Pricing tier card for subscription plans.
+
+### QRCodeModal.svelte
+
+Modal for generating and displaying QR codes for links.
+
+### ReportDialog.svelte
+
+Dialog for reporting abusive links.
+
+### SEO.svelte
+
+SEO meta tags component for page metadata.
+
+### SearchFilterBar.svelte
+
+Search and filter bar for link lists.
+
+### TagInput.svelte
+
+Input component for adding/removing tags.
+
+### UserMenu.svelte
+
+User dropdown menu with account options.
 
 ## API Integration
 
