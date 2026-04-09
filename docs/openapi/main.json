@@ -3166,12 +3166,12 @@
         "tags": [
           "Tags"
         ],
-        "summary": "List org tags",
-        "description": "Returns all tags used within the authenticated organization, each with a usage count reflecting the number of active links carrying that tag",
+        "summary": "Get organization tags",
+        "description": "Returns all tags for the authenticated user's organization with usage counts, sorted by count desc then name asc",
         "operationId": "handle_get_org_tags",
         "responses": {
           "200": {
-            "description": "Array of tags with usage counts"
+            "description": "List of tags with usage counts"
           },
           "401": {
             "description": "Unauthorized"
@@ -3193,13 +3193,13 @@
           "Tags"
         ],
         "summary": "Delete a tag",
-        "description": "Removes a tag from all links in the authenticated organization and deletes it",
+        "description": "Deletes a tag from all links in the authenticated organization. Returns 204 No Content on success",
         "operationId": "handle_delete_org_tag",
         "parameters": [
           {
             "name": "name",
             "in": "path",
-            "description": "Tag name",
+            "description": "Tag name to delete",
             "required": true,
             "schema": {
               "type": "string"
@@ -3208,10 +3208,16 @@
         ],
         "responses": {
           "204": {
-            "description": "Tag deleted"
+            "description": "Tag deleted successfully"
+          },
+          "400": {
+            "description": "Missing tag name"
           },
           "401": {
             "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Tag not found"
           },
           "500": {
             "description": "Failed to delete tag"
