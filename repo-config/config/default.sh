@@ -25,7 +25,7 @@ CLIPPY_ERROR_MSG="Clippy found issues! Address warnings before committing."
 
 # Svelte/TypeScript checking - required for frontend quality
 SVELTE_CHECK_ENABLED=true
-SVELTE_CHECK_COMMAND="cd frontend && (git diff --cached --name-only | grep -E '^frontend/' >/dev/null && npm run check || echo 'No frontend changes detected')"
+SVELTE_CHECK_COMMAND="if git diff --cached --name-only | grep -E '^frontend/' >/dev/null; then cd frontend && npm run check; else echo 'No frontend changes detected'; fi"
 SVELTE_CHECK_REQUIRED=true
 SVELTE_CHECK_ERROR_MSG="Svelte/TypeScript issues found! Please fix errors and warnings before committing."
 
