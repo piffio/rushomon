@@ -7,6 +7,7 @@ use crate::models::{
     link::{CreateLinkRequest, Link, LinkStatus, UpdateLinkRequest},
     user::User,
 };
+use crate::repositories::tag_repository::{TagRepository, validate_and_normalize_tags};
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use chrono::{Datelike, TimeZone};
 use std::future::Future;
@@ -549,7 +550,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     // Validate and normalize tags if provided
     let normalized_tags = if let Some(tags) = body.tags {
-        match db::validate_and_normalize_tags(&tags) {
+        match validate_and_normalize_tags(&tags) {
             Ok(t) => t,
             Err(e) => return Response::error(e.to_string(), 400),
         }
@@ -562,8 +563,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         && let Some(max_tags) = tier_limits.max_tags
     {
         // Get current count of distinct tags in the billing account
-        let current_tag_count =
-            db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
+        let current_tag_count = TagRepository::new()
+            .count_distinct_tags_for_billing_account(&db, &billing_account.id)
+            .await?;
 
         // Find which tags are new to the BA (not already in use)
         let mut new_tag_count = 0;
@@ -1234,7 +1236,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     // Update tags if provided
     if let Some(tags) = update_req.tags {
-        let normalized_tags = match db::validate_and_normalize_tags(&tags) {
+        let normalized_tags = match validate_and_normalize_tags(&tags) {
             Ok(t) => t,
             Err(e) => return Response::error(e.to_string(), 400),
         };
@@ -1245,9 +1247,9 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             && let Some(max_tags) = limits.max_tags
         {
             // Get current count of distinct tags in the billing account
-            let current_tag_count =
-                db::count_distinct_tags_for_billing_account(&db, &billing_account_update.id)
-                    .await?;
+            let current_tag_count = TagRepository::new()
+                .count_distinct_tags_for_billing_account(&db, &billing_account_update.id)
+                .await?;
 
             // Get existing tags for this link to see which ones are being removed
             let existing_link_tags = db::get_tags_for_link(&db, &link_id).await?;
@@ -1737,7 +1739,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
         // Validate and normalize tags (silently drop bad tags)
         let mut normalized_tags = if let Some(ref tags) = row.tags {
-            db::validate_and_normalize_tags(tags).unwrap_or_default()
+            validate_and_normalize_tags(tags).unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -1747,8 +1749,9 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             && let Some(max_tags) = tier_limits.max_tags
         {
             // Get current count of distinct tags in the billing account
-            let current_tag_count =
-                db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
+            let current_tag_count = TagRepository::new()
+                .count_distinct_tags_for_billing_account(&db, &billing_account.id)
+                .await?;
 
             // Find which tags are new to the BA (not already in use)
             let mut new_tag_count = 0;
@@ -2282,7 +2285,9 @@ pub async fn handle_get_usage(req: Request, ctx: RouteContext<()>) -> Result<Res
         db::get_monthly_counter_for_billing_account(&db, &billing_account.id, &year_month).await?;
 
     // Get tag count for the billing account
-    let tags_count = db::count_distinct_tags_for_billing_account(&db, &billing_account.id).await?;
+    let tags_count = TagRepository::new()
+        .count_distinct_tags_for_billing_account(&db, &billing_account.id)
+        .await?;
 
     // Calculate next reset time (first day of next month at midnight UTC)
     let now = chrono::Utc::now();

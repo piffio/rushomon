@@ -2,11 +2,12 @@
 ///
 /// Handles tag validation, business rules, and orchestrates the tag repository.
 use crate::repositories::TagRepository;
-use crate::repositories::tag_repository::OrgTag;
+use crate::repositories::tag_repository::{OrgTag, normalize_tag};
 use worker::d1::D1Database;
 use worker::*;
 
 /// Service for tag operations
+#[derive(Default)]
 pub struct TagService {
     repository: TagRepository,
 }
@@ -54,7 +55,7 @@ impl TagService {
         }
 
         // Normalize the new tag name
-        let normalized_new_name = self.repository.normalize_tag(new_name).ok_or_else(|| {
+        let normalized_new_name = normalize_tag(new_name).ok_or_else(|| {
             worker::Error::RustError(
                 "Invalid new tag name. Tag names must be non-empty and at most 50 characters."
                     .to_string(),

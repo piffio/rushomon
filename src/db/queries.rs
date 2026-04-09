@@ -2255,44 +2255,6 @@ pub async fn is_duplicate_report(
     Ok(count > 0)
 }
 
-// ─── Tag queries ─────────────────────────────────────────────────────────────
-
-/// Normalize a tag name: trim whitespace, collapse internal spaces, max 50 chars.
-/// Returns None if the result is empty.
-pub fn normalize_tag(tag: &str) -> Option<String> {
-    let normalized: String = tag.split_whitespace().collect::<Vec<&str>>().join(" ");
-    if normalized.is_empty() || normalized.len() > 50 {
-        None
-    } else {
-        Some(normalized)
-    }
-}
-
-/// Validate and normalize a list of tags. Returns error string if any tag is invalid.
-pub fn validate_and_normalize_tags(tags: &[String]) -> Result<Vec<String>> {
-    if tags.len() > 20 {
-        return Err(worker::Error::RustError(
-            "Maximum 20 tags per link".to_string(),
-        ));
-    }
-    let mut normalized = Vec::with_capacity(tags.len());
-    for tag in tags {
-        match normalize_tag(tag) {
-            Some(t) => normalized.push(t),
-            None => {
-                return Err(worker::Error::RustError(format!(
-                    "Invalid tag: '{}'. Tags must be non-empty and at most 50 characters.",
-                    tag
-                )));
-            }
-        }
-    }
-    // Deduplicate (case-insensitive)
-    let mut seen = std::collections::HashSet::new();
-    normalized.retain(|t| seen.insert(t.to_lowercase()));
-    Ok(normalized)
-}
-
 /// Get all tags for a single link, sorted alphabetically.
 pub async fn get_tags_for_link(db: &D1Database, link_id: &str) -> Result<Vec<String>> {
     let stmt =
@@ -3553,33 +3515,6 @@ pub async fn get_cached_product_by_price_id(
         .await?;
 
     Ok(result)
-}
-
-// ─── Tag Management ─────────────────────────────────────────────────────────────
-
-/// Count distinct tag names across all organizations in a billing account.
-/// This is used to enforce BA-level tag limits.
-pub async fn count_distinct_tags_for_billing_account(
-    db: &D1Database,
-    billing_account_id: &str,
-) -> Result<i64> {
-    let stmt = db.prepare(
-        "SELECT COUNT(DISTINCT lt.tag_name) as count
-         FROM link_tags lt
-         JOIN organizations o ON lt.org_id = o.id
-         WHERE o.billing_account_id = ?1",
-    );
-
-    let result = stmt
-        .bind(&[billing_account_id.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    if let Some(result) = result {
-        Ok(result["count"].as_f64().unwrap_or(0.0) as i64)
-    } else {
-        Ok(0)
-    }
 }
 
 // ─── Webhook Idempotency ─────────────────────────────────────────────────────
