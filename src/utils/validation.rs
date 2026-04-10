@@ -37,6 +37,17 @@ const RESERVED_CODES: &[&str] = &[
     "index",
 ];
 
+/// Normalize a tag name: trim whitespace, collapse internal spaces, max 50 chars.
+/// Returns `None` if the result is empty or exceeds the length limit.
+pub fn normalize_tag(tag: &str) -> Option<String> {
+    let normalized: String = tag.split_whitespace().collect::<Vec<&str>>().join(" ");
+    if normalized.is_empty() || normalized.len() > 50 {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
 /// Validate a destination URL
 /// Must be http or https scheme
 pub fn validate_url(url_str: &str) -> Result<String, String> {

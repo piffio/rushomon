@@ -1,6 +1,7 @@
 /// Tag repository - Data access for tags
 ///
 /// Handles all database operations related to tags.
+use crate::utils::normalize_tag;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -9,17 +10,6 @@ use worker::*;
 pub struct OrgTag {
     pub name: String,
     pub count: i64,
-}
-
-/// Normalize a tag name: trim whitespace, collapse internal spaces, max 50 chars.
-/// Returns None if the result is empty or too long.
-pub fn normalize_tag(tag: &str) -> Option<String> {
-    let normalized: String = tag.split_whitespace().collect::<Vec<&str>>().join(" ");
-    if normalized.is_empty() || normalized.len() > 50 {
-        None
-    } else {
-        Some(normalized)
-    }
 }
 
 /// Validate and normalize a list of tags. Returns an error if any tag is invalid.

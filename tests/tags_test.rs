@@ -508,6 +508,155 @@ async fn test_get_org_tags_returns_counts() {
     assert_eq!(count, 2, "Tag count should be 2");
 }
 
+// ─── DELETE /api/tags/:name ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_delete_org_tag_requires_auth() {
+    let client = test_client();
+    let response = client
+        .delete(format!("{}/api/tags/some-tag", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_delete_org_tag_removes_from_all_links() {
+    let client = authenticated_client();
+    let unique_tag = format!("deltag-{}", unique_short_code("dt"));
+    let code1 = unique_short_code("dt1");
+    let code2 = unique_short_code("dt2");
+
+    // Create two links sharing the unique tag
+    for code in [&code1, &code2] {
+        let r = client
+            .post(format!("{}/api/links", BASE_URL))
+            .json(&json!({
+                "destination_url": "https://example.com/del-tag-test",
+                "short_code": code,
+                "tags": [unique_tag.clone(), "other-tag"]
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status(), StatusCode::OK);
+    }
+
+    // Delete the unique tag via DELETE /api/tags/:name
+    let del_resp = client
+        .delete(format!(
+            "{}/api/tags/{}",
+            BASE_URL,
+            urlencoding::encode(&unique_tag)
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(del_resp.status(), StatusCode::NO_CONTENT);
+
+    // The tag should no longer appear in the org tag list
+    let tags_resp = client
+        .get(format!("{}/api/tags", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(tags_resp.status(), StatusCode::OK);
+    let tags: serde_json::Value = tags_resp.json().await.unwrap();
+    let found = tags
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|t| t["name"].as_str() == Some(unique_tag.as_str()));
+    assert!(!found, "Deleted tag should no longer appear in org tags");
+}
+
+#[tokio::test]
+async fn test_delete_org_tag_returns_404_for_nonexistent() {
+    let client = authenticated_client();
+    let response = client
+        .delete(format!("{}/api/tags/nonexistent-tag-xyz-999", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+// ─── PATCH /api/tags/:name ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_rename_org_tag_requires_auth() {
+    let client = test_client();
+    let response = client
+        .patch(format!("{}/api/tags/some-tag", BASE_URL))
+        .json(&json!({ "new_name": "renamed-tag" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_rename_org_tag_renames_across_links() {
+    let client = authenticated_client();
+    let old_tag = format!("rename-old-{}", unique_short_code("ro"));
+    let new_tag = format!("rename-new-{}", unique_short_code("rn"));
+    let code = unique_short_code("rnt");
+
+    // Create a link with the old tag
+    let create_resp = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/rename-tag-test",
+            "short_code": code,
+            "tags": [old_tag.clone()]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_resp.status(), StatusCode::OK);
+
+    // Rename the tag via PATCH /api/tags/:name
+    let rename_resp = client
+        .patch(format!(
+            "{}/api/tags/{}",
+            BASE_URL,
+            urlencoding::encode(&old_tag)
+        ))
+        .json(&json!({ "new_name": new_tag.clone() }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(rename_resp.status(), StatusCode::OK);
+    let tags: serde_json::Value = rename_resp.json().await.unwrap();
+    let tags_arr = tags.as_array().unwrap();
+    // Old tag gone, new tag present
+    assert!(
+        !tags_arr
+            .iter()
+            .any(|t| t["name"].as_str() == Some(old_tag.as_str())),
+        "Old tag should no longer appear after rename"
+    );
+    assert!(
+        tags_arr
+            .iter()
+            .any(|t| t["name"].as_str() == Some(new_tag.as_str())),
+        "New tag should appear after rename"
+    );
+}
+
+#[tokio::test]
+async fn test_rename_org_tag_rejects_missing_new_name() {
+    let client = authenticated_client();
+    let response = client
+        .patch(format!("{}/api/tags/any-tag", BASE_URL))
+        .json(&json!({ "wrong_field": "value" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 // ─── Tag filter combined with search ─────────────────────────────────────────
 
 #[tokio::test]

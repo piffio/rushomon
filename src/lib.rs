@@ -168,13 +168,6 @@ pub(crate) fn add_cors_headers(
     response
 }
 
-/// Handle CORS preflight requests
-async fn handle_cors_preflight(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let origin = req.headers().get("Origin").ok().flatten();
-    let response = Response::empty()?;
-    Ok(add_cors_headers(response, origin, &ctx.env))
-}
-
 #[event(fetch)]
 async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
     // Set up panic hook for better error messages
@@ -226,6 +219,12 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
                 // Asset not found or fetch failed, continue to router
             }
         }
+    }
+
+    // Handle CORS preflight for all API routes with a single early-return.
+    if req.method() == Method::Options && path.starts_with("/api/") {
+        let response = Response::empty()?;
+        return Ok(add_cors_headers(response, origin, &env));
     }
 
     // Create router
@@ -299,91 +298,6 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             }
             Ok(result.response)
         })
-        // CORS preflight handlers for API routes
-        .options_async("/api/auth/providers", handle_cors_preflight)
-        .options_async("/api/auth/github", handle_cors_preflight)
-        .options_async("/api/auth/google", handle_cors_preflight)
-        .options_async("/api/auth/callback", handle_cors_preflight)
-        .options_async("/api/auth/me", handle_cors_preflight)
-        .options_async("/api/auth/refresh", handle_cors_preflight)
-        .options_async("/api/auth/logout", handle_cors_preflight)
-        .options_async("/api/links", handle_cors_preflight)
-        .options_async("/api/links/by-code/:code", handle_cors_preflight)
-        .options_async("/api/links/:id", handle_cors_preflight)
-        .options_async("/api/links/:id/analytics", handle_cors_preflight)
-        .options_async("/api/links/export", handle_cors_preflight)
-        .options_async("/api/links/import", handle_cors_preflight)
-        .options_async("/api/usage", handle_cors_preflight)
-        .options_async("/api/admin/users", handle_cors_preflight)
-        .options_async("/api/admin/users/:id", handle_cors_preflight)
-        .options_async("/api/admin/settings", handle_cors_preflight)
-        .options_async("/api/admin/discounts", handle_cors_preflight)
-        .options_async("/api/admin/products", handle_cors_preflight)
-        .options_async("/api/admin/products/sync", handle_cors_preflight)
-        .options_async("/api/admin/products/save", handle_cors_preflight)
-        .options_async("/api/admin/orgs/:id/tier", handle_cors_preflight)
-        .options_async("/api/admin/billing-accounts", handle_cors_preflight)
-        .options_async("/api/admin/billing-accounts/:id", handle_cors_preflight)
-        .options_async(
-            "/api/admin/billing-accounts/:id/tier",
-            handle_cors_preflight,
-        )
-        .options_async(
-            "/api/admin/billing-accounts/:id/reset-counter",
-            handle_cors_preflight,
-        )
-        .options_async(
-            "/api/admin/billing-accounts/:id/subscription",
-            handle_cors_preflight,
-        )
-        .options_async("/api/admin/orgs/:id/reset-counter", handle_cors_preflight)
-        .options_async("/api/admin/links", handle_cors_preflight)
-        .options_async("/api/admin/links/:id", handle_cors_preflight)
-        .options_async("/api/admin/links/:id/sync-kv", handle_cors_preflight)
-        .options_async("/api/admin/blacklist", handle_cors_preflight)
-        .options_async("/api/admin/blacklist/:id", handle_cors_preflight)
-        .options_async("/api/admin/users/:id/suspend", handle_cors_preflight)
-        .options_async("/api/admin/users/:id/unsuspend", handle_cors_preflight)
-        .options_async("/api/admin/reports", handle_cors_preflight)
-        .options_async("/api/admin/reports/:id", handle_cors_preflight)
-        .options_async("/api/admin/reports/pending/count", handle_cors_preflight)
-        .options_async("/api/reports/links", handle_cors_preflight)
-        .options_async("/api/tags", handle_cors_preflight)
-        .options_async("/api/tags/:name", handle_cors_preflight)
-        .options_async("/api/fetch-title", handle_cors_preflight)
-        .options_async("/api/version", handle_cors_preflight)
-        .options_async("/api/orgs", handle_cors_preflight)
-        .options_async("/api/orgs/:id", handle_cors_preflight)
-        .options_async("/api/orgs/:id/members/:user_id", handle_cors_preflight)
-        .options_async("/api/orgs/:id/invitations", handle_cors_preflight)
-        .options_async(
-            "/api/orgs/:id/invitations/:invitation_id",
-            handle_cors_preflight,
-        )
-        .options_async(
-            "/api/orgs/:id/invitations/:invitation_id/resend",
-            handle_cors_preflight,
-        )
-        .options_async("/api/orgs/:id/settings", handle_cors_preflight)
-        .options_async("/api/orgs/:id/logo", handle_cors_preflight)
-        .options_async("/api/auth/switch-org", handle_cors_preflight)
-        .options_async("/api/invite/:token", handle_cors_preflight)
-        .options_async("/api/invite/:token/accept", handle_cors_preflight)
-        .options_async("/api/billing/status", handle_cors_preflight)
-        .options_async("/api/billing/checkout", handle_cors_preflight)
-        .options_async("/api/billing/pricing", handle_cors_preflight)
-        .options_async("/api/billing/webhook", handle_cors_preflight)
-        .options_async("/api/billing/portal", handle_cors_preflight)
-        .options_async("/api/admin/cron/trigger-downgrade", handle_cors_preflight)
-        .options_async("/api/settings", handle_cors_preflight)
-        .options_async("/api/settings/api-keys", handle_cors_preflight)
-        .options_async("/api/settings/api-keys/:id", handle_cors_preflight)
-        .options_async("/api/admin/api-keys", handle_cors_preflight)
-        .options_async("/api/admin/api-keys/:id", handle_cors_preflight)
-        .options_async("/api/admin/api-keys/:id/delete", handle_cors_preflight)
-        .options_async("/api/admin/api-keys/:id/restore", handle_cors_preflight)
-        .options_async("/api/admin/api-keys/:id/reactivate", handle_cors_preflight)
-        .options_async("/api/analytics/org", handle_cors_preflight)
         // Auth routes (public)
         .get_async("/api/auth/providers", router::handle_list_auth_providers)
         .get_async("/api/auth/github", router::handle_github_login)

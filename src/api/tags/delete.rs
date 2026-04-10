@@ -3,6 +3,7 @@
 /// Delete a tag from the authenticated user's organization.
 use crate::auth;
 use crate::services::TagService;
+use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -28,42 +29,27 @@ use worker::*;
     )
 )]
 pub async fn handle_delete_org_tag(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner(req, ctx).await.unwrap_or_else(|e| e.into_response()))
+}
 
-    let tag_name = match ctx.param("name") {
-        Some(name) => urlencoding::decode(name).unwrap_or_default().into_owned(),
-        None => return Response::error("Missing tag name", 400),
-    };
+async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError> {
+    let user_ctx = auth::authenticate_request(&req, &ctx).await?;
+
+    let tag_name = ctx
+        .param("name")
+        .map(|n| urlencoding::decode(n).unwrap_or_default().into_owned())
+        .ok_or_else(|| AppError::BadRequest("Missing tag name".to_string()))?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let tag_service = TagService::new();
 
-    match tag_service
+    let deleted = tag_service
         .delete_tag(&db, &user_ctx.org_id, &tag_name)
-        .await
-    {
-        Ok(deleted) => {
-            if deleted {
-                Ok(Response::empty()?.with_status(204))
-            } else {
-                Response::error("Tag not found", 404)
-            }
-        }
-        Err(e) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "delete_tag_failed",
-                    "org_id": user_ctx.org_id,
-                    "tag_name": tag_name,
-                    "error": e.to_string(),
-                    "level": "error"
-                })
-            );
-            Response::error("Failed to delete tag", 500)
-        }
+        .await?;
+
+    if deleted {
+        Ok(Response::empty()?.with_status(204))
+    } else {
+        Err(AppError::NotFound("Tag not found".to_string()))
     }
 }

@@ -3,6 +3,7 @@
 /// Rename a tag in the authenticated user's organization.
 use crate::auth;
 use crate::services::TagService;
+use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -25,49 +26,35 @@ use worker::*;
         ("session_cookie" = [])
     )
 )]
-pub async fn handle_rename_org_tag(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+pub async fn handle_rename_org_tag(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    Ok(inner(req, ctx).await.unwrap_or_else(|e| e.into_response()))
+}
 
-    let old_name = match ctx.param("name") {
-        Some(name) => urlencoding::decode(name).unwrap_or_default().into_owned(),
-        None => return Response::error("Missing tag name", 400),
-    };
+async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppError> {
+    let user_ctx = auth::authenticate_request(&req, &ctx).await?;
 
-    // Parse request body
-    let body: serde_json::Value = match req.json().await {
-        Ok(body) => body,
-        Err(_) => return Response::error("Invalid request body", 400),
-    };
+    let old_name = ctx
+        .param("name")
+        .map(|n| urlencoding::decode(n).unwrap_or_default().into_owned())
+        .ok_or_else(|| AppError::BadRequest("Missing tag name".to_string()))?;
 
-    let new_name = match body.get("new_name").and_then(|v| v.as_str()) {
-        Some(name) => name.to_string(),
-        None => return Response::error("Missing new_name field", 400),
-    };
+    let body: serde_json::Value = req
+        .json()
+        .await
+        .map_err(|_| AppError::BadRequest("Invalid request body".to_string()))?;
+
+    let new_name = body
+        .get("new_name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("Missing new_name field".to_string()))?
+        .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let tag_service = TagService::new();
 
-    match tag_service
+    let tags = tag_service
         .rename_tag(&db, &user_ctx.org_id, &old_name, &new_name)
-        .await
-    {
-        Ok(tags) => Response::from_json(&tags),
-        Err(e) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "rename_tag_failed",
-                    "org_id": user_ctx.org_id,
-                    "old_name": old_name,
-                    "new_name": new_name,
-                    "error": e.to_string(),
-                    "level": "error"
-                })
-            );
-            Response::error("Failed to rename tag", 500)
-        }
-    }
+        .await?;
+
+    Ok(Response::from_json(&tags)?)
 }

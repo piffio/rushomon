@@ -3,6 +3,7 @@
 /// Get all tags for the authenticated user's organization with usage counts.
 use crate::auth;
 use crate::services::TagService;
+use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -22,15 +23,13 @@ use worker::*;
     )
 )]
 pub async fn handle_get_org_tags(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
-    let org_id = &user_ctx.org_id;
+    Ok(inner(req, ctx).await.unwrap_or_else(|e| e.into_response()))
+}
 
+async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError> {
+    let user_ctx = auth::authenticate_request(&req, &ctx).await?;
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let tag_service = TagService::new();
-    let tags = tag_service.get_org_tags(&db, org_id).await?;
-
-    Response::from_json(&tags)
+    let tags = tag_service.get_org_tags(&db, &user_ctx.org_id).await?;
+    Ok(Response::from_json(&tags)?)
 }

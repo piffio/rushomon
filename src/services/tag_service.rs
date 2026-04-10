@@ -2,7 +2,8 @@
 ///
 /// Handles tag validation, business rules, and orchestrates the tag repository.
 use crate::repositories::TagRepository;
-use crate::repositories::tag_repository::{OrgTag, normalize_tag};
+use crate::repositories::tag_repository::OrgTag;
+use crate::utils::normalize_tag;
 use worker::d1::D1Database;
 use worker::*;
 
