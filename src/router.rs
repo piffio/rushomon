@@ -2695,7 +2695,8 @@ pub async fn handle_billing_pricing(_req: Request, ctx: RouteContext<()>) -> Res
     let db = &ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
 
     // Get configured product IDs from settings
-    let settings_map = match crate::db::queries::get_all_settings(db).await {
+    let settings_repo = crate::repositories::SettingsRepository::new();
+    let settings_map = match settings_repo.get_all_settings(db).await {
         Ok(s) => s,
         Err(e) => {
             worker::console_error!("Failed to fetch settings for pricing: {}", e);
@@ -2975,136 +2976,9 @@ async fn cache_products_from_polar(
     Ok(())
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/admin/settings",
-    tag = "Admin",
-    summary = "Get system settings",
-    responses(
-        (status = 200, description = "Key-value map of all settings"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Admin required"),
-    ),
-    security(("Bearer" = []), ("session_cookie" = []))
-)]
-pub async fn handle_admin_get_settings(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
-
-    if let Err(e) = auth::require_admin(&user_ctx) {
-        return Ok(e.into_response());
-    }
-
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let settings = db::get_all_settings(&db).await?;
-
-    let settings_map: serde_json::Map<String, serde_json::Value> = settings
-        .into_iter()
-        .map(|(k, v)| (k, serde_json::Value::String(v)))
-        .collect();
-
-    Response::from_json(&serde_json::Value::Object(settings_map))
-}
-
-#[utoipa::path(
-    put,
-    path = "/api/admin/settings",
-    tag = "Admin",
-    summary = "Update a system setting",
-    responses(
-        (status = 200, description = "Updated settings map"),
-        (status = 400, description = "Unknown or invalid setting value"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Admin required"),
-    ),
-    security(("Bearer" = []), ("session_cookie" = []))
-)]
-pub async fn handle_admin_update_setting(
-    mut req: Request,
-    ctx: RouteContext<()>,
-) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
-
-    if let Err(e) = auth::require_admin(&user_ctx) {
-        return Ok(e.into_response());
-    }
-
-    // Parse request body
-    let body: serde_json::Value = match req.json().await {
-        Ok(body) => body,
-        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
-    };
-
-    let key = match body.get("key").and_then(|k| k.as_str()) {
-        Some(k) => k.to_string(),
-        None => return Response::error("Missing 'key' field", 400),
-    };
-
-    let value = match body.get("value").and_then(|v| v.as_str()) {
-        Some(v) => v.to_string(),
-        None => return Response::error("Missing 'value' field", 400),
-    };
-
-    // Validate known settings
-    match key.as_str() {
-        "signups_enabled" => {
-            if value != "true" && value != "false" {
-                return Response::error(
-                    "Invalid value for 'signups_enabled'. Must be 'true' or 'false'",
-                    400,
-                );
-            }
-        }
-        "default_user_tier" => {
-            if Tier::from_str_value(&value).is_none() {
-                return Response::error(
-                    "Invalid value for 'default_user_tier'. Must be 'free' or 'unlimited'",
-                    400,
-                );
-            }
-        }
-        "founder_pricing_active" => {
-            if value != "true" && value != "false" {
-                return Response::error(
-                    "Invalid value for 'founder_pricing_active'. Must be 'true' or 'false'",
-                    400,
-                );
-            }
-        }
-        "active_discount_pro_monthly"
-        | "active_discount_pro_annual"
-        | "active_discount_business_monthly"
-        | "active_discount_business_annual"
-        | "active_discount_amount_pro_monthly"
-        | "active_discount_amount_pro_annual"
-        | "active_discount_amount_business_monthly"
-        | "active_discount_amount_business_annual"
-        | "product_pro_monthly_id"
-        | "product_pro_annual_id"
-        | "product_business_monthly_id"
-        | "product_business_annual_id" => {
-            // Any string is valid (discount UUID / product UUID / amount in cents, or empty string to clear)
-        }
-        _ => return Response::error(format!("Unknown setting: {}", key), 400),
-    }
-
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    db::set_setting(&db, &key, &value).await?;
-
-    // Return updated settings
-    let settings = db::get_all_settings(&db).await?;
-    let settings_map: serde_json::Map<String, serde_json::Value> = settings
-        .into_iter()
-        .map(|(k, v)| (k, serde_json::Value::String(v)))
-        .collect();
-
-    Response::from_json(&serde_json::Value::Object(settings_map))
-}
+// NOTE: Admin settings handlers have been moved to api/settings/admin.rs
+// - handle_admin_get_settings
+// - handle_admin_update_setting
 
 #[utoipa::path(
     post,

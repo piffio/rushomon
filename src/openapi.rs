@@ -121,7 +121,7 @@ use utoipa::{Modify, OpenApi};
         crate::router::handle_report_link,
 
         // Settings
-        crate::api::settings::handle_get_public_settings,
+        crate::api::settings::public::handle_get_public_settings,
 
         // System
         crate::api::version::handle_version,
@@ -141,8 +141,8 @@ use utoipa::{Modify, OpenApi};
         crate::router::handle_admin_sync_link_kv,
 
         // Admin — Settings
-        crate::router::handle_admin_get_settings,
-        crate::router::handle_admin_update_setting,
+        crate::api::settings::admin::handle_admin_get_settings,
+        crate::api::settings::admin::handle_admin_update_setting,
         crate::router::handle_admin_reset_monthly_counter,
 
         // Admin — Blacklist

@@ -385,8 +385,14 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             router::handle_admin_update_subscription_status,
         )
         // Admin settings routes
-        .get_async("/api/admin/settings", router::handle_admin_get_settings)
-        .put_async("/api/admin/settings", router::handle_admin_update_setting)
+        .get_async(
+            "/api/admin/settings",
+            crate::api::settings::admin::handle_admin_get_settings,
+        )
+        .put_async(
+            "/api/admin/settings",
+            crate::api::settings::admin::handle_admin_update_setting,
+        )
         // Admin discounts and products routes
         .get_async("/api/admin/discounts", router::handle_admin_list_discounts)
         .get_async("/api/admin/products", router::handle_admin_list_products)
@@ -432,7 +438,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         // Public settings route
         .get_async(
             "/api/settings",
-            crate::api::settings::handle_get_public_settings,
+            crate::api::settings::public::handle_get_public_settings,
         )
         .post_async(
             "/api/settings/api-keys",

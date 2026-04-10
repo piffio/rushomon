@@ -198,7 +198,9 @@ pub async fn create_default_org(
     let now = now_timestamp();
 
     // Read the default tier from settings
-    let tier = get_setting(db, "default_user_tier")
+    let settings_repo = crate::repositories::SettingsRepository::new();
+    let tier = settings_repo
+        .get_setting(db, "default_user_tier")
         .await?
         .unwrap_or_else(|| "free".to_string());
 
@@ -864,52 +866,6 @@ pub async fn update_user_role(db: &D1Database, user_id: &str, new_role: &str) ->
     let stmt = db.prepare("UPDATE users SET role = ?1 WHERE id = ?2");
 
     stmt.bind(&[new_role.into(), user_id.into()])?.run().await?;
-
-    Ok(())
-}
-
-/// Get a setting value by key
-pub async fn get_setting(db: &D1Database, key: &str) -> Result<Option<String>> {
-    let stmt = db.prepare("SELECT value FROM settings WHERE key = ?1");
-    let result = stmt
-        .bind(&[key.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    match result {
-        Some(val) => Ok(val["value"].as_str().map(|s| s.to_string())),
-        None => Ok(None),
-    }
-}
-
-/// Get all settings as a HashMap
-pub async fn get_all_settings(
-    db: &D1Database,
-) -> Result<std::collections::HashMap<String, String>> {
-    let stmt = db.prepare("SELECT key, value FROM settings");
-    let results = stmt.all().await?;
-    let rows = results.results::<serde_json::Value>()?;
-
-    let mut settings = std::collections::HashMap::new();
-    for row in rows {
-        if let (Some(key), Some(value)) = (row["key"].as_str(), row["value"].as_str()) {
-            settings.insert(key.to_string(), value.to_string());
-        }
-    }
-    Ok(settings)
-}
-
-/// Set a setting value (upsert)
-pub async fn set_setting(db: &D1Database, key: &str, value: &str) -> Result<()> {
-    let now = now_timestamp();
-    let stmt = db.prepare(
-        "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
-         ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3",
-    );
-
-    stmt.bind(&[key.into(), value.into(), (now as f64).into()])?
-        .run()
-        .await?;
 
     Ok(())
 }

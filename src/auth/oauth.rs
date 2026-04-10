@@ -373,7 +373,9 @@ async fn create_or_get_user(
     // Step 3: new user — check if signups are enabled (first user is always allowed)
     let user_count = queries::get_user_count(db).await?;
     if user_count > 0 {
-        let signups_enabled = queries::get_setting(db, "signups_enabled")
+        let settings_repo = crate::repositories::SettingsRepository::new();
+        let signups_enabled = settings_repo
+            .get_setting(db, "signups_enabled")
             .await?
             .unwrap_or_else(|| "true".to_string());
         if signups_enabled != "true" {

@@ -211,7 +211,8 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     // Get all settings in a single query
-    let settings = db::get_all_settings(&db).await?;
+    let settings_repo = crate::repositories::SettingsRepository::new();
+    let settings = settings_repo.get_all_settings(&db).await?;
 
     // Look up product ID securely from settings
     let polar_product_id = match settings.get(product_id_key) {
