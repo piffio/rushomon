@@ -2976,10 +2976,6 @@ async fn cache_products_from_polar(
     Ok(())
 }
 
-// NOTE: Admin settings handlers have been moved to api/settings/admin.rs
-// - handle_admin_get_settings
-// - handle_admin_update_setting
-
 #[utoipa::path(
     post,
     path = "/api/admin/orgs/{id}/reset-counter",
