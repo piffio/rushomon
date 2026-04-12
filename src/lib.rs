@@ -299,16 +299,25 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             Ok(result.response)
         })
         // Auth routes (public)
-        .get_async("/api/auth/providers", router::handle_list_auth_providers)
+        .get_async(
+            "/api/auth/providers",
+            crate::api::auth::providers::handle_list_auth_providers,
+        )
         .get_async("/api/auth/github", router::handle_github_login)
         .get_async("/api/auth/google", router::handle_google_login)
         .get_async("/api/auth/callback", router::handle_oauth_callback)
         // Version endpoint (public)
         .get_async("/api/version", crate::api::version::handle_version)
         // API routes - authentication required
-        .get_async("/api/auth/me", router::handle_get_current_user)
-        .post_async("/api/auth/refresh", router::handle_token_refresh)
-        .post_async("/api/auth/logout", router::handle_logout)
+        .get_async(
+            "/api/auth/me",
+            crate::api::auth::session::handle_get_current_user,
+        )
+        .post_async(
+            "/api/auth/refresh",
+            crate::api::auth::session::handle_token_refresh,
+        )
+        .post_async("/api/auth/logout", crate::api::auth::session::handle_logout)
         .get_async("/api/usage", router::handle_get_usage)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
