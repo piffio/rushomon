@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-worker = { version = "0.7.5", features = ["d1"] }
+worker = { version = "0.8.0", features = ["d1"] }
 wasm-bindgen = { version = "0.2.114", features = ["serde-serialize"] }
 web-sys = { version = "0.3", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
 serde = { version = "1.0", features = ["derive"] }
