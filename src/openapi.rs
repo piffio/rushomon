@@ -57,13 +57,13 @@ use utoipa::{Modify, OpenApi};
     ),
     paths(
         // Authentication
-        crate::router::handle_list_auth_providers,
+        crate::api::auth::providers::handle_list_auth_providers,
         crate::router::handle_github_login,
         crate::router::handle_google_login,
         crate::router::handle_oauth_callback,
-        crate::router::handle_get_current_user,
-        crate::router::handle_token_refresh,
-        crate::router::handle_logout,
+        crate::api::auth::session::handle_get_current_user,
+        crate::api::auth::session::handle_token_refresh,
+        crate::api::auth::session::handle_logout,
 
         // Usage
         crate::router::handle_get_usage,

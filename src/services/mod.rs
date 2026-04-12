@@ -13,7 +13,9 @@
 // - Direct DB access (use repositories instead)
 
 // Add service modules here as they are created:
+pub mod auth_service;
 pub mod settings_service;
 pub mod tag_service;
+pub use auth_service::AuthService;
 pub use settings_service::SettingsService;
 pub use tag_service::TagService;
