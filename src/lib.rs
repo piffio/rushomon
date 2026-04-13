@@ -318,7 +318,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             crate::api::auth::session::handle_token_refresh,
         )
         .post_async("/api/auth/logout", crate::api::auth::session::handle_logout)
-        .get_async("/api/usage", router::handle_get_usage)
+        .get_async("/api/usage", crate::api::analytics::usage::handle_get_usage)
         .post_async("/api/links", router::handle_create_link)
         .get_async("/api/links", router::handle_list_links)
         .get_async("/api/links/export", router::handle_export_links)
@@ -326,7 +326,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .get_async("/api/links/by-code/:code", router::handle_get_link_by_code)
         .get_async(
             "/api/links/:id/analytics",
-            router::handle_get_link_analytics,
+            crate::api::analytics::link::handle_get_link_analytics,
         )
         .get_async("/api/links/:id", router::handle_get_link)
         .put_async("/api/links/:id", router::handle_update_link)
@@ -533,7 +533,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         // Org analytics route
         .get_async(
             "/api/analytics/org",
-            crate::api::analytics::handle_get_org_analytics,
+            crate::api::analytics::org::handle_get_org_analytics,
         )
         // Title fetch route (public, can be called by anyone)
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)

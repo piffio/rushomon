@@ -66,21 +66,21 @@ use utoipa::{Modify, OpenApi};
         crate::api::auth::session::handle_logout,
 
         // Usage
-        crate::router::handle_get_usage,
+        crate::api::analytics::usage::handle_get_usage,
 
         // Links
         crate::router::handle_create_link,
         crate::router::handle_list_links,
         crate::router::handle_get_link,
         crate::router::handle_get_link_by_code,
-        crate::router::handle_get_link_analytics,
+        crate::api::analytics::link::handle_get_link_analytics,
         crate::router::handle_update_link,
         crate::router::handle_delete_link,
         crate::router::handle_export_links,
         crate::router::handle_import_links,
 
         // Analytics
-        crate::api::analytics::handle_get_org_analytics,
+        crate::api::analytics::org::handle_get_org_analytics,
 
         // Tags
         crate::api::tags::handle_get_org_tags,

@@ -14,9 +14,11 @@
 // - Business logic (belongs in services)
 
 // Add repository modules here as they are created:
+pub mod analytics_repository;
 pub mod settings_repository;
 pub mod tag_repository;
 pub mod user_repository;
+pub use analytics_repository::AnalyticsRepository;
 pub use settings_repository::SettingsRepository;
 pub use tag_repository::TagRepository;
 pub use user_repository::UserRepository;

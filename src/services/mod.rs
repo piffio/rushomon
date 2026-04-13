@@ -13,6 +13,7 @@
 // - Direct DB access (use repositories instead)
 
 // Add service modules here as they are created:
+pub mod analytics_service;
 pub mod auth_service;
 pub mod settings_service;
 pub mod tag_service;
