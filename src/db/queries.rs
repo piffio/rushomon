@@ -3086,23 +3086,6 @@ pub async fn mark_webhook_processed(
     Ok(())
 }
 
-/// Delete expired webhook records (for cleanup cron job)
-#[allow(dead_code)]
-pub async fn cleanup_expired_webhooks(db: &D1Database) -> Result<i64> {
-    let now = now_timestamp();
-
-    let stmt = db.prepare(
-        "DELETE FROM processed_webhooks
-         WHERE expires_at < ?1",
-    );
-
-    stmt.bind(&[(now as f64).into()])?.run().await?;
-
-    // Note: D1 doesn't expose affected row count easily
-    // Return 0 - actual count not needed for cleanup
-    Ok(0)
-}
-
 #[derive(Debug, serde::Deserialize)]
 pub struct ApiKeyWithTierRecord {
     pub id: String,
