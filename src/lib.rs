@@ -403,15 +403,21 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             crate::api::settings::admin::handle_admin_update_setting,
         )
         // Admin discounts and products routes
-        .get_async("/api/admin/discounts", router::handle_admin_list_discounts)
-        .get_async("/api/admin/products", router::handle_admin_list_products)
+        .get_async(
+            "/api/admin/discounts",
+            crate::api::billing::products::handle_admin_list_discounts,
+        )
+        .get_async(
+            "/api/admin/products",
+            crate::api::billing::products::handle_admin_list_products,
+        )
         .post_async(
             "/api/admin/products/sync",
-            router::handle_admin_sync_products,
+            crate::api::billing::products::handle_admin_sync_products,
         )
         .post_async(
             "/api/admin/products/save",
-            router::handle_admin_save_products,
+            crate::api::billing::products::handle_admin_save_products,
         )
         // Admin API keys routes
         .get_async("/api/admin/api-keys", router::handle_admin_list_api_keys)
@@ -515,7 +521,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/billing/status",
             crate::api::billing::handle_get_status,
         )
-        .get_async("/api/billing/pricing", router::handle_billing_pricing)
+        .get_async(
+            "/api/billing/pricing",
+            crate::api::billing::pricing::handle_billing_pricing,
+        )
         .post_async(
             "/api/billing/checkout",
             crate::api::billing::handle_create_checkout,

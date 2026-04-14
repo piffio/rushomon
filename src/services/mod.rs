@@ -15,10 +15,12 @@
 // Add service modules here as they are created:
 pub mod analytics_service;
 pub mod auth_service;
+pub mod product_service;
 pub mod settings_service;
 pub mod subscription_service;
 pub mod tag_service;
 pub use auth_service::AuthService;
+pub use product_service::ProductService;
 pub use settings_service::SettingsService;
 pub use subscription_service::SubscriptionService;
 pub use tag_service::TagService;

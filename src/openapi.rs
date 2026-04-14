@@ -166,10 +166,10 @@ use utoipa::{Modify, OpenApi};
         crate::api::billing::handle_cron_trigger_downgrade,
 
         // Admin — Products & Discounts
-        crate::router::handle_admin_list_discounts,
-        crate::router::handle_admin_list_products,
-        crate::router::handle_admin_sync_products,
-        crate::router::handle_admin_save_products,
+        crate::api::billing::products::handle_admin_list_discounts,
+        crate::api::billing::products::handle_admin_list_products,
+        crate::api::billing::products::handle_admin_sync_products,
+        crate::api::billing::products::handle_admin_save_products,
 
         // Admin — API Keys
         crate::router::handle_admin_list_api_keys,
