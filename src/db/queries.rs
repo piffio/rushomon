@@ -1005,16 +1005,6 @@ pub async fn get_links_by_org(db: &D1Database, org_id: &str) -> Result<Vec<Link>
     results.results::<Link>()
 }
 
-pub async fn get_links_for_blacklist_scan(db: &D1Database) -> Result<Vec<Link>> {
-    let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
-         FROM links
-         WHERE status IN ('active', 'disabled')",
-    );
-    let results = stmt.all().await?;
-    results.results::<Link>()
-}
-
 /// Check if user is the last admin in their organization
 pub async fn is_last_admin_in_org(db: &D1Database, user_id: &str, org_id: &str) -> Result<bool> {
     let stmt = db.prepare(
@@ -1091,74 +1081,6 @@ pub async fn disable_all_links_for_org(db: &D1Database, org_id: &str) -> Result<
         .unwrap_or(0))
 }
 
-/// Check if destination is already blacklisted
-pub async fn is_destination_already_blacklisted(
-    db: &D1Database,
-    destination: &str,
-    match_type: &str,
-) -> Result<bool> {
-    let stmt = db.prepare(
-        "SELECT 1 FROM destination_blacklist
-         WHERE destination = ?1 AND match_type = ?2
-         LIMIT 1",
-    );
-    if let Ok(Some(_)) = stmt
-        .bind(&[destination.into(), match_type.into()])?
-        .first::<serde_json::Value>(None)
-        .await
-    {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
-
-/// Add destination to blacklist
-pub async fn add_to_blacklist(
-    db: &D1Database,
-    destination: &str,
-    match_type: &str,
-    reason: &str,
-    created_by: &str,
-) -> Result<()> {
-    let id = uuid::Uuid::new_v4().to_string();
-    let now = now_timestamp();
-    let stmt = db.prepare(
-        "INSERT INTO destination_blacklist (id, destination, match_type, reason, created_by, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
-    );
-    stmt.bind(&[
-        id.into(),
-        destination.into(),
-        match_type.into(),
-        reason.into(),
-        created_by.into(),
-        (now as f64).into(),
-    ])?
-    .run()
-    .await?;
-    Ok(())
-}
-
-/// Remove destination from blacklist
-pub async fn remove_from_blacklist(db: &D1Database, id: &str) -> Result<()> {
-    let stmt = db.prepare("DELETE FROM destination_blacklist WHERE id = ?1");
-    stmt.bind(&[id.into()])?.run().await?;
-    Ok(())
-}
-
-/// Get all blacklist entries
-pub async fn get_all_blacklist(db: &D1Database) -> Result<Vec<BlacklistEntry>> {
-    let stmt = db.prepare(
-        "SELECT id, destination, match_type, reason, created_by, created_at
-         FROM destination_blacklist
-         ORDER BY created_at DESC",
-    );
-    let results = stmt.all().await?;
-    let entries = results.results::<BlacklistEntry>()?;
-    Ok(entries)
-}
-
 /// Check if a destination is blacklisted (exact or domain match)
 pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> Result<bool> {
     use crate::utils::normalize_url_for_blacklist;
@@ -1208,10 +1130,14 @@ pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> R
 
     // Finally, check if any normalized blacklist entries match our normalized destination
     // This handles cases where blocked URLs have different forms but same normalized form
-    let all_entries = get_all_blacklist(db).await?;
-    for entry in all_entries {
-        if entry.match_type == "exact"
-            && let Ok(normalized_entry) = normalize_url_for_blacklist(&entry.destination)
+    let all_exact_entries = db
+        .prepare("SELECT destination FROM destination_blacklist WHERE match_type = 'exact'")
+        .all()
+        .await?
+        .results::<serde_json::Value>()?;
+    for entry in all_exact_entries {
+        if let Some(dest) = entry.get("destination").and_then(|d| d.as_str())
+            && let Ok(normalized_entry) = normalize_url_for_blacklist(dest)
             && normalized_entry == normalized_destination
         {
             return Ok(true);
