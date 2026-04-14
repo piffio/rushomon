@@ -17,6 +17,7 @@
 pub mod analytics_repository;
 pub mod api_key_repository;
 pub mod billing_repository;
+pub mod blacklist_repository;
 pub mod product_repository;
 pub mod report_repository;
 pub mod settings_repository;
@@ -25,6 +26,7 @@ pub mod user_repository;
 pub use analytics_repository::AnalyticsRepository;
 pub use api_key_repository::ApiKeyRepository;
 pub use billing_repository::BillingRepository;
+pub use blacklist_repository::BlacklistRepository;
 pub use product_repository::ProductRepository;
 pub use report_repository::ReportRepository;
 pub use settings_repository::SettingsRepository;

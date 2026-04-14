@@ -146,9 +146,9 @@ use utoipa::{Modify, OpenApi};
         crate::router::handle_admin_reset_monthly_counter,
 
         // Admin — Blacklist
-        crate::router::handle_admin_get_blacklist,
-        crate::router::handle_admin_block_destination,
-        crate::router::handle_admin_remove_blacklist,
+        crate::api::admin::blacklist::handle_admin_get_blacklist,
+        crate::api::admin::blacklist::handle_admin_block_destination,
+        crate::api::admin::blacklist::handle_admin_remove_blacklist,
 
         // Admin — Reports
         crate::api::reports::admin::handle_admin_get_reports,

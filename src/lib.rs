@@ -348,12 +348,15 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         .post_async(
             "/api/admin/blacklist",
-            router::handle_admin_block_destination,
+            crate::api::admin::blacklist::handle_admin_block_destination,
         )
-        .get_async("/api/admin/blacklist", router::handle_admin_get_blacklist)
+        .get_async(
+            "/api/admin/blacklist",
+            crate::api::admin::blacklist::handle_admin_get_blacklist,
+        )
         .delete_async(
             "/api/admin/blacklist/:id",
-            router::handle_admin_remove_blacklist,
+            crate::api::admin::blacklist::handle_admin_remove_blacklist,
         )
         .put_async(
             "/api/admin/users/:id/suspend",
