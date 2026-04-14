@@ -172,11 +172,11 @@ use utoipa::{Modify, OpenApi};
         crate::api::billing::products::handle_admin_save_products,
 
         // Admin — API Keys
-        crate::router::handle_admin_list_api_keys,
-        crate::router::handle_admin_revoke_api_key,
-        crate::router::handle_admin_reactivate_api_key,
-        crate::router::handle_admin_delete_api_key,
-        crate::router::handle_admin_restore_api_key,
+        crate::api::admin::api_keys::handle_admin_list_api_keys,
+        crate::api::admin::api_keys::handle_admin_revoke_api_key,
+        crate::api::admin::api_keys::handle_admin_reactivate_api_key,
+        crate::api::admin::api_keys::handle_admin_delete_api_key,
+        crate::api::admin::api_keys::handle_admin_restore_api_key,
     ),
     modifiers(&SecurityAddon),
     tags(

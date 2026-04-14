@@ -429,22 +429,25 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             crate::api::billing::products::handle_admin_save_products,
         )
         // Admin API keys routes
-        .get_async("/api/admin/api-keys", router::handle_admin_list_api_keys)
+        .get_async(
+            "/api/admin/api-keys",
+            crate::api::admin::api_keys::handle_admin_list_api_keys,
+        )
         .delete_async(
             "/api/admin/api-keys/:id",
-            router::handle_admin_revoke_api_key,
+            crate::api::admin::api_keys::handle_admin_revoke_api_key,
         )
         .post_async(
             "/api/admin/api-keys/:id/delete",
-            router::handle_admin_delete_api_key,
+            crate::api::admin::api_keys::handle_admin_delete_api_key,
         )
         .post_async(
             "/api/admin/api-keys/:id/restore",
-            router::handle_admin_restore_api_key,
+            crate::api::admin::api_keys::handle_admin_restore_api_key,
         )
         .post_async(
             "/api/admin/api-keys/:id/reactivate",
-            router::handle_admin_reactivate_api_key,
+            crate::api::admin::api_keys::handle_admin_reactivate_api_key,
         )
         // Admin users routes
         .get_async("/api/admin/users", router::handle_admin_list_users)
