@@ -365,12 +365,21 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         .delete_async("/api/admin/users/:id", router::handle_admin_delete_user)
         // Admin report management routes
-        .get_async("/api/admin/reports", router::handle_admin_get_reports)
-        .get_async("/api/admin/reports/:id", router::handle_admin_get_report)
-        .put_async("/api/admin/reports/:id", router::handle_admin_update_report)
+        .get_async(
+            "/api/admin/reports",
+            crate::api::reports::admin::handle_admin_get_reports,
+        )
+        .get_async(
+            "/api/admin/reports/:id",
+            crate::api::reports::admin::handle_admin_get_report,
+        )
+        .put_async(
+            "/api/admin/reports/:id",
+            crate::api::reports::admin::handle_admin_update_report,
+        )
         .get_async(
             "/api/admin/reports/pending/count",
-            router::handle_admin_get_pending_reports_count,
+            crate::api::reports::admin::handle_admin_get_pending_reports_count,
         )
         // Admin billing account routes
         .get_async(
@@ -445,7 +454,10 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             router::handle_admin_update_user_role,
         )
         // Abuse report route (public, can be called by anyone)
-        .post_async("/api/reports/links", router::handle_report_link)
+        .post_async(
+            "/api/reports/links",
+            crate::api::reports::create::handle_report_link,
+        )
         // Tags routes
         .get_async("/api/tags", crate::api::tags::handle_get_org_tags)
         .delete_async("/api/tags/:name", crate::api::tags::handle_delete_org_tag)
