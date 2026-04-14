@@ -1,3 +1,6 @@
+pub mod pricing;
+pub mod products;
+
 use crate::auth;
 use crate::billing::polar::polar_client_from_env;
 use crate::billing::provider::BillingProvider;
