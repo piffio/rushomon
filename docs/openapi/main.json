@@ -959,6 +959,7 @@
           "Admin"
         ],
         "summary": "Sync and cache products from Polar",
+        "description": "Fetches products from Polar and replaces the local cached_products table",
         "operationId": "handle_admin_save_products",
         "responses": {
           "200": {
@@ -990,6 +991,7 @@
           "Admin"
         ],
         "summary": "Sync products from Polar",
+        "description": "Fetches the product list from the Polar API (dry-run: no database write)",
         "operationId": "handle_admin_sync_products",
         "responses": {
           "200": {
