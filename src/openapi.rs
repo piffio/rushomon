@@ -118,7 +118,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::billing::handle_webhook,
 
         // Reports
-        crate::router::handle_report_link,
+        crate::api::reports::create::handle_report_link,
 
         // Settings
         crate::api::settings::public::handle_get_public_settings,
@@ -151,10 +151,10 @@ use utoipa::{Modify, OpenApi};
         crate::router::handle_admin_remove_blacklist,
 
         // Admin — Reports
-        crate::router::handle_admin_get_reports,
-        crate::router::handle_admin_get_report,
-        crate::router::handle_admin_update_report,
-        crate::router::handle_admin_get_pending_reports_count,
+        crate::api::reports::admin::handle_admin_get_reports,
+        crate::api::reports::admin::handle_admin_get_report,
+        crate::api::reports::admin::handle_admin_update_report,
+        crate::api::reports::admin::handle_admin_get_pending_reports_count,
 
         // Admin — Billing accounts
         crate::router::handle_admin_list_billing_accounts,
