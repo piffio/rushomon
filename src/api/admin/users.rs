@@ -6,11 +6,11 @@
 /// PUT    /api/admin/users/:id/suspend   — suspend user
 /// PUT    /api/admin/users/:id/unsuspend — unsuspend user
 /// DELETE /api/admin/users/:id       — delete user + data
+use crate::api::links::sync_link_mapping_from_link;
 use crate::auth;
 use crate::kv;
 use crate::models::link::LinkStatus;
 use crate::repositories::UserRepository;
-use crate::router::sync_link_mapping_from_link;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;

@@ -192,7 +192,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         Some(port) => format!("{}:{}", url.host_str().unwrap_or(""), port),
         None => url.host_str().unwrap_or("").to_string(),
     };
-    let frontend_url_str = router::get_frontend_url(&env);
+    let frontend_url_str = crate::api::links::get_frontend_url(&env);
     let frontend_authority = Url::parse(&frontend_url_str)
         .ok()
         .map(|u| match u.port() {
@@ -261,7 +261,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
                 return Response::error("Not found", 404);
             }
 
-            let result = router::handle_redirect(req, route_ctx, code).await?;
+            let result = crate::api::links::handle_redirect(req, route_ctx, code).await?;
             if let Some(future) = result.analytics_future {
                 DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
             }
@@ -292,7 +292,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
                 return Response::error("Not found", 404);
             }
 
-            let result = router::handle_redirect(req, route_ctx, code).await?;
+            let result = crate::api::links::handle_redirect(req, route_ctx, code).await?;
             if let Some(future) = result.analytics_future {
                 DEFERRED_ANALYTICS.with(|cell| cell.replace(Some(future)));
             }
@@ -319,32 +319,41 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         .post_async("/api/auth/logout", crate::api::auth::session::handle_logout)
         .get_async("/api/usage", crate::api::analytics::usage::handle_get_usage)
-        .post_async("/api/links", router::handle_create_link)
-        .get_async("/api/links", router::handle_list_links)
-        .get_async("/api/links/export", router::handle_export_links)
-        .post_async("/api/links/import", router::handle_import_links)
-        .get_async("/api/links/by-code/:code", router::handle_get_link_by_code)
+        .post_async("/api/links", crate::api::links::handle_create_link)
+        .get_async("/api/links", crate::api::links::handle_list_links)
+        .get_async("/api/links/export", crate::api::links::handle_export_links)
+        .post_async("/api/links/import", crate::api::links::handle_import_links)
+        .get_async(
+            "/api/links/by-code/:code",
+            crate::api::links::handle_get_link_by_code,
+        )
         .get_async(
             "/api/links/:id/analytics",
             crate::api::analytics::link::handle_get_link_analytics,
         )
-        .get_async("/api/links/:id", router::handle_get_link)
-        .put_async("/api/links/:id", router::handle_update_link)
-        .delete_async("/api/links/:id", router::handle_delete_link)
+        .get_async("/api/links/:id", crate::api::links::handle_get_link)
+        .put_async("/api/links/:id", crate::api::links::handle_update_link)
+        .delete_async("/api/links/:id", crate::api::links::handle_delete_link)
         .post_async(
             "/api/admin/reset-monthly-counter",
             router::handle_admin_reset_monthly_counter,
         )
         // Admin moderation routes
-        .get_async("/api/admin/links", router::handle_admin_list_links)
+        .get_async(
+            "/api/admin/links",
+            crate::api::links::handle_admin_list_links,
+        )
         .put_async(
             "/api/admin/links/:id",
-            router::handle_admin_update_link_status,
+            crate::api::links::handle_admin_update_link_status,
         )
-        .delete_async("/api/admin/links/:id", router::handle_admin_delete_link)
+        .delete_async(
+            "/api/admin/links/:id",
+            crate::api::links::handle_admin_delete_link,
+        )
         .post_async(
             "/api/admin/links/:id/sync-kv",
-            router::handle_admin_sync_link_kv,
+            crate::api::links::handle_admin_sync_link_kv,
         )
         .post_async(
             "/api/admin/blacklist",
@@ -575,7 +584,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
         .get_async("/", |_req, ctx| async move {
-            let url = Url::parse(&router::get_frontend_url(&ctx.env))?;
+            let url = Url::parse(&crate::api::links::get_frontend_url(&ctx.env))?;
             Response::redirect_with_status(url, 301)
         })
         .run(req, env.clone())

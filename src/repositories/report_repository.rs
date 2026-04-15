@@ -1,8 +1,8 @@
-use crate::db::queries::{AdminLink, AdminLinkBase};
 /// Report Repository
 ///
 /// Data access layer for the `link_reports` table.
 use crate::db::queries::{LinkReport, LinkReportQueryResult, LinkReportWithLink};
+use crate::repositories::link_repository::{AdminLink, AdminLinkBase};
 use crate::utils::now_timestamp;
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
