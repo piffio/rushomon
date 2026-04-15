@@ -1957,6 +1957,9 @@
           },
           "409": {
             "description": "Already a member of this org"
+          },
+          "410": {
+            "description": "Invitation expired"
           }
         },
         "security": [
@@ -2854,6 +2857,9 @@
           "200": {
             "description": "Invitation email resent"
           },
+          "400": {
+            "description": "Invitation expired or accepted"
+          },
           "401": {
             "description": "Unauthorized"
           },
@@ -2880,7 +2886,7 @@
           "Organizations"
         ],
         "summary": "Get org logo",
-        "description": "Serves the organization logo from R2 storage. Public endpoint — no authentication required",
+        "description": "Serves the organization logo from R2 storage. Public endpoint - no authentication required",
         "operationId": "handle_get_org_logo",
         "parameters": [
           {
@@ -3046,7 +3052,7 @@
           "Organizations"
         ],
         "summary": "Get org settings",
-        "description": "Returns organization-level settings. The query_forwarding_enabled setting is only available on Pro+ tiers",
+        "description": "Returns organization-level settings. The forward_query_params setting is only available on Pro+ tiers",
         "operationId": "handle_get_org_settings",
         "parameters": [
           {
@@ -3084,7 +3090,7 @@
           "Organizations"
         ],
         "summary": "Update org settings",
-        "description": "Updates organization-level settings. query_forwarding_enabled requires Pro+ tier. Caller must be owner or admin",
+        "description": "Updates organization-level settings. forward_query_params requires Pro+ tier. Caller must be owner or admin",
         "operationId": "handle_update_org_settings",
         "parameters": [
           {

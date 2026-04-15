@@ -25,7 +25,7 @@ async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tie
     path = "/api/orgs/{id}/settings",
     tag = "Organizations",
     summary = "Get org settings",
-    description = "Returns organization-level settings",
+    description = "Returns organization-level settings. The forward_query_params setting is only available on Pro+ tiers",
     params(
         ("id" = String, Path, description = "Organization ID"),
     ),
@@ -73,7 +73,7 @@ async fn inner_get_org_settings(req: Request, ctx: RouteContext<()>) -> Result<R
     path = "/api/orgs/{id}/settings",
     tag = "Organizations",
     summary = "Update org settings",
-    description = "Updates organization-level settings. forward_query_params requires Pro+ tier",
+    description = "Updates organization-level settings. forward_query_params requires Pro+ tier. Caller must be owner or admin",
     params(
         ("id" = String, Path, description = "Organization ID"),
     ),

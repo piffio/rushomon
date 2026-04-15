@@ -25,7 +25,7 @@ async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tie
     path = "/api/orgs",
     tag = "Organizations",
     summary = "List user organizations",
-    description = "Returns all organizations the authenticated user belongs to, including their role in each org and the org's current billing tier",
+    description = "Returns all organizations the authenticated user belongs to, including their role in each org and the org's current billing tier. Also returns the active org_id from the current session",
     responses(
         (status = 200, description = "List of organizations with role and tier info"),
         (status = 401, description = "Unauthorized"),
@@ -84,7 +84,7 @@ async fn inner_list_user_orgs(req: Request, ctx: RouteContext<()>) -> Result<Res
     path = "/api/auth/switch-org",
     tag = "Organizations",
     summary = "Switch active organization",
-    description = "Switches the authenticated user's active organization context",
+    description = "Switches the authenticated user's active organization context. Re-issues a new access token (and refresh token) scoped to the chosen org. The user must be a member of the target org",
     responses(
         (status = 200, description = "Switched, new access token set in cookies"),
         (status = 400, description = "Missing or invalid org_id"),

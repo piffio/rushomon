@@ -28,7 +28,7 @@ async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tie
     path = "/api/orgs",
     tag = "Organizations",
     summary = "Create an organization",
-    description = "Creates a new organization for the authenticated user. Respects tier organization limits",
+    description = "Creates a new organization for the authenticated user. The user becomes the owner. Respects tier organization limits",
     responses(
         (status = 200, description = "New organization"),
         (status = 400, description = "Missing name"),
@@ -136,7 +136,7 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     path = "/api/orgs/{id}",
     tag = "Organizations",
     summary = "Get organization",
-    description = "Returns org details including the member list with roles and pending invitations",
+    description = "Returns org details including the member list with roles and pending invitations. The caller must be a member of the org",
     params(
         ("id" = String, Path, description = "Organization ID"),
     ),

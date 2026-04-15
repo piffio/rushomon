@@ -36,12 +36,16 @@ async fn require_owner_or_admin(
     path = "/api/orgs/{id}/invitations",
     tag = "Organizations",
     summary = "Invite a member",
+    description = "Sends an email invitation to join the organization. Requires owner or admin role. Respects tier member limits. Sends an invitation email with a unique token",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+    ),
     responses(
-        (status = 200, description = "Invitation created"),
-        (status = 400, description = "Invalid email"),
+        (status = 200, description = "Invitation created and email sent"),
+        (status = 400, description = "Invalid email or missing fields"),
         (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Insufficient permissions or limit reached"),
-        (status = 409, description = "Already member or pending invite"),
+        (status = 403, description = "Owner or admin required, or member limit reached"),
+        (status = 409, description = "Already a member or invitation pending"),
     ),
     security(("Bearer" = []), ("session_cookie" = []))
 )]
@@ -153,10 +157,15 @@ async fn inner_create_invitation(
     path = "/api/orgs/{id}/invitations/{invitation_id}",
     tag = "Organizations",
     summary = "Revoke an invitation",
+    description = "Cancels a pending invitation. Requires owner or admin role",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+        ("invitation_id" = String, Path, description = "Invitation ID"),
+    ),
     responses(
         (status = 200, description = "Invitation revoked"),
         (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Insufficient permissions"),
+        (status = 403, description = "Owner or admin required"),
         (status = 404, description = "Invitation not found"),
     ),
     security(("Bearer" = []), ("session_cookie" = []))
@@ -203,12 +212,17 @@ async fn inner_revoke_invitation(
     path = "/api/orgs/{id}/invitations/{invitation_id}/resend",
     tag = "Organizations",
     summary = "Resend an invitation",
+    description = "Resends the invitation email for a pending invitation. Requires owner or admin role",
+    params(
+        ("id" = String, Path, description = "Organization ID"),
+        ("invitation_id" = String, Path, description = "Invitation ID"),
+    ),
     responses(
-        (status = 200, description = "Invitation resent"),
+        (status = 200, description = "Invitation email resent"),
         (status = 400, description = "Invitation expired or accepted"),
         (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Insufficient permissions"),
-        (status = 404, description = "Invitation not found"),
+        (status = 403, description = "Owner or admin required"),
+        (status = 404, description = "Invitation not found or already accepted"),
     ),
     security(("Bearer" = []), ("session_cookie" = []))
 )]
@@ -295,10 +309,13 @@ async fn inner_resend_invitation(
     path = "/api/invite/{token}",
     tag = "Organizations",
     summary = "Get invite info",
-    description = "Public endpoint - no authentication required",
+    description = "Validates an invitation token and returns the organization name and inviter details. Public endpoint — no authentication required. Used by the accept-invite page to show context before the user logs in",
+    params(
+        ("token" = String, Path, description = "Invitation token"),
+    ),
     responses(
         (status = 200, description = "Invitation details"),
-        (status = 404, description = "Not found, expired, or already accepted"),
+        (status = 404, description = "Token not found, expired, or already accepted"),
     )
 )]
 pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
@@ -349,12 +366,16 @@ pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Res
     path = "/api/invite/{token}/accept",
     tag = "Organizations",
     summary = "Accept an invitation",
+    description = "Accepts a pending invitation. Validates the token, verifies the caller's email matches the invited email, adds the user to the organization as the invited role, marks the invitation as accepted, and re-issues a new access token scoped to the new org",
+    params(
+        ("token" = String, Path, description = "Invitation token"),
+    ),
     responses(
-        (status = 200, description = "Invitation accepted"),
+        (status = 200, description = "Invitation accepted, new access token set"),
         (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Invitation sent to a different email address"),
-        (status = 404, description = "Invitation not found"),
-        (status = 409, description = "Invitation already accepted"),
+        (status = 403, description = "Caller email does not match invitation"),
+        (status = 404, description = "Invitation not found or already accepted"),
+        (status = 409, description = "Already a member of this org"),
         (status = 410, description = "Invitation expired"),
     ),
     security(("Bearer" = []), ("session_cookie" = []))
