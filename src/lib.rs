@@ -360,13 +360,16 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         )
         .put_async(
             "/api/admin/users/:id/suspend",
-            router::handle_admin_suspend_user,
+            crate::api::admin::users::handle_admin_suspend_user,
         )
         .put_async(
             "/api/admin/users/:id/unsuspend",
-            router::handle_admin_unsuspend_user,
+            crate::api::admin::users::handle_admin_unsuspend_user,
         )
-        .delete_async("/api/admin/users/:id", router::handle_admin_delete_user)
+        .delete_async(
+            "/api/admin/users/:id",
+            crate::api::admin::users::handle_admin_delete_user,
+        )
         // Admin report management routes
         .get_async(
             "/api/admin/reports",
@@ -453,11 +456,17 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             crate::api::admin::api_keys::handle_admin_reactivate_api_key,
         )
         // Admin users routes
-        .get_async("/api/admin/users", router::handle_admin_list_users)
-        .get_async("/api/admin/users/:id", router::handle_admin_get_user)
+        .get_async(
+            "/api/admin/users",
+            crate::api::admin::users::handle_admin_list_users,
+        )
+        .get_async(
+            "/api/admin/users/:id",
+            crate::api::admin::users::handle_admin_get_user,
+        )
         .put_async(
             "/api/admin/users/:id",
-            router::handle_admin_update_user_role,
+            crate::api::admin::users::handle_admin_update_user_role,
         )
         // Abuse report route (public, can be called by anyone)
         .post_async(
