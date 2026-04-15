@@ -687,7 +687,7 @@
         "tags": [
           "Admin"
         ],
-        "summary": "List all links (moderation)",
+        "summary": "List all links (admin)",
         "operationId": "handle_admin_list_links",
         "parameters": [
           {
@@ -740,7 +740,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of all links"
+            "description": "Paginated list of all links with KV sync status"
           },
           "401": {
             "description": "Unauthorized"
