@@ -158,7 +158,15 @@
         shortCode = link.short_code;
         title = link.title || "";
         expiresAt = link.expires_at
-          ? new Date(link.expires_at * 1000).toISOString().slice(0, 16)
+          ? (() => {
+              const date = new Date(link.expires_at * 1000);
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              const hours = String(date.getHours()).padStart(2, "0");
+              const minutes = String(date.getMinutes()).padStart(2, "0");
+              return `${year}-${month}-${day}T${hours}:${minutes}`;
+            })()
           : "";
         status = link.status;
         tags = [...(link.tags ?? [])];
@@ -217,9 +225,6 @@
       const linkData: any = {
         destination_url: destinationUrl,
         title: title || undefined,
-        expires_at: expiresAt
-          ? Math.floor(new Date(expiresAt).getTime() / 1000)
-          : undefined,
         tags: tags.length > 0 ? tags : [],
         utm_params: utmParams,
         forward_query_params: allowQueryForwarding
@@ -227,6 +232,26 @@
           : undefined,
         redirect_type: redirectType
       };
+
+      // Handle expiration: set, clear, or don't update
+      if (expiresAt) {
+        const expiresAtTimestamp = Math.floor(
+          new Date(expiresAt).getTime() / 1000
+        );
+        const nowTimestamp = Math.floor(Date.now() / 1000);
+        const ttl = expiresAtTimestamp - nowTimestamp;
+
+        // Cloudflare KV requires minimum 60 second TTL
+        if (ttl < 60) {
+          error = "Expiration must be at least 60 seconds in the future";
+          return;
+        }
+
+        linkData.expires_at = expiresAtTimestamp;
+      } else if (link?.expires_at) {
+        // Send clear_expiration flag to explicitly clear expiration
+        linkData.clear_expiration = true;
+      }
 
       let savedLink: Link;
 
@@ -527,13 +552,25 @@
           >
             Expiration Date (Optional)
           </label>
-          <input
-            id="expires-at"
-            type="datetime-local"
-            bind:value={expiresAt}
-            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            disabled={loading}
-          />
+          <div class="flex gap-2">
+            <input
+              id="expires-at"
+              type="datetime-local"
+              bind:value={expiresAt}
+              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              disabled={loading}
+            />
+            {#if isEditMode && link?.expires_at}
+              <button
+                type="button"
+                onclick={() => (expiresAt = "")}
+                class="px-3 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                disabled={loading}
+              >
+                Clear
+              </button>
+            {/if}
+          </div>
           <p class="text-xs text-gray-500 mt-1">
             Leave empty for links that never expire
           </p>

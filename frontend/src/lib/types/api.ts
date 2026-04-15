@@ -63,7 +63,8 @@ export interface CreateLinkRequest {
 export interface UpdateLinkRequest {
   destination_url?: string;
   title?: string;
-  expires_at?: number;
+  expires_at?: number; // Unix timestamp in seconds to set expiration
+  clear_expiration?: boolean; // Set to true to clear expiration
   status?: LinkStatus;
   tags?: string[];
   utm_params?: UtmParams;

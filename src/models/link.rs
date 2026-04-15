@@ -223,8 +223,12 @@ pub struct UpdateLinkRequest {
     pub title: Option<String>,
     #[schema(example = "disabled")]
     pub status: Option<LinkStatus>,
+    /// Expiration timestamp (Unix timestamp in seconds). Set to clear expiration.
     #[schema(example = 1640995200)]
     pub expires_at: Option<i64>,
+    /// Set to true to clear the expiration date
+    #[schema(example = false)]
+    pub clear_expiration: Option<bool>,
     #[schema(example = json!(["updated", "tag"]))]
     pub tags: Option<Vec<String>>,
     pub utm_params: Option<UtmParams>,

@@ -58,7 +58,13 @@ pub async fn update_link_mapping(
     if let Some(expires_at) = mapping.expires_at {
         let now = chrono::Utc::now().timestamp();
         let ttl = (expires_at - now).max(0) as u64;
-        put = put.expiration_ttl(ttl);
+        // Cloudflare KV requires minimum 60 second TTL
+        const MIN_TTL: u64 = 60;
+        if ttl >= MIN_TTL {
+            put = put.expiration_ttl(ttl);
+        }
+        // If TTL < 60 seconds, don't set expiration_ttl
+        // The link will remain active until explicitly deleted
     }
 
     put.execute().await?;

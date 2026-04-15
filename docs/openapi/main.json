@@ -2377,7 +2377,7 @@
           "Links"
         ],
         "summary": "Update a link",
-        "description": "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Updates are written to both D1 and KV atomically",
+        "description": "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV atomically",
         "operationId": "handle_update_link",
         "parameters": [
           {
@@ -4164,7 +4164,16 @@
               "null"
             ],
             "format": "int64",
+            "description": "Expiration timestamp (Unix timestamp in seconds). Set to clear expiration.",
             "example": 1640995200
+          },
+          "clear_expiration": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Set to true to clear the expiration date",
+            "example": false
           },
           "tags": {
             "type": [

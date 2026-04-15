@@ -343,6 +343,7 @@ impl LinkRepository {
     }
 
     /// Update a link. Only provided fields are changed.
+    /// For expires_at: None = don't update, Some(None) = clear to NULL, Some(Some(ts)) = set to timestamp
     #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
@@ -352,7 +353,7 @@ impl LinkRepository {
         destination_url: Option<&str>,
         title: Option<&str>,
         status: Option<&str>,
-        expires_at: Option<i64>,
+        expires_at: Option<Option<i64>>,
         utm_params: Option<Option<&str>>,
         forward_query_params: Option<Option<bool>>,
         redirect_type: Option<&str>,
@@ -381,9 +382,13 @@ impl LinkRepository {
             param_count += 1;
         }
 
-        if expires_at.is_some() {
+        if let Some(expires_val) = expires_at {
             query.push_str(&format!(", expires_at = ?{}", param_count));
-            params.push(expires_at.map(|t| t as f64).into());
+            params.push(
+                expires_val
+                    .map(|t| (t as f64).into())
+                    .unwrap_or(JsValue::NULL),
+            );
             param_count += 1;
         }
 

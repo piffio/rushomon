@@ -1,18 +1,27 @@
 use crate::auth;
 use crate::db;
-use crate::models::{Tier, link::UpdateLinkRequest};
+use crate::models::link::UpdateLinkRequest;
+use crate::models::tier::Tier;
+use crate::repositories::LinkRepository;
+use crate::repositories::TagRepository;
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{LinkRepository, TagRepository};
 use crate::utils::{now_timestamp, validate_url};
+use serde_json::json;
 use worker::d1::D1Database;
 use worker::*;
+
+fn json_error(message: &str, status: u16) -> Response {
+    Response::from_json(&json!({ "error": message }))
+        .unwrap()
+        .with_status(status)
+}
 
 #[utoipa::path(
     put,
     path = "/api/links/{id}",
     tag = "Links",
     summary = "Update a link",
-    description = "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Updates are written to both D1 and KV atomically",
+    description = "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV atomically",
     params(
         ("id" = String, Path, description = "Link ID"),
     ),
@@ -36,35 +45,50 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let link_id = match ctx.param("id") {
         Some(id) => id.to_string(),
-        None => return Response::error("Missing link ID", 400),
+        None => return Ok(json_error("Missing link ID", 400)),
     };
 
-    let update_req: UpdateLinkRequest = match req.json().await {
+    let update_req: UpdateLinkRequest = match req.json::<UpdateLinkRequest>().await {
         Ok(req) => req,
-        Err(_) => return Response::error("Invalid request body", 400),
+        Err(_) => return Ok(json_error("Invalid request body", 400)),
     };
 
     if let Some(url) = &update_req.destination_url {
         if let Err(e) = validate_url(url) {
-            return Response::error(format!("Invalid URL: {}", e), 400);
+            return Ok(json_error(&format!("Invalid URL: {}", e), 400));
         }
 
         let db = ctx.env.get_binding::<D1Database>("rushomon")?;
         if db::is_destination_blacklisted(&db, url).await? {
-            return Response::error("Destination URL is blocked", 403);
+            return Ok(json_error("Destination URL is blocked", 403));
         }
     }
 
     if let Some(ref title) = update_req.title
         && title.len() > 200
     {
-        return Response::error("Title must be 200 characters or less", 400);
+        return Ok(json_error("Title must be 200 characters or less", 400));
     }
 
-    if let Some(expires_at) = update_req.expires_at {
-        let now = now_timestamp();
+    let now = now_timestamp();
+
+    // Convert clear_expiration flag to expires_at format for repository
+    let expires_at_for_repo = if update_req.clear_expiration == Some(true) {
+        Some(None) // Clear expiration
+    } else {
+        update_req.expires_at.map(Some) // Set to specific timestamp or None
+    };
+
+    if let Some(Some(expires_at)) = expires_at_for_repo {
         if expires_at <= now {
-            return Response::error("Expiration date must be in the future", 400);
+            return Ok(json_error("Expiration date must be in the future", 400));
+        }
+        // Cloudflare KV requires minimum 60 second TTL
+        if expires_at - now < 60 {
+            return Ok(json_error(
+                "Expiration must be at least 60 seconds in the future",
+                400,
+            ));
         }
     }
 
@@ -74,7 +98,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let _existing_link = match repo.get_by_id(&db, &link_id, &user_ctx.org_id).await? {
         Some(link) => link,
-        None => return Response::error("Link not found", 404),
+        None => return Ok(json_error("Link not found", 404)),
     };
 
     let billing_account = db::get_billing_account_for_org(&db, &user_ctx.org_id)
@@ -102,7 +126,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         } else {
             "UTM parameters and query parameter forwarding require a Pro plan or above."
         };
-        return Response::error(error_msg, 403);
+        return Ok(json_error(error_msg, 403));
     }
 
     let utm_json_for_db: Option<Option<String>> = update_req.utm_params.as_ref().map(|u| {
@@ -121,7 +145,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             update_req.destination_url.as_deref(),
             update_req.title.as_deref(),
             update_req.status.as_ref().map(|s| s.as_str()),
-            update_req.expires_at,
+            expires_at_for_repo,
             utm_json_for_db.as_ref().map(|o| o.as_deref()),
             update_req.forward_query_params.map(Some),
             update_req.redirect_type.as_deref(),
@@ -131,7 +155,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     if let Some(tags) = update_req.tags {
         let normalized_tags = match validate_and_normalize_tags(&tags) {
             Ok(t) => t,
-            Err(e) => return Response::error(e.to_string(), 400),
+            Err(e) => return Ok(json_error(&e.to_string(), 400)),
         };
 
         let tier_limits = tier.as_ref().map(|t| t.limits());
@@ -218,7 +242,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
                     "You have reached your tag limit across all organizations. Upgrade your plan to create more tags."
                         .to_string()
                 };
-                return Response::error(message, 403);
+                return Ok(json_error(&message, 403));
             }
         }
 
@@ -232,7 +256,9 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let kv_needs_update = update_req.destination_url.is_some()
         || update_req.status.is_some()
         || update_req.utm_params.is_some()
-        || update_req.forward_query_params.is_some();
+        || update_req.forward_query_params.is_some()
+        || update_req.expires_at.is_some()
+        || update_req.clear_expiration.is_some();
     if kv_needs_update {
         repo.sync_kv_from_link(&db, &kv, &updated_link).await?;
     }
