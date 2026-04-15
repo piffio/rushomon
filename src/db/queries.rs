@@ -23,7 +23,6 @@ where
 pub async fn get_user_count(db: &D1Database) -> Result<i64> {
     let stmt = db.prepare("SELECT COUNT(*) as count FROM users");
     let result = stmt.first::<serde_json::Value>(None).await?;
-
     match result {
         Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
         None => Ok(0),
@@ -764,25 +763,7 @@ pub async fn log_analytics_event(db: &D1Database, event: &AnalyticsEvent) -> Res
     Ok(())
 }
 
-/// Get all users on the instance (paginated) - for admin dashboard
-/// Extended user info for admin panel with billing account details
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct UserWithBillingInfo {
-    pub id: String,
-    pub email: String,
-    pub name: Option<String>,
-    pub avatar_url: Option<String>,
-    pub oauth_provider: String,
-    pub oauth_id: String,
-    pub org_id: String,
-    pub role: String,
-    pub created_at: i64,
-    pub suspended_at: Option<i64>,
-    pub suspension_reason: Option<String>,
-    pub suspended_by: Option<String>,
-    pub billing_account_id: Option<String>,
-    pub billing_account_tier: Option<String>,
-}
+// UserWithBillingInfo struct moved to repositories/user_repository.rs
 
 #[allow(dead_code)]
 pub async fn get_all_users(db: &D1Database, limit: i64, offset: i64) -> Result<Vec<User>> {
@@ -802,73 +783,7 @@ pub async fn get_all_users(db: &D1Database, limit: i64, offset: i64) -> Result<V
     Ok(users)
 }
 
-/// Get all users with billing account information (for admin panel)
-pub async fn get_all_users_with_billing_info(
-    db: &D1Database,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<UserWithBillingInfo>> {
-    let stmt = db.prepare(
-        "SELECT u.id, u.email, u.name, u.avatar_url, u.oauth_provider, u.oauth_id,
-                u.org_id, u.role, u.created_at, u.suspended_at, u.suspension_reason, u.suspended_by,
-                o.billing_account_id, ba.tier as billing_account_tier
-         FROM users u
-         LEFT JOIN organizations o ON u.org_id = o.id
-         LEFT JOIN billing_accounts ba ON o.billing_account_id = ba.id
-         ORDER BY u.created_at ASC
-         LIMIT ?1 OFFSET ?2",
-    );
-
-    let results = stmt
-        .bind(&[(limit as f64).into(), (offset as f64).into()])?
-        .all()
-        .await?;
-
-    let rows = results.results::<serde_json::Value>()?;
-    let users: Vec<UserWithBillingInfo> = rows
-        .iter()
-        .filter_map(|row| {
-            Some(UserWithBillingInfo {
-                id: row["id"].as_str()?.to_string(),
-                email: row["email"].as_str()?.to_string(),
-                name: row["name"].as_str().map(|s| s.to_string()),
-                avatar_url: row["avatar_url"].as_str().map(|s| s.to_string()),
-                oauth_provider: row["oauth_provider"].as_str()?.to_string(),
-                oauth_id: row["oauth_id"].as_str()?.to_string(),
-                org_id: row["org_id"].as_str()?.to_string(),
-                role: row["role"].as_str()?.to_string(),
-                created_at: row["created_at"].as_f64()? as i64,
-                suspended_at: row["suspended_at"].as_f64().map(|v| v as i64),
-                suspension_reason: row["suspension_reason"].as_str().map(|s| s.to_string()),
-                suspended_by: row["suspended_by"].as_str().map(|s| s.to_string()),
-                billing_account_id: row["billing_account_id"].as_str().map(|s| s.to_string()),
-                billing_account_tier: row["billing_account_tier"].as_str().map(|s| s.to_string()),
-            })
-        })
-        .collect();
-
-    Ok(users)
-}
-
-/// Get the count of users with admin role on the instance
-pub async fn get_admin_count(db: &D1Database) -> Result<i64> {
-    let stmt = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'");
-    let result = stmt.first::<serde_json::Value>(None).await?;
-
-    match result {
-        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
-        None => Ok(0),
-    }
-}
-
-/// Update a user's instance-level role
-pub async fn update_user_role(db: &D1Database, user_id: &str, new_role: &str) -> Result<()> {
-    let stmt = db.prepare("UPDATE users SET role = ?1 WHERE id = ?2");
-
-    stmt.bind(&[new_role.into(), user_id.into()])?.run().await?;
-
-    Ok(())
-}
+// get_all_users_with_billing_info, get_admin_count, update_user_role moved to UserRepository
 
 /// Get a link by short_code within an organization
 pub async fn get_link_by_short_code(
@@ -889,140 +804,8 @@ pub async fn get_link_by_short_code(
         .await
 }
 
-/// Suspend a user
-pub async fn suspend_user(
-    db: &D1Database,
-    user_id: &str,
-    reason: &str,
-    suspended_by: &str,
-) -> Result<()> {
-    let now = now_timestamp();
-    let stmt = db.prepare(
-        "UPDATE users SET suspended_at = ?1, suspension_reason = ?2, suspended_by = ?3 WHERE id = ?4"
-    );
-    stmt.bind(&[
-        (now as f64).into(),
-        reason.into(),
-        suspended_by.into(),
-        user_id.into(),
-    ])?
-    .run()
-    .await?;
-    Ok(())
-}
-
-/// Unsuspend a user
-pub async fn unsuspend_user(db: &D1Database, user_id: &str) -> Result<()> {
-    let stmt = db.prepare(
-        "UPDATE users SET suspended_at = NULL, suspension_reason = NULL, suspended_by = NULL WHERE id = ?1"
-    );
-    stmt.bind(&[user_id.into()])?.run().await?;
-    Ok(())
-}
-
-/// Delete a user and all their associated data
-/// Returns counts of deleted records for audit purposes
-pub async fn delete_user(
-    db: &D1Database,
-    user_id: &str,
-    _deleted_by: &str,
-) -> Result<(usize, usize, usize)> {
-    // Delete in order to respect foreign key constraints:
-
-    // 1. Delete analytics events for the user's links
-    let analytics_stmt = db.prepare(
-        "DELETE FROM analytics_events WHERE link_id IN (SELECT id FROM links WHERE created_by = ?1)"
-    );
-    let analytics_result = analytics_stmt.bind(&[user_id.into()])?.run().await?;
-    let analytics_count = analytics_result
-        .meta()?
-        .and_then(|m| m.changes)
-        .unwrap_or(0);
-
-    // 2. Delete link reports where user is reporter or reviewer
-    let reports_stmt =
-        db.prepare("DELETE FROM link_reports WHERE reporter_user_id = ?1 OR reviewed_by = ?2");
-    let reports_result = reports_stmt
-        .bind(&[user_id.into(), user_id.into()])?
-        .run()
-        .await?;
-    let _reports_count = reports_result.meta()?.and_then(|m| m.changes).unwrap_or(0);
-
-    // 3. Delete links created by the user
-    let links_stmt = db.prepare("DELETE FROM links WHERE created_by = ?1");
-    let links_result = links_stmt.bind(&[user_id.into()])?.run().await?;
-    let links_count = links_result.meta()?.and_then(|m| m.changes).unwrap_or(0);
-
-    // 4. Delete organization memberships
-    let org_members_stmt = db.prepare("DELETE FROM org_members WHERE user_id = ?1");
-    let org_members_result = org_members_stmt.bind(&[user_id.into()])?.run().await?;
-    let _org_members_count = org_members_result
-        .meta()?
-        .and_then(|m| m.changes)
-        .unwrap_or(0);
-
-    // 5. Delete organization invitations created by this user
-    let invitations_stmt = db.prepare("DELETE FROM org_invitations WHERE invited_by = ?1");
-    let invitations_result = invitations_stmt.bind(&[user_id.into()])?.run().await?;
-    let _invitations_count = invitations_result
-        .meta()?
-        .and_then(|m| m.changes)
-        .unwrap_or(0);
-
-    // 6. Delete blacklist entries created by this user
-    let blacklist_stmt = db.prepare("DELETE FROM destination_blacklist WHERE created_by = ?1");
-    let blacklist_result = blacklist_stmt.bind(&[user_id.into()])?.run().await?;
-    let _blacklist_count = blacklist_result
-        .meta()?
-        .and_then(|m| m.changes)
-        .unwrap_or(0);
-
-    // 7. Finally, delete the user record
-    let user_stmt = db.prepare("DELETE FROM users WHERE id = ?1");
-    let user_result = user_stmt.bind(&[user_id.into()])?.run().await?;
-    let user_count = user_result.meta()?.and_then(|m| m.changes).unwrap_or(0);
-
-    Ok((user_count, links_count, analytics_count))
-}
-
-pub async fn get_links_by_creator(db: &D1Database, user_id: &str) -> Result<Vec<Link>> {
-    let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
-         FROM links
-         WHERE created_by = ?1",
-    );
-    let results = stmt.bind(&[user_id.into()])?.all().await?;
-    results.results::<Link>()
-}
-
-pub async fn get_links_by_org(db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
-    let stmt = db.prepare(
-        "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
-         FROM links
-         WHERE org_id = ?1",
-    );
-    let results = stmt.bind(&[org_id.into()])?.all().await?;
-    results.results::<Link>()
-}
-
-/// Check if user is the last admin in their organization
-pub async fn is_last_admin_in_org(db: &D1Database, user_id: &str, org_id: &str) -> Result<bool> {
-    let stmt = db.prepare(
-        "SELECT COUNT(*) as admin_count FROM users WHERE org_id = ?1 AND role = 'admin' AND id != ?2"
-    );
-    let result = stmt
-        .bind(&[org_id.into(), user_id.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    let admin_count = result
-        .as_ref()
-        .and_then(|v| v.get("admin_count"))
-        .and_then(|count| count.as_u64())
-        .unwrap_or(0);
-
-    Ok(admin_count == 0)
-}
+// suspend_user, unsuspend_user, delete_user, get_links_by_creator, get_links_by_org,
+// is_last_admin_in_org moved to UserRepository
 
 #[cfg(test)]
 mod tests {
@@ -1065,21 +848,7 @@ pub async fn update_link_status_by_id(db: &D1Database, link_id: &str, status: &s
     Ok(())
 }
 
-pub async fn disable_all_links_for_org(db: &D1Database, org_id: &str) -> Result<i64> {
-    let now = now_timestamp();
-    let stmt = db.prepare(
-        "UPDATE links SET status = 'disabled', updated_at = ?1 WHERE org_id = ?2 AND status = 'active'"
-    );
-    let result = stmt
-        .bind(&[(now as f64).into(), org_id.into()])?
-        .run()
-        .await?;
-    Ok(result
-        .meta()?
-        .and_then(|m| m.changes)
-        .map(|c| c as i64)
-        .unwrap_or(0))
-}
+// disable_all_links_for_org moved to UserRepository
 
 /// Check if a destination is blacklisted (exact or domain match)
 pub async fn is_destination_blacklisted(db: &D1Database, destination: &str) -> Result<bool> {

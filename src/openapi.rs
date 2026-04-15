@@ -127,12 +127,12 @@ use utoipa::{Modify, OpenApi};
         crate::api::version::handle_version,
 
         // Admin — Users
-        crate::router::handle_admin_list_users,
-        crate::router::handle_admin_get_user,
-        crate::router::handle_admin_update_user_role,
-        crate::router::handle_admin_suspend_user,
-        crate::router::handle_admin_unsuspend_user,
-        crate::router::handle_admin_delete_user,
+        crate::api::admin::users::handle_admin_list_users,
+        crate::api::admin::users::handle_admin_get_user,
+        crate::api::admin::users::handle_admin_update_user_role,
+        crate::api::admin::users::handle_admin_suspend_user,
+        crate::api::admin::users::handle_admin_unsuspend_user,
+        crate::api::admin::users::handle_admin_delete_user,
 
         // Admin — Links
         crate::router::handle_admin_list_links,
