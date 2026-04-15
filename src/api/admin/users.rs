@@ -1,4 +1,3 @@
-use crate::api::links::sync_link_mapping_from_link;
 /// Admin user-management handlers
 ///
 /// GET    /api/admin/users           — list all users (paginated)
@@ -7,6 +6,7 @@ use crate::api::links::sync_link_mapping_from_link;
 /// PUT    /api/admin/users/:id/suspend   — suspend user
 /// PUT    /api/admin/users/:id/unsuspend — unsuspend user
 /// DELETE /api/admin/users/:id       — delete user + data
+use crate::api::links::sync_link_mapping_from_link;
 use crate::auth;
 use crate::kv;
 use crate::models::link::LinkStatus;
