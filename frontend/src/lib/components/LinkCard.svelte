@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { Link } from "$lib/types/api";
   import {
     PUBLIC_VITE_API_BASE_URL,
     PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
-  import LoadingButton from "./LoadingButton.svelte";
+  import type { Link } from "$lib/types/api";
   import { fade } from "svelte/transition";
+  import LoadingButton from "./LoadingButton.svelte";
 
   const {
     link,
@@ -458,7 +458,10 @@
                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <span>Expires {formatDate(link.expires_at)}</span>
+            <span>
+              {link.expires_at * 1000 < Date.now() ? "Expired" : "Expires"}
+              {formatDate(link.expires_at)}
+            </span>
             {#if link.expires_at * 1000 < Date.now()}
               <span class="font-medium">⚠</span>
             {/if}
