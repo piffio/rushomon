@@ -45,6 +45,17 @@ impl UserRepository {
         stmt.bind(&[user_id.into()])?.first::<User>(None).await
     }
 
+    /// Get a user by their email address.
+    pub async fn get_by_email(&self, db: &D1Database, email: &str) -> Result<Option<User>> {
+        let stmt = db.prepare(
+            "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
+                    suspended_at, suspension_reason, suspended_by
+             FROM users
+             WHERE email = ?1",
+        );
+        stmt.bind(&[email.into()])?.first::<User>(None).await
+    }
+
     /// Return all users with billing tier info, paginated.
     pub async fn list_with_billing_info(
         &self,
