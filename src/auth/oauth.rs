@@ -1,6 +1,7 @@
 use crate::auth::providers::{NormalizedUser, OAuthProviderConfig};
 use crate::db::queries;
 use crate::models::{Organization, User, user::CreateUserData};
+use crate::repositories::OrgRepository;
 use serde::{Deserialize, Serialize};
 use worker::{D1Database, Env, Error, Request, Response, Result, console_log, kv::KvStore};
 
@@ -413,7 +414,8 @@ async fn create_or_get_user(
     let user = queries::create_or_update_user(db, create_data, &org.id).await?;
 
     // Add the user as an organization member with owner role
-    queries::add_org_member(db, &org.id, &user.id, "owner").await?;
+    let org_repo = OrgRepository::new();
+    org_repo.add_member(db, &org.id, &user.id, "owner").await?;
 
     // Update the billing account owner to the actual user ID
     queries::update_billing_account_owner(db, org.billing_account_id.as_ref().unwrap(), &user.id)
