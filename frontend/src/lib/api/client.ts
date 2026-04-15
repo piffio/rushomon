@@ -205,10 +205,45 @@ export class ApiClient {
         ...options.headers
       }
     };
-    const response = await fetchFn(url, config);
+    let response;
+    try {
+      response = await fetchFn(url, config);
+    } catch (err) {
+      // Network error (CORS, timeout, connection failure, etc.)
+      console.error("Network error during fetch:", err);
+      throw {
+        message:
+          "Network error: The service may be temporarily unavailable. Please check your connection and try again.",
+        isNetworkError: true
+      };
+    }
+
     if (!response.ok) {
-      const errorMessage = await response.text();
-      throw { message: errorMessage, status: response.status };
+      const contentType = response.headers.get("content-type") || "";
+      const errorSource = response.headers.get("x-error-source");
+
+      if (
+        contentType.includes("application/json") ||
+        errorSource === "backend"
+      ) {
+        // Backend returned a structured JSON error
+        const errorData = await response.json().catch(() => null);
+        throw {
+          message: errorData?.error || "Request failed",
+          details: errorData?.details,
+          status: response.status
+        };
+      } else {
+        // HTML error (e.g., Cloudflare error page) - don't display raw HTML
+        const errorText = await response.text();
+        console.error("Backend returned HTML error:", errorText.slice(0, 200));
+        throw {
+          message:
+            "Request failed due to a server error. Please try again or contact support if the problem persists.",
+          status: response.status,
+          isHtmlError: true
+        };
+      }
     }
     return response;
   }
@@ -216,7 +251,7 @@ export class ApiClient {
 
 export const apiClient = new ApiClient();
 
-export { getAccessToken, setAccessToken, clearAccessToken };
+export { clearAccessToken, getAccessToken, setAccessToken };
 
 /**
  * Resolve a relative logo URL (e.g. /api/orgs/:id/logo) to an absolute URL
