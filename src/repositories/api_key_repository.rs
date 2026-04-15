@@ -1,11 +1,24 @@
-/// API Key Repository (admin operations)
+/// API Key Repository
 ///
-/// Provides admin-level data access for the `api_keys` table.
-/// User-facing API key queries remain in `db/queries.rs` for now.
+/// Provides data access for the `api_keys` table covering both admin and
+/// user-facing operations.
 use crate::db::queries::AdminApiKeyRecord;
 use crate::utils::now_timestamp;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use worker::Result;
 use worker::d1::D1Database;
+
+/// A user-visible API key record (no key_hash, no raw token).
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ApiKeyRecord {
+    pub id: String,
+    pub name: String,
+    pub hint: String,
+    pub created_at: i64,
+    pub last_used_at: Option<i64>,
+    pub expires_at: Option<i64>,
+}
 
 pub struct ApiKeyRepository;
 
@@ -204,6 +217,81 @@ impl ApiKeyRepository {
             (now_timestamp() as f64).into(),
             admin_user_id.into(),
             key_id.into(),
+        ])?
+        .run()
+        .await?;
+        Ok(())
+    }
+
+    /// Insert a new API key for a user. The `key_hash` is a SHA-256 hex string.
+    /// Returns the generated key ID.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_for_user(
+        &self,
+        db: &D1Database,
+        id: &str,
+        user_id: &str,
+        org_id: &str,
+        name: &str,
+        key_hash: &str,
+        hint: &str,
+        created_at: i64,
+        expires_at: Option<i64>,
+    ) -> Result<()> {
+        db.prepare(
+            "INSERT INTO api_keys (id, user_id, org_id, name, key_hash, hint, created_at, expires_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        )
+        .bind(&[
+            id.into(),
+            user_id.into(),
+            org_id.into(),
+            name.into(),
+            key_hash.into(),
+            hint.into(),
+            (created_at as f64).into(),
+            expires_at
+                .map(|t| (t as f64).into())
+                .unwrap_or(worker::wasm_bindgen::JsValue::NULL),
+        ])?
+        .run()
+        .await?;
+        Ok(())
+    }
+
+    /// List active API keys for a specific user (no raw token returned).
+    pub async fn list_for_user(&self, db: &D1Database, user_id: &str) -> Result<Vec<ApiKeyRecord>> {
+        let results = db
+            .prepare(
+                "SELECT id, name, hint, created_at, last_used_at, expires_at
+                 FROM api_keys
+                 WHERE user_id = ?1 AND status = 'active'
+                 ORDER BY created_at DESC",
+            )
+            .bind(&[user_id.into()])?
+            .all()
+            .await?;
+        results.results::<ApiKeyRecord>()
+    }
+
+    /// Soft-delete a key owned by the given user (status: active → deleted).
+    /// Scoped to `user_id` so users cannot revoke other users' keys.
+    pub async fn revoke_for_user(
+        &self,
+        db: &D1Database,
+        key_id: &str,
+        user_id: &str,
+    ) -> Result<()> {
+        let now = now_timestamp();
+        db.prepare(
+            "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2
+             WHERE id = ?3 AND user_id = ?4 AND status = 'active'",
+        )
+        .bind(&[
+            (now as f64).into(),
+            user_id.into(),
+            key_id.into(),
+            user_id.into(),
         ])?
         .run()
         .await?;

@@ -1,8 +1,7 @@
 /// Billing Repository
 ///
 /// Data access layer for billing accounts, subscriptions, and webhook records.
-/// This is the first population of this repository — additional functions will be
-/// added when the Billing domain (Step 14) and Organization domain (Step 12) are extracted.
+use crate::models::BillingAccount;
 use crate::utils::now_timestamp;
 use worker::Result;
 use worker::d1::D1Database;
@@ -67,6 +66,24 @@ impl BillingRepository {
             .run()
             .await?;
         Ok(())
+    }
+
+    /// Get the billing account for the organization that contains the user.
+    /// Returns None if the organization has no billing account associated.
+    pub async fn get_billing_account_for_org(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+    ) -> Result<Option<BillingAccount>> {
+        db.prepare(
+            "SELECT ba.id, ba.owner_user_id, ba.tier, ba.provider_customer_id, ba.created_at
+             FROM billing_accounts ba
+             JOIN organizations o ON o.billing_account_id = ba.id
+             WHERE o.id = ?1",
+        )
+        .bind(&[org_id.into()])?
+        .first::<BillingAccount>(None)
+        .await
     }
 
     /// Delete expired webhook records (for cleanup cron job).

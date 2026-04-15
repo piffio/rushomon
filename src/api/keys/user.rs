@@ -1,8 +1,6 @@
 use crate::auth::authenticate_request;
-use crate::utils::{generate_short_code_with_length, now_timestamp};
-use hex; // Add hex crate for formatting
+use crate::services::ApiKeyService;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use utoipa::ToSchema;
 use worker::*;
 
@@ -66,80 +64,31 @@ pub async fn handle_create_api_key(mut req: Request, ctx: RouteContext<()>) -> R
     }
 
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
-    let now = now_timestamp();
 
-    // Check if user's tier allows API keys
-    let org = match crate::db::get_org_by_id(&db, &user_ctx.org_id).await {
-        Ok(Some(org)) => org,
-        Ok(None) => return Response::error("Organization not found", 404),
-        Err(_) => return Response::error("Failed to validate organization", 500),
-    };
-
-    let tier = if let Some(ref billing_account_id) = org.billing_account_id {
-        match crate::db::get_billing_account(&db, billing_account_id).await {
-            Ok(Some(billing_account)) => crate::models::Tier::from_str_value(&billing_account.tier)
-                .unwrap_or(crate::models::Tier::Free),
-            Ok(None) => crate::models::Tier::Free,
-            Err(_) => return Response::error("Failed to validate billing account", 500),
+    let (key_id, raw_token, hint, created_at, expires_at) = match ApiKeyService::new()
+        .create(
+            &db,
+            &user_ctx.user_id,
+            &user_ctx.org_id,
+            &body.name,
+            body.expires_in_days,
+        )
+        .await
+    {
+        Ok(result) => result,
+        Err(worker::Error::RustError(msg)) if msg.contains("Upgrade to Pro") => {
+            return Response::error(msg, 403);
         }
-    } else {
-        crate::models::Tier::Free
+        Err(e) => return Err(e),
     };
-
-    if !tier.limits().allow_api_keys {
-        return Response::error(
-            "API keys are not available on your current plan. Upgrade to Pro or higher to use API keys.",
-            403,
-        );
-    }
-
-    // Calculate expiration if provided
-    let expires_at = body.expires_in_days.map(|days| now + (days * 24 * 60 * 60));
-
-    // Generate the raw token (prefix + 32 random chars)
-    let raw_token = format!("ro_pat_{}", generate_short_code_with_length(32));
-
-    // Generate the hint (prefix + last 4 chars)
-    let hint = format!("ro_pat_...{}", &raw_token[raw_token.len() - 4..]);
-
-    // Hash the token for storage
-    let mut hasher = Sha256::new();
-    hasher.update(raw_token.as_bytes());
-    let key_hash = hex::encode(hasher.finalize());
-
-    let key_id = uuid::Uuid::new_v4().to_string();
-
-    // Store in database
-    let stmt = db.prepare(
-        "INSERT INTO api_keys (id, user_id, org_id, name, key_hash, hint, created_at, expires_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-    );
-
-    let user_id_for_db = user_ctx.user_id.clone();
-    let org_id_for_db = user_ctx.org_id.clone();
-
-    stmt.bind(&[
-        key_id.clone().into(),
-        user_id_for_db.into(),
-        org_id_for_db.into(),
-        body.name.clone().into(),
-        key_hash.clone().into(),
-        hint.clone().into(),
-        (now as f64).into(),
-        expires_at
-            .map(|t| (t as f64).into())
-            .unwrap_or(worker::wasm_bindgen::JsValue::NULL),
-    ])?
-    .run()
-    .await?;
 
     // Return the raw token EXACTLY ONCE
     Response::from_json(&serde_json::json!({
         "id": key_id,
         "name": body.name,
         "hint": hint,
-        "raw_token": raw_token, // The UI must instruct the user to copy this immediately
-        "created_at": now,
+        "raw_token": raw_token,
+        "created_at": created_at,
         "expires_at": expires_at
     }))
 }
@@ -166,17 +115,7 @@ pub async fn handle_list_api_keys(req: Request, ctx: RouteContext<()>) -> Result
     };
 
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
-
-    let stmt = db.prepare(
-        "SELECT id, name, hint, created_at, last_used_at, expires_at
-         FROM api_keys
-         WHERE user_id = ?1 AND status = 'active'
-         ORDER BY created_at DESC",
-    );
-
-    let results = stmt.bind(&[user_ctx.user_id.into()])?.all().await?;
-    let keys = results.results::<serde_json::Value>()?;
-
+    let keys = ApiKeyService::new().list(&db, &user_ctx.user_id).await?;
     Response::from_json(&keys)
 }
 
@@ -210,20 +149,9 @@ pub async fn handle_revoke_api_key(req: Request, ctx: RouteContext<()>) -> Resul
         .ok_or_else(|| Error::RustError("Missing ID".to_string()))?;
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
 
-    // Soft delete - set status to 'deleted'
-    let timestamp = crate::utils::time::now_timestamp();
-    let stmt = db.prepare(
-        "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2
-         WHERE id = ?3 AND user_id = ?4 AND status = 'active'",
-    );
-    stmt.bind(&[
-        (timestamp as f64).into(),
-        user_ctx.user_id.clone().into(),
-        key_id.into(),
-        user_ctx.user_id.into(),
-    ])?
-    .run()
-    .await?;
+    ApiKeyService::new()
+        .revoke(&db, key_id, &user_ctx.user_id)
+        .await?;
 
     Ok(Response::empty()?.with_status(204))
 }
