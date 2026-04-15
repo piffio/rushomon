@@ -69,15 +69,15 @@ use utoipa::{Modify, OpenApi};
         crate::api::analytics::usage::handle_get_usage,
 
         // Links
-        crate::router::handle_create_link,
-        crate::router::handle_list_links,
-        crate::router::handle_get_link,
-        crate::router::handle_get_link_by_code,
+        crate::api::links::create::handle_create_link,
+        crate::api::links::list::handle_list_links,
+        crate::api::links::get::handle_get_link,
+        crate::api::links::get::handle_get_link_by_code,
         crate::api::analytics::link::handle_get_link_analytics,
-        crate::router::handle_update_link,
-        crate::router::handle_delete_link,
-        crate::router::handle_export_links,
-        crate::router::handle_import_links,
+        crate::api::links::update::handle_update_link,
+        crate::api::links::delete::handle_delete_link,
+        crate::api::links::export::handle_export_links,
+        crate::api::links::import::handle_import_links,
 
         // Analytics
         crate::api::analytics::org::handle_get_org_analytics,
@@ -135,10 +135,10 @@ use utoipa::{Modify, OpenApi};
         crate::api::admin::users::handle_admin_delete_user,
 
         // Admin — Links
-        crate::router::handle_admin_list_links,
-        crate::router::handle_admin_update_link_status,
-        crate::router::handle_admin_delete_link,
-        crate::router::handle_admin_sync_link_kv,
+        crate::api::links::admin::handle_admin_list_links,
+        crate::api::links::admin::handle_admin_update_link_status,
+        crate::api::links::admin::handle_admin_delete_link,
+        crate::api::links::admin::handle_admin_sync_link_kv,
 
         // Admin — Settings
         crate::api::settings::admin::handle_admin_get_settings,
