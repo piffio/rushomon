@@ -626,7 +626,7 @@ impl LinkRepository {
     /// Get all active/disabled links for an org (for CSV/JSON export)
     pub async fn get_all_for_export(&self, db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
              FROM links
              WHERE org_id = ?1
              AND status IN ('active', 'disabled')
