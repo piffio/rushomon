@@ -399,23 +399,23 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         // Admin billing account routes
         .get_async(
             "/api/admin/billing-accounts",
-            router::handle_admin_list_billing_accounts,
+            crate::api::admin::billing::handle_admin_list_billing_accounts,
         )
         .get_async(
             "/api/admin/billing-accounts/:id",
-            router::handle_admin_get_billing_account,
+            crate::api::admin::billing::handle_admin_get_billing_account,
         )
         .put_async(
             "/api/admin/billing-accounts/:id/tier",
-            router::handle_admin_update_billing_account_tier,
+            crate::api::admin::billing::handle_admin_update_billing_account_tier,
         )
         .post_async(
             "/api/admin/billing-accounts/:id/reset-counter",
-            router::handle_admin_reset_billing_account_counter,
+            crate::api::admin::billing::handle_admin_reset_billing_account_counter,
         )
         .put_async(
             "/api/admin/billing-accounts/:id/subscription",
-            router::handle_admin_update_subscription_status,
+            crate::api::admin::billing::handle_admin_update_subscription_status,
         )
         // Admin settings routes
         .get_async(

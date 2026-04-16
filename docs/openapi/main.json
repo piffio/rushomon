@@ -269,7 +269,7 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Items per page",
+            "description": "Results per page",
             "required": false,
             "schema": {
               "type": "integer",
@@ -279,7 +279,7 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Search by email or org name",
+            "description": "Filter by owner email",
             "required": false,
             "schema": {
               "type": "string"

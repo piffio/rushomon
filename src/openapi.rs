@@ -157,11 +157,11 @@ use utoipa::{Modify, OpenApi};
         crate::api::reports::admin::handle_admin_get_pending_reports_count,
 
         // Admin — Billing accounts
-        crate::router::handle_admin_list_billing_accounts,
-        crate::router::handle_admin_get_billing_account,
-        crate::router::handle_admin_update_billing_account_tier,
-        crate::router::handle_admin_reset_billing_account_counter,
-        crate::router::handle_admin_update_subscription_status,
+        crate::api::admin::billing::handle_admin_list_billing_accounts,
+        crate::api::admin::billing::handle_admin_get_billing_account,
+        crate::api::admin::billing::handle_admin_update_billing_account_tier,
+        crate::api::admin::billing::handle_admin_reset_billing_account_counter,
+        crate::api::admin::billing::handle_admin_update_subscription_status,
         crate::api::billing::handle_admin_reset_billing_account,
         crate::api::billing::handle_cron_trigger_downgrade,
 
