@@ -256,25 +256,7 @@ impl BillingRepository {
         Ok(true)
     }
 
-    /// Reset the monthly counter for a billing account (admin only).
-    pub async fn reset_monthly_counter(
-        &self,
-        db: &D1Database,
-        billing_account_id: &str,
-        year_month: &str,
-    ) -> Result<()> {
-        db.prepare(
-            "DELETE FROM monthly_counters
-             WHERE billing_account_id = ?1 AND year_month = ?2",
-        )
-        .bind(&[billing_account_id.into(), year_month.into()])?
-        .run()
-        .await?;
-        Ok(())
-    }
-
     /// Count organizations linked to a billing account.
-    #[allow(dead_code)]
     pub async fn count_orgs(&self, db: &D1Database, billing_account_id: &str) -> Result<i64> {
         let result = db
             .prepare(

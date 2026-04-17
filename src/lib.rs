@@ -12,7 +12,6 @@ mod middleware;
 mod models;
 pub mod openapi;
 mod repositories;
-mod router;
 mod scheduled;
 mod services;
 pub mod utils;
@@ -303,9 +302,18 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             "/api/auth/providers",
             crate::api::auth::providers::handle_list_auth_providers,
         )
-        .get_async("/api/auth/github", router::handle_github_login)
-        .get_async("/api/auth/google", router::handle_google_login)
-        .get_async("/api/auth/callback", router::handle_oauth_callback)
+        .get_async(
+            "/api/auth/github",
+            crate::api::auth::oauth::handle_github_login,
+        )
+        .get_async(
+            "/api/auth/google",
+            crate::api::auth::oauth::handle_google_login,
+        )
+        .get_async(
+            "/api/auth/callback",
+            crate::api::auth::oauth::handle_oauth_callback,
+        )
         // Version endpoint (public)
         .get_async("/api/version", crate::api::version::handle_version)
         // API routes - authentication required
@@ -335,8 +343,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .put_async("/api/links/:id", crate::api::links::handle_update_link)
         .delete_async("/api/links/:id", crate::api::links::handle_delete_link)
         .post_async(
-            "/api/admin/reset-monthly-counter",
-            router::handle_admin_reset_monthly_counter,
+            "/api/admin/billing-accounts/:id/reset-counter",
+            crate::api::admin::counters::handle_admin_reset_monthly_counter,
         )
         // Admin moderation routes
         .get_async(
@@ -408,10 +416,6 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .put_async(
             "/api/admin/billing-accounts/:id/tier",
             crate::api::admin::billing::handle_admin_update_billing_account_tier,
-        )
-        .post_async(
-            "/api/admin/billing-accounts/:id/reset-counter",
-            crate::api::admin::billing::handle_admin_reset_billing_account_counter,
         )
         .put_async(
             "/api/admin/billing-accounts/:id/subscription",

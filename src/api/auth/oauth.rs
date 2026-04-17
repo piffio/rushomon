@@ -1,8 +1,11 @@
+/// OAuth handlers
+///
+/// GET /api/auth/github    - Initiate GitHub OAuth
+/// GET /api/auth/google    - Initiate Google OAuth
+/// GET /api/auth/callback  - OAuth provider callback
 use crate::auth;
-use crate::db;
 use crate::middleware::{RateLimitConfig, RateLimiter};
-use chrono::Datelike;
-use worker::d1::D1Database;
+use crate::services::OAuthService;
 use worker::*;
 
 /// Extract client IP from Cloudflare headers
@@ -14,14 +17,12 @@ fn get_client_ip(req: &Request) -> String {
     if let Ok(Some(forwarded)) = req.headers().get("X-Forwarded-For")
         && let Some(ip) = forwarded.split(',').next()
     {
-        // Take first IP in the list
         return ip.trim().to_string();
     }
     // Fallback to X-Real-IP
     if let Ok(Some(ip)) = req.headers().get("X-Real-IP") {
         return ip;
     }
-    // Last resort: use a placeholder (should never happen with Cloudflare)
     "unknown".to_string()
 }
 
@@ -34,16 +35,28 @@ fn hash_ip(ip: &str) -> String {
     format!("{:x}", hasher.finish())
 }
 
-/// Shared rate-limit + redirect_uri setup for OAuth initiation handlers
-fn oauth_redirect_uri(ctx: &RouteContext<()>) -> Result<(String, String)> {
-    let domain = ctx.env.var("DOMAIN")?.to_string();
-    let scheme = if domain.starts_with("localhost") {
-        "http"
-    } else {
-        "https"
-    };
-    let redirect_uri = format!("{}://{}/api/auth/callback", scheme, domain);
-    Ok((scheme.to_string(), redirect_uri))
+/// Helper function to extract query parameters
+fn extract_query_param(query: &str, name: &str) -> Result<String> {
+    query
+        .split('&')
+        .find_map(|pair| {
+            let parts: Vec<&str> = pair.splitn(2, '=').collect();
+            if parts.len() == 2 && parts[0] == name {
+                // URL-decode the parameter value
+                let decoded = urlencoding::decode(parts[1]).ok()?;
+                Some(decoded.to_string())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| Error::RustError(format!("Missing {} parameter", name)))
+}
+
+/// Get frontend URL from environment
+fn get_frontend_url(env: &Env) -> String {
+    env.var("FRONTEND_URL")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "http://localhost:5173".to_string())
 }
 
 #[utoipa::path(
@@ -101,12 +114,8 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
         return Ok(response);
     }
 
-    if !auth::providers::GITHUB.is_enabled(&ctx.env) {
-        return Response::error("GitHub OAuth is not configured", 404);
-    }
-
-    let (_, redirect_uri) = oauth_redirect_uri(&ctx)?;
-    auth::oauth::initiate_oauth(&req, &kv, &auth::providers::GITHUB, &redirect_uri, &ctx.env).await
+    let service = OAuthService::new();
+    service.initiate_github_login(&req, &ctx).await
 }
 
 #[utoipa::path(
@@ -163,12 +172,8 @@ pub async fn handle_google_login(req: Request, ctx: RouteContext<()>) -> Result<
         return Ok(response);
     }
 
-    if !auth::providers::GOOGLE.is_enabled(&ctx.env) {
-        return Response::error("Google OAuth is not configured", 404);
-    }
-
-    let (_, redirect_uri) = oauth_redirect_uri(&ctx)?;
-    auth::oauth::initiate_oauth(&req, &kv, &auth::providers::GOOGLE, &redirect_uri, &ctx.env).await
+    let service = OAuthService::new();
+    service.initiate_google_login(&req, &ctx).await
 }
 
 #[utoipa::path(
@@ -179,11 +184,13 @@ pub async fn handle_google_login(req: Request, ctx: RouteContext<()>) -> Result<
     description = "Handles the OAuth provider callback. Validates the state parameter, exchanges the authorization code for tokens, creates or updates the user, issues a session cookie, and redirects to the dashboard",
     params(
         ("code" = String, Query, description = "Authorization code from the OAuth provider"),
-        ("state" = String, Query, description = "CSRF state token"),
+        ("state" = String, Query, description = "OAuth state parameter for CSRF protection"),
     ),
     responses(
-        (status = 302, description = "Redirect to dashboard on success or home on failure"),
-        (status = 429, description = "Rate limit exceeded"),
+        (status = 302, description = "Redirect to dashboard with session cookie set"),
+        (status = 400, description = "Missing or invalid parameters"),
+        (status = 401, description = "OAuth state validation failed"),
+        (status = 500, description = "Internal server error"),
     )
 )]
 pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Result<Response> {
@@ -194,7 +201,6 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
 
-    // Check if KV rate limiting is enabled (default false)
     let kv_rate_limiting_enabled = ctx
         .env
         .var("ENABLE_KV_RATE_LIMITING")
@@ -238,59 +244,56 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     let code = extract_query_param(query, "code")?;
     let state = extract_query_param(query, "state")?;
 
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-
-    // Handle OAuth callback - returns both access and refresh tokens, plus optional redirect
-    let (user, _org, tokens, redirect) =
-        match auth::oauth::handle_oauth_callback(&req, code, state, &kv, &db, &ctx.env).await {
-            Ok(result) => result,
-            Err(e) => {
-                // Check if signups are disabled
-                let error_msg = format!("{:?}", e);
-                if error_msg.contains("SIGNUPS_DISABLED") {
-                    let frontend_url = ctx
-                        .env
-                        .var("FRONTEND_URL")
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|_| "http://localhost:5173".to_string());
-                    let redirect_url = format!("{}/?error=signups_disabled", frontend_url);
-                    let headers = Headers::new();
-                    headers.set("Location", &redirect_url)?;
-                    return Ok(Response::empty()?.with_status(302).with_headers(headers));
-                }
-
-                // Check if email is already used by different provider
-                if error_msg.contains("EMAIL_ALREADY_USED") {
-                    let frontend_url = ctx
-                        .env
-                        .var("FRONTEND_URL")
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|_| "http://localhost:5173".to_string());
-
-                    let redirect_url = format!("{}/login?error=email_already_used", frontend_url);
-                    let headers = Headers::new();
-                    headers.set("Location", &redirect_url)?;
-                    return Ok(Response::empty()?.with_status(302).with_headers(headers));
-                }
-
-                return Err(e);
+    let service = OAuthService::new();
+    let result = match service.handle_callback(&req, &code, &state, &ctx).await {
+        Ok(result) => result,
+        Err(e) => {
+            // Check if signups are disabled
+            let error_msg = format!("{:?}", e);
+            if error_msg.contains("SIGNUPS_DISABLED") {
+                let frontend_url = get_frontend_url(&ctx.env);
+                let redirect_url = format!("{}/?error=signups_disabled", frontend_url);
+                let headers = Headers::new();
+                headers.set("Location", &redirect_url)?;
+                return Ok(Response::empty()?.with_status(302).with_headers(headers));
             }
-        };
 
-    // Extract session ID from access token claims
+            // Check if email is already used by different provider
+            if error_msg.contains("EMAIL_ALREADY_USED") {
+                let frontend_url = get_frontend_url(&ctx.env);
+                let redirect_url = format!("{}/login?error=email_already_used", frontend_url);
+                let headers = Headers::new();
+                headers.set("Location", &redirect_url)?;
+                return Ok(Response::empty()?.with_status(302).with_headers(headers));
+            }
+
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "oauth_callback_failed",
+                    "error": error_msg,
+                    "level": "error"
+                })
+            );
+            return Response::error("OAuth callback failed", 500);
+        }
+    };
+
+    // Extract session ID from access token claims and store session in KV
     let jwt_secret = ctx.env.secret("JWT_SECRET")?.to_string();
-    let claims = auth::session::validate_jwt(&tokens.access_token, &jwt_secret)?;
+    let claims = auth::session::validate_jwt(&result.tokens.access_token, &jwt_secret)?;
 
     // Store session in KV
-    auth::session::store_session(&kv, &claims.session_id, &user.id, &user.org_id).await?;
+    auth::session::store_session(
+        &kv,
+        &claims.session_id,
+        &result.user.id,
+        &result.user.org_id,
+    )
+    .await?;
 
     // Get frontend URL and determine scheme
-    let frontend_url = ctx
-        .env
-        .var("FRONTEND_URL")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "http://localhost:5173".to_string());
-
+    let frontend_url = get_frontend_url(&ctx.env);
     let domain = ctx
         .env
         .var("DOMAIN")
@@ -305,13 +308,13 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
 
     // Set both access and refresh tokens as httpOnly cookies (no token in URL)
     let access_cookie =
-        auth::session::create_access_cookie_with_scheme(&tokens.access_token, scheme);
+        auth::session::create_access_cookie_with_scheme(&result.tokens.access_token, scheme);
     let refresh_cookie =
-        auth::session::create_refresh_cookie_with_scheme(&tokens.refresh_token, scheme);
+        auth::session::create_refresh_cookie_with_scheme(&result.tokens.refresh_token, scheme);
 
     // Redirect to frontend WITHOUT token in URL (cookies set automatically)
     // Use stored redirect from OAuth state if present, otherwise default to auth callback
-    let redirect_url = if let Some(redirect_path) = redirect {
+    let redirect_url = if let Some(redirect_path) = result.redirect {
         format!("{}{}", frontend_url, redirect_path)
     } else {
         format!("{}/auth/callback", frontend_url)
@@ -325,112 +328,4 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     headers.append("Set-Cookie", &refresh_cookie)?;
 
     Ok(Response::empty()?.with_status(302).with_headers(headers))
-}
-
-// handle_admin_list_users and handle_admin_get_user moved to api/admin/users.rs
-
-#[utoipa::path(
-    post,
-    path = "/api/admin/orgs/{id}/reset-counter",
-    tag = "Admin",
-    summary = "Reset org monthly counter",
-    params(("id" = String, Path, description = "Org ID")),
-    responses(
-        (status = 200, description = "Counter reset"),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Admin required"),
-    ),
-    security(("Bearer" = []), ("session_cookie" = []))
-)]
-pub async fn handle_admin_reset_monthly_counter(
-    req: Request,
-    ctx: RouteContext<()>,
-) -> Result<Response> {
-    console_log!(
-        "{}",
-        serde_json::json!({
-            "event": "admin_reset_counter_called",
-            "level": "info"
-        })
-    );
-
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
-
-    // Check if user is admin
-    if user_ctx.role != "admin" {
-        return Response::error("Admin access required", 403);
-    }
-
-    // Extract organization ID from route
-    let org_id = match ctx.param("id") {
-        Some(id) => id.to_string(),
-        None => return Response::error("Missing organization ID", 400),
-    };
-
-    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
-        Ok(db) => db,
-        Err(_) => return Response::error("Database not available", 500),
-    };
-
-    // Get the organization's billing account ID
-    let billing_account_id = match db::get_org_billing_account(&db, &org_id).await? {
-        Some(id) => id,
-        None => return Response::error("Organization has no billing account", 500),
-    };
-
-    let now = chrono::Utc::now();
-    let year_month = format!("{}-{:02}", now.year(), now.month());
-
-    // Reset the monthly counter for the billing account
-    match db::reset_monthly_counter_for_billing_account(&db, &billing_account_id, &year_month).await
-    {
-        Ok(_) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "admin_reset_counter_success",
-                    "org_id": org_id,
-                    "billing_account_id": billing_account_id,
-                    "level": "info"
-                })
-            );
-            Response::from_json(&serde_json::json!({
-                "success": true,
-                "message": "Monthly counter reset for billing account"
-            }))
-        }
-        Err(e) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "admin_reset_counter_failed",
-                    "org_id": org_id,
-                    "billing_account_id": billing_account_id,
-                    "error": e.to_string(),
-                    "level": "error"
-                })
-            );
-            Response::error("Failed to reset monthly counter", 500)
-        }
-    }
-}
-
-/// Helper function to extract query parameters
-fn extract_query_param(query: &str, name: &str) -> Result<String> {
-    query
-        .split('&')
-        .find_map(|pair| {
-            let parts: Vec<&str> = pair.splitn(2, '=').collect();
-            if parts.len() == 2 && parts[0] == name {
-                // URL-decode the parameter value
-                let decoded = urlencoding::decode(parts[1]).ok()?;
-                Some(decoded.to_string())
-            } else {
-                None
-            }
-        })
-        .ok_or_else(|| Error::RustError(format!("Missing {} parameter", name)))
 }

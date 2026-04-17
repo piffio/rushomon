@@ -59,8 +59,9 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
 
     // Check org limits against billing account
     if let Some(max_orgs) = limits.max_orgs {
-        let orgs_in_billing_account =
-            db::count_orgs_in_billing_account(&db, &billing_account.id).await?;
+        let orgs_in_billing_account = crate::repositories::BillingRepository::new()
+            .count_orgs(&db, &billing_account.id)
+            .await?;
 
         if orgs_in_billing_account >= max_orgs {
             return Err(AppError::Forbidden(format!(
