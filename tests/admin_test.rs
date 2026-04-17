@@ -473,7 +473,10 @@ async fn test_admin_reset_counter_requires_auth() {
     let client = test_client(); // Unauthenticated client
 
     let response = client
-        .post(format!("{}/api/admin/reset-monthly-counter", BASE_URL))
+        .post(format!(
+            "{}/api/admin/billing-accounts/test-id/reset-counter",
+            BASE_URL
+        ))
         .send()
         .await
         .unwrap();

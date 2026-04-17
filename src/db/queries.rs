@@ -682,28 +682,6 @@ pub async fn increment_monthly_counter_for_billing_account(
     Ok(true)
 }
 
-/// Count organizations in a billing account
-pub async fn count_orgs_in_billing_account(
-    db: &D1Database,
-    billing_account_id: &str,
-) -> Result<i64> {
-    let stmt = db.prepare(
-        "SELECT COUNT(*) as count
-         FROM organizations
-         WHERE billing_account_id = ?1",
-    );
-
-    let result = stmt
-        .bind(&[billing_account_id.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    match result {
-        Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
-        None => Ok(0),
-    }
-}
-
 /// Reset monthly counter for billing account (admin only, for testing)
 #[allow(dead_code)]
 pub async fn reset_monthly_counter_for_billing_account(
@@ -732,21 +710,6 @@ pub async fn update_billing_account_owner(
         .run()
         .await?;
     Ok(())
-}
-
-/// Get billing account ID for an organization
-pub async fn get_org_billing_account(db: &D1Database, org_id: &str) -> Result<Option<String>> {
-    let stmt = db.prepare("SELECT billing_account_id FROM organizations WHERE id = ?1");
-
-    let result = stmt
-        .bind(&[org_id.into()])?
-        .first::<serde_json::Value>(None)
-        .await?;
-
-    match result {
-        Some(val) => Ok(val["billing_account_id"].as_str().map(|s| s.to_string())),
-        None => Ok(None),
-    }
 }
 
 #[derive(Debug, serde::Deserialize)]

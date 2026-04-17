@@ -58,9 +58,9 @@ use utoipa::{Modify, OpenApi};
     paths(
         // Authentication
         crate::api::auth::providers::handle_list_auth_providers,
-        crate::router::handle_github_login,
-        crate::router::handle_google_login,
-        crate::router::handle_oauth_callback,
+        crate::api::auth::oauth::handle_github_login,
+        crate::api::auth::oauth::handle_google_login,
+        crate::api::auth::oauth::handle_oauth_callback,
         crate::api::auth::session::handle_get_current_user,
         crate::api::auth::session::handle_token_refresh,
         crate::api::auth::session::handle_logout,
@@ -134,6 +134,9 @@ use utoipa::{Modify, OpenApi};
         crate::api::admin::users::handle_admin_unsuspend_user,
         crate::api::admin::users::handle_admin_delete_user,
 
+        // Admin — Counters
+        crate::api::admin::counters::handle_admin_reset_monthly_counter,
+
         // Admin — Links
         crate::api::links::admin::handle_admin_list_links,
         crate::api::links::admin::handle_admin_update_link_status,
@@ -143,7 +146,6 @@ use utoipa::{Modify, OpenApi};
         // Admin — Settings
         crate::api::settings::admin::handle_admin_get_settings,
         crate::api::settings::admin::handle_admin_update_setting,
-        crate::router::handle_admin_reset_monthly_counter,
 
         // Admin — Blacklist
         crate::api::admin::blacklist::handle_admin_get_blacklist,
@@ -160,7 +162,6 @@ use utoipa::{Modify, OpenApi};
         crate::api::admin::billing::handle_admin_list_billing_accounts,
         crate::api::admin::billing::handle_admin_get_billing_account,
         crate::api::admin::billing::handle_admin_update_billing_account_tier,
-        crate::api::admin::billing::handle_admin_reset_billing_account_counter,
         crate::api::admin::billing::handle_admin_update_subscription_status,
         crate::api::billing::handle_admin_reset_billing_account,
         crate::api::billing::handle_cron_trigger_downgrade,

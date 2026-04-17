@@ -406,12 +406,12 @@
           "Admin"
         ],
         "summary": "Reset billing account monthly counter",
-        "operationId": "handle_admin_reset_billing_account_counter",
+        "operationId": "handle_admin_reset_monthly_counter",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Billing account ID",
+            "description": "Billing Account ID",
             "required": true,
             "schema": {
               "type": "string"
@@ -871,45 +871,6 @@
           },
           "404": {
             "description": "Link not found"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          },
-          {
-            "session_cookie": []
-          }
-        ]
-      }
-    },
-    "/api/admin/orgs/{id}/reset-counter": {
-      "post": {
-        "tags": [
-          "Admin"
-        ],
-        "summary": "Reset org monthly counter",
-        "operationId": "handle_admin_reset_monthly_counter",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Org ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Counter reset"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Admin required"
           }
         },
         "security": [
@@ -1589,7 +1550,7 @@
           {
             "name": "state",
             "in": "query",
-            "description": "CSRF state token",
+            "description": "OAuth state parameter for CSRF protection",
             "required": true,
             "schema": {
               "type": "string"
@@ -1598,10 +1559,16 @@
         ],
         "responses": {
           "302": {
-            "description": "Redirect to dashboard on success or home on failure"
+            "description": "Redirect to dashboard with session cookie set"
           },
-          "429": {
-            "description": "Rate limit exceeded"
+          "400": {
+            "description": "Missing or invalid parameters"
+          },
+          "401": {
+            "description": "OAuth state validation failed"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
