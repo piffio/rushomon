@@ -1,7 +1,6 @@
 use crate::auth::providers::{NormalizedUser, OAuthProviderConfig};
-use crate::db::queries;
 use crate::models::{Organization, User, user::CreateUserData};
-use crate::repositories::OrgRepository;
+use crate::repositories::{BillingRepository, OrgRepository, UserRepository};
 use serde::{Deserialize, Serialize};
 use worker::{D1Database, Env, Error, Request, Response, Result, console_log, kv::KvStore};
 
@@ -312,9 +311,14 @@ async fn create_or_get_user(
             oauth_id: normalized_user.provider_id,
         };
 
-        let updated_user = queries::create_or_update_user(db, create_data, &user.org_id).await?;
+        let user_repo = UserRepository::new();
+        let updated_user = user_repo
+            .create_or_update(db, create_data, &user.org_id)
+            .await?;
 
-        let org = queries::get_org_by_id(db, &user.org_id)
+        let org_repo = OrgRepository::new();
+        let org = org_repo
+            .get_by_id(db, &user.org_id)
             .await?
             .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
@@ -362,9 +366,14 @@ async fn create_or_get_user(
             oauth_id: normalized_user.provider_id,
         };
 
-        let updated_user = queries::create_or_update_user(db, create_data, &user.org_id).await?;
+        let user_repo = UserRepository::new();
+        let updated_user = user_repo
+            .create_or_update(db, create_data, &user.org_id)
+            .await?;
 
-        let org = queries::get_org_by_id(db, &user.org_id)
+        let org_repo = OrgRepository::new();
+        let org = org_repo
+            .get_by_id(db, &user.org_id)
             .await?
             .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
@@ -372,7 +381,8 @@ async fn create_or_get_user(
     }
 
     // Step 3: new user — check if signups are enabled (first user is always allowed)
-    let user_count = queries::get_user_count(db).await?;
+    let user_repo = UserRepository::new();
+    let user_count = user_repo.count(db).await?;
     if user_count > 0 {
         let settings_repo = crate::repositories::SettingsRepository::new();
         let signups_enabled = settings_repo
@@ -401,7 +411,10 @@ async fn create_or_get_user(
 
     // Create organization first (with temp user ID)
     let temp_user_id = uuid::Uuid::new_v4().to_string();
-    let org = queries::create_default_org(db, &temp_user_id, &org_name).await?;
+    let org_repo = OrgRepository::new();
+    let org = org_repo
+        .create_default(db, &temp_user_id, &org_name)
+        .await?;
 
     // Now create the user with the actual org_id
     let create_data = CreateUserData {
@@ -411,14 +424,15 @@ async fn create_or_get_user(
         oauth_provider: normalized_user.provider.clone(),
         oauth_id: normalized_user.provider_id.clone(),
     };
-    let user = queries::create_or_update_user(db, create_data, &org.id).await?;
+    let user = user_repo.create_or_update(db, create_data, &org.id).await?;
 
     // Add the user as an organization member with owner role
-    let org_repo = OrgRepository::new();
     org_repo.add_member(db, &org.id, &user.id, "owner").await?;
 
     // Update the billing account owner to the actual user ID
-    queries::update_billing_account_owner(db, org.billing_account_id.as_ref().unwrap(), &user.id)
+    let billing_repo = BillingRepository::new();
+    billing_repo
+        .update_owner(db, org.billing_account_id.as_ref().unwrap(), &user.id)
         .await?;
 
     Ok((user, org))

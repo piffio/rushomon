@@ -1,4 +1,5 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
+use crate::repositories::UserRepository;
 use crate::utils::time::now_timestamp;
 use hex; // Add hex crate for formatting
 use sha2::{Digest, Sha256};
@@ -160,7 +161,11 @@ pub async fn authenticate_request(
         }
 
         // 6. Verify the user exists and isn't suspended
-        let user = match crate::db::get_user_by_id(&db, &api_key_with_tier.user_id).await {
+        let user_repo = UserRepository::new();
+        let user = match user_repo
+            .get_user_by_id(&db, &api_key_with_tier.user_id)
+            .await
+        {
             Ok(Some(u)) => u,
             Ok(None) => return Err(AuthError::Unauthorized("User not found".to_string())),
             Err(_) => {
@@ -320,7 +325,8 @@ pub async fn authenticate_request(
         }
     };
 
-    let user = match crate::db::get_user_by_id(&db, &session.user_id).await {
+    let user_repo = UserRepository::new();
+    let user = match user_repo.get_user_by_id(&db, &session.user_id).await {
         Ok(Some(u)) => u,
         Ok(None) => {
             console_log!(

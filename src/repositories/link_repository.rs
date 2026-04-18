@@ -7,8 +7,8 @@
 /// - Analytics event logging and click-count increment
 /// - Export helpers
 /// - Dashboard statistics
-use crate::db;
 use crate::models::{AnalyticsEvent, Link, link::LinkStatus};
+use crate::repositories::OrgRepository;
 use crate::utils::now_timestamp;
 use serde::Serializer;
 use wasm_bindgen::JsValue;
@@ -829,7 +829,9 @@ impl LinkRepository {
         if let Some(value) = link.forward_query_params {
             value
         } else {
-            db::get_org_forward_query_params(db, &link.org_id)
+            let org_repo = OrgRepository::new();
+            org_repo
+                .get_forward_query_params(db, &link.org_id)
                 .await
                 .unwrap_or(false)
         }

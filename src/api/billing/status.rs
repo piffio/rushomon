@@ -1,5 +1,5 @@
 use crate::auth;
-use crate::repositories::BillingRepository;
+use crate::repositories::{BillingRepository, OrgRepository};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -26,11 +26,14 @@ pub async fn handle_get_status(req: Request, ctx: RouteContext<()>) -> Result<Re
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let repo = BillingRepository::new();
+    let org_repo = OrgRepository::new();
 
     let billing_account = match repo.get_for_user(&db, &user_ctx.user_id).await? {
         Some(ba) => ba,
         None => {
-            let org = crate::db::create_default_org(&db, &user_ctx.user_id, "Personal").await?;
+            let org = org_repo
+                .create_default(&db, &user_ctx.user_id, "Personal")
+                .await?;
             match repo
                 .get_by_id(&db, org.billing_account_id.as_deref().unwrap_or(""))
                 .await?

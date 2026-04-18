@@ -5,6 +5,7 @@
 use crate::models::{
     OrgInvitation, OrgMember, OrgMemberWithUser, OrgWithRole, Organization, link::Link,
 };
+use crate::repositories::BillingRepository;
 use crate::utils::now_timestamp;
 use worker::Result;
 use worker::d1::D1Database;
@@ -65,6 +66,55 @@ impl OrgRepository {
             created_at: now,
             created_by: created_by.to_string(),
             billing_account_id: Some(billing_account_id.to_string()),
+        })
+    }
+
+    /// Create a default organization for a new user with a new billing account.
+    /// Uses the default tier from settings.
+    pub async fn create_default(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+        org_name: &str,
+    ) -> Result<Organization> {
+        let org_id = uuid::Uuid::new_v4().to_string();
+        let slug = self.generate_unique_slug(db, org_name).await?;
+        let now = now_timestamp();
+
+        // Read the default tier from settings
+        let settings_repo = crate::repositories::SettingsRepository::new();
+        let tier = settings_repo
+            .get_setting(db, "default_user_tier")
+            .await?
+            .unwrap_or_else(|| "free".to_string());
+
+        // Create billing account for the user
+        let billing_repo = BillingRepository::new();
+        let billing_account = billing_repo.create(db, user_id, &tier).await?;
+
+        let stmt = db.prepare(
+            "INSERT INTO organizations (id, name, slug, created_at, created_by, billing_account_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        );
+
+        stmt.bind(&[
+            org_id.clone().into(),
+            org_name.to_string().into(),
+            slug.clone().into(),
+            (now as f64).into(),
+            user_id.into(),
+            billing_account.id.clone().into(),
+        ])?
+        .run()
+        .await?;
+
+        Ok(Organization {
+            id: org_id,
+            name: org_name.to_string(),
+            slug,
+            created_at: now,
+            created_by: user_id.to_string(),
+            billing_account_id: Some(billing_account.id),
         })
     }
 
