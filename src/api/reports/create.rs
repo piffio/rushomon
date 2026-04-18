@@ -3,9 +3,8 @@
 /// Accepts both authenticated and anonymous submissions.
 /// Duplicate reports for the same link + reason + reporter within 24 h are rejected.
 use crate::auth;
-use crate::db;
 use crate::models::link::LinkStatus;
-use crate::repositories::ReportRepository;
+use crate::repositories::{LinkRepository, ReportRepository};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -42,11 +41,12 @@ pub async fn handle_report_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let reporter_email = body.get("reporter_email").and_then(|v| v.as_str());
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let link_repo = LinkRepository::new();
 
     // Validate link exists and check status
-    let link = match db::get_active_link_by_short_code(&db, &link_id).await {
+    let link = match link_repo.get_active_by_short_code(&db, &link_id).await {
         Ok(Some(link)) => Some(link),
-        Ok(None) => match db::get_link_by_id_no_auth_all(&db, &link_id).await {
+        Ok(None) => match link_repo.get_by_id_no_auth_all(&db, &link_id).await {
             Ok(Some(link)) => Some(link),
             Ok(None) => {
                 return Ok(Response::from_json(&serde_json::json!({

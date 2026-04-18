@@ -7,7 +7,7 @@ use crate::models::{
     link::{CreateLinkRequest, Link, LinkStatus},
 };
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{LinkRepository, TagRepository};
+use crate::repositories::{BillingRepository, LinkRepository, OrgRepository, TagRepository};
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -83,7 +83,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    let billing_account = db::get_billing_account_for_org(&db, org_id)
+    let billing_repo = BillingRepository::new();
+    let billing_account = billing_repo
+        .get_for_org(&db, org_id)
         .await?
         .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
 
@@ -96,18 +98,14 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         let now = chrono::Utc::now();
         let year_month = format!("{}-{:02}", now.year(), now.month());
 
-        let can_create = db::increment_monthly_counter_for_billing_account(
-            &db,
-            &billing_account.id,
-            &year_month,
-            max_links,
-        )
-        .await?;
+        let can_create = billing_repo
+            .increment_monthly_counter(&db, &billing_account.id, &year_month, max_links)
+            .await?;
 
         if !can_create {
-            let current_count =
-                db::get_monthly_counter_for_billing_account(&db, &billing_account.id, &year_month)
-                    .await?;
+            let current_count = billing_repo
+                .get_monthly_counter(&db, &billing_account.id, &year_month)
+                .await?;
             let remaining = max_links.saturating_sub(current_count);
             let message = if remaining > 0 {
                 format!(
@@ -320,6 +318,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     };
 
     let repo = LinkRepository::new();
+    let org_repo = OrgRepository::new();
     repo.create(&db, &link).await?;
 
     if !normalized_tags.is_empty() {
@@ -328,7 +327,8 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     }
 
     let resolved_forward = if link.forward_query_params.is_none() {
-        db::get_org_forward_query_params(&db, org_id)
+        org_repo
+            .get_forward_query_params(&db, org_id)
             .await
             .unwrap_or(false)
     } else {

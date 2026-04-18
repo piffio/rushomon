@@ -3,7 +3,7 @@
 /// Data access layer for user records in D1.
 /// Note: Session data is stored in KV and managed via auth::session.
 use crate::models::link::Link;
-use crate::models::user::User;
+use crate::models::user::{CreateUserData, User};
 use crate::utils::now_timestamp;
 use worker::Result;
 use worker::d1::D1Database;
@@ -32,6 +32,109 @@ pub struct UserRepository;
 impl UserRepository {
     pub fn new() -> Self {
         Self
+    }
+
+    /// Create or update a user from OAuth data.
+    /// If user exists (by oauth_provider + oauth_id), updates email/name/avatar.
+    /// If not, creates new user with admin role if first user, otherwise member.
+    pub async fn create_or_update(
+        &self,
+        db: &D1Database,
+        data: CreateUserData,
+        org_id: &str,
+    ) -> Result<User> {
+        let user_id = uuid::Uuid::new_v4().to_string();
+        let now = now_timestamp();
+
+        // Try to find existing user by OAuth provider and ID
+        let stmt = db.prepare(
+            "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
+                    suspended_at, suspension_reason, suspended_by
+             FROM users
+             WHERE oauth_provider = ?1 AND oauth_id = ?2",
+        );
+
+        let existing = stmt
+            .bind(&[
+                data.oauth_provider.clone().into(),
+                data.oauth_id.clone().into(),
+            ])?
+            .first::<User>(None)
+            .await?;
+
+        if let Some(user) = existing {
+            // Update existing user
+            let update_stmt = db.prepare(
+                "UPDATE users
+                 SET email = ?1, name = ?2, avatar_url = ?3
+                 WHERE id = ?4",
+            );
+
+            update_stmt
+                .bind(&[
+                    data.email.clone().into(),
+                    data.name.clone().into(),
+                    data.avatar_url.clone().into(),
+                    user.id.clone().into(),
+                ])?
+                .run()
+                .await?;
+
+            Ok(User {
+                id: user.id,
+                email: data.email,
+                name: data.name,
+                avatar_url: data.avatar_url,
+                oauth_provider: data.oauth_provider,
+                oauth_id: data.oauth_id,
+                org_id: user.org_id,
+                role: user.role,
+                created_at: user.created_at,
+                suspended_at: user.suspended_at,
+                suspension_reason: user.suspension_reason,
+                suspended_by: user.suspended_by,
+            })
+        } else {
+            // Determine role: first user on the instance gets admin, all others get member
+            let user_count = self.count(db).await?;
+            let role = if user_count == 0 { "admin" } else { "member" };
+
+            // Create new user
+            let insert_stmt = db.prepare(
+                "INSERT INTO users (id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            );
+
+            insert_stmt
+                .bind(&[
+                    user_id.clone().into(),
+                    data.email.clone().into(),
+                    data.name.clone().into(),
+                    data.avatar_url.clone().into(),
+                    data.oauth_provider.clone().into(),
+                    data.oauth_id.clone().into(),
+                    org_id.into(),
+                    role.into(),
+                    (now as f64).into(),
+                ])?
+                .run()
+                .await?;
+
+            Ok(User {
+                id: user_id,
+                email: data.email,
+                name: data.name,
+                avatar_url: data.avatar_url,
+                oauth_provider: data.oauth_provider,
+                oauth_id: data.oauth_id,
+                org_id: org_id.to_string(),
+                role: role.to_string(),
+                created_at: now,
+                suspended_at: None,
+                suspension_reason: None,
+                suspended_by: None,
+            })
+        }
     }
 
     /// Get a user by their ID.

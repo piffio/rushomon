@@ -5,9 +5,8 @@
 /// PATCH  /api/orgs/{id} - Update organization
 /// DELETE /api/orgs/{id} - Delete organization
 use crate::auth;
-use crate::db;
 use crate::models::Tier;
-use crate::repositories::OrgRepository;
+use crate::repositories::{BillingRepository, LinkRepository, OrgRepository};
 use crate::utils::AppError;
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -15,8 +14,9 @@ use worker::*;
 
 /// Helper to get effective tier for an organization
 async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tier {
+    let billing_repo = BillingRepository::new();
     if let Some(ref billing_account_id) = org.billing_account_id
-        && let Ok(Some(billing_account)) = db::get_billing_account(db, billing_account_id).await
+        && let Ok(Some(billing_account)) = billing_repo.get_by_id(db, billing_account_id).await
     {
         return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
     }
@@ -48,9 +48,11 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
 
     // Get user's billing account to determine org creation limits
-    let billing_account = db::get_user_billing_account(&db, &user_ctx.user_id)
+    let billing_account = billing_repo
+        .get_for_user(&db, &user_ctx.user_id)
         .await?
         .ok_or_else(|| AppError::Internal("No billing account found".to_string()))?;
 
@@ -59,9 +61,7 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
 
     // Check org limits against billing account
     if let Some(max_orgs) = limits.max_orgs {
-        let orgs_in_billing_account = crate::repositories::BillingRepository::new()
-            .count_orgs(&db, &billing_account.id)
-            .await?;
+        let orgs_in_billing_account = billing_repo.count_orgs(&db, &billing_account.id).await?;
 
         if orgs_in_billing_account >= max_orgs {
             return Err(AppError::Forbidden(format!(
@@ -359,6 +359,9 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         AppError::BadRequest("action is required (delete or migrate)".to_string())
     })?;
 
+    let link_repo = LinkRepository::new();
+    let billing_repo = BillingRepository::new();
+
     match action {
         "delete" => {
             // Get all link IDs and their short codes for KV cleanup
@@ -366,7 +369,7 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
 
             // Delete from KV first
             for link_id in &link_ids {
-                if let Some(link) = db::get_link_by_id(&db, link_id, &org_id).await? {
+                if let Some(link) = link_repo.get_by_id(&db, link_id, &org_id).await? {
                     let _ = kv.delete(&link.short_code).await;
                 }
             }
@@ -404,10 +407,11 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
                 .ok_or_else(|| AppError::NotFound("Target organization not found".to_string()))?;
 
             let target_billing_account_id =
-                target_org.billing_account_id.as_ref().ok_or_else(|| {
+                target_org.billing_account_id.as_deref().ok_or_else(|| {
                     AppError::Internal("Target organization has no billing account".to_string())
                 })?;
-            let target_billing_account = db::get_billing_account(&db, target_billing_account_id)
+            let target_billing_account = billing_repo
+                .get_by_id(&db, target_billing_account_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound("Billing account not found".to_string()))?;
 
@@ -422,12 +426,9 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
             if let Some(max_links) = target_limits.max_links_per_month {
                 let now = chrono::Utc::now();
                 let year_month = format!("{}-{:02}", now.year(), now.month());
-                let target_current_usage = db::get_monthly_counter_for_billing_account(
-                    &db,
-                    target_billing_account_id,
-                    &year_month,
-                )
-                .await?;
+                let target_current_usage = billing_repo
+                    .get_monthly_counter(&db, target_billing_account_id, &year_month)
+                    .await?;
 
                 let target_available = max_links - target_current_usage;
 
@@ -439,13 +440,14 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
                 }
 
                 // Update target billing account's monthly counter
-                db::increment_monthly_counter_for_billing_account(
-                    &db,
-                    target_billing_account_id,
-                    &year_month,
-                    source_link_count,
-                )
-                .await?;
+                billing_repo
+                    .increment_monthly_counter(
+                        &db,
+                        target_billing_account_id,
+                        &year_month,
+                        source_link_count,
+                    )
+                    .await?;
             }
 
             // Migrate links in D1
@@ -454,7 +456,7 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
             // Update KV mappings
             let migrated_link_ids = repo.get_link_ids(&db, target_org_id).await?;
             for link_id in &migrated_link_ids {
-                if let Some(link) = db::get_link_by_id(&db, link_id, target_org_id).await? {
+                if let Some(link) = link_repo.get_by_id(&db, link_id, target_org_id).await? {
                     let resolved_forward = link.forward_query_params.unwrap_or(false);
                     let mapping = link.to_mapping(resolved_forward);
                     if let Ok(put_builder) = kv.put(&link.short_code, mapping) {

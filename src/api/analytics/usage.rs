@@ -2,9 +2,8 @@
 ///
 /// GET /api/usage — returns tier, limits, current monthly usage, and next reset.
 use crate::auth;
-use crate::db;
 use crate::models::Tier;
-use crate::repositories::{AnalyticsRepository, TagRepository};
+use crate::repositories::{AnalyticsRepository, BillingRepository, OrgRepository, TagRepository};
 use crate::utils::AppError;
 use chrono::{Datelike, TimeZone};
 use worker::d1::D1Database;
@@ -34,7 +33,11 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
     let org_id = &user_ctx.org_id;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let org = db::get_org_by_id(&db, org_id)
+    let org_repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
+
+    let org = org_repo
+        .get_by_id(&db, org_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
 
@@ -43,7 +46,8 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         .billing_account_id
         .as_ref()
         .ok_or_else(|| AppError::Internal("Organization has no billing account".to_string()))?;
-    let billing_account = db::get_billing_account(&db, billing_account_id)
+    let billing_account = billing_repo
+        .get_by_id(&db, billing_account_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Billing account not found".to_string()))?;
 

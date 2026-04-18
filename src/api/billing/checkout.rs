@@ -1,7 +1,7 @@
 use crate::auth;
 use crate::billing::polar::polar_client_from_env;
 use crate::billing::provider::BillingProvider;
-use crate::repositories::{BillingRepository, SettingsRepository};
+use crate::repositories::{BillingRepository, OrgRepository, SettingsRepository};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -103,11 +103,14 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     };
 
     let billing_repo = BillingRepository::new();
+    let org_repo = OrgRepository::new();
 
     let billing_account = match billing_repo.get_for_user(&db, &user_ctx.user_id).await? {
         Some(ba) => ba,
         None => {
-            let org = crate::db::create_default_org(&db, &user_ctx.user_id, "Personal").await?;
+            let org = org_repo
+                .create_default(&db, &user_ctx.user_id, "Personal")
+                .await?;
             match billing_repo
                 .get_by_id(&db, org.billing_account_id.as_deref().unwrap_or(""))
                 .await?

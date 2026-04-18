@@ -2,9 +2,8 @@
 ///
 /// GET /api/links/:id/analytics — click analytics for a single link.
 use crate::auth;
-use crate::db;
 use crate::models::{LinkAnalyticsResponse, Tier, TimeRange};
-use crate::repositories::AnalyticsRepository;
+use crate::repositories::{AnalyticsRepository, BillingRepository, LinkRepository, OrgRepository};
 use crate::services::analytics_service::apply_analytics_gating;
 use worker::d1::D1Database;
 use worker::*;
@@ -60,9 +59,10 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
         .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let link_repo = LinkRepository::new();
 
     // Verify link exists and belongs to org
-    let link = match db::get_link_by_id(&db, link_id, org_id).await? {
+    let link = match link_repo.get_by_id(&db, link_id, org_id).await? {
         Some(link) => link,
         None => return Response::error("Link not found", 404),
     };
@@ -109,13 +109,18 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
     let (mut start, end) = time_range.calculate_timestamps();
 
     // Check tier-based analytics limits from billing account
-    let org = db::get_org_by_id(&db, org_id)
+    let org_repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
+
+    let org = org_repo
+        .get_by_id(&db, org_id)
         .await?
         .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
     // Get tier from billing account (all orgs should have billing accounts after migration)
     let tier = if let Some(ref billing_account_id) = org.billing_account_id {
-        db::get_billing_account(&db, billing_account_id)
+        billing_repo
+            .get_by_id(&db, billing_account_id)
             .await?
             .and_then(|ba| Tier::from_str_value(&ba.tier))
             .unwrap_or(Tier::Free)

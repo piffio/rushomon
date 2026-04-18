@@ -2,9 +2,8 @@
 ///
 /// GET /api/analytics/org — aggregate click analytics for the entire organization.
 use crate::auth;
-use crate::db;
 use crate::models::Tier;
-use crate::repositories::AnalyticsRepository;
+use crate::repositories::{AnalyticsRepository, BillingRepository, OrgRepository};
 use crate::services::analytics_service::{apply_analytics_gating, parse_time_range_from_query};
 use worker::d1::D1Database;
 use worker::*;
@@ -46,14 +45,18 @@ pub async fn handle_get_org_analytics(req: Request, ctx: RouteContext<()>) -> Re
     let (mut start, end) = time_range.calculate_timestamps();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let org_repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
 
     // Resolve tier from billing account
-    let org = db::get_org_by_id(&db, org_id)
+    let org = org_repo
+        .get_by_id(&db, org_id)
         .await?
         .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
 
     let tier = if let Some(ref billing_account_id) = org.billing_account_id {
-        db::get_billing_account(&db, billing_account_id)
+        billing_repo
+            .get_by_id(&db, billing_account_id)
             .await?
             .and_then(|ba| Tier::from_str_value(&ba.tier))
             .unwrap_or(Tier::Free)

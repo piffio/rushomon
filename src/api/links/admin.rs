@@ -1,7 +1,7 @@
 use crate::auth;
 use crate::db;
 use crate::kv;
-use crate::repositories::LinkRepository;
+use crate::repositories::{LinkRepository, OrgRepository};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -306,10 +306,12 @@ pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> R
                 redirect_type: link.redirect_type.clone(),
             };
 
+            let org_repo = OrgRepository::new();
             let resolved_forward = if let Some(forward) = link.forward_query_params {
                 forward
             } else {
-                db::get_org_forward_query_params(&db, &link.org_id)
+                org_repo
+                    .get_forward_query_params(&db, &link.org_id)
                     .await
                     .unwrap_or(false)
             };

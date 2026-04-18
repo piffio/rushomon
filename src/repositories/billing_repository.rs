@@ -172,6 +172,23 @@ impl BillingRepository {
         .await
     }
 
+    /// Get billing account for an organization.
+    pub async fn get_for_org(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+    ) -> Result<Option<BillingAccount>> {
+        db.prepare(
+            "SELECT ba.id, ba.owner_user_id, ba.tier, ba.provider_customer_id, ba.created_at
+             FROM billing_accounts ba
+             INNER JOIN organizations o ON o.billing_account_id = ba.id
+             WHERE o.id = ?1",
+        )
+        .bind(&[org_id.into()])?
+        .first::<BillingAccount>(None)
+        .await
+    }
+
     /// Create a new billing account owned by the given user.
     #[allow(dead_code)]
     pub async fn create(
@@ -285,7 +302,6 @@ impl BillingRepository {
     }
 
     /// Update billing account owner.
-    #[allow(dead_code)]
     pub async fn update_owner(
         &self,
         db: &D1Database,
