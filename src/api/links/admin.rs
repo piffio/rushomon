@@ -1,6 +1,7 @@
 use crate::auth;
 use crate::kv;
-use crate::repositories::{LinkRepository, OrgRepository, ReportRepository};
+use crate::repositories::{LinkRepository, OrgRepository};
+use crate::services::ReportService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -151,11 +152,16 @@ pub async fn handle_admin_update_link_status(
     };
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = LinkRepository::new();
 
-    repo.update_status_by_id(&db, &link_id, &status).await?;
+    if let Err(e) = ReportService::new()
+        .update_link_status_and_resolve_reports(&db, &link_id, &status, &user_ctx.user_id)
+        .await
+    {
+        return Ok(e.into_response());
+    }
 
     let kv = ctx.kv("URL_MAPPINGS")?;
+    let repo = LinkRepository::new();
     match repo.get_by_id_no_auth_all(&db, &link_id).await? {
         Some(updated_link) => {
             repo.sync_kv_from_link(&db, &kv, &updated_link).await?;
@@ -170,29 +176,6 @@ pub async fn handle_admin_update_link_status(
                 })
             );
         }
-    }
-
-    let report_repo = ReportRepository::new();
-    if (status == "disabled" || status == "blocked")
-        && let Err(e) = report_repo
-            .resolve_for_link(
-                &db,
-                &link_id,
-                "reviewed",
-                &format!("Action taken: Link {}", status),
-                &user_ctx.user_id,
-            )
-            .await
-    {
-        console_log!(
-            "{}",
-            serde_json::json!({
-                "event": "reports_resolve_failed",
-                "link_id": link_id,
-                "error": e.to_string(),
-                "level": "error"
-            })
-        );
     }
 
     Response::from_json(&serde_json::json!({

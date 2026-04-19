@@ -54,6 +54,21 @@ impl AppError {
     }
 }
 
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            AppError::Unauthorized(m)
+            | AppError::Forbidden(m)
+            | AppError::BadRequest(m)
+            | AppError::NotFound(m)
+            | AppError::Conflict(m)
+            | AppError::Internal(m)
+            | AppError::TierLimitReached(m) => m.as_str(),
+        };
+        write!(f, "{}", msg)
+    }
+}
+
 impl From<AuthError> for AppError {
     fn from(e: AuthError) -> Self {
         match e {

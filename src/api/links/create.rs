@@ -1,16 +1,11 @@
 use crate::auth;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
-use crate::models::{
-    Tier,
-    link::{CreateLinkRequest, Link, LinkStatus},
-};
+use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{
-    BillingRepository, BlacklistRepository, LinkRepository, OrgRepository, TagRepository,
-};
+use crate::repositories::{LinkRepository, OrgRepository};
+use crate::services::LinkService;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
-use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -84,42 +79,12 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    let billing_repo = BillingRepository::new();
-    let billing_account = billing_repo
-        .get_for_org(&db, org_id)
-        .await?
-        .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
-
-    let tier = Tier::from_str_value(&billing_account.tier);
-    let limits = tier.as_ref().map(|t| t.limits());
-
-    if let Some(ref tier_limits) = limits
-        && let Some(max_links) = tier_limits.max_links_per_month
-    {
-        let now = chrono::Utc::now();
-        let year_month = format!("{}-{:02}", now.year(), now.month());
-
-        let can_create = billing_repo
-            .increment_monthly_counter(&db, &billing_account.id, &year_month, max_links)
-            .await?;
-
-        if !can_create {
-            let current_count = billing_repo
-                .get_monthly_counter(&db, &billing_account.id, &year_month)
-                .await?;
-            let remaining = max_links.saturating_sub(current_count);
-            let message = if remaining > 0 {
-                format!(
-                    "You can create {} more short links this month across all organizations.",
-                    remaining
-                )
-            } else {
-                "You have reached your monthly link limit across all organizations. Upgrade your plan to create more links."
-                    .to_string()
-            };
-            return Response::error(message, 403);
-        }
-    }
+    let link_service = LinkService::new();
+    let quota_ctx = match link_service.check_quota(&db, org_id).await {
+        Ok(q) => q,
+        Err(e) => return Ok(e.into_response()),
+    };
+    let limits = quota_ctx.tier_limits();
 
     let raw_body: serde_json::Value = match req.json().await {
         Ok(body) => body,
@@ -168,9 +133,8 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         }
     };
 
-    let blacklist_repo = BlacklistRepository::new();
-    if blacklist_repo.is_blacklisted(&db, &destination_url).await? {
-        return Response::error("Destination URL is blocked", 403);
+    if let Err(e) = link_service.check_blacklist(&db, &destination_url).await {
+        return Ok(e.into_response());
     }
 
     if let Some(ref title) = body.title
@@ -190,10 +154,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         );
     }
 
-    let is_pro_or_above = matches!(
-        tier.as_ref(),
-        Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
-    );
+    let is_pro_or_above = quota_ctx.is_pro_or_above();
 
     let wants_pro_features = body
         .utm_params
@@ -252,49 +213,16 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     if let Some(ref tier_limits) = limits
         && let Some(max_tags) = tier_limits.max_tags
+        && let Err(e) = link_service
+            .check_tag_limit(
+                &db,
+                &quota_ctx.billing_account_id,
+                &normalized_tags,
+                max_tags,
+            )
+            .await
     {
-        let current_tag_count = TagRepository::new()
-            .count_distinct_tags_for_billing_account(&db, &billing_account.id)
-            .await?;
-
-        let mut new_tag_count = 0;
-        if !normalized_tags.is_empty() {
-            let existing_tags_query = db.prepare(
-                "SELECT DISTINCT tag_name
-                 FROM link_tags lt
-                 JOIN organizations o ON lt.org_id = o.id
-                 WHERE o.billing_account_id = ?1",
-            );
-            let existing_tags_result = existing_tags_query
-                .bind(&[billing_account.id.clone().into()])?
-                .all()
-                .await?;
-            let existing_tags_set: std::collections::HashSet<String> = existing_tags_result
-                .results::<serde_json::Value>()?
-                .iter()
-                .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
-                .collect();
-
-            new_tag_count = normalized_tags
-                .iter()
-                .filter(|tag| !existing_tags_set.contains(*tag))
-                .count() as i64;
-        }
-
-        if current_tag_count + new_tag_count > max_tags {
-            let remaining = max_tags.saturating_sub(current_tag_count);
-            let message = if remaining > 0 {
-                format!(
-                    "You can create {} more tag{} across all organizations. Upgrade your plan to add more tags.",
-                    remaining,
-                    if remaining == 1 { "" } else { "s" }
-                )
-            } else {
-                "You have reached your tag limit across all organizations. Upgrade your plan to create more tags."
-                    .to_string()
-            };
-            return Response::error(message, 403);
-        }
+        return Ok(e.into_response());
     }
 
     let link_id = uuid::Uuid::new_v4().to_string();
