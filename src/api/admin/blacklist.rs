@@ -4,8 +4,8 @@
 /// GET    /api/admin/blacklist       — list all blacklist entries
 /// DELETE /api/admin/blacklist/:id   — remove a blacklist entry
 use crate::auth;
-use crate::kv;
-use crate::repositories::{BlacklistRepository, LinkRepository, ReportRepository};
+use crate::repositories::BlacklistRepository;
+use crate::services::BlacklistService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -126,62 +126,10 @@ async fn inner_block(mut req: Request, ctx: RouteContext<()>) -> Result<Response
     )
     .await?;
 
-    let candidate_links = repo.get_candidate_links(&db).await?;
-    let mut blocked_links = Vec::new();
-    for link in candidate_links {
-        if repo.is_blacklisted(&db, &link.destination_url).await? {
-            blocked_links.push(link);
-        }
-    }
-
-    let blocked_count = blocked_links.len() as i64;
-
-    let link_repo = LinkRepository::new();
-    let report_repo = ReportRepository::new();
-    if blocked_count > 0 {
-        let kv = ctx.kv("URL_MAPPINGS")?;
-        for link in blocked_links {
-            link_repo
-                .update_status_by_id(&db, &link.id, "blocked")
-                .await?;
-            if let Err(e) = report_repo
-                .resolve_for_link(
-                    &db,
-                    &link.id,
-                    "reviewed",
-                    &format!("Action taken: Blocked {} ({})", match_type, destination),
-                    &user_ctx.user_id,
-                )
-                .await
-            {
-                console_log!(
-                    "{}",
-                    serde_json::json!({
-                        "event": "reports_resolve_failed",
-                        "link_id": link.id,
-                        "error": e.to_string(),
-                        "level": "error"
-                    })
-                );
-            }
-
-            match kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await {
-                Ok(()) => {}
-                Err(e) => {
-                    console_log!(
-                        "{}",
-                        serde_json::json!({
-                            "event": "admin_block_destination_kv_delete_failed",
-                            "short_code": link.short_code,
-                            "link_id": link.id,
-                            "error": e.to_string(),
-                            "level": "error"
-                        })
-                    );
-                }
-            }
-        }
-    }
+    let kv = ctx.kv("URL_MAPPINGS")?;
+    let blocked_count = BlacklistService::new()
+        .block_matching_links(&db, &kv, &user_ctx.user_id, &match_type, &destination)
+        .await?;
 
     Ok(Response::from_json(&serde_json::json!({
         "success": true,

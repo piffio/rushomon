@@ -7,6 +7,7 @@
 use crate::auth;
 use crate::models::Tier;
 use crate::repositories::{BillingRepository, LinkRepository, OrgRepository};
+use crate::services::OrgService;
 use crate::utils::AppError;
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -48,28 +49,9 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let repo = OrgRepository::new();
-    let billing_repo = BillingRepository::new();
-
-    // Get user's billing account to determine org creation limits
-    let billing_account = billing_repo
-        .get_for_user(&db, &user_ctx.user_id)
-        .await?
-        .ok_or_else(|| AppError::Internal("No billing account found".to_string()))?;
-
-    let tier = Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
-    let limits = tier.limits();
-
-    // Check org limits against billing account
-    if let Some(max_orgs) = limits.max_orgs {
-        let orgs_in_billing_account = billing_repo.count_orgs(&db, &billing_account.id).await?;
-
-        if orgs_in_billing_account >= max_orgs {
-            return Err(AppError::Forbidden(format!(
-                "Organization limit reached ({}/{}). Upgrade your plan to create more organizations.",
-                orgs_in_billing_account, max_orgs
-            )));
-        }
-    }
+    OrgService::new()
+        .check_org_limit(&db, &user_ctx.user_id)
+        .await?;
 
     let body: serde_json::Value = req
         .json()
@@ -90,7 +72,11 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         ));
     }
 
-    // Create the org linked to user's billing account
+    // Create the org linked to the user's billing account
+    let billing_account = crate::repositories::BillingRepository::new()
+        .get_for_user(&db, &user_ctx.user_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("No billing account found".to_string()))?;
     let org = repo
         .create_with_billing_account(&db, &name, &user_ctx.user_id, &billing_account.id)
         .await?;

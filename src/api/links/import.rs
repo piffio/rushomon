@@ -1,13 +1,10 @@
 use crate::auth;
 use crate::kv;
-use crate::models::{
-    Tier,
-    link::{Link, LinkStatus},
-};
+use crate::models::link::{Link, LinkStatus};
+use crate::repositories::LinkRepository;
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
+use crate::services::LinkService;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
-use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -74,17 +71,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    let billing_repo = BillingRepository::new();
-    let billing_account = billing_repo
-        .get_for_org(&db, org_id)
-        .await?
-        .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
-    let tier = Tier::from_str_value(&billing_account.tier);
-    let limits = tier.as_ref().map(|t| t.limits());
-    let is_pro_or_above = matches!(
-        tier.as_ref(),
-        Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
-    );
+    let link_service = LinkService::new();
 
     let body: ImportRequest = match req.json().await {
         Ok(b) => b,
@@ -107,10 +94,6 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
     let kv = ctx.kv("URL_MAPPINGS")?;
     let now = now_timestamp();
-    let year_month = {
-        let dt = chrono::Utc::now();
-        format!("{}-{:02}", dt.year(), dt.month())
-    };
 
     let mut created: usize = 0;
     let mut skipped: usize = 0;
@@ -136,33 +119,30 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             }
         };
 
-        let blacklist_repo = BlacklistRepository::new();
-        if blacklist_repo.is_blacklisted(&db, &destination_url).await? {
+        if let Err(e) = link_service.check_blacklist(&db, &destination_url).await {
             failed += 1;
             errors.push(ImportError {
                 row: row_num,
                 destination_url: destination_url.clone(),
-                reason: "Destination URL is blocked".to_string(),
+                reason: e.to_string(),
             });
             continue;
         }
 
-        if let Some(ref tier_limits) = limits
-            && let Some(max_links) = tier_limits.max_links_per_month
-        {
-            let can_create = billing_repo
-                .increment_monthly_counter(&db, &billing_account.id, &year_month, max_links)
-                .await?;
-            if !can_create {
+        let quota_ctx = match link_service.check_quota(&db, org_id).await {
+            Ok(q) => q,
+            Err(e) => {
                 failed += 1;
                 errors.push(ImportError {
                     row: row_num,
                     destination_url: destination_url.clone(),
-                    reason: "Monthly link limit reached".to_string(),
+                    reason: e.to_string(),
                 });
                 continue;
             }
-        }
+        };
+        let limits = quota_ctx.tier_limits();
+        let is_pro_or_above = quota_ctx.is_pro_or_above();
 
         let short_code: String;
         if is_pro_or_above && let Some(provided_code) = row.short_code.as_ref() {
@@ -256,47 +236,26 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
         if let Some(ref tier_limits) = limits
             && let Some(max_tags) = tier_limits.max_tags
+            && link_service
+                .check_tag_limit(
+                    &db,
+                    &quota_ctx.billing_account_id,
+                    &normalized_tags,
+                    max_tags,
+                )
+                .await
+                .is_err()
         {
-            let current_tag_count = TagRepository::new()
-                .count_distinct_tags_for_billing_account(&db, &billing_account.id)
-                .await?;
-
-            let mut new_tag_count = 0;
-            if !normalized_tags.is_empty() {
-                let existing_tags_query = db.prepare(
-                    "SELECT DISTINCT tag_name
-                     FROM link_tags lt
-                     JOIN organizations o ON lt.org_id = o.id
-                     WHERE o.billing_account_id = ?1",
-                );
-                let existing_tags_result = existing_tags_query
-                    .bind(&[billing_account.id.clone().into()])?
-                    .all()
-                    .await?;
-                let existing_tags_set: std::collections::HashSet<String> = existing_tags_result
-                    .results::<serde_json::Value>()?
-                    .iter()
-                    .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
-                    .collect();
-
-                new_tag_count = normalized_tags
-                    .iter()
-                    .filter(|tag| !existing_tags_set.contains(*tag))
-                    .count() as i64;
-            }
-
-            if current_tag_count + new_tag_count > max_tags {
-                skipped += 1;
-                warnings.push(ImportWarning {
-                    row: row_num,
-                    destination_url: destination_url.clone(),
-                    reason: format!(
-                        "Tags skipped: would exceed tag limit ({} max). Consider upgrading your plan.",
-                        max_tags
-                    ),
-                });
-                normalized_tags.clear();
-            }
+            skipped += 1;
+            warnings.push(ImportWarning {
+                row: row_num,
+                destination_url: destination_url.clone(),
+                reason: format!(
+                    "Tags skipped: would exceed tag limit ({} max). Consider upgrading your plan.",
+                    max_tags
+                ),
+            });
+            normalized_tags.clear();
         }
 
         let title = row.title.as_ref().and_then(|t| {

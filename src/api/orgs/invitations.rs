@@ -9,6 +9,7 @@ use crate::api::links::get_frontend_url;
 use crate::auth;
 use crate::models::Tier;
 use crate::repositories::{BillingRepository, OrgRepository, UserRepository};
+use crate::services::OrgService;
 use crate::utils::AppError;
 use crate::utils::email::send_org_invitation;
 use worker::d1::D1Database;
@@ -67,33 +68,12 @@ async fn inner_create_invitation(
     let repo = OrgRepository::new();
     require_owner_or_admin(&repo, &db, &org_id, &user_ctx.user_id).await?;
 
+    OrgService::new().check_member_limit(&db, &org_id).await?;
+
     let org = repo
         .get_by_id(&db, &org_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-    let billing_repo = BillingRepository::new();
-    let tier = if let Some(ref ba_id) = org.billing_account_id {
-        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
-            Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
-        } else {
-            Tier::Free
-        }
-    } else {
-        Tier::Free
-    };
-    let limits = tier.limits();
-
-    if let Some(max_members) = limits.max_members {
-        let current_members = repo.count_members(&db, &org_id).await?;
-        let pending_invites = repo.count_pending_invitations(&db, &org_id).await?;
-        if current_members + pending_invites >= max_members {
-            return Err(AppError::Forbidden(format!(
-                "Member limit reached ({}/{})",
-                current_members + pending_invites,
-                max_members
-            )));
-        }
-    }
 
     let body: serde_json::Value = req
         .json()
