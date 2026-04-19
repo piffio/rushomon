@@ -4,9 +4,8 @@
 /// GET    /api/admin/blacklist       — list all blacklist entries
 /// DELETE /api/admin/blacklist/:id   — remove a blacklist entry
 use crate::auth;
-use crate::db;
 use crate::kv;
-use crate::repositories::BlacklistRepository;
+use crate::repositories::{BlacklistRepository, LinkRepository, ReportRepository};
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -130,25 +129,30 @@ async fn inner_block(mut req: Request, ctx: RouteContext<()>) -> Result<Response
     let candidate_links = repo.get_candidate_links(&db).await?;
     let mut blocked_links = Vec::new();
     for link in candidate_links {
-        if db::is_destination_blacklisted(&db, &link.destination_url).await? {
+        if repo.is_blacklisted(&db, &link.destination_url).await? {
             blocked_links.push(link);
         }
     }
 
     let blocked_count = blocked_links.len() as i64;
 
+    let link_repo = LinkRepository::new();
+    let report_repo = ReportRepository::new();
     if blocked_count > 0 {
         let kv = ctx.kv("URL_MAPPINGS")?;
         for link in blocked_links {
-            db::update_link_status_by_id(&db, &link.id, "blocked").await?;
-            if let Err(e) = db::resolve_reports_for_link(
-                &db,
-                &link.id,
-                "reviewed",
-                &format!("Action taken: Blocked {} ({})", match_type, destination),
-                &user_ctx.user_id,
-            )
-            .await
+            link_repo
+                .update_status_by_id(&db, &link.id, "blocked")
+                .await?;
+            if let Err(e) = report_repo
+                .resolve_for_link(
+                    &db,
+                    &link.id,
+                    "reviewed",
+                    &format!("Action taken: Blocked {} ({})", match_type, destination),
+                    &user_ctx.user_id,
+                )
+                .await
             {
                 console_log!(
                     "{}",

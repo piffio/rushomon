@@ -6,7 +6,6 @@ use worker::*;
 mod api;
 pub mod auth;
 mod billing;
-mod db;
 mod kv;
 mod middleware;
 mod models;

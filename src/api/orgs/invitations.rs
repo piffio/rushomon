@@ -7,9 +7,8 @@
 /// POST /api/invite/{token}/accept - Accept invite
 use crate::api::links::get_frontend_url;
 use crate::auth;
-use crate::db;
 use crate::models::Tier;
-use crate::repositories::{OrgRepository, UserRepository};
+use crate::repositories::{BillingRepository, OrgRepository, UserRepository};
 use crate::utils::AppError;
 use crate::utils::email::send_org_invitation;
 use worker::d1::D1Database;
@@ -72,8 +71,9 @@ async fn inner_create_invitation(
         .get_by_id(&db, &org_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+    let billing_repo = BillingRepository::new();
     let tier = if let Some(ref ba_id) = org.billing_account_id {
-        if let Ok(Some(ba)) = db::get_billing_account(&db, ba_id).await {
+        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
             Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
         } else {
             Tier::Free
@@ -480,8 +480,9 @@ async fn inner_accept_invite(req: Request, ctx: RouteContext<()>) -> Result<Resp
     };
     let access_cookie = auth::session::create_access_cookie_with_scheme(&new_access_token, scheme);
 
+    let billing_repo = BillingRepository::new();
     let tier = if let Some(ref ba_id) = _org.billing_account_id {
-        if let Ok(Some(ba)) = db::get_billing_account(&db, ba_id).await {
+        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
             Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
         } else {
             Tier::Free

@@ -1,12 +1,11 @@
 use crate::auth;
-use crate::db;
 use crate::kv;
 use crate::models::{
     Tier,
     link::{Link, LinkStatus},
 };
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{LinkRepository, TagRepository};
+use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -75,7 +74,9 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    let billing_account = db::get_billing_account_for_org(&db, org_id)
+    let billing_repo = BillingRepository::new();
+    let billing_account = billing_repo
+        .get_for_org(&db, org_id)
         .await?
         .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
     let tier = Tier::from_str_value(&billing_account.tier);
@@ -135,7 +136,8 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             }
         };
 
-        if db::is_destination_blacklisted(&db, &destination_url).await? {
+        let blacklist_repo = BlacklistRepository::new();
+        if blacklist_repo.is_blacklisted(&db, &destination_url).await? {
             failed += 1;
             errors.push(ImportError {
                 row: row_num,
@@ -148,13 +150,9 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
         if let Some(ref tier_limits) = limits
             && let Some(max_links) = tier_limits.max_links_per_month
         {
-            let can_create = db::increment_monthly_counter_for_billing_account(
-                &db,
-                &billing_account.id,
-                &year_month,
-                max_links,
-            )
-            .await?;
+            let can_create = billing_repo
+                .increment_monthly_counter(&db, &billing_account.id, &year_month, max_links)
+                .await?;
             if !can_create {
                 failed += 1;
                 errors.push(ImportError {

@@ -1,5 +1,5 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
-use crate::repositories::UserRepository;
+use crate::repositories::{ApiKeyRepository, UserRepository};
 use crate::utils::time::now_timestamp;
 use hex; // Add hex crate for formatting
 use sha2::{Digest, Sha256};
@@ -110,18 +110,18 @@ pub async fn authenticate_request(
         let key_hash = hex::encode(hasher.finalize());
 
         // 2. Query database directly for API key with current tier information
-        let api_key_with_tier =
-            match crate::db::queries::get_api_key_by_hash_with_tier(&db, &key_hash).await {
-                Ok(Some(key)) => key,
-                Ok(None) => {
-                    console_log!("Invalid PAT attempt");
-                    return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
-                }
-                Err(e) => {
-                    console_log!("Database error during API key validation: {:?}", e);
-                    return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
-                }
-            };
+        let api_key_repo = ApiKeyRepository::new();
+        let api_key_with_tier = match api_key_repo.get_by_hash_with_tier(&db, &key_hash).await {
+            Ok(Some(key)) => key,
+            Ok(None) => {
+                console_log!("Invalid PAT attempt");
+                return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+            }
+            Err(e) => {
+                console_log!("Database error during API key validation: {:?}", e);
+                return Err(AuthError::Unauthorized("Invalid API Key".to_string()));
+            }
+        };
 
         // 4. Check expiration
         if let Some(expires_at) = api_key_with_tier.expires_at
@@ -180,12 +180,9 @@ pub async fn authenticate_request(
         }
 
         // 7. Update the 'last_used_at' timestamp
-        if let Err(e) = crate::db::queries::update_api_key_last_used(
-            &db,
-            &api_key_with_tier.id,
-            now_timestamp(),
-        )
-        .await
+        if let Err(e) = api_key_repo
+            .update_last_used(&db, &api_key_with_tier.id, now_timestamp())
+            .await
         {
             console_log!("Failed to update API key last_used_at: {:?}", e);
         }
@@ -376,7 +373,7 @@ pub async fn authenticate_request(
 
 #[cfg(test)]
 mod tests {
-    use crate::db::ApiKeyWithTierRecord;
+    use crate::repositories::api_key_repository::ApiKeyWithTierRecord;
 
     // Mock test data
     fn create_test_api_key(status: &str) -> ApiKeyWithTierRecord {

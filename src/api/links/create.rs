@@ -1,5 +1,4 @@
 use crate::auth;
-use crate::db;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter};
 use crate::models::{
@@ -7,7 +6,9 @@ use crate::models::{
     link::{CreateLinkRequest, Link, LinkStatus},
 };
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{BillingRepository, LinkRepository, OrgRepository, TagRepository};
+use crate::repositories::{
+    BillingRepository, BlacklistRepository, LinkRepository, OrgRepository, TagRepository,
+};
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -167,7 +168,8 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         }
     };
 
-    if db::is_destination_blacklisted(&db, &destination_url).await? {
+    let blacklist_repo = BlacklistRepository::new();
+    if blacklist_repo.is_blacklisted(&db, &destination_url).await? {
         return Response::error("Destination URL is blocked", 403);
     }
 
