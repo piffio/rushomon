@@ -190,7 +190,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         Some(port) => format!("{}:{}", url.host_str().unwrap_or(""), port),
         None => url.host_str().unwrap_or("").to_string(),
     };
-    let frontend_url_str = crate::api::links::get_frontend_url(&env);
+    let frontend_url_str = crate::utils::get_frontend_url(&env);
     let frontend_authority = Url::parse(&frontend_url_str)
         .ok()
         .map(|u| match u.port() {
@@ -587,7 +587,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
         .get_async("/", |_req, ctx| async move {
-            let url = Url::parse(&crate::api::links::get_frontend_url(&ctx.env))?;
+            let url = Url::parse(&crate::utils::get_frontend_url(&ctx.env))?;
             Response::redirect_with_status(url, 301)
         })
         .run(req, env.clone())

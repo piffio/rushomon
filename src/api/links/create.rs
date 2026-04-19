@@ -1,6 +1,6 @@
 use crate::auth;
 use crate::kv;
-use crate::middleware::{RateLimitConfig, RateLimiter};
+use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
 use crate::repositories::tag_repository::validate_and_normalize_tags;
 use crate::repositories::{LinkRepository, OrgRepository};
@@ -40,17 +40,11 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let rate_limit_key = RateLimiter::user_key("create_link", user_id);
     let rate_limit_config = RateLimitConfig::link_creation();
 
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {

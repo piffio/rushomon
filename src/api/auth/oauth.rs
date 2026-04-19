@@ -4,36 +4,10 @@
 /// GET /api/auth/google    - Initiate Google OAuth
 /// GET /api/auth/callback  - OAuth provider callback
 use crate::auth;
-use crate::middleware::{RateLimitConfig, RateLimiter};
+use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::services::OAuthService;
+use crate::utils::{get_client_ip, get_frontend_url, hash_ip};
 use worker::*;
-
-/// Extract client IP from Cloudflare headers
-fn get_client_ip(req: &Request) -> String {
-    if let Ok(Some(ip)) = req.headers().get("CF-Connecting-IP") {
-        return ip;
-    }
-    // Fallback to X-Forwarded-For
-    if let Ok(Some(forwarded)) = req.headers().get("X-Forwarded-For")
-        && let Some(ip) = forwarded.split(',').next()
-    {
-        return ip.trim().to_string();
-    }
-    // Fallback to X-Real-IP
-    if let Ok(Some(ip)) = req.headers().get("X-Real-IP") {
-        return ip;
-    }
-    "unknown".to_string()
-}
-
-/// Hash an IP address for logging to avoid storing raw IPs
-fn hash_ip(ip: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut hasher = DefaultHasher::new();
-    ip.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
-}
 
 /// Helper function to extract query parameters
 fn extract_query_param(query: &str, name: &str) -> Result<String> {
@@ -50,13 +24,6 @@ fn extract_query_param(query: &str, name: &str) -> Result<String> {
             }
         })
         .ok_or_else(|| Error::RustError(format!("Missing {} parameter", name)))
-}
-
-/// Get frontend URL from environment
-fn get_frontend_url(env: &Env) -> String {
-    env.var("FRONTEND_URL")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "http://localhost:5173".to_string())
 }
 
 #[utoipa::path(
@@ -79,18 +46,11 @@ pub async fn handle_github_login(req: Request, ctx: RouteContext<()>) -> Result<
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
 
-    // Check if KV rate limiting is enabled (default false)
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {
@@ -138,17 +98,11 @@ pub async fn handle_google_login(req: Request, ctx: RouteContext<()>) -> Result<
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
 
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {
@@ -201,17 +155,11 @@ pub async fn handle_oauth_callback(req: Request, ctx: RouteContext<()>) -> Resul
     let rate_limit_key = RateLimiter::ip_key("oauth", &client_ip);
     let rate_limit_config = RateLimitConfig::oauth();
 
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {

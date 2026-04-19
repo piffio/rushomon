@@ -5,13 +5,12 @@
 /// POST /api/orgs/{id}/invitations/{invitation_id}/resend - Resend invitation
 /// GET /api/invite/{token} - Get invite info (public)
 /// POST /api/invite/{token}/accept - Accept invite
-use crate::api::links::get_frontend_url;
 use crate::auth;
 use crate::models::Tier;
 use crate::repositories::{BillingRepository, OrgRepository, UserRepository};
 use crate::services::OrgService;
-use crate::utils::AppError;
 use crate::utils::email::send_org_invitation;
+use crate::utils::{AppError, get_frontend_url};
 use worker::d1::D1Database;
 use worker::*;
 
