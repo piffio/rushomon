@@ -18,5 +18,5 @@ pub use export::handle_export_links;
 pub use get::{handle_get_link, handle_get_link_by_code};
 pub use import::handle_import_links;
 pub use list::handle_list_links;
-pub use redirect::{get_frontend_url, handle_redirect, sync_link_mapping_from_link};
+pub use redirect::{handle_redirect, sync_link_mapping_from_link};
 pub use update::handle_update_link;

@@ -22,7 +22,17 @@
 ///
 /// See SECURITY.md for complete rate limiting roadmap.
 use serde::{Deserialize, Serialize};
+use worker::Env;
 use worker::kv::KvStore;
+
+/// Check whether KV-based rate limiting is enabled in the current environment.
+///
+/// Reads `ENABLE_KV_RATE_LIMITING` env var; returns `false` if absent or not `"true"`.
+pub fn is_kv_rate_limiting_enabled(env: &Env) -> bool {
+    env.var("ENABLE_KV_RATE_LIMITING")
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false)
+}
 
 /// Rate limit tracking data stored in KV
 #[derive(Debug, Serialize, Deserialize)]

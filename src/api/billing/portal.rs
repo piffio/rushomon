@@ -1,14 +1,9 @@
 use crate::auth;
 use crate::billing::polar::polar_client_from_env;
 use crate::repositories::BillingRepository;
+use crate::utils::get_frontend_url;
 use worker::d1::D1Database;
 use worker::*;
-
-fn get_frontend_url(env: &Env) -> String {
-    env.var("FRONTEND_URL")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "http://localhost:5173".to_string())
-}
 
 #[utoipa::path(
     post,

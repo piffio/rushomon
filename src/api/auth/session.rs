@@ -4,7 +4,7 @@
 /// POST /api/auth/refresh — refresh access token
 /// POST /api/auth/logout  — logout and clear cookies
 use crate::auth;
-use crate::middleware::{RateLimitConfig, RateLimiter};
+use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::services::AuthService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
@@ -42,17 +42,11 @@ async fn inner_get_current_user(req: Request, ctx: RouteContext<()>) -> Result<R
     let rate_limit_key = RateLimiter::session_key("auth_check", &user_ctx.session_id);
     let rate_limit_config = RateLimitConfig::auth_check();
 
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {
@@ -133,17 +127,11 @@ pub async fn handle_token_refresh(req: Request, ctx: RouteContext<()>) -> Result
     let rate_limit_key = RateLimiter::session_key("token_refresh", &claims.session_id);
     let rate_limit_config = RateLimitConfig::token_refresh();
 
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {

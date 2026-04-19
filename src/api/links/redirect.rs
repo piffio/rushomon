@@ -1,52 +1,12 @@
 use crate::kv;
-use crate::middleware::{RateLimitConfig, RateLimiter};
+use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::{AnalyticsEvent, link::LinkStatus};
 use crate::repositories::LinkRepository;
-use crate::utils::now_timestamp;
+use crate::utils::{get_client_ip, get_frontend_url, hash_ip, now_timestamp};
 use std::future::Future;
 use std::pin::Pin;
 use worker::d1::D1Database;
 use worker::*;
-
-/// Get the frontend URL from environment, with localhost fallback for local dev
-pub fn get_frontend_url(env: &Env) -> String {
-    env.var("FRONTEND_URL")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "http://localhost:5173".to_string())
-}
-
-/// Extract client IP from Cloudflare headers
-fn get_client_ip(req: &Request) -> String {
-    // Try CF-Connecting-IP first (most reliable with Cloudflare)
-    if let Ok(Some(ip)) = req.headers().get("CF-Connecting-IP") {
-        return ip;
-    }
-
-    // Fallback to X-Forwarded-For
-    if let Ok(Some(forwarded)) = req.headers().get("X-Forwarded-For")
-        && let Some(ip) = forwarded.split(',').next()
-    {
-        // Take first IP in the list
-        return ip.trim().to_string();
-    }
-
-    // Fallback to X-Real-IP
-    if let Ok(Some(ip)) = req.headers().get("X-Real-IP") {
-        return ip;
-    }
-
-    // Last resort: use a placeholder (should never happen with Cloudflare)
-    "unknown".to_string()
-}
-
-/// Hash an IP address for logging to avoid storing raw IPs
-fn hash_ip(ip: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut hasher = DefaultHasher::new();
-    ip.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
-}
 
 /// Result of a redirect operation, containing the response and optional deferred analytics work.
 pub struct RedirectResult {
@@ -78,17 +38,11 @@ pub async fn handle_redirect(
     let rate_limit_key = RateLimiter::ip_key("redirect", &client_ip);
     let rate_limit_config = RateLimitConfig::redirect();
 
-    let kv_rate_limiting_enabled = ctx
-        .env
-        .var("ENABLE_KV_RATE_LIMITING")
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
-
     if let Err(err) = RateLimiter::check(
         &kv,
         &rate_limit_key,
         &rate_limit_config,
-        kv_rate_limiting_enabled,
+        is_kv_rate_limiting_enabled(&ctx.env),
     )
     .await
     {
