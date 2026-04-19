@@ -4,9 +4,8 @@
 /// GET    /api/orgs/{id}/logo - Get org logo
 /// DELETE /api/orgs/{id}/logo - Delete org logo
 use crate::auth;
-use crate::db;
 use crate::models::Tier;
-use crate::repositories::OrgRepository;
+use crate::repositories::{BillingRepository, OrgRepository};
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -61,8 +60,9 @@ async fn inner_upload_org_logo(
         .get_by_id(&db, &org_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+    let billing_repo = BillingRepository::new();
     let tier = if let Some(ref ba_id) = org.billing_account_id {
-        if let Ok(Some(ba)) = db::get_billing_account(&db, ba_id).await {
+        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
             Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
         } else {
             Tier::Free

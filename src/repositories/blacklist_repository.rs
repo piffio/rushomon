@@ -1,12 +1,21 @@
 /// Blacklist Repository
 ///
 /// Admin-only data access for the `destination_blacklist` table.
-/// `is_destination_blacklisted` remains in `db/queries.rs` — it is still called
-/// from link create/update/import handlers not yet extracted from `router.rs`.
-use crate::db::queries::BlacklistEntry;
+use crate::utils::normalize_url_for_blacklist;
 use crate::utils::now_timestamp;
 use worker::Result;
 use worker::d1::D1Database;
+
+/// A single blacklist entry.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct BlacklistEntry {
+    pub id: String,
+    pub destination: String,
+    pub match_type: String,
+    pub reason: String,
+    pub created_by: String,
+    pub created_at: i64,
+}
 
 pub struct BlacklistRepository;
 
@@ -101,6 +110,70 @@ impl BlacklistRepository {
             .all()
             .await?;
         results.results::<crate::models::Link>()
+    }
+
+    /// Check if a destination is blacklisted (exact or domain match).
+    pub async fn is_blacklisted(&self, db: &D1Database, destination: &str) -> Result<bool> {
+        // Normalize the destination URL for comparison
+        let normalized_destination = match normalize_url_for_blacklist(destination) {
+            Ok(url) => url,
+            Err(_) => {
+                // If URL parsing fails, fall back to exact string comparison
+                destination.to_string()
+            }
+        };
+
+        // First check exact match against normalized blacklist entries
+        let exact_stmt = db.prepare(
+            "SELECT 1 FROM destination_blacklist
+             WHERE destination = ?1 AND match_type = 'exact'
+             LIMIT 1",
+        );
+        if let Ok(Some(_)) = exact_stmt
+            .bind(&[normalized_destination.clone().into()])?
+            .first::<serde_json::Value>(None)
+            .await
+        {
+            return Ok(true);
+        }
+
+        // Then check domain match (still uses original domain extraction logic)
+        let url = match url::Url::parse(destination) {
+            Ok(u) => u,
+            Err(_) => return Ok(false),
+        };
+
+        let domain = url.host_str().unwrap_or("");
+        let domain_stmt = db.prepare(
+            "SELECT 1 FROM destination_blacklist
+             WHERE ?1 LIKE '%' || destination || '%' AND match_type = 'domain'
+             LIMIT 1",
+        );
+        if let Ok(Some(_)) = domain_stmt
+            .bind(&[domain.into()])?
+            .first::<serde_json::Value>(None)
+            .await
+        {
+            return Ok(true);
+        }
+
+        // Finally, check if any normalized blacklist entries match our normalized destination
+        // This handles cases where blocked URLs have different forms but same normalized form
+        let all_exact_entries = db
+            .prepare("SELECT destination FROM destination_blacklist WHERE match_type = 'exact'")
+            .all()
+            .await?
+            .results::<serde_json::Value>()?;
+        for entry in all_exact_entries {
+            if let Some(dest) = entry.get("destination").and_then(|d| d.as_str())
+                && let Ok(normalized_entry) = normalize_url_for_blacklist(dest)
+                && normalized_entry == normalized_destination
+            {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 }
 

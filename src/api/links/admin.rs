@@ -1,7 +1,6 @@
 use crate::auth;
-use crate::db;
 use crate::kv;
-use crate::repositories::{LinkRepository, OrgRepository};
+use crate::repositories::{LinkRepository, OrgRepository, ReportRepository};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -173,15 +172,17 @@ pub async fn handle_admin_update_link_status(
         }
     }
 
+    let report_repo = ReportRepository::new();
     if (status == "disabled" || status == "blocked")
-        && let Err(e) = db::resolve_reports_for_link(
-            &db,
-            &link_id,
-            "reviewed",
-            &format!("Action taken: Link {}", status),
-            &user_ctx.user_id,
-        )
-        .await
+        && let Err(e) = report_repo
+            .resolve_for_link(
+                &db,
+                &link_id,
+                "reviewed",
+                &format!("Action taken: Link {}", status),
+                &user_ctx.user_id,
+            )
+            .await
     {
         console_log!(
             "{}",

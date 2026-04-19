@@ -1,10 +1,8 @@
 use crate::auth;
-use crate::db;
 use crate::models::link::UpdateLinkRequest;
 use crate::models::tier::Tier;
-use crate::repositories::LinkRepository;
-use crate::repositories::TagRepository;
 use crate::repositories::tag_repository::validate_and_normalize_tags;
+use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
 use crate::utils::{now_timestamp, validate_url};
 use serde_json::json;
 use worker::d1::D1Database;
@@ -59,7 +57,8 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         }
 
         let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-        if db::is_destination_blacklisted(&db, url).await? {
+        let blacklist_repo = BlacklistRepository::new();
+        if blacklist_repo.is_blacklisted(&db, url).await? {
             return Ok(json_error("Destination URL is blocked", 403));
         }
     }
@@ -101,7 +100,9 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         None => return Ok(json_error("Link not found", 404)),
     };
 
-    let billing_account = db::get_billing_account_for_org(&db, &user_ctx.org_id)
+    let billing_repo = BillingRepository::new();
+    let billing_account = billing_repo
+        .get_for_org(&db, &user_ctx.org_id)
         .await?
         .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
     let tier = Tier::from_str_value(&billing_account.tier);

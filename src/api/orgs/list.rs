@@ -3,17 +3,17 @@
 /// GET  /api/orgs           - List user organizations
 /// POST /api/auth/switch-org - Switch active organization
 use crate::auth;
-use crate::db;
 use crate::models::Tier;
-use crate::repositories::OrgRepository;
+use crate::repositories::{BillingRepository, OrgRepository};
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
 
 /// Helper to get effective tier for an organization
 async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tier {
+    let billing_repo = BillingRepository::new();
     if let Some(ref billing_account_id) = org.billing_account_id
-        && let Ok(Some(billing_account)) = db::get_billing_account(db, billing_account_id).await
+        && let Ok(Some(billing_account)) = billing_repo.get_by_id(db, billing_account_id).await
     {
         return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
     }
@@ -46,12 +46,13 @@ async fn inner_list_user_orgs(req: Request, ctx: RouteContext<()>) -> Result<Res
     let orgs = repo.get_user_orgs(&db, &user_ctx.user_id).await?;
 
     // Add tier information to each org by looking up billing account
+    let billing_repo = BillingRepository::new();
     let mut orgs_with_tier = Vec::new();
     for org in orgs {
         let tier = if let Some(org_details) = repo.get_by_id(&db, &org.id).await? {
             if let Some(ref billing_account_id) = org_details.billing_account_id {
                 if let Ok(Some(billing_account)) =
-                    db::get_billing_account(&db, billing_account_id).await
+                    billing_repo.get_by_id(&db, billing_account_id).await
                 {
                     billing_account.tier
                 } else {

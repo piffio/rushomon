@@ -1,13 +1,80 @@
 /// Report Repository
 ///
 /// Data access layer for the `link_reports` table.
-use crate::db::queries::{LinkReport, LinkReportQueryResult, LinkReportWithLink};
-use crate::repositories::link_repository::{AdminLink, AdminLinkBase};
+use crate::repositories::link_repository::{
+    AdminLink, AdminLinkBase, serialize_optional_int_as_bool,
+};
 use crate::utils::now_timestamp;
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
 use worker::Result;
 use worker::d1::D1Database;
+
+/// A link abuse report.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct LinkReport {
+    pub id: String,
+    pub link_id: String,
+    pub reason: String,
+    pub reporter_user_id: Option<String>,
+    pub reporter_email: Option<String>,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub reviewed_by: Option<String>,
+    pub reviewed_at: Option<i64>,
+    pub created_at: i64,
+}
+
+/// A report with joined link information.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct LinkReportWithLink {
+    pub id: String,
+    pub link_id: String,
+    pub link: AdminLink,
+    pub reason: String,
+    pub reporter_user_id: Option<String>,
+    pub reporter_email: Option<String>,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub reviewed_by: Option<String>,
+    pub reviewed_at: Option<i64>,
+    pub created_at: i64,
+    pub report_count: i64, // For grouping
+}
+
+/// Helper struct for flat query results from the database.
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct LinkReportQueryResult {
+    pub id: String,
+    pub link_id: String,
+    pub reason: String,
+    pub reporter_user_id: Option<String>,
+    pub reporter_email: Option<String>,
+    pub status: String,
+    pub admin_notes: Option<String>,
+    pub reviewed_by: Option<String>,
+    pub reviewed_at: Option<i64>,
+    pub created_at: i64,
+    pub link__id: String,
+    pub link__org_id: String,
+    pub link__short_code: String,
+    pub link__destination_url: String,
+    pub link__title: Option<String>,
+    pub link__created_by: String,
+    pub link__created_at: i64,
+    pub link__updated_at: Option<i64>,
+    pub link__expires_at: Option<i64>,
+    pub link__status: String,
+    pub link__click_count: i64,
+    pub link__utm_params: Option<String>,
+    #[serde(serialize_with = "serialize_optional_int_as_bool")]
+    pub link__forward_query_params: Option<i64>, // Stored as INTEGER in D1 (0/1/NULL)
+    pub link__redirect_type: String,
+    pub link__creator_email: String,
+    pub link__org_name: String,
+    pub report_count: i64,
+}
 
 pub struct ReportRepository;
 
@@ -253,10 +320,121 @@ impl ReportRepository {
 
         Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64 > 0)
     }
+
+    /// Resolve all pending reports for a specific link.
+    pub async fn resolve_for_link(
+        &self,
+        db: &D1Database,
+        link_id: &str,
+        status: &str,
+        admin_notes: &str,
+        admin_user_id: &str,
+    ) -> Result<()> {
+        let now = now_timestamp();
+
+        let stmt = db.prepare(
+            "UPDATE link_reports
+             SET status = ?1, admin_notes = ?2, reviewed_by = ?3, reviewed_at = ?4
+             WHERE link_id = ?5 AND status = 'pending'",
+        );
+
+        stmt.bind(&[
+            status.into(),
+            admin_notes.into(),
+            admin_user_id.into(),
+            (now as f64).into(),
+            link_id.into(),
+        ])?
+        .run()
+        .await?;
+
+        Ok(())
+    }
 }
 
 impl Default for ReportRepository {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod link_report_serialization_tests {
+    use super::*;
+
+    #[test]
+    fn test_link_report_query_result_deserializes_i64_as_bool() {
+        // Test that LinkReportQueryResult can deserialize link__forward_query_params as i64
+        let json = r#"{
+            "id": "report-1",
+            "link_id": "link-1",
+            "reason": "spam",
+            "reporter_user_id": null,
+            "reporter_email": "reporter@example.com",
+            "status": "pending",
+            "admin_notes": null,
+            "reviewed_by": null,
+            "reviewed_at": null,
+            "created_at": 1234567890,
+            "link__id": "link-1",
+            "link__org_id": "org-1",
+            "link__short_code": "abc123",
+            "link__destination_url": "https://example.com",
+            "link__title": null,
+            "link__created_by": "user-1",
+            "link__created_at": 1234567890,
+            "link__updated_at": null,
+            "link__expires_at": null,
+            "link__status": "active",
+            "link__click_count": 0,
+            "link__utm_params": null,
+            "link__forward_query_params": 1,
+            "link__redirect_type": "301",
+            "link__creator_email": "creator@example.com",
+            "link__org_name": "Test Org",
+            "report_count": 1
+        }"#;
+
+        let result: LinkReportQueryResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.link__forward_query_params, Some(1));
+    }
+
+    #[test]
+    fn test_link_report_query_result_serializes_i64_as_bool() {
+        // Test that LinkReportQueryResult serializes link__forward_query_params as bool
+        let result = LinkReportQueryResult {
+            id: "report-1".to_string(),
+            link_id: "link-1".to_string(),
+            reason: "spam".to_string(),
+            reporter_user_id: None,
+            reporter_email: Some("reporter@example.com".to_string()),
+            status: "pending".to_string(),
+            admin_notes: None,
+            reviewed_by: None,
+            reviewed_at: None,
+            created_at: 1234567890,
+            link__id: "link-1".to_string(),
+            link__org_id: "org-1".to_string(),
+            link__short_code: "abc123".to_string(),
+            link__destination_url: "https://example.com".to_string(),
+            link__title: None,
+            link__created_by: "user-1".to_string(),
+            link__created_at: 1234567890,
+            link__updated_at: None,
+            link__expires_at: None,
+            link__status: "active".to_string(),
+            link__click_count: 0,
+            link__utm_params: None,
+            link__forward_query_params: Some(1),
+            link__redirect_type: "301".to_string(),
+            link__creator_email: "creator@example.com".to_string(),
+            link__org_name: "Test Org".to_string(),
+            report_count: 1,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        // The serializer should convert i64 to bool
+        assert_eq!(parsed["link__forward_query_params"], true);
     }
 }

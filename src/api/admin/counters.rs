@@ -2,7 +2,7 @@
 ///
 /// POST /api/admin/billing-accounts/{id}/reset-counter — Reset monthly counter for a billing account
 use crate::auth;
-use crate::db;
+use crate::repositories::BillingRepository;
 use crate::utils::AppError;
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -57,7 +57,9 @@ async fn inner_handle_admin_reset_monthly_counter(
     let now = chrono::Utc::now();
     let year_month = format!("{}-{:02}", now.year(), now.month());
 
-    db::reset_monthly_counter_for_billing_account(&db, billing_account_id, &year_month)
+    let billing_repo = BillingRepository::new();
+    billing_repo
+        .reset_monthly_counter(&db, billing_account_id, &year_month)
         .await
         .map_err(|e| {
             console_log!(

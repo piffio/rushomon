@@ -615,3 +615,41 @@ impl Default for OrgRepository {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod slug_tests {
+    // Test slug generation logic without database dependency
+    #[test]
+    fn test_slug_generation_logic() {
+        // Test base slug generation
+        let base_slug = "Test Organization"
+            .to_lowercase()
+            .replace(' ', "-")
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-')
+            .collect::<String>();
+
+        assert_eq!(base_slug, "test-organization");
+
+        // Test with special characters
+        let special_slug = "John's Test Organization! @#$%"
+            .to_lowercase()
+            .replace(' ', "-")
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-')
+            .collect::<String>();
+
+        assert_eq!(special_slug, "johns-test-organization-");
+
+        // Test UUID-based suffix generation
+        let uuid_str = uuid::Uuid::new_v4().to_string().replace('-', "");
+        let suffix = &uuid_str[..5];
+        assert_eq!(suffix.len(), 5);
+        assert!(suffix.chars().all(|c| c.is_alphanumeric()));
+
+        // Test full slug generation (always includes suffix)
+        let full_slug = format!("{}-{}", base_slug, suffix);
+        assert!(full_slug.starts_with("test-organization-"));
+        assert_eq!(full_slug.len(), base_slug.len() + 1 + 5); // base + "-" + 5 chars
+    }
+}
