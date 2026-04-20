@@ -227,6 +227,8 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         normalized_tags = Some(tags);
     }
 
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
     let link_service = LinkService::new();
     let expires_at_value = if update_req.clear_expiration == Some(true) {
         Some(None)
@@ -234,9 +236,12 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         update_req.expires_at.map(Some)
     };
 
+    let status_str = update_req.status.as_ref().map(|s| s.as_str().to_string());
+
     let updated_link = link_service
         .update_link(
             &db,
+            &kv,
             &link_id,
             &user_ctx.org_id,
             update_req.destination_url.clone(),
@@ -248,6 +253,8 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
                 .clone()
                 .map(|u| if u.is_empty() { None } else { Some(u) }),
             update_req.forward_query_params.map(Some),
+            status_str,
+            update_req.redirect_type.clone(),
         )
         .await
         .map_err(|e| worker::Error::RustError(e.to_string()))?;

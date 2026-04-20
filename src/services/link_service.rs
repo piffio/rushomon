@@ -240,6 +240,7 @@ impl LinkService {
     pub async fn update_link(
         &self,
         db: &D1Database,
+        kv: &KvStore,
         link_id: &str,
         org_id: &str,
         destination_url: Option<String>,
@@ -248,11 +249,13 @@ impl LinkService {
         tags: Option<Vec<String>>,
         utm_params: Option<Option<UtmParams>>,
         forward_query_params: Option<Option<bool>>,
+        status: Option<String>,
+        redirect_type: Option<String>,
     ) -> Result<Link, AppError> {
         let repo = LinkRepository::new();
 
         // Verify link exists and belongs to org
-        let _existing = repo
+        let existing = repo
             .get_by_id(db, link_id, org_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
@@ -271,13 +274,46 @@ impl LinkService {
                 org_id,
                 destination_url.as_deref(),
                 title.as_deref(),
-                None, // status - not changed
+                status.as_deref(),
                 expires_at,
                 utm_ref, // utm_params as Option<Option<&str>>
                 forward_query_params,
-                None, // redirect_type - not changed
+                redirect_type.as_deref(),
             )
             .await?;
+
+        // Sync KV if status changed
+        if let Some(ref new_status_str) = status {
+            let new_status = match new_status_str.as_str() {
+                "active" => LinkStatus::Active,
+                "disabled" => LinkStatus::Disabled,
+                "blocked" => LinkStatus::Blocked,
+                _ => return Ok(updated),
+            };
+
+            if new_status != existing.status {
+                // Get org default for forward_query_params if needed
+                let org_repo = crate::repositories::OrgRepository::new();
+                let resolved_forward = if updated.forward_query_params.is_none() {
+                    org_repo
+                        .get_forward_query_params(db, org_id)
+                        .await
+                        .unwrap_or(false)
+                } else {
+                    updated.forward_query_params.unwrap_or(false)
+                };
+
+                if new_status == LinkStatus::Active {
+                    // Re-enable in KV by storing the mapping
+                    let mapping = updated.to_mapping(resolved_forward);
+                    crate::kv::store_link_mapping(kv, org_id, &updated.short_code, &mapping)
+                        .await?;
+                } else {
+                    // Disable in KV
+                    crate::kv::delete_link_mapping(kv, org_id, &updated.short_code).await?;
+                }
+            }
+        }
 
         // Update tags if provided
         if let Some(new_tags) = tags {
@@ -459,6 +495,7 @@ impl LinkService {
         org_id: &str,
     ) -> Result<(), AppError> {
         let repo = LinkRepository::new();
+        let org_repo = crate::repositories::OrgRepository::new();
 
         // Create link in D1
         repo.create(db, link).await?;
@@ -468,8 +505,18 @@ impl LinkService {
             repo.set_tags(db, &link.id, org_id, tags).await?;
         }
 
+        // Resolve forward_query_params from org default if not set on link
+        let resolved_forward = if link.forward_query_params.is_none() {
+            org_repo
+                .get_forward_query_params(db, org_id)
+                .await
+                .unwrap_or(false)
+        } else {
+            link.forward_query_params.unwrap_or(false)
+        };
+
         // Store in KV
-        let mapping = link.to_mapping(false);
+        let mapping = link.to_mapping(resolved_forward);
         crate::kv::store_link_mapping(kv, org_id, &link.short_code, &mapping).await?;
 
         Ok(())
