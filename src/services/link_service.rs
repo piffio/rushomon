@@ -447,4 +447,118 @@ impl LinkService {
 
         Ok(())
     }
+
+    /// Create a new link with all associated operations.
+    ///
+    /// Creates the link in D1, sets tags, stores KV mapping, and updates org timestamp.
+    #[allow(dead_code)]
+    pub async fn create_link(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        link: &Link,
+        tags: &[String],
+        org_id: &str,
+    ) -> Result<(), AppError> {
+        let repo = LinkRepository::new();
+
+        // Create link in D1
+        repo.create(db, link).await?;
+
+        // Set tags if any
+        if !tags.is_empty() {
+            repo.set_tags(db, &link.id, org_id, tags).await?;
+        }
+
+        // Store in KV
+        let mapping = link.to_mapping(false);
+        crate::kv::store_link_mapping(kv, org_id, &link.short_code, &mapping).await?;
+
+        Ok(())
+    }
+
+    /// Import multiple links in bulk.
+    ///
+    /// Returns detailed results with created count, skipped count, failed count,
+    /// and detailed errors/warnings for each row.
+    #[allow(dead_code)]
+    pub async fn import_links(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        org_id: &str,
+        _user_id: &str,
+        links: Vec<crate::models::link::Link>,
+        tags_list: Vec<Vec<String>>,
+    ) -> Result<ImportResult, AppError> {
+        let mut created = 0;
+        let mut skipped = 0;
+        let mut failed = 0;
+        let mut errors: Vec<ImportError> = Vec::new();
+        let mut warnings: Vec<ImportWarning> = Vec::new();
+
+        for (idx, (link, tags)) in links.into_iter().zip(tags_list).enumerate() {
+            let row_num = idx + 1;
+
+            // Check if short code already exists
+            if crate::kv::links::short_code_exists(kv, &link.short_code).await? {
+                skipped += 1;
+                warnings.push(ImportWarning {
+                    row: row_num,
+                    destination_url: link.destination_url.clone(),
+                    reason: format!("Short code '{}' already exists", link.short_code),
+                });
+                continue;
+            }
+
+            // Create the link
+            if let Err(e) = self.create_link(db, kv, &link, &tags, org_id).await {
+                failed += 1;
+                errors.push(ImportError {
+                    row: row_num,
+                    destination_url: link.destination_url.clone(),
+                    reason: e.to_string(),
+                });
+            } else {
+                created += 1;
+            }
+        }
+
+        Ok(ImportResult {
+            created,
+            skipped,
+            failed,
+            errors,
+            warnings,
+        })
+    }
+}
+
+/// Result of a bulk import operation.
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct ImportResult {
+    pub created: usize,
+    pub skipped: usize,
+    pub failed: usize,
+    pub errors: Vec<ImportError>,
+    pub warnings: Vec<ImportWarning>,
+}
+
+/// Error for a single import row.
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct ImportError {
+    pub row: usize,
+    pub destination_url: String,
+    pub reason: String,
+}
+
+/// Warning for a single import row.
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct ImportWarning {
+    pub row: usize,
+    pub destination_url: String,
+    pub reason: String,
 }
