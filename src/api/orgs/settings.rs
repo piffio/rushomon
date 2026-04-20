@@ -4,21 +4,11 @@
 /// PATCH /api/orgs/{id}/settings - Update org settings
 use crate::auth;
 use crate::models::Tier;
-use crate::repositories::{BillingRepository, OrgRepository};
+use crate::repositories::OrgRepository;
+use crate::services::OrgService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
-
-/// Helper to get effective tier for an organization
-async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tier {
-    let billing_repo = BillingRepository::new();
-    if let Some(ref billing_account_id) = org.billing_account_id
-        && let Ok(Some(billing_account)) = billing_repo.get_by_id(db, billing_account_id).await
-    {
-        return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
-    }
-    Tier::Free
-}
 
 #[utoipa::path(
     get,
@@ -122,7 +112,7 @@ async fn inner_update_org_settings(
         .get_by_id(&db, &org_id)
         .await?
         .ok_or_else(|| AppError::Internal("Organization not found".to_string()))?;
-    let tier = get_org_tier(&db, &org).await;
+    let tier = OrgService::new().get_org_tier(&db, &org).await;
     let is_pro_or_above = matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited);
 
     let body: serde_json::Value = req

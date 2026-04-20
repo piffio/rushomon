@@ -13,17 +13,6 @@ use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::*;
 
-/// Helper to get effective tier for an organization
-async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tier {
-    let billing_repo = BillingRepository::new();
-    if let Some(ref billing_account_id) = org.billing_account_id
-        && let Ok(Some(billing_account)) = billing_repo.get_by_id(db, billing_account_id).await
-    {
-        return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
-    }
-    Tier::Free
-}
-
 #[utoipa::path(
     post,
     path = "/api/orgs",
@@ -167,7 +156,7 @@ async fn inner_get_org(req: Request, ctx: RouteContext<()>) -> Result<Response, 
     let members = repo.get_members(&db, &org_id).await?;
 
     // Get tier from billing account for API response
-    let tier = get_org_tier(&db, &org).await;
+    let tier = OrgService::new().get_org_tier(&db, &org).await;
 
     // Owners and admins see pending invitations
     let pending_invitations = if member.role == "owner" || member.role == "admin" {
@@ -266,7 +255,7 @@ async fn inner_update_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         .ok_or_else(|| AppError::Internal("Organization not found after update".to_string()))?;
 
     // Get tier from billing account for API response
-    let tier = get_org_tier(&db, &updated_org).await;
+    let tier = OrgService::new().get_org_tier(&db, &updated_org).await;
 
     Ok(Response::from_json(&serde_json::json!({
         "org": {

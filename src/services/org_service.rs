@@ -2,7 +2,7 @@
 ///
 /// Handles org limit enforcement and member limit checks.
 /// Orchestrates BillingRepository and OrgRepository.
-use crate::models::Tier;
+use crate::models::{Organization, Tier};
 use crate::repositories::{BillingRepository, OrgRepository};
 use crate::utils::AppError;
 use worker::d1::D1Database;
@@ -80,5 +80,58 @@ impl OrgService {
         }
 
         Ok(())
+    }
+
+    /// Get the effective billing tier for an organization.
+    ///
+    /// Looks up the billing account linked to the org and returns its tier.
+    /// Returns `Tier::Free` if no billing account is found.
+    pub async fn get_org_tier(&self, db: &D1Database, org: &Organization) -> Tier {
+        let billing_repo = BillingRepository::new();
+        if let Some(ref billing_account_id) = org.billing_account_id
+            && let Ok(Some(billing_account)) = billing_repo.get_by_id(db, billing_account_id).await
+        {
+            return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
+        }
+        Tier::Free
+    }
+
+    /// List all organizations a user belongs to, enriched with billing tier.
+    ///
+    /// Returns a JSON-serializable list of org summaries including tier, role, and joined_at.
+    pub async fn list_user_orgs_with_tier(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+    ) -> Result<Vec<serde_json::Value>, AppError> {
+        let repo = OrgRepository::new();
+        let billing_repo = BillingRepository::new();
+        let orgs = repo.get_user_orgs(db, user_id).await?;
+
+        let mut result = Vec::with_capacity(orgs.len());
+        for org in orgs {
+            let tier = if let Ok(Some(org_details)) = repo.get_by_id(db, &org.id).await {
+                if let Some(ref billing_account_id) = org_details.billing_account_id {
+                    if let Ok(Some(ba)) = billing_repo.get_by_id(db, billing_account_id).await {
+                        ba.tier
+                    } else {
+                        "free".to_string()
+                    }
+                } else {
+                    "free".to_string()
+                }
+            } else {
+                "free".to_string()
+            };
+
+            result.push(serde_json::json!({
+                "id": org.id,
+                "name": org.name,
+                "tier": tier,
+                "role": org.role,
+                "joined_at": org.joined_at,
+            }));
+        }
+        Ok(result)
     }
 }

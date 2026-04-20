@@ -5,7 +5,8 @@
 /// DELETE /api/orgs/{id}/logo - Delete org logo
 use crate::auth;
 use crate::models::Tier;
-use crate::repositories::{BillingRepository, OrgRepository};
+use crate::repositories::OrgRepository;
+use crate::services::OrgService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -60,16 +61,7 @@ async fn inner_upload_org_logo(
         .get_by_id(&db, &org_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-    let billing_repo = BillingRepository::new();
-    let tier = if let Some(ref ba_id) = org.billing_account_id {
-        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
-            Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
-        } else {
-            Tier::Free
-        }
-    } else {
-        Tier::Free
-    };
+    let tier = OrgService::new().get_org_tier(&db, &org).await;
     if !matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited) {
         return Err(AppError::Forbidden(
             "Custom org logo requires a Pro plan or above.".to_string(),
