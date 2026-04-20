@@ -1,8 +1,5 @@
 use crate::auth;
-use crate::billing::polar::polar_client_from_env;
-use crate::billing::provider::BillingProvider;
-use crate::repositories::{BillingRepository, OrgRepository, SettingsRepository};
-use crate::utils::get_frontend_url;
+use crate::services::BillingService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -38,135 +35,32 @@ pub async fn handle_create_checkout(mut req: Request, ctx: RouteContext<()>) -> 
     };
 
     let plan = match body["plan"].as_str() {
-        Some(p) => p,
+        Some(p) => p.to_string(),
         None => {
             console_error!("[checkout] plan is required");
             return Response::error("plan is required", 400);
         }
     };
 
-    let product_id_key = match plan {
-        "pro_monthly" => "product_pro_monthly_id",
-        "pro_annual" => "product_pro_annual_id",
-        "business_monthly" => "product_business_monthly_id",
-        "business_annual" => "product_business_annual_id",
-        _ => {
-            console_error!("[checkout] Invalid plan: {}", plan);
-            return Response::error("Invalid plan", 400);
-        }
-    };
-
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let settings = SettingsRepository::new().get_all_settings(&db).await?;
 
-    let polar_product_id = match settings.get(product_id_key) {
-        Some(id) => id.clone(),
-        None => {
-            console_error!("[checkout] Product ID not found for plan: {}", plan);
-            return Response::error("Plan not configured", 503);
-        }
-    };
-
-    let coupon_id = if settings
-        .get("founder_pricing_active")
-        .map(|v| v == "true")
-        .unwrap_or(false)
+    match BillingService::new()
+        .create_checkout(&db, &ctx.env, &user_ctx.user_id, &plan)
+        .await
     {
-        let discount_key = match plan {
-            "pro_monthly" => "active_discount_pro_monthly",
-            "pro_annual" => "active_discount_pro_annual",
-            "business_monthly" => "active_discount_business_monthly",
-            "business_annual" => "active_discount_business_annual",
-            _ => "",
-        };
-        let discount_id = settings.get(discount_key).cloned().unwrap_or_default();
-        if !discount_id.is_empty() {
-            Some(discount_id)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let polar = match polar_client_from_env(&ctx.env) {
-        Ok(s) => s,
-        Err(e) => {
-            console_error!("[checkout] Failed to initialize Polar client: {}", e);
-            return Response::error("Billing not configured", 503);
-        }
-    };
-
-    let billing_repo = BillingRepository::new();
-    let org_repo = OrgRepository::new();
-
-    let billing_account = match billing_repo.get_for_user(&db, &user_ctx.user_id).await? {
-        Some(ba) => ba,
-        None => {
-            let org = org_repo
-                .create_default(&db, &user_ctx.user_id, "Personal")
-                .await?;
-            match billing_repo
-                .get_by_id(&db, org.billing_account_id.as_deref().unwrap_or(""))
-                .await?
-            {
-                Some(ba) => ba,
-                None => {
-                    console_error!("[checkout] Failed to create billing account");
-                    return Response::error("Failed to create billing account", 500);
-                }
-            }
-        }
-    };
-
-    let polar_customer_id = if let Some(existing_id) = &billing_account.provider_customer_id {
-        Some(existing_id.clone())
-    } else {
-        match polar
-            .find_customer_by_external_id(&billing_account.id)
-            .await
-        {
-            Ok(Some(cid)) => {
-                if let Err(e) = billing_repo
-                    .update_provider_customer_id(&db, &billing_account.id, &cid)
-                    .await
-                {
-                    console_error!("[checkout] Failed to store found customer_id: {}", e);
-                }
-                Some(cid)
-            }
-            Ok(None) => None,
-            Err(e) => {
-                console_error!(
-                    "[checkout] Failed to query Polar for existing customer: {}",
-                    e
-                );
-                None
-            }
-        }
-    };
-
-    let frontend_url = get_frontend_url(&ctx.env);
-    let success_url = format!(
-        "{}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-        frontend_url
-    );
-    let cancel_url = format!("{}/billing/cancelled", frontend_url);
-
-    let params = crate::billing::types::CreateCheckoutSessionParams {
-        billing_account_id: billing_account.id.clone(),
-        customer_id: polar_customer_id,
-        price_id: polar_product_id,
-        success_url,
-        cancel_url,
-        coupon_id,
-        client_reference_id: billing_account.id.clone(),
-    };
-
-    match polar.create_checkout_session(params).await {
         Ok(session) => Response::from_json(&serde_json::json!({ "url": session.url })),
         Err(e) => {
-            console_error!("[checkout] Polar API error: {}", e);
+            let msg = e.to_string();
+            if msg.contains("Invalid plan") {
+                return Response::error("Invalid plan", 400);
+            }
+            if msg.contains("Plan not configured") {
+                return Response::error("Plan not configured", 503);
+            }
+            if msg.contains("Billing not configured") {
+                return Response::error("Billing not configured", 503);
+            }
+            console_error!("[checkout] error: {}", e);
             Response::error("Failed to create checkout session", 500)
         }
     }

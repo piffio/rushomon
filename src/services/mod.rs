@@ -16,6 +16,7 @@
 pub mod analytics_service;
 pub mod api_key_service;
 pub mod auth_service;
+pub mod billing_service;
 pub mod blacklist_service;
 pub mod link_service;
 pub mod oauth_service;
@@ -27,6 +28,7 @@ pub mod subscription_service;
 pub mod tag_service;
 pub use api_key_service::ApiKeyService;
 pub use auth_service::AuthService;
+pub use billing_service::BillingService;
 pub use blacklist_service::BlacklistService;
 pub use link_service::LinkService;
 pub use oauth_service::OAuthService;

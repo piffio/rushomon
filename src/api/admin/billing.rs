@@ -1,5 +1,6 @@
 use crate::auth;
 use crate::repositories::BillingRepository;
+use crate::services::BillingService;
 use crate::utils::now_timestamp;
 use worker::d1::D1Database;
 use worker::*;
@@ -56,8 +57,8 @@ pub async fn handle_admin_list_billing_accounts(
         .find(|(k, _)| k == "tier")
         .map(|(_, v)| v.to_string());
 
-    match BillingRepository::new()
-        .list_for_admin(&db, page, limit, search.as_deref(), tier_filter.as_deref())
+    match BillingService::new()
+        .admin_list_billing_accounts(&db, page, limit, search.as_deref(), tier_filter.as_deref())
         .await
     {
         Ok((accounts, total)) => {
@@ -123,8 +124,8 @@ pub async fn handle_admin_get_billing_account(
         .ok_or_else(|| Error::RustError("Missing billing account ID".to_string()))?;
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    match BillingRepository::new()
-        .get_details(&db, billing_account_id)
+    match BillingService::new()
+        .admin_get_billing_account(&db, billing_account_id)
         .await
     {
         Ok(Some(details)) => Response::from_json(&details),
