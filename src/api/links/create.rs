@@ -3,7 +3,6 @@ use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
 use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{LinkRepository, OrgRepository};
 use crate::services::LinkService;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use worker::d1::D1Database;
@@ -241,26 +240,11 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         redirect_type: body.redirect_type.clone(),
     };
 
-    let repo = LinkRepository::new();
-    let org_repo = OrgRepository::new();
-    repo.create(&db, &link).await?;
-
-    if !normalized_tags.is_empty() {
-        repo.set_tags(&db, &link_id, org_id, &normalized_tags)
-            .await?;
-    }
-
-    let resolved_forward = if link.forward_query_params.is_none() {
-        org_repo
-            .get_forward_query_params(&db, org_id)
-            .await
-            .unwrap_or(false)
-    } else {
-        link.forward_query_params.unwrap_or(false)
-    };
-
-    let mapping = link.to_mapping(resolved_forward);
-    kv::store_link_mapping(&kv, org_id, &short_code, &mapping).await?;
+    let link_service = LinkService::new();
+    link_service
+        .create_link(&db, &kv, &link, &normalized_tags, org_id)
+        .await
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
     Response::from_json(&link)
 }

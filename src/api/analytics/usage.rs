@@ -2,10 +2,8 @@
 ///
 /// GET /api/usage — returns tier, limits, current monthly usage, and next reset.
 use crate::auth;
-use crate::models::Tier;
-use crate::repositories::{AnalyticsRepository, BillingRepository, OrgRepository, TagRepository};
+use crate::services::analytics_service::get_usage;
 use crate::utils::AppError;
-use chrono::{Datelike, TimeZone};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -33,65 +31,26 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
     let org_id = &user_ctx.org_id;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let org_repo = OrgRepository::new();
-    let billing_repo = BillingRepository::new();
 
-    let org = org_repo
-        .get_by_id(&db, org_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-
-    // Get billing account for usage tracking
-    let billing_account_id = org
-        .billing_account_id
-        .as_ref()
-        .ok_or_else(|| AppError::Internal("Organization has no billing account".to_string()))?;
-    let billing_account = billing_repo
-        .get_by_id(&db, billing_account_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Billing account not found".to_string()))?;
-
-    let tier = Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
-    let limits = tier.limits();
-
-    // Use billing account monthly counter for efficiency
-    let now = chrono::Utc::now();
-    let year_month = format!("{}-{:02}", now.year(), now.month());
-    let analytics_repo = AnalyticsRepository::new();
-    let links_created_this_month = analytics_repo
-        .get_monthly_counter_for_billing_account(&db, &billing_account.id, &year_month)
-        .await?;
-
-    // Get tag count for the billing account
-    let tags_count = TagRepository::new()
-        .count_distinct_tags_for_billing_account(&db, &billing_account.id)
-        .await?;
-
-    // Calculate next reset time (first day of next month at midnight UTC)
-    let now = chrono::Utc::now();
-    let next_reset = chrono::Utc
-        .with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
-        .single()
-        .unwrap_or_else(chrono::Utc::now);
-    let next_reset_timestamp = next_reset.timestamp();
+    let usage_info = get_usage(&db, org_id).await?;
 
     let usage = serde_json::json!({
-        "tier": tier.as_str(),
+        "tier": usage_info.tier,
         "limits": {
-            "max_links_per_month": limits.max_links_per_month,
-            "analytics_retention_days": limits.analytics_retention_days,
-            "allow_custom_short_code": limits.allow_custom_short_code,
-            "allow_utm_parameters": limits.allow_utm_parameters,
-            "allow_query_forwarding": limits.allow_query_forwarding,
-            "max_tags": limits.max_tags,
+            "max_links_per_month": usage_info.limits.max_links_per_month,
+            "analytics_retention_days": usage_info.limits.analytics_retention_days,
+            "allow_custom_short_code": usage_info.limits.allow_custom_short_code,
+            "allow_utm_parameters": usage_info.limits.allow_utm_parameters,
+            "allow_query_forwarding": usage_info.limits.allow_query_forwarding,
+            "max_tags": usage_info.limits.max_tags,
         },
         "usage": {
-            "links_created_this_month": links_created_this_month,
-            "tags_count": tags_count,
+            "links_created_this_month": usage_info.links_created_this_month,
+            "tags_count": usage_info.tags_count,
         },
         "next_reset": {
-            "utc": next_reset.to_rfc3339(),
-            "timestamp": next_reset_timestamp,
+            "utc": usage_info.next_reset_utc,
+            "timestamp": usage_info.next_reset_timestamp,
         }
     });
 

@@ -236,7 +236,6 @@ impl LinkService {
     }
 
     /// Update a link with new values.
-    #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
     pub async fn update_link(
         &self,
@@ -451,7 +450,6 @@ impl LinkService {
     /// Create a new link with all associated operations.
     ///
     /// Creates the link in D1, sets tags, stores KV mapping, and updates org timestamp.
-    #[allow(dead_code)]
     pub async fn create_link(
         &self,
         db: &D1Database,
@@ -481,7 +479,6 @@ impl LinkService {
     ///
     /// Returns detailed results with created count, skipped count, failed count,
     /// and detailed errors/warnings for each row.
-    #[allow(dead_code)]
     pub async fn import_links(
         &self,
         db: &D1Database,
@@ -536,7 +533,6 @@ impl LinkService {
 
 /// Result of a bulk import operation.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ImportResult {
     pub created: usize,
     pub skipped: usize,
@@ -547,7 +543,6 @@ pub struct ImportResult {
 
 /// Error for a single import row.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ImportError {
     pub row: usize,
     pub destination_url: String,
@@ -556,7 +551,6 @@ pub struct ImportError {
 
 /// Warning for a single import row.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct ImportWarning {
     pub row: usize,
     pub destination_url: String,

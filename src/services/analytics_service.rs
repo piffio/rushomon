@@ -88,7 +88,6 @@ pub fn parse_time_range_from_query_with_now(query: &str, now: i64) -> TimeRange 
 /// Get usage information for an organization.
 ///
 /// Returns tier, limits, current monthly usage, tag count, and next reset time.
-#[allow(dead_code)]
 pub async fn get_usage(
     db: &worker::d1::D1Database,
     org_id: &str,
@@ -152,7 +151,6 @@ pub async fn get_usage(
 
 /// Usage information for an organization.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct UsageInfo {
     pub tier: String,
     pub limits: crate::models::tier::TierLimits,
@@ -165,7 +163,6 @@ pub struct UsageInfo {
 /// Get link-level analytics.
 ///
 /// Returns click analytics for a single link with tier-based gating applied.
-#[allow(dead_code)]
 pub async fn get_link_analytics(
     db: &worker::d1::D1Database,
     link_id: &str,
@@ -259,7 +256,6 @@ pub async fn get_link_analytics(
 
 /// Link analytics result.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct LinkAnalyticsResult {
     pub link: crate::models::Link,
     pub total_clicks: i64,
@@ -274,7 +270,6 @@ pub struct LinkAnalyticsResult {
 /// Get organization-level analytics.
 ///
 /// Returns aggregate click analytics for the entire organization with tier-based gating.
-#[allow(dead_code)]
 pub async fn get_org_analytics(
     db: &worker::d1::D1Database,
     org_id: &str,
@@ -353,7 +348,6 @@ pub async fn get_org_analytics(
 
 /// Organization analytics result.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct OrgAnalyticsResult {
     pub total_clicks: i64,
     pub unique_links: i64,

@@ -3,6 +3,7 @@ use crate::models::link::UpdateLinkRequest;
 use crate::models::tier::Tier;
 use crate::repositories::tag_repository::validate_and_normalize_tags;
 use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
+use crate::services::LinkService;
 use crate::utils::{now_timestamp, validate_url};
 use serde_json::json;
 use worker::d1::D1Database;
@@ -92,7 +93,6 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     }
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let kv = ctx.kv("URL_MAPPINGS")?;
     let repo = LinkRepository::new();
 
     let _existing_link = match repo.get_by_id(&db, &link_id, &user_ctx.org_id).await? {
@@ -130,31 +130,9 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         return Ok(json_error(error_msg, 403));
     }
 
-    let utm_json_for_db: Option<Option<String>> = update_req.utm_params.as_ref().map(|u| {
-        if u.is_empty() {
-            None
-        } else {
-            u.to_json_string()
-        }
-    });
-
-    let mut updated_link = repo
-        .update(
-            &db,
-            &link_id,
-            &user_ctx.org_id,
-            update_req.destination_url.as_deref(),
-            update_req.title.as_deref(),
-            update_req.status.as_ref().map(|s| s.as_str()),
-            expires_at_for_repo,
-            utm_json_for_db.as_ref().map(|o| o.as_deref()),
-            update_req.forward_query_params.map(Some),
-            update_req.redirect_type.as_deref(),
-        )
-        .await?;
-
-    if let Some(tags) = update_req.tags {
-        let normalized_tags = match validate_and_normalize_tags(&tags) {
+    let mut normalized_tags = None;
+    if let Some(ref tags) = update_req.tags {
+        let tags = match validate_and_normalize_tags(tags) {
             Ok(t) => t,
             Err(e) => return Ok(json_error(&e.to_string(), 400)),
         };
@@ -170,8 +148,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             let existing_link_tags = repo.get_tags(&db, &link_id).await?;
             let existing_tags_set: std::collections::HashSet<String> =
                 existing_link_tags.into_iter().collect();
-            let new_tags_set: std::collections::HashSet<String> =
-                normalized_tags.iter().cloned().collect();
+            let new_tags_set: std::collections::HashSet<String> = tags.iter().cloned().collect();
 
             let existing_ba_tags_query = db.prepare(
                 "SELECT DISTINCT tag_name
@@ -247,22 +224,33 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             }
         }
 
-        repo.set_tags(&db, &link_id, &user_ctx.org_id, &normalized_tags)
-            .await?;
-        updated_link.tags = normalized_tags;
-    } else {
-        updated_link.tags = repo.get_tags(&db, &link_id).await?;
+        normalized_tags = Some(tags);
     }
 
-    let kv_needs_update = update_req.destination_url.is_some()
-        || update_req.status.is_some()
-        || update_req.utm_params.is_some()
-        || update_req.forward_query_params.is_some()
-        || update_req.expires_at.is_some()
-        || update_req.clear_expiration.is_some();
-    if kv_needs_update {
-        repo.sync_kv_from_link(&db, &kv, &updated_link).await?;
-    }
+    let link_service = LinkService::new();
+    let expires_at_value = if update_req.clear_expiration == Some(true) {
+        Some(None)
+    } else {
+        update_req.expires_at.map(Some)
+    };
+
+    let updated_link = link_service
+        .update_link(
+            &db,
+            &link_id,
+            &user_ctx.org_id,
+            update_req.destination_url.clone(),
+            update_req.title.clone(),
+            expires_at_value,
+            normalized_tags,
+            update_req
+                .utm_params
+                .clone()
+                .map(|u| if u.is_empty() { None } else { Some(u) }),
+            update_req.forward_query_params.map(Some),
+        )
+        .await
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
     Response::from_json(&updated_link)
 }

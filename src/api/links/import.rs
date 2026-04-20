@@ -1,7 +1,6 @@
 use crate::auth;
 use crate::kv;
 use crate::models::link::{Link, LinkStatus};
-use crate::repositories::LinkRepository;
 use crate::repositories::tag_repository::validate_and_normalize_tags;
 use crate::services::LinkService;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
@@ -101,7 +100,8 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
     let mut errors: Vec<ImportError> = Vec::new();
     let mut warnings: Vec<ImportWarning> = Vec::new();
 
-    let repo = LinkRepository::new();
+    let mut links_to_import: Vec<Link> = Vec::new();
+    let mut tags_to_import: Vec<Vec<String>> = Vec::new();
 
     for (idx, row) in body.links.iter().enumerate() {
         let row_num = idx + 1;
@@ -286,17 +286,34 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             redirect_type: "301".to_string(),
         };
 
-        repo.create(&db, &link).await?;
+        links_to_import.push(link);
+        tags_to_import.push(normalized_tags);
+    }
 
-        if !normalized_tags.is_empty() {
-            repo.set_tags(&db, &link_id, org_id, &normalized_tags)
-                .await?;
-        }
+    // Use LinkService for bulk import
+    let import_result = link_service
+        .import_links(&db, &kv, org_id, user_id, links_to_import, tags_to_import)
+        .await
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
-        let mapping = link.to_mapping(false);
-        kv::store_link_mapping(&kv, org_id, &short_code, &mapping).await?;
+    created += import_result.created;
+    skipped += import_result.skipped;
+    failed += import_result.failed;
 
-        created += 1;
+    for service_error in import_result.errors {
+        errors.push(ImportError {
+            row: service_error.row,
+            destination_url: service_error.destination_url,
+            reason: service_error.reason,
+        });
+    }
+
+    for service_warning in import_result.warnings {
+        warnings.push(ImportWarning {
+            row: service_warning.row,
+            destination_url: service_warning.destination_url,
+            reason: service_warning.reason,
+        });
     }
 
     Response::from_json(&ImportResponse {
