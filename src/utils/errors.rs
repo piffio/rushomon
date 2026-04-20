@@ -53,7 +53,9 @@ impl AppError {
             AppError::TierLimitReached(m) => (m, 403),
             AppError::TooManyRequests(m) => (m, 429),
         };
-        Response::error(msg, status).unwrap_or_else(|_| Response::error("Error", status).unwrap())
+        Response::from_json(&serde_json::json!({ "message": msg }))
+            .unwrap_or_else(|_| Response::error("Error", status).unwrap())
+            .with_status(status)
     }
 }
 

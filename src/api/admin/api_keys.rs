@@ -6,7 +6,7 @@
 /// POST   /api/admin/api-keys/:id/delete  — soft-delete
 /// POST   /api/admin/api-keys/:id/restore — restore (deleted → active)
 use crate::auth;
-use crate::repositories::ApiKeyRepository;
+use crate::services::AdminService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -59,27 +59,18 @@ async fn inner_list(req: Request, ctx: RouteContext<()>) -> Result<Response, App
     let status_filter = query.get("status").map(|s| s.as_str());
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = ApiKeyRepository::new();
 
-    match repo.list_all(&db, page, limit, search, status_filter).await {
-        Ok((keys, total)) => Ok(Response::from_json(&serde_json::json!({
-            "keys": keys,
-            "total": total,
-            "page": page,
-            "limit": limit,
-        }))?),
-        Err(e) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "admin_list_api_keys_failed",
-                    "error": e.to_string(),
-                    "level": "error"
-                })
-            );
-            Err(AppError::Internal("Failed to list API keys".to_string()))
-        }
-    }
+    let (keys, total) = AdminService::new()
+        .list_api_keys(&db, page, limit, search, status_filter)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to list API keys: {}", e)))?;
+
+    Ok(Response::from_json(&serde_json::json!({
+        "keys": keys,
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }))?)
 }
 
 #[utoipa::path(
@@ -176,13 +167,28 @@ async fn inner_action(
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = ApiKeyRepository::new();
 
     let result = match action {
-        "revoke" => repo.revoke(&db, &key_id, &user_ctx.user_id).await,
-        "reactivate" => repo.reactivate(&db, &key_id, &user_ctx.user_id).await,
-        "delete" => repo.delete(&db, &key_id, &user_ctx.user_id).await,
-        "restore" => repo.restore(&db, &key_id, &user_ctx.user_id).await,
+        "revoke" => {
+            AdminService::new()
+                .revoke_api_key(&db, &key_id, &user_ctx.user_id)
+                .await
+        }
+        "reactivate" => {
+            AdminService::new()
+                .reactivate_api_key(&db, &key_id, &user_ctx.user_id)
+                .await
+        }
+        "delete" => {
+            AdminService::new()
+                .delete_api_key(&db, &key_id, &user_ctx.user_id)
+                .await
+        }
+        "restore" => {
+            AdminService::new()
+                .restore_api_key(&db, &key_id, &user_ctx.user_id)
+                .await
+        }
         _ => unreachable!(),
     };
 

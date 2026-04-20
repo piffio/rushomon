@@ -13,6 +13,7 @@
 // - Direct DB access (use repositories instead)
 
 // Add service modules here as they are created:
+pub mod admin_service;
 pub mod analytics_service;
 pub mod api_key_service;
 pub mod auth_service;
@@ -26,6 +27,7 @@ pub mod report_service;
 pub mod settings_service;
 pub mod subscription_service;
 pub mod tag_service;
+pub use admin_service::AdminService;
 pub use api_key_service::ApiKeyService;
 pub use auth_service::AuthService;
 pub use billing_service::BillingService;

@@ -11,6 +11,7 @@ use crate::auth;
 use crate::kv;
 use crate::models::link::LinkStatus;
 use crate::repositories::UserRepository;
+use crate::services::AdminService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -63,12 +64,12 @@ async fn inner_list_users(req: Request, ctx: RouteContext<()>) -> Result<Respons
         .unwrap_or(50)
         .min(100);
 
-    let offset = (page - 1) * limit;
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = UserRepository::new();
 
-    let users = repo.list_with_billing_info(&db, limit, offset).await?;
-    let total = repo.count(&db).await?;
+    let (users, total) = AdminService::new()
+        .list_users(&db, page, limit)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to list users: {}", e)))?;
 
     Ok(Response::from_json(&serde_json::json!({
         "users": users,
@@ -108,12 +109,9 @@ async fn inner_get_user(req: Request, ctx: RouteContext<()>) -> Result<Response,
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = UserRepository::new();
 
-    match repo.get_user_by_id(&db, &user_id).await? {
-        Some(user) => Ok(Response::from_json(&user)?),
-        None => Err(AppError::NotFound("User not found".to_string())),
-    }
+    let user = AdminService::new().get_user(&db, &user_id).await?;
+    Ok(Response::from_json(&user)?)
 }
 
 #[utoipa::path(
@@ -157,46 +155,33 @@ async fn inner_suspend_user(mut req: Request, ctx: RouteContext<()>) -> Result<R
         .ok_or_else(|| AppError::BadRequest("Missing 'reason' field".to_string()))?
         .to_string();
 
-    if target_user_id == user_ctx.user_id {
-        return Ok(Response::from_json(&serde_json::json!({
-            "success": false,
-            "message": "Cannot suspend yourself"
-        }))?);
-    }
-
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = UserRepository::new();
 
-    let admin_count = repo.admin_count(&db).await?;
-    if admin_count <= 1
-        && let Some(target_user) = repo.get_user_by_id(&db, &target_user_id).await?
-        && target_user.role == "admin"
-    {
-        return Err(AppError::BadRequest(
-            "Cannot suspend the last admin".to_string(),
-        ));
-    }
-
-    let target_user = repo
-        .get_user_by_id(&db, &target_user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-
-    let org_links = repo.get_links_by_org(&db, &target_user.org_id).await?;
-    repo.suspend(&db, &target_user_id, &reason, &user_ctx.user_id)
+    let result = AdminService::new()
+        .suspend_user(&db, &target_user_id, &reason, &user_ctx.user_id)
         .await?;
-    let disabled_count = repo
-        .disable_all_links_for_org(&db, &target_user.org_id)
-        .await?;
+
+    let org_links = result["org_links"]
+        .as_array()
+        .ok_or_else(|| AppError::Internal("Invalid service response".to_string()))?;
+    let disabled_count = result["disabled_count"]
+        .as_i64()
+        .ok_or_else(|| AppError::Internal("Invalid service response".to_string()))?;
 
     let kv = ctx.kv("URL_MAPPINGS")?;
     for link in org_links {
-        if matches!(link.status, LinkStatus::Blocked) {
-            continue;
+        if let Some(link_obj) = link.as_object() {
+            if let Some(status) = link_obj.get("status").and_then(|s| s.as_str())
+                && status == "blocked"
+            {
+                continue;
+            }
+            let mut disabled_link =
+                serde_json::from_value::<crate::models::link::Link>(link.clone())
+                    .map_err(|e| AppError::Internal(format!("Failed to parse link: {}", e)))?;
+            disabled_link.status = LinkStatus::Disabled;
+            sync_link_mapping_from_link(&db, &kv, &disabled_link).await?;
         }
-        let mut disabled_link = link;
-        disabled_link.status = LinkStatus::Disabled;
-        sync_link_mapping_from_link(&db, &kv, &disabled_link).await?;
     }
 
     Ok(Response::from_json(&serde_json::json!({
@@ -235,8 +220,11 @@ async fn inner_unsuspend_user(req: Request, ctx: RouteContext<()>) -> Result<Res
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = UserRepository::new();
-    repo.unsuspend(&db, &target_user_id).await?;
+
+    AdminService::new()
+        .unsuspend_user(&db, &target_user_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to unsuspend user: {}", e)))?;
 
     Ok(Response::from_json(&serde_json::json!({
         "success": true,
@@ -280,24 +268,6 @@ async fn inner_delete_user(mut req: Request, ctx: RouteContext<()>) -> Result<Re
         ));
     }
 
-    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = UserRepository::new();
-
-    let target_user = repo
-        .get_user_by_id(&db, &target_user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-
-    if target_user.role == "admin"
-        && repo
-            .is_last_admin_in_org(&db, &target_user_id, &target_user.org_id)
-            .await?
-    {
-        return Err(AppError::BadRequest(
-            "Cannot delete the last admin in an organization".to_string(),
-        ));
-    }
-
     let body: serde_json::Value = req
         .json()
         .await
@@ -309,17 +279,18 @@ async fn inner_delete_user(mut req: Request, ctx: RouteContext<()>) -> Result<Re
         ));
     }
 
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    let repo = UserRepository::new();
     let user_links = repo.get_links_by_creator(&db, &target_user_id).await?;
     let kv = ctx.kv("URL_MAPPINGS")?;
     for link in &user_links {
         kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
     }
 
-    let (user_count, links_count, analytics_count) = repo.delete(&db, &target_user_id).await?;
-
-    if user_count == 0 {
-        return Err(AppError::Internal("Failed to delete user".to_string()));
-    }
+    let (user_count, links_count, analytics_count) = AdminService::new()
+        .delete_user(&db, &target_user_id, &user_ctx.user_id)
+        .await?;
 
     Ok(Response::from_json(&serde_json::json!({
         "success": true,
@@ -366,93 +337,57 @@ async fn inner_update_user_role(
         .ok_or_else(|| AppError::BadRequest("Missing user ID".to_string()))?
         .to_string();
 
-    if target_user_id == user_ctx.user_id {
-        return Err(AppError::BadRequest(
-            "Cannot modify your own role".to_string(),
-        ));
-    }
-
     let body: serde_json::Value = req
         .json()
         .await
         .map_err(|e| AppError::BadRequest(format!("Invalid JSON: {}", e)))?;
 
-    let new_role = match body.get("role").and_then(|v| v.as_str()) {
-        Some(role) if role == "admin" || role == "member" => role.to_string(),
-        Some(_) => {
-            return Err(AppError::BadRequest(
-                "Role must be 'admin' or 'member'".to_string(),
-            ));
-        }
-        None => return Err(AppError::BadRequest("Missing 'role' field".to_string())),
-    };
+    let new_role = body
+        .get("role")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("Missing 'role' field".to_string()))?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let repo = UserRepository::new();
 
+    AdminService::new()
+        .update_user_role(&db, &target_user_id, new_role, &user_ctx.user_id)
+        .await?;
+
     let target_user = repo
         .get_user_by_id(&db, &target_user_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+        .ok_or_else(|| AppError::Internal("Failed to retrieve updated user".to_string()))?;
 
-    if new_role == "member" && target_user.role == "admin" {
-        let admin_count = repo
-            .admin_count(&db)
-            .await
-            .map_err(|e| AppError::Internal(format!("Failed to verify admin count: {}", e)))?;
-        if admin_count <= 1 {
-            return Err(AppError::BadRequest(
-                "Cannot demote the last admin user".to_string(),
-            ));
-        }
-    }
+    console_log!(
+        "{}",
+        serde_json::json!({
+            "event": "user_role_updated",
+            "target_user_id": target_user_id,
+            "old_role": target_user.role,
+            "new_role": new_role,
+            "admin_user_id": user_ctx.user_id,
+            "level": "info"
+        })
+    );
 
-    match repo.update_role(&db, &target_user_id, &new_role).await {
-        Ok(()) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "user_role_updated",
-                    "target_user_id": target_user_id,
-                    "old_role": target_user.role,
-                    "new_role": new_role,
-                    "admin_user_id": user_ctx.user_id,
-                    "level": "info"
-                })
-            );
-            let updated_user = repo
-                .get_user_by_id(&db, &target_user_id)
-                .await?
-                .ok_or_else(|| AppError::Internal("Failed to retrieve updated user".to_string()))?;
+    let updated_user = repo
+        .get_user_by_id(&db, &target_user_id)
+        .await?
+        .ok_or_else(|| AppError::Internal("Failed to retrieve updated user".to_string()))?;
 
-            Ok(Response::from_json(&serde_json::json!({
-                "id": updated_user.id,
-                "email": updated_user.email,
-                "name": updated_user.name,
-                "avatar_url": updated_user.avatar_url,
-                "oauth_provider": updated_user.oauth_provider,
-                "oauth_id": updated_user.oauth_id,
-                "org_id": updated_user.org_id,
-                "role": updated_user.role,
-                "created_at": updated_user.created_at,
-                "suspended_at": updated_user.suspended_at,
-                "suspension_reason": updated_user.suspension_reason,
-                "suspended_by": updated_user.suspended_by,
-            }))?)
-        }
-        Err(e) => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "user_role_update_failed",
-                    "target_user_id": target_user_id,
-                    "new_role": new_role,
-                    "error": e.to_string(),
-                    "admin_user_id": user_ctx.user_id,
-                    "level": "error"
-                })
-            );
-            Err(AppError::Internal("Failed to update user role".to_string()))
-        }
-    }
+    Ok(Response::from_json(&serde_json::json!({
+        "id": updated_user.id,
+        "email": updated_user.email,
+        "name": updated_user.name,
+        "avatar_url": updated_user.avatar_url,
+        "oauth_provider": updated_user.oauth_provider,
+        "oauth_id": updated_user.oauth_id,
+        "org_id": updated_user.org_id,
+        "role": updated_user.role,
+        "created_at": updated_user.created_at,
+        "suspended_at": updated_user.suspended_at,
+        "suspension_reason": updated_user.suspension_reason,
+        "suspended_by": updated_user.suspended_by,
+    }))?)
 }

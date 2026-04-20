@@ -1,7 +1,5 @@
 use crate::auth;
-use crate::repositories::BillingRepository;
-use crate::services::BillingService;
-use crate::utils::now_timestamp;
+use crate::services::{AdminService, BillingService};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -197,8 +195,8 @@ pub async fn handle_admin_update_billing_account_tier(
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    match BillingRepository::new()
-        .update_tier(&db, billing_account_id, &body.tier)
+    match AdminService::new()
+        .update_billing_account_tier(&db, billing_account_id, &body.tier)
         .await
     {
         Ok(_) => {
@@ -228,7 +226,7 @@ pub async fn handle_admin_update_billing_account_tier(
                     "level": "error"
                 })
             );
-            Response::error("Failed to update billing account tier", 500)
+            Response::error(e.to_string(), 400)
         }
     }
 }
@@ -274,54 +272,48 @@ pub async fn handle_admin_update_subscription_status(
     };
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = BillingRepository::new();
 
-    match repo.get_subscription(&db, billing_account_id).await? {
-        Some(subscription) => {
-            let subscription_id = subscription["id"].as_str().unwrap_or("");
-            let now = now_timestamp();
-
-            match repo
-                .update_subscription_status(&db, subscription_id, &status, now)
-                .await
-            {
-                Ok(_) => {
-                    console_log!(
-                        "{}",
-                        serde_json::json!({
-                            "event": "subscription_status_updated",
-                            "billing_account_id": billing_account_id,
-                            "subscription_id": subscription_id,
-                            "new_status": status,
-                            "admin_user_id": user_ctx.user_id,
-                            "level": "info"
-                        })
-                    );
-                    if status == "canceled" {
-                        repo.update_tier(&db, billing_account_id, "free").await?;
-                    }
-                    Response::from_json(&serde_json::json!({
-                        "success": true,
-                        "message": "Subscription status updated successfully",
-                        "subscription_id": subscription_id,
-                        "new_status": status
-                    }))
-                }
-                Err(e) => {
-                    console_log!(
-                        "{}",
-                        serde_json::json!({
-                            "event": "update_subscription_status_failed",
-                            "billing_account_id": billing_account_id,
-                            "subscription_id": subscription_id,
-                            "error": e.to_string(),
-                            "level": "error"
-                        })
-                    );
-                    Response::error("Failed to update subscription status", 500)
-                }
-            }
+    match AdminService::new()
+        .update_subscription_status(&db, billing_account_id, &status)
+        .await
+    {
+        Ok(subscription_id) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "subscription_status_updated",
+                    "billing_account_id": billing_account_id,
+                    "subscription_id": subscription_id,
+                    "new_status": status,
+                    "admin_user_id": user_ctx.user_id,
+                    "level": "info"
+                })
+            );
+            Response::from_json(&serde_json::json!({
+                "success": true,
+                "message": "Subscription status updated successfully",
+                "subscription_id": subscription_id,
+                "new_status": status
+            }))
         }
-        None => Response::error("No subscription found for this billing account", 404),
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "update_subscription_status_failed",
+                    "billing_account_id": billing_account_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error(
+                e.to_string(),
+                if e.to_string().contains("not found") {
+                    404
+                } else {
+                    500
+                },
+            )
+        }
     }
 }
