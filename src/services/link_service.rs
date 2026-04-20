@@ -1,12 +1,14 @@
+use crate::models::Tier;
 /// Link service - Business logic for link operations
 ///
 /// Handles quota enforcement, blacklist checks, and tag limit validation.
 /// Orchestrates BillingRepository, BlacklistRepository, and TagRepository.
-use crate::models::Tier;
-use crate::repositories::{BillingRepository, BlacklistRepository, TagRepository};
+use crate::models::link::{Link, LinkStatus, UtmParams};
+use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
 use crate::utils::AppError;
 use chrono::Datelike;
 use worker::d1::D1Database;
+use worker::kv::KvStore;
 
 /// Context returned after a successful quota check, carrying billing info
 /// needed for subsequent operations (tag checks, link creation).
@@ -153,6 +155,295 @@ impl LinkService {
             };
             return Err(AppError::Forbidden(message));
         }
+
+        Ok(())
+    }
+
+    // ─── CRUD Operations ────────────────────────────────────────────────────
+
+    /// Get a single link by ID with its tags.
+    pub async fn get_link(
+        &self,
+        db: &D1Database,
+        link_id: &str,
+        org_id: &str,
+    ) -> Result<Option<Link>, AppError> {
+        let repo = LinkRepository::new();
+        let mut link = repo.get_by_id(db, link_id, org_id).await?;
+        if let Some(ref mut l) = link {
+            l.tags = repo.get_tags(db, &l.id).await?;
+        }
+        Ok(link)
+    }
+
+    /// Get a link by short code.
+    pub async fn get_link_by_code(
+        &self,
+        db: &D1Database,
+        short_code: &str,
+        org_id: &str,
+    ) -> Result<Option<Link>, AppError> {
+        let repo = LinkRepository::new();
+        repo.get_by_short_code(db, short_code, org_id)
+            .await
+            .map_err(AppError::from)
+    }
+
+    /// List links with filtering, sorting, and pagination.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn list_links(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        search: Option<&str>,
+        status_filter: Option<&str>,
+        sort: &str,
+        limit: i64,
+        offset: i64,
+        tags_filter: Option<&[String]>,
+    ) -> Result<(Vec<Link>, i64, serde_json::Value), AppError> {
+        let repo = LinkRepository::new();
+
+        let total = repo
+            .count_filtered(db, org_id, search, status_filter, tags_filter)
+            .await?;
+
+        let mut links = repo
+            .list_filtered(
+                db,
+                org_id,
+                search,
+                status_filter,
+                sort,
+                limit,
+                offset,
+                tags_filter,
+            )
+            .await?;
+
+        let stats = repo.get_dashboard_stats(db, org_id).await?;
+        let stats_json = serde_json::to_value(&stats)
+            .map_err(|e| AppError::Internal(format!("Failed to serialize stats: {}", e)))?;
+
+        // Attach tags to links
+        let link_ids: Vec<String> = links.iter().map(|l| l.id.clone()).collect();
+        let tags_map = repo.get_tags_for_links(db, &link_ids).await?;
+        for link in &mut links {
+            link.tags = tags_map.get(&link.id).cloned().unwrap_or_default();
+        }
+
+        Ok((links, total, stats_json))
+    }
+
+    /// Update a link with new values.
+    #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_link(
+        &self,
+        db: &D1Database,
+        link_id: &str,
+        org_id: &str,
+        destination_url: Option<String>,
+        title: Option<String>,
+        expires_at: Option<Option<i64>>,
+        tags: Option<Vec<String>>,
+        utm_params: Option<Option<UtmParams>>,
+        forward_query_params: Option<Option<bool>>,
+    ) -> Result<Link, AppError> {
+        let repo = LinkRepository::new();
+
+        // Verify link exists and belongs to org
+        let _existing = repo
+            .get_by_id(db, link_id, org_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
+
+        // Convert UTM params to JSON string if provided
+        let utm_string: Option<Option<String>> =
+            utm_params.map(|u| u.map(|p| p.to_json_string().unwrap_or_default()));
+        let utm_ref: Option<Option<&str>> =
+            utm_string.as_ref().map(|o| o.as_ref().map(|s| s.as_str()));
+
+        // Update the link (single call handles all fields)
+        let updated = repo
+            .update(
+                db,
+                link_id,
+                org_id,
+                destination_url.as_deref(),
+                title.as_deref(),
+                None, // status - not changed
+                expires_at,
+                utm_ref, // utm_params as Option<Option<&str>>
+                forward_query_params,
+                None, // redirect_type - not changed
+            )
+            .await?;
+
+        // Update tags if provided
+        if let Some(new_tags) = tags {
+            let normalized_tags =
+                crate::repositories::tag_repository::validate_and_normalize_tags(&new_tags)?;
+            repo.set_tags(db, link_id, org_id, &normalized_tags).await?;
+        }
+
+        // Return updated link with tags
+        let mut result = updated;
+        result.tags = repo.get_tags(db, link_id).await?;
+
+        Ok(result)
+    }
+
+    /// Delete a link and its KV mapping.
+    pub async fn delete_link(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        link_id: &str,
+        org_id: &str,
+    ) -> Result<(), AppError> {
+        let repo = LinkRepository::new();
+
+        // Get link first to retrieve short_code for KV deletion
+        let link = repo
+            .get_by_id(db, link_id, org_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
+
+        // Delete from D1
+        repo.hard_delete(db, link_id, org_id).await?;
+
+        // Delete from KV
+        crate::kv::delete_link_mapping(kv, org_id, &link.short_code).await?;
+
+        Ok(())
+    }
+
+    /// Get all links for export.
+    pub async fn export_links(&self, db: &D1Database, org_id: &str) -> Result<Vec<Link>, AppError> {
+        let repo = LinkRepository::new();
+        let links = repo.get_all_for_export(db, org_id).await?;
+
+        // Attach tags to each link
+        let link_ids: Vec<String> = links.iter().map(|l| l.id.clone()).collect();
+        let tags_map = repo.get_tags_for_links(db, &link_ids).await?;
+
+        let mut result = links;
+        for link in &mut result {
+            link.tags = tags_map.get(&link.id).cloned().unwrap_or_default();
+        }
+
+        Ok(result)
+    }
+
+    // ─── Admin Operations ────────────────────────────────────────────────────
+
+    /// List all links for admin with filtering.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn admin_list_links(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        page: i64,
+        limit: i64,
+        org_filter: Option<&str>,
+        email_filter: Option<&str>,
+        domain_filter: Option<&str>,
+    ) -> Result<(Vec<crate::repositories::link_repository::AdminLink>, i64), AppError> {
+        let repo = LinkRepository::new();
+        let offset = (page - 1) * limit;
+
+        let links = repo
+            .list_admin(
+                db,
+                kv,
+                limit,
+                offset,
+                org_filter,
+                email_filter,
+                domain_filter,
+            )
+            .await?;
+        let total = repo
+            .count_admin(db, org_filter, email_filter, domain_filter)
+            .await?;
+
+        Ok((links, total))
+    }
+
+    /// Update link status (admin only).
+    pub async fn admin_update_link_status(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        link_id: &str,
+        status: LinkStatus,
+    ) -> Result<(), AppError> {
+        let repo = LinkRepository::new();
+
+        // Get link without org check (admin operation)
+        let link = repo
+            .get_by_id_no_auth_all(db, link_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
+
+        // Update status in D1
+        repo.update_status_by_id(db, link_id, status.as_str())
+            .await?;
+
+        // Sync KV based on new status
+        if status == LinkStatus::Active {
+            // Re-enable in KV by storing the mapping
+            let mapping = crate::models::LinkMapping {
+                destination_url: link.destination_url.clone(),
+                link_id: link.id.clone(),
+                expires_at: link.expires_at,
+                status: crate::models::link::LinkStatus::Active,
+                forward_query_params: link.forward_query_params.unwrap_or(false),
+                utm_params: link.utm_params.clone(),
+                redirect_type: link.redirect_type.clone(),
+            };
+            crate::kv::store_link_mapping(kv, &link.org_id, &link.short_code, &mapping).await?;
+        } else {
+            // Disable in KV
+            crate::kv::delete_link_mapping(kv, &link.org_id, &link.short_code).await?;
+        }
+
+        // Resolve any pending reports for this link (system resolution on status change)
+        let report_service = crate::services::ReportService::new();
+        report_service
+            .resolve_reports_for_link(
+                db,
+                link_id,
+                "resolved",
+                "Link status changed by admin",
+                "system",
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Delete a link as admin.
+    pub async fn admin_delete_link(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        link_id: &str,
+    ) -> Result<(), AppError> {
+        let repo = LinkRepository::new();
+
+        // Get link without org check
+        let link = repo
+            .get_by_id_no_auth_all(db, link_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
+
+        // Delete from D1
+        repo.hard_delete(db, link_id, &link.org_id).await?;
+
+        // Delete from KV
+        crate::kv::delete_link_mapping(kv, &link.org_id, &link.short_code).await?;
 
         Ok(())
     }

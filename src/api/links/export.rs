@@ -1,5 +1,4 @@
-use crate::auth;
-use crate::repositories::LinkRepository;
+use crate::services::LinkService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -29,22 +28,22 @@ pub fn csv_escape(value: &str) -> String {
     )
 )]
 pub async fn handle_export_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_export_links(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
+
+async fn inner_export_links(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
     let org_id = &user_ctx.org_id;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = LinkRepository::new();
+    let service = LinkService::new();
 
-    let mut links = repo.get_all_for_export(&db, org_id).await?;
-
-    let link_ids: Vec<String> = links.iter().map(|l| l.id.clone()).collect();
-    let tags_map = repo.get_tags_for_links(&db, &link_ids).await?;
-    for link in &mut links {
-        link.tags = tags_map.get(&link.id).cloned().unwrap_or_default();
-    }
+    let links = service.export_links(&db, org_id).await?;
 
     let mut csv = String::from(
         "short_code,destination_url,title,tags,status,click_count,created_at,expires_at,utm_source,utm_medium,utm_campaign,utm_term,utm_content,utm_ref,forward_query_params\n",

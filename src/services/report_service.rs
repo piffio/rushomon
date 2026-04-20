@@ -1,14 +1,12 @@
-/// Report service - Business logic for link report operations
+/// Report service - Business logic for report operations
 ///
-/// Handles resolving reports for a link when its status changes.
-/// Orchestrates ReportRepository and LinkRepository.
-use crate::repositories::{LinkRepository, ReportRepository};
+/// Handles resolving reports when link status changes or admin takes action.
+/// Orchestrates ReportRepository.
+use crate::repositories::ReportRepository;
 use crate::utils::AppError;
-use worker::console_log;
 use worker::d1::D1Database;
 
 /// Service for report-related business logic
-#[derive(Default)]
 pub struct ReportService;
 
 impl ReportService {
@@ -16,43 +14,30 @@ impl ReportService {
         Self
     }
 
-    /// Update a link's status and, if the new status is "disabled" or "blocked",
-    /// auto-resolve all pending reports for that link.
+    /// Resolve all pending reports for a link when its status changes.
     ///
-    /// KV sync must be performed by the caller after this call.
-    pub async fn update_link_status_and_resolve_reports(
+    /// This is called when an admin changes a link's status to "disabled" or "blocked",
+    /// which typically indicates the link was abusive and the reports should be auto-resolved.
+    ///
+    /// # Arguments
+    /// * `db` - Database connection
+    /// * `link_id` - ID of the link whose reports should be resolved
+    /// * `resolution` - Resolution status (e.g., "resolved", "dismissed")
+    /// * `resolution_note` - Note explaining why reports were resolved
+    /// * `acted_by` - User ID who took the action
+    pub async fn resolve_reports_for_link(
         &self,
         db: &D1Database,
         link_id: &str,
-        status: &str,
+        resolution: &str,
+        resolution_note: &str,
         acted_by: &str,
     ) -> Result<(), AppError> {
-        let link_repo = LinkRepository::new();
-        link_repo.update_status_by_id(db, link_id, status).await?;
+        let report_repo = ReportRepository::new();
 
-        if status == "disabled" || status == "blocked" {
-            let report_repo = ReportRepository::new();
-            if let Err(e) = report_repo
-                .resolve_for_link(
-                    db,
-                    link_id,
-                    "reviewed",
-                    &format!("Action taken: Link {}", status),
-                    acted_by,
-                )
-                .await
-            {
-                console_log!(
-                    "{}",
-                    serde_json::json!({
-                        "event": "reports_resolve_failed",
-                        "link_id": link_id,
-                        "error": e.to_string(),
-                        "level": "error"
-                    })
-                );
-            }
-        }
+        report_repo
+            .resolve_for_link(db, link_id, resolution, resolution_note, acted_by)
+            .await?;
 
         Ok(())
     }
