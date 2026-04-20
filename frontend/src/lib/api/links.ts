@@ -91,8 +91,8 @@ export const linksApi = {
    * @throws ApiError if link not found (404) or validation fails (400)
    */
   async update(id: string, data: UpdateLinkRequest): Promise<Link> {
-     return apiClient.put<Link>(`/api/links/${id}`, data);
-   },
+    return apiClient.put<Link>(`/api/links/${id}`, data);
+  },
 
   /**
    * Delete a link
