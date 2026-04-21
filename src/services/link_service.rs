@@ -522,6 +522,192 @@ impl LinkService {
         Ok(())
     }
 
+    /// Re-sync a link's KV entry based on its current status (admin only).
+    pub async fn admin_sync_link_kv(
+        &self,
+        db: &D1Database,
+        kv: &KvStore,
+        link_id: &str,
+    ) -> Result<(), AppError> {
+        let repo = LinkRepository::new();
+
+        let link = repo
+            .get_by_id_no_auth_all(db, link_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
+
+        match link.status.as_str() {
+            "active" => {
+                let link_model = crate::models::Link {
+                    id: link.id.clone(),
+                    org_id: link.org_id.clone(),
+                    short_code: link.short_code.clone(),
+                    destination_url: link.destination_url.clone(),
+                    title: link.title.clone(),
+                    created_by: link.created_by.clone(),
+                    created_at: link.created_at,
+                    updated_at: link.updated_at,
+                    expires_at: link.expires_at,
+                    status: crate::models::link::LinkStatus::Active,
+                    click_count: link.click_count,
+                    tags: link.tags,
+                    utm_params: link.utm_params,
+                    forward_query_params: link.forward_query_params,
+                    redirect_type: link.redirect_type.clone(),
+                };
+                let org_repo = crate::repositories::OrgRepository::new();
+                let resolved_forward = if let Some(forward) = link.forward_query_params {
+                    forward
+                } else {
+                    org_repo
+                        .get_forward_query_params(db, &link.org_id)
+                        .await
+                        .unwrap_or(false)
+                };
+                let mapping = link_model.to_mapping(resolved_forward);
+                crate::kv::store_link_mapping(kv, &link.org_id, &link.short_code, &mapping).await?;
+            }
+            "blocked" | "disabled" => {
+                crate::kv::delete_link_mapping(kv, &link.org_id, &link.short_code).await?;
+            }
+            _ => {
+                return Err(AppError::BadRequest(
+                    "Cannot sync link with unknown status".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check whether the org's billing tier allows Pro-only link features.
+    ///
+    /// Returns the org's billing account tier. Returns Err(AppError::Forbidden)
+    /// with a user-facing message if pro features are requested but the tier is Free.
+    pub async fn check_pro_features_for_org(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        wants_redirect_type: bool,
+        wants_utm_or_forward: bool,
+    ) -> Result<(String, Option<Tier>), AppError> {
+        let billing_repo = BillingRepository::new();
+        let billing_account = billing_repo.get_for_org(db, org_id).await?.ok_or_else(|| {
+            AppError::Internal("No billing account found for organization".to_string())
+        })?;
+        let tier = Tier::from_str_value(&billing_account.tier);
+        let is_pro_or_above = matches!(
+            tier.as_ref(),
+            Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
+        );
+
+        if (wants_redirect_type || wants_utm_or_forward) && !is_pro_or_above {
+            let error_msg = if wants_redirect_type {
+                "Custom redirect types (307) require a Pro plan or above."
+            } else {
+                "UTM parameters and query parameter forwarding require a Pro plan or above."
+            };
+            return Err(AppError::Forbidden(error_msg.to_string()));
+        }
+
+        Ok((billing_account.id, tier))
+    }
+
+    /// Check tag limits for a link update operation, accounting for tags being removed.
+    ///
+    /// Returns Err(AppError::Forbidden) if adding the new tags would exceed the billing account limit.
+    pub async fn check_tag_limit_for_update(
+        &self,
+        db: &D1Database,
+        billing_account_id: &str,
+        link_id: &str,
+        new_tags: &[String],
+        max_tags: i64,
+    ) -> Result<(), AppError> {
+        let tag_repo = TagRepository::new();
+        let current_tag_count = tag_repo
+            .count_distinct_tags_for_billing_account(db, billing_account_id)
+            .await?;
+
+        let existing_link_tags = LinkRepository::new().get_tags(db, link_id).await?;
+        let existing_tags_set: std::collections::HashSet<String> =
+            existing_link_tags.into_iter().collect();
+        let new_tags_set: std::collections::HashSet<String> = new_tags.iter().cloned().collect();
+
+        let existing_ba_tags_result = db
+            .prepare(
+                "SELECT DISTINCT tag_name
+                 FROM link_tags lt
+                 JOIN organizations o ON lt.org_id = o.id
+                 WHERE o.billing_account_id = ?1",
+            )
+            .bind(&[billing_account_id.into()])?
+            .all()
+            .await?;
+        let existing_ba_tags_set: std::collections::HashSet<String> = existing_ba_tags_result
+            .results::<serde_json::Value>()?
+            .iter()
+            .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
+            .collect();
+
+        let tags_being_removed: std::collections::HashSet<String> = existing_tags_set
+            .difference(&new_tags_set)
+            .cloned()
+            .collect();
+
+        let tags_being_added: std::collections::HashSet<String> = new_tags_set
+            .difference(&existing_tags_set)
+            .cloned()
+            .collect();
+
+        let mut disappearing_count = 0i64;
+        for tag in &tags_being_removed {
+            let usage_result = db
+                .prepare(
+                    "SELECT COUNT(*) as count
+                     FROM link_tags lt
+                     JOIN organizations o ON lt.org_id = o.id
+                     WHERE o.billing_account_id = ?1 AND lt.tag_name = ?2 AND lt.link_id != ?3",
+                )
+                .bind(&[
+                    billing_account_id.into(),
+                    tag.as_str().into(),
+                    link_id.into(),
+                ])?
+                .first::<serde_json::Value>(None)
+                .await?;
+            let usage_count = usage_result
+                .and_then(|r| r["count"].as_f64())
+                .unwrap_or(0.0) as i64;
+            if usage_count == 0 {
+                disappearing_count += 1;
+            }
+        }
+
+        let new_to_ba_count = tags_being_added
+            .iter()
+            .filter(|tag| !existing_ba_tags_set.contains(*tag))
+            .count() as i64;
+
+        let net_change = new_to_ba_count - disappearing_count;
+
+        if current_tag_count + net_change > max_tags {
+            let remaining = max_tags.saturating_sub(current_tag_count);
+            let message = if remaining > 0 {
+                format!(
+                    "You can create {} more tag{} across all organizations. Upgrade your plan to add more tags.",
+                    remaining,
+                    if remaining == 1 { "" } else { "s" }
+                )
+            } else {
+                "You have reached your tag limit across all organizations. Upgrade your plan to create more tags.".to_string()
+            };
+            return Err(AppError::Forbidden(message));
+        }
+
+        Ok(())
+    }
+
     /// Import multiple links in bulk.
     ///
     /// Returns detailed results with created count, skipped count, failed count,

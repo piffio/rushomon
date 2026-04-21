@@ -1,7 +1,5 @@
 use crate::auth;
-use crate::kv;
 use crate::models::link::LinkStatus;
-use crate::repositories::{LinkRepository, OrgRepository};
 use crate::services::LinkService;
 use worker::d1::D1Database;
 use worker::*;
@@ -264,53 +262,11 @@ pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> R
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let kv = ctx.kv("URL_MAPPINGS")?;
-    let repo = LinkRepository::new();
 
-    let link = match repo.get_by_id_no_auth_all(&db, &link_id).await? {
-        Some(link) => link,
-        None => return Response::error("Link not found", 404),
-    };
-
-    match link.status.as_str() {
-        "active" => {
-            let link_model = crate::models::Link {
-                id: link.id.clone(),
-                org_id: link.org_id.clone(),
-                short_code: link.short_code.clone(),
-                destination_url: link.destination_url.clone(),
-                title: link.title.clone(),
-                created_by: link.created_by.clone(),
-                created_at: link.created_at,
-                updated_at: link.updated_at,
-                expires_at: link.expires_at,
-                status: crate::models::link::LinkStatus::Active,
-                click_count: link.click_count,
-                tags: link.tags,
-                utm_params: link.utm_params,
-                forward_query_params: link.forward_query_params,
-                redirect_type: link.redirect_type.clone(),
-            };
-
-            let org_repo = OrgRepository::new();
-            let resolved_forward = if let Some(forward) = link.forward_query_params {
-                forward
-            } else {
-                org_repo
-                    .get_forward_query_params(&db, &link.org_id)
-                    .await
-                    .unwrap_or(false)
-            };
-
-            let mapping = link_model.to_mapping(resolved_forward);
-            kv::store_link_mapping(&kv, &link.org_id, &link.short_code, &mapping).await?;
-        }
-        "blocked" | "disabled" => {
-            kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
-        }
-        _ => {
-            return Response::error("Cannot sync link with unknown status", 400);
-        }
-    }
+    LinkService::new()
+        .admin_sync_link_kv(&db, &kv, &link_id)
+        .await
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
     Response::from_json(&serde_json::json!({
         "success": true,
