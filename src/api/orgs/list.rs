@@ -3,7 +3,6 @@
 /// GET  /api/orgs           - List user organizations
 /// POST /api/auth/switch-org - Switch active organization
 use crate::auth;
-use crate::repositories::OrgRepository;
 use crate::services::OrgService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
@@ -75,22 +74,14 @@ async fn inner_switch_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     };
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = OrgRepository::new();
+    let service = OrgService::new();
 
-    // Verify the user is actually a member of the target org
-    let member = repo
-        .get_member(&db, &target_org_id, &user_ctx.user_id)
-        .await?;
-    if member.is_none() {
-        return Err(AppError::Forbidden(
-            "You are not a member of this organization".to_string(),
-        ));
-    }
-
-    let org = repo
-        .get_by_id(&db, &target_org_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+    let (org, member) = service
+        .get_org_as_member(&db, &target_org_id, &user_ctx.user_id)
+        .await
+        .map_err(|_| {
+            AppError::Forbidden("You are not a member of this organization".to_string())
+        })?;
 
     let kv = ctx.kv("URL_MAPPINGS")?;
     let jwt_secret = ctx.env.secret("JWT_SECRET")?.to_string();
@@ -119,17 +110,15 @@ async fn inner_switch_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     };
     let access_cookie = auth::session::create_access_cookie_with_scheme(&new_access_token, scheme);
 
-    let member_info = member.unwrap();
-
     // Get tier from billing account for API response
-    let tier = OrgService::new().get_org_tier(&db, &org).await;
+    let tier = service.get_org_tier(&db, &org).await;
 
     let mut response = Response::from_json(&serde_json::json!({
         "org": {
             "id": org.id,
             "name": org.name,
             "tier": tier.as_str(),
-            "role": member_info.role,
+            "role": member.role,
         },
     }))?;
     response.headers_mut().set("Set-Cookie", &access_cookie)?;
