@@ -1,5 +1,5 @@
 use crate::auth;
-use crate::repositories::BillingRepository;
+use crate::services::BillingService;
 use crate::utils::now_timestamp;
 use worker::d1::D1Database;
 use worker::*;
@@ -47,28 +47,12 @@ pub async fn handle_admin_reset_billing_account(
         }
     };
 
-    // Delete all subscriptions for this billing account
-    let del_stmt = db.prepare("DELETE FROM subscriptions WHERE billing_account_id = ?1");
-    if let Err(e) = del_stmt
-        .bind(&[billing_account_id.clone().into()])?
-        .run()
-        .await
-    {
-        console_error!("[admin-reset] Failed to delete subscriptions: {}", e);
-        return Response::error("Service temporarily unavailable", 503);
-    }
-
-    // Reset billing account tier and clear provider_customer_id
-    let upd_stmt = db.prepare(
-        "UPDATE billing_accounts SET tier = 'free', provider_customer_id = NULL WHERE id = ?1",
-    );
-    if let Err(e) = upd_stmt
-        .bind(&[billing_account_id.clone().into()])?
-        .run()
+    if let Err(e) = BillingService::new()
+        .admin_reset_to_free(&db, &billing_account_id)
         .await
     {
         console_error!("[admin-reset] Failed to reset billing account: {}", e);
-        return Response::error("Service temporarily unavailable", 503);
+        return Response::error("Not found or service unavailable", 404);
     }
 
     Response::from_json(&serde_json::json!({
@@ -114,58 +98,20 @@ pub async fn handle_cron_trigger_downgrade(
     };
 
     let now = now_timestamp();
-    let repo = BillingRepository::new();
 
-    let expired_subscriptions = match repo.get_expired_pending_cancellations(&db, now).await {
-        Ok(subs) => subs,
+    let (total, success_count, error_count) = match BillingService::new()
+        .process_expired_subscriptions(&db, now)
+        .await
+    {
+        Ok(counts) => counts,
         Err(e) => {
             console_error!(
-                "[cron-trigger] Failed to query expired subscriptions: {}",
+                "[cron-trigger] Failed to process expired subscriptions: {}",
                 e
             );
             return Response::error("Service temporarily unavailable", 503);
         }
     };
-
-    let total = expired_subscriptions.len();
-    let mut success_count = 0u32;
-    let mut error_count = 0u32;
-
-    for sub in &expired_subscriptions {
-        let subscription_id = sub
-            .get("provider_subscription_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let billing_account_id = sub
-            .get("billing_account_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        if let Err(e) = repo.update_tier(&db, billing_account_id, "free").await {
-            console_error!(
-                "[cron-trigger] Failed to downgrade tier for billing account {}: {}",
-                billing_account_id,
-                e
-            );
-            error_count += 1;
-            continue;
-        }
-
-        if let Err(e) = repo
-            .finalize_expired_subscription(&db, subscription_id, now)
-            .await
-        {
-            console_error!(
-                "[cron-trigger] Failed to finalize subscription {}: {}",
-                subscription_id,
-                e
-            );
-            error_count += 1;
-            continue;
-        }
-
-        success_count += 1;
-    }
 
     Response::from_json(&serde_json::json!({
         "processed": total,

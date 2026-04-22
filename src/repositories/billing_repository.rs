@@ -304,6 +304,21 @@ impl BillingRepository {
         Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
     }
 
+    /// Reset a billing account to free tier: delete all subscriptions and clear provider_customer_id.
+    pub async fn reset_to_free(&self, db: &D1Database, billing_account_id: &str) -> Result<()> {
+        db.prepare("DELETE FROM subscriptions WHERE billing_account_id = ?1")
+            .bind(&[billing_account_id.into()])?
+            .run()
+            .await?;
+        db.prepare(
+            "UPDATE billing_accounts SET tier = 'free', provider_customer_id = NULL WHERE id = ?1",
+        )
+        .bind(&[billing_account_id.into()])?
+        .run()
+        .await?;
+        Ok(())
+    }
+
     /// Update billing account tier.
     pub async fn update_tier(
         &self,

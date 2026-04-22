@@ -346,7 +346,85 @@ impl BillingService {
         Ok(PolarClient::new(api_key, sandbox))
     }
 
-    // ─── Admin Methods ────────────────────────────────────────────────────────
+    // ─── Cron / Admin Methods ─────────────────────────────────────────────────
+
+    /// Process expired subscriptions: downgrade billing accounts to free tier.
+    ///
+    /// Finds all subscriptions with `pending_cancellation` status whose
+    /// `current_period_end` has passed, downgrades their billing account to
+    /// free tier, and finalizes the subscription record.
+    ///
+    /// Returns (total, success, errors).
+    pub async fn process_expired_subscriptions(
+        &self,
+        db: &D1Database,
+        now: i64,
+    ) -> Result<(usize, u32, u32), worker::Error> {
+        let repo = BillingRepository::new();
+
+        let expired = repo.get_expired_pending_cancellations(db, now).await?;
+        let total = expired.len();
+        let mut success_count = 0u32;
+        let mut error_count = 0u32;
+
+        for sub in &expired {
+            let subscription_id = sub
+                .get("provider_subscription_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let billing_account_id = sub
+                .get("billing_account_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            if let Err(e) = repo.update_tier(db, billing_account_id, "free").await {
+                console_error!(
+                    "[billing] Failed to downgrade tier for billing account {}: {}",
+                    billing_account_id,
+                    e
+                );
+                error_count += 1;
+                continue;
+            }
+
+            if let Err(e) = repo
+                .finalize_expired_subscription(db, subscription_id, now)
+                .await
+            {
+                console_error!(
+                    "[billing] Failed to finalize subscription {}: {}",
+                    subscription_id,
+                    e
+                );
+                error_count += 1;
+                continue;
+            }
+
+            success_count += 1;
+        }
+
+        Ok((total, success_count, error_count))
+    }
+
+    /// Reset a billing account to free tier (admin only).
+    ///
+    /// Deletes all subscriptions for the account and resets the tier to free,
+    /// clearing the provider_customer_id.
+    /// Returns Err if the billing account does not exist.
+    pub async fn admin_reset_to_free(
+        &self,
+        db: &D1Database,
+        billing_account_id: &str,
+    ) -> Result<(), worker::Error> {
+        let repo = BillingRepository::new();
+        let exists = repo.get_by_id(db, billing_account_id).await?.is_some();
+        if !exists {
+            return Err(worker::Error::RustError(
+                "Billing account not found".to_string(),
+            ));
+        }
+        repo.reset_to_free(db, billing_account_id).await
+    }
 
     /// List all billing accounts with stats (admin only).
     pub async fn admin_list_billing_accounts(
