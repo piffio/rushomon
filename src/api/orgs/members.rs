@@ -2,7 +2,7 @@
 ///
 /// DELETE /api/orgs/{id}/members/{user_id} - Remove a member
 use crate::auth;
-use crate::repositories::OrgRepository;
+use crate::services::OrgService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -45,64 +45,10 @@ async fn inner_remove_member(req: Request, ctx: RouteContext<()>) -> Result<Resp
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = OrgRepository::new();
 
-    let requester_member = repo.get_member(&db, &org_id, &user_ctx.user_id).await?;
-    let requester = match requester_member {
-        Some(m) => m,
-        None => return Err(AppError::NotFound("Organization not found".to_string())),
-    };
-
-    let is_self_removal = target_user_id == user_ctx.user_id;
-
-    // Check the target is actually in this org
-    let target_member = repo.get_member(&db, &org_id, &target_user_id).await?;
-    if target_member.is_none() {
-        return Err(AppError::NotFound(
-            "Member not found in this organization".to_string(),
-        ));
-    }
-    let target_role = target_member.unwrap().role;
-
-    // Permission checks for removing others
-    if !is_self_removal {
-        match requester.role.as_str() {
-            "owner" => {
-                // Owners can remove anyone
-            }
-            "admin" => {
-                // Admins can remove members but not owners or other admins
-                if target_role == "owner" {
-                    return Err(AppError::Forbidden(
-                        "Admins cannot remove owners".to_string(),
-                    ));
-                }
-                if target_role == "admin" {
-                    return Err(AppError::Forbidden(
-                        "Admins cannot remove other admins".to_string(),
-                    ));
-                }
-            }
-            _ => {
-                // Regular members can only remove themselves
-                return Err(AppError::Forbidden(
-                    "Only org owners and admins can remove members".to_string(),
-                ));
-            }
-        }
-    }
-
-    // Prevent removing the last owner
-    if target_role == "owner" {
-        let owner_count = repo.count_owners(&db, &org_id).await?;
-        if owner_count <= 1 {
-            return Err(AppError::BadRequest(
-                "Cannot remove the last owner. Transfer ownership first.".to_string(),
-            ));
-        }
-    }
-
-    repo.remove_member(&db, &org_id, &target_user_id).await?;
+    OrgService::new()
+        .remove_member(&db, &org_id, &user_ctx.user_id, &target_user_id)
+        .await?;
 
     Ok(Response::ok("Member removed")?)
 }

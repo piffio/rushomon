@@ -179,6 +179,75 @@ impl OrgService {
         }
     }
 
+    // ─── Member Management ────────────────────────────────────────────────────
+
+    /// Remove a member from an org, enforcing role-based permission rules.
+    ///
+    /// Rules:
+    /// - Any member may remove themselves (self-removal).
+    /// - Owners may remove anyone.
+    /// - Admins may remove regular members only (not owners or other admins).
+    /// - Regular members may only perform self-removal.
+    /// - The last owner of an org cannot be removed.
+    pub async fn remove_member(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        requester_id: &str,
+        target_user_id: &str,
+    ) -> Result<(), AppError> {
+        let repo = OrgRepository::new();
+
+        let requester = repo
+            .get_member(db, org_id, requester_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        let target = repo
+            .get_member(db, org_id, target_user_id)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound("Member not found in this organization".to_string())
+            })?;
+
+        let is_self_removal = target_user_id == requester_id;
+
+        if !is_self_removal {
+            match requester.role.as_str() {
+                "owner" => {}
+                "admin" => {
+                    if target.role == "owner" {
+                        return Err(AppError::Forbidden(
+                            "Admins cannot remove owners".to_string(),
+                        ));
+                    }
+                    if target.role == "admin" {
+                        return Err(AppError::Forbidden(
+                            "Admins cannot remove other admins".to_string(),
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(AppError::Forbidden(
+                        "Only org owners and admins can remove members".to_string(),
+                    ));
+                }
+            }
+        }
+
+        if target.role == "owner" {
+            let owner_count = repo.count_owners(db, org_id).await?;
+            if owner_count <= 1 {
+                return Err(AppError::BadRequest(
+                    "Cannot remove the last owner. Transfer ownership first.".to_string(),
+                ));
+            }
+        }
+
+        repo.remove_member(db, org_id, target_user_id).await?;
+        Ok(())
+    }
+
     // ─── Org Settings ─────────────────────────────────────────────────────────
 
     /// Get org settings (forward_query_params) with membership check.
