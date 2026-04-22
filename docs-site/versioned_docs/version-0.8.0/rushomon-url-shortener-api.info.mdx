@@ -1,0 +1,133 @@
+---
+id: rushomon-url-shortener-api
+title: "Rushomon URL Shortener API"
+description: "API documentation for the Rushomon URL shortener service."
+sidebar_label: Introduction
+sidebar_position: 0
+hide_title: true
+custom_edit_url: null
+---
+
+import ApiLogo from "@theme/ApiLogo";
+import Heading from "@theme/Heading";
+import SchemaTabs from "@theme/SchemaTabs";
+import TabItem from "@theme/TabItem";
+import Export from "@theme/ApiExplorer/Export";
+
+<span
+  className={"theme-doc-version-badge badge badge--secondary"}
+  children={"Version: main"}
+>
+</span>
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Rushomon URL Shortener API"}
+>
+</Heading>
+
+
+
+API documentation for the Rushomon URL shortener service.
+
+## Authentication
+
+Most endpoints require authentication using either:
+- **Session cookies** (for web application users)
+- **Bearer tokens** (for API keys)
+
+### Using API Keys
+
+1. Create an API key in the dashboard (Pro tier or higher required)
+2. Include the key in the Authorization header:
+   ```
+   Authorization: Bearer ro_pat_...
+   ```
+## Response Format
+
+All responses are JSON formatted. Error responses follow this structure:
+```json
+{
+  "error": "Error message describing what went wrong"
+}
+```
+
+## Pagination
+
+List endpoints support pagination with `page` and `limit` query parameters:
+- `page`: Page number (1-indexed, default: 1)
+- `limit`: Items per page (1-100, default: 20)
+
+
+<div
+  style={{"marginBottom":"2rem"}}
+>
+  <Heading
+    id={"authentication"}
+    as={"h2"}
+    className={"openapi-tabs__heading"}
+    children={"Authentication"}
+  >
+  </Heading><SchemaTabs
+    className={"openapi-tabs__security-schemes"}
+  >
+    <TabItem
+      label={"HTTP: Bearer Auth"}
+      value={"Bearer"}
+    >
+      
+      
+      
+      
+      <div>
+        <table>
+          <tbody>
+            <tr>
+              <th>
+                Security Scheme Type:
+              </th><td>
+                http
+              </td>
+            </tr><tr>
+              <th>
+                HTTP Authorization Scheme:
+              </th><td>
+                bearer
+              </td>
+            </tr><tr>
+              <th>
+                Bearer format:
+              </th><td>
+                JWT or API Key
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </TabItem>
+  </SchemaTabs>
+</div><div
+  style={{"display":"flex","flexDirection":"column","marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    Contact
+  </h3><span>
+    Rushomon Support: [support@rushomon.cc](mailto:support@rushomon.cc)
+  </span>
+</div><div
+  style={{"marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    License
+  </h3><a
+    href={"https://www.gnu.org/licenses/agpl-3.0.html"}
+  >
+    AGPL-3.0
+  </a>
+</div>
+      

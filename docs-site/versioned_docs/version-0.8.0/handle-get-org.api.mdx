@@ -1,0 +1,69 @@
+---
+id: handle-get-org
+title: "Get organization"
+description: "Returns org details including the member list with roles and pending invitations. The caller must be a member of the org"
+sidebar_label: "Get organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFVUtv20YQ/iuD8cU2GEp2AiTgqW6bGk7dxPADPViGtSJH5NbLXWZ3aMUh+N+LWVKKZBvpsSeSw2/eM990WFDIvW5YO4sZXhK33gZwvoSCWGkTQNvctIW2JXBFUFO9IA9GB4aV5gq8MxRA2QIashGm7aNmJRZDCtcVQa6MIQ91GxgWBGptxC2jSedLTNA15KPSWYEZVsoWhu5L4vvhd6O8qonJB8xuu2dhf/Glsvp7VIez3zFBLeJGcYUJWlUTZqgLTNDT11Z7KjBj31KCIa+oVph1yE+NoAJ7bUvs+zsBh8bZQEH+H0+n8viJ41iOIbWhIFuFwD7Bd9OjlxZurGq5cl5/p2IAvX0J+uz4WdV07NGg8O4/4rKOYelaW2DfJxgob73mp1jGX0l58pjd3vVJh4FC0M7e5849aIrSuwRZlVLzHZsB7xKsiSsnzSqJY4e4wgwnqtET58sw6XTRozj0j6+37cK7os1jjCcXZ5hg6430nrkJ2UQMpb4NlaudTfMcJcRdA+cuVwYKeiTjmpos79jIJhMjgMoFzj68//AeJZ11/lfS+aG16yp0uIhvfzhfK8YMP/19Dc5LcPAnPeE4LjImAxCT9diIv1hebZdOLOXOsspZXqlWWmIKbdM4z79s57SZzstRCFcDSlq7m6xEUbi8lTyHxi6djwu00b25PIdQOc9kyYMUXueUzuzM7u3BScsVWdZ5VBbhXy4wkC0apy0HGHcD1A4Q2iBLTZor8tnMvoHDw6thUGAYlHB4CPsSy4oWoJrG/NAkHw4GlaHGwO6B7EZBUnqgJ8FIiHtwE32N9Q4iPUrhN0+KCZRd40HbmHehQrVwyhewf+EdsJbt8FDpsiK/Tqc4mNnjFM4ii1HU2zJxMi7fEHBFqohJAsB8Po/PHUQGYx7e3TeK79M0/QHe24PLkTFgGCFJ4MQY2BAJKE/w6erLZ+ldrZipSOGj985vYZbOGLcaljywb3NuPWUzO5/P/wnSuU58zpBEb4YZzHAwUVMIqiQY5mYhpVxVimFFlmHlnS1nOLN9tDQOxYUqtd0MxLneGYhxYKHZgAaOmzeqpHmkuLnRteY5fG3JP8EPko6DMuAycUJg28he+0dvtC3oGxUJFLRUreEMjuKQjLYyOGOqAzTkxTOJytF0ugU/nh7MLCZodE42kOzYuEUnpxfnb96m0xdcslqt0tK2qfPlZFQLE1U2RtBpxbWRhWPNZmcZZaGuNgs1kJSQ2bCRtdJW1BoXuFZ2K45TYuHnDV/is2Ue+EEI63+9uSN5MX3jSWPGbGLhupHOb1E1Wq6zLwMmmOlCmF8YVf513UIFuvGm70Uch0DORoKPymu1kGIK6+sg7wVmS2UC/aQW+5frpYWXN/3VaEehskLPj8q08oUJPtDTcPP7u37rVJ1+vMYEheG2bv6GzBfrc9i9brfrBsS1sFjfb9xEVhNPff8vyFk8XA==
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/orgs/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns org details including the member list with roles and pending invitations. The caller must be a member of the org
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-get-org.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-org.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-org.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,69 @@
+---
+id: handle-delete-link
+title: "Delete a link"
+description: "Soft-deletes a link belonging to the authenticated organization and removes its KV mapping so it stops redirecting"
+sidebar_label: "Delete a link"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFVU1T40YQ/StdzQUoIZvNVu2WTiGBpNglCYUhOWAKjzVtaYI0MzvTwsuq9N9TLcnGsCTXnCSNXn/3e9OippgH49k4ixnO3IqPNFXEFEFBZewDLKlytjC2AHbAJYFquCTLJldMGlwolDXflHgAZTUEqt0jRTAc4fOfUCvvxTg6MAyRnY8QSJtAORtbYILOU+jNzzVmWCqrK7ofkriXDDBBr4KqiSlEzG7bV0lfSJbnp5igkU+vuMQEraoJMzQaEwz0pTGBNGYcGkow5iXVCrMW+ckLKnKQXLruTsDROxspyv9306k83gg4JKixS/D99Ph70I2VPrlgvm1A7//Fk3UMK9dYjV2XYKS8CYaf+kJ/IhUoYHZ71yUtRorROHufO/dgqD+9S5BVIV3pfUW8S7AmLp20ckixbx+XmOFEeTORjsZJa3SHEiw8vt3Uy+B0k/dDPbk8xwSbUMl0mH3MJuIpDU0sXe1smuco6b0qzeWqAk2PVDlfk+UXPrLJpBJA6SJnHz98/IBSyqb2mcxnGMCmAy0u+7dfXKgVY4af/roGFyQ5+ExPOA5VhjkAMdkMV+L1rTV25cRT7iyrnOWVamUkp9h47wL/uFvTdoeuxkOYDSgZ58tiJQvt8kbqHJiwcqEny9b25uoCYukCk6UA0niTUzq3c7u3ByfPlDLOyuFvLjKQ1d4Zy8KYfoN3uSdRmijUIsMlhWxuj+DwcDYsCQxLEg8PYV9yWdMSlPfVsyWFeDCYDD0Gdg9ktwZS0gM9CUZS3IObPtbY7yinxyn8HEgxgbIbPBjb161VLJdOBQ37l8EBGwoyrtIUJYVNOfpgbt+lcG7zqtHU2+24OBn5MyRcktJ9kQCwWCz65wtEBmMdwd17xfdpmj6D9/bgauQ1DCskBZxUFWzpDioQfJr98bvMrlbMpFM4C8GFHczKVZVbA5cmQuTQ5NwEyuZ2sVj8HWVyrcScI4ndHDOY4+CiphhVQTDszVJauS4Vw5oswzo4W8xxbrve07gUl6owdrsQF+bFQowLC34LgrXhEhZeFbTohXhRmdrwAr40FJ7gWUL7RRlwmQQhsE29pAD7x0fGavpKOgFNK9VUnMFxvySjrwzOmeoInoJEJjE5nk534O+mB3OLCVYmJxtJODay6OTXy4ujH9Lpd1qyXq/TwjapC8VkNIsTVfhK0GnJdSWEY8PVCzIKoWZbQg0iJWI2MLJWxoqZd5FrZXfyOO1Vcbzd8BWTB3EQtfqfLsNRs5i+8sRXYxF9v9pRxm9RedN3WPQ+wcxoUX1RUvnZtksV6SZUXSfH/fDlqkjwUQWjltJEUXsT5V1jtlJVpP9ow/7VhqzwfNO+meZ4qKzI8aOqGvnCBB/oabiJu7tu53o6Pbs4uz7DBKWHO5fxVr+Xm9uvfdt12w6IaxGurttG6oVMgnXdP0xpEw4=
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a link"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/links/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-deletes a link belonging to the authenticated organization and removes its KV mapping so it stops redirecting
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-delete-link.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-delete-link.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-delete-link.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
