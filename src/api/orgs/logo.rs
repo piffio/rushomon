@@ -4,8 +4,7 @@
 /// GET    /api/orgs/{id}/logo - Get org logo
 /// DELETE /api/orgs/{id}/logo - Delete org logo
 use crate::auth;
-use crate::models::Tier;
-use crate::repositories::{BillingRepository, OrgRepository};
+use crate::services::OrgService;
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -43,38 +42,11 @@ async fn inner_upload_org_logo(
         .ok_or_else(|| AppError::BadRequest("Missing org id".to_string()))?
         .to_string();
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = OrgRepository::new();
+    let service = OrgService::new();
 
-    let member = repo.get_member(&db, &org_id, &user_ctx.user_id).await?;
-    match &member {
-        Some(m) if m.role == "owner" || m.role == "admin" => {}
-        Some(_) => {
-            return Err(AppError::Forbidden(
-                "Only org owners and admins can upload a logo".to_string(),
-            ));
-        }
-        None => return Err(AppError::NotFound("Organization not found".to_string())),
-    }
-
-    let org = repo
-        .get_by_id(&db, &org_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-    let billing_repo = BillingRepository::new();
-    let tier = if let Some(ref ba_id) = org.billing_account_id {
-        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
-            Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
-        } else {
-            Tier::Free
-        }
-    } else {
-        Tier::Free
-    };
-    if !matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited) {
-        return Err(AppError::Forbidden(
-            "Custom org logo requires a Pro plan or above.".to_string(),
-        ));
-    }
+    service
+        .check_logo_permission(&db, &org_id, &user_ctx.user_id)
+        .await?;
 
     let form_data = req
         .form_data()
@@ -121,7 +93,7 @@ async fn inner_upload_org_logo(
         .map_err(|e| AppError::Internal(format!("Failed to store logo: {}", e)))?;
 
     let logo_url = format!("/api/orgs/{}/logo", org_id);
-    repo.set_logo_url(&db, &org_id, Some(&logo_url)).await?;
+    service.set_logo_url(&db, &org_id, Some(&logo_url)).await?;
 
     let origin = req.headers().get("Origin").ok().flatten();
     let response = Response::from_json(&serde_json::json!({ "logo_url": logo_url }))?;
@@ -211,18 +183,11 @@ async fn inner_delete_org_logo(req: Request, ctx: RouteContext<()>) -> Result<Re
         .ok_or_else(|| AppError::BadRequest("Missing org id".to_string()))?
         .to_string();
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = OrgRepository::new();
+    let service = OrgService::new();
 
-    let member = repo.get_member(&db, &org_id, &user_ctx.user_id).await?;
-    match &member {
-        Some(m) if m.role == "owner" || m.role == "admin" => {}
-        Some(_) => {
-            return Err(AppError::Forbidden(
-                "Only org owners and admins can delete the logo".to_string(),
-            ));
-        }
-        None => return Err(AppError::NotFound("Organization not found".to_string())),
-    }
+    service
+        .check_delete_logo_permission(&db, &org_id, &user_ctx.user_id)
+        .await?;
 
     let bucket = ctx.env.bucket("ASSETS_BUCKET")?;
     let r2_key = format!("logos/{}", org_id);
@@ -231,7 +196,7 @@ async fn inner_delete_org_logo(req: Request, ctx: RouteContext<()>) -> Result<Re
         .await
         .map_err(|e| AppError::Internal(format!("Failed to delete logo: {}", e)))?;
 
-    repo.set_logo_url(&db, &org_id, None).await?;
+    service.set_logo_url(&db, &org_id, None).await?;
 
     let origin = req.headers().get("Origin").ok().flatten();
     let response = Response::ok("Logo deleted")?;

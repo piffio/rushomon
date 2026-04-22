@@ -2,9 +2,9 @@
 ///
 /// GET /api/links/:id/analytics — click analytics for a single link.
 use crate::auth;
-use crate::models::{LinkAnalyticsResponse, Tier, TimeRange};
-use crate::repositories::{AnalyticsRepository, BillingRepository, LinkRepository, OrgRepository};
-use crate::services::analytics_service::apply_analytics_gating;
+use crate::models::{LinkAnalyticsResponse, TimeRange};
+use crate::services::analytics_service::get_link_analytics;
+use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -47,25 +47,18 @@ fn extract_query_param(query: &str, name: &str) -> Result<String> {
     )
 )]
 pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Authenticate request
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner(req, ctx).await.unwrap_or_else(|e| e.into_response()))
+}
+
+async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError> {
+    let user_ctx = auth::authenticate_request(&req, &ctx).await?;
     let org_id = &user_ctx.org_id;
 
     let link_id = ctx
         .param("id")
-        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("Missing link ID".to_string()))?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let link_repo = LinkRepository::new();
-
-    // Verify link exists and belongs to org
-    let link = match link_repo.get_by_id(&db, link_id, org_id).await? {
-        Some(link) => link,
-        None => return Response::error("Link not found", 404),
-    };
 
     // Parse time range from query parameters
     // Support both new format (TimeRange enum) and legacy format (start/end timestamps)
@@ -76,7 +69,7 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
     let time_range = if let Ok(time_range_str) = extract_query_param(query, "time_range") {
         // New format: JSON TimeRange object
         serde_json::from_str::<TimeRange>(&time_range_str)
-            .map_err(|e| Error::RustError(format!("Invalid time_range parameter: {}", e)))?
+            .map_err(|e| AppError::BadRequest(format!("Invalid time_range parameter: {}", e)))?
     } else if let Ok(days_str) = extract_query_param(query, "days") {
         // Simple days parameter (e.g., ?days=7)
         let days = days_str.parse::<i64>().unwrap_or(7);
@@ -105,77 +98,22 @@ pub async fn handle_get_link_analytics(req: Request, ctx: RouteContext<()>) -> R
         }
     };
 
-    // Calculate timestamps using backend logic (eliminates clock skew)
-    let (mut start, end) = time_range.calculate_timestamps();
-
-    // Check tier-based analytics limits from billing account
-    let org_repo = OrgRepository::new();
-    let billing_repo = BillingRepository::new();
-
-    let org = org_repo
-        .get_by_id(&db, org_id)
-        .await?
-        .ok_or_else(|| Error::RustError("Organization not found".to_string()))?;
-
-    // Get tier from billing account (all orgs should have billing accounts after migration)
-    let tier = if let Some(ref billing_account_id) = org.billing_account_id {
-        billing_repo
-            .get_by_id(&db, billing_account_id)
-            .await?
-            .and_then(|ba| Tier::from_str_value(&ba.tier))
-            .unwrap_or(Tier::Free)
-    } else {
-        Tier::Free
-    };
-
-    let now = crate::models::analytics::now_timestamp();
-    let gating_result = apply_analytics_gating(tier, start, end, now);
-    start = gating_result.adjusted_start;
-
-    // If analytics are gated, return empty data with gating info
-    if gating_result.gated {
-        let response = LinkAnalyticsResponse {
-            link,
-            total_clicks_in_range: 0,
-            clicks_over_time: vec![],
-            top_referrers: vec![],
-            top_countries: vec![],
-            top_user_agents: vec![],
-            analytics_gated: Some(true),
-            gated_reason: gating_result.reason,
-        };
-        return Response::from_json(&response);
-    }
-
-    let repo = AnalyticsRepository::new();
-
-    // Run analytics queries sequentially (D1 limitation)
-    let total_clicks_in_range = repo
-        .get_link_total_clicks_in_range(&db, link_id, org_id, start, end)
-        .await?;
-    let clicks_over_time = repo
-        .get_link_clicks_over_time(&db, link_id, org_id, start, end)
-        .await?;
-    let top_referrers = repo
-        .get_link_top_referrers(&db, link_id, org_id, start, end, 10)
-        .await?;
-    let top_countries = repo
-        .get_link_top_countries(&db, link_id, org_id, start, end, 10)
-        .await?;
-    let top_user_agents = repo
-        .get_link_top_user_agents(&db, link_id, org_id, start, end, 20)
-        .await?;
+    let analytics_result = get_link_analytics(&db, link_id, org_id, time_range).await?;
 
     let response = LinkAnalyticsResponse {
-        link,
-        total_clicks_in_range,
-        clicks_over_time,
-        top_referrers,
-        top_countries,
-        top_user_agents,
-        analytics_gated: None,
-        gated_reason: None,
+        link: analytics_result.link,
+        total_clicks_in_range: analytics_result.total_clicks,
+        clicks_over_time: analytics_result.clicks_over_time,
+        top_referrers: analytics_result.referrers,
+        top_countries: analytics_result.countries,
+        top_user_agents: analytics_result.user_agents,
+        analytics_gated: if analytics_result.gated {
+            Some(true)
+        } else {
+            None
+        },
+        gated_reason: analytics_result.gated_reason,
     };
 
-    Response::from_json(&response)
+    Ok(Response::from_json(&response)?)
 }

@@ -1,8 +1,8 @@
 use crate::auth;
 use crate::models::link::UpdateLinkRequest;
-use crate::models::tier::Tier;
-use crate::repositories::tag_repository::validate_and_normalize_tags;
-use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
+use crate::repositories::BlacklistRepository;
+use crate::services::LinkService;
+use crate::utils::validate_and_normalize_tags;
 use crate::utils::{now_timestamp, validate_url};
 use serde_json::json;
 use worker::d1::D1Database;
@@ -92,69 +92,40 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     }
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let kv = ctx.kv("URL_MAPPINGS")?;
-    let repo = LinkRepository::new();
+    let link_service = LinkService::new();
 
-    let _existing_link = match repo.get_by_id(&db, &link_id, &user_ctx.org_id).await? {
-        Some(link) => link,
-        None => return Ok(json_error("Link not found", 404)),
-    };
+    match link_service.get_link(&db, &link_id, &user_ctx.org_id).await {
+        Ok(None) => return Ok(json_error("Link not found", 404)),
+        Ok(Some(_)) => {}
+        Err(e) => return Err(worker::Error::RustError(e.to_string())),
+    }
 
-    let billing_repo = BillingRepository::new();
-    let billing_account = billing_repo
-        .get_for_org(&db, &user_ctx.org_id)
-        .await?
-        .ok_or_else(|| Error::RustError("No billing account found for organization".to_string()))?;
-    let tier = Tier::from_str_value(&billing_account.tier);
-    let is_pro_or_above = matches!(
-        tier.as_ref(),
-        Some(Tier::Pro) | Some(Tier::Business) | Some(Tier::Unlimited)
-    );
-
-    let wants_pro_features = update_req
+    let wants_redirect_type =
+        update_req.redirect_type.is_some() && update_req.redirect_type.as_deref() != Some("301");
+    let wants_utm_or_forward = update_req
         .utm_params
         .as_ref()
         .map(|u| !u.is_empty())
         .unwrap_or(false)
-        || update_req.forward_query_params.is_some()
-        || (update_req.redirect_type.is_some()
-            && update_req.redirect_type.as_deref() != Some("301"));
-    if wants_pro_features && !is_pro_or_above {
-        let error_msg = if update_req.redirect_type.is_some()
-            && update_req.redirect_type.as_deref() != Some("301")
-        {
-            "Custom redirect types (307) require a Pro plan or above."
-        } else {
-            "UTM parameters and query parameter forwarding require a Pro plan or above."
-        };
-        return Ok(json_error(error_msg, 403));
-    }
+        || update_req.forward_query_params.is_some();
 
-    let utm_json_for_db: Option<Option<String>> = update_req.utm_params.as_ref().map(|u| {
-        if u.is_empty() {
-            None
-        } else {
-            u.to_json_string()
-        }
-    });
-
-    let mut updated_link = repo
-        .update(
+    let (billing_account_id, tier) = match link_service
+        .check_pro_features_for_org(
             &db,
-            &link_id,
             &user_ctx.org_id,
-            update_req.destination_url.as_deref(),
-            update_req.title.as_deref(),
-            update_req.status.as_ref().map(|s| s.as_str()),
-            expires_at_for_repo,
-            utm_json_for_db.as_ref().map(|o| o.as_deref()),
-            update_req.forward_query_params.map(Some),
-            update_req.redirect_type.as_deref(),
+            wants_redirect_type,
+            wants_utm_or_forward,
         )
-        .await?;
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::utils::AppError::Forbidden(msg)) => return Ok(json_error(&msg, 403)),
+        Err(e) => return Err(worker::Error::RustError(e.to_string())),
+    };
 
-    if let Some(tags) = update_req.tags {
-        let normalized_tags = match validate_and_normalize_tags(&tags) {
+    let mut normalized_tags = None;
+    if let Some(ref tags) = update_req.tags {
+        let tags = match validate_and_normalize_tags(tags) {
             Ok(t) => t,
             Err(e) => return Ok(json_error(&e.to_string(), 400)),
         };
@@ -163,106 +134,49 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         if let Some(ref limits) = tier_limits
             && let Some(max_tags) = limits.max_tags
         {
-            let current_tag_count = TagRepository::new()
-                .count_distinct_tags_for_billing_account(&db, &billing_account.id)
-                .await?;
-
-            let existing_link_tags = repo.get_tags(&db, &link_id).await?;
-            let existing_tags_set: std::collections::HashSet<String> =
-                existing_link_tags.into_iter().collect();
-            let new_tags_set: std::collections::HashSet<String> =
-                normalized_tags.iter().cloned().collect();
-
-            let existing_ba_tags_query = db.prepare(
-                "SELECT DISTINCT tag_name
-                 FROM link_tags lt
-                 JOIN organizations o ON lt.org_id = o.id
-                 WHERE o.billing_account_id = ?1",
-            );
-            let existing_ba_tags_result = existing_ba_tags_query
-                .bind(&[billing_account.id.clone().into()])?
-                .all()
-                .await?;
-            let existing_ba_tags_set: std::collections::HashSet<String> = existing_ba_tags_result
-                .results::<serde_json::Value>()?
-                .iter()
-                .filter_map(|row| row["tag_name"].as_str().map(|s| s.to_string()))
-                .collect();
-
-            let tags_being_removed: std::collections::HashSet<String> = existing_tags_set
-                .difference(&new_tags_set)
-                .cloned()
-                .collect();
-
-            let tags_being_added: std::collections::HashSet<String> = new_tags_set
-                .difference(&existing_tags_set)
-                .cloned()
-                .collect();
-
-            let mut disappearing_count = 0;
-            for tag in &tags_being_removed {
-                let usage_query = db.prepare(
-                    "SELECT COUNT(*) as count
-                     FROM link_tags lt
-                     JOIN organizations o ON lt.org_id = o.id
-                     WHERE o.billing_account_id = ?1 AND lt.tag_name = ?2 AND lt.link_id != ?3",
-                );
-                let usage_result = usage_query
-                    .bind(&[
-                        billing_account.id.clone().into(),
-                        tag.as_str().into(),
-                        link_id.as_str().into(),
-                    ])?
-                    .first::<serde_json::Value>(None)
-                    .await?;
-                let usage_count = usage_result
-                    .and_then(|r| r["count"].as_f64())
-                    .unwrap_or(0.0) as i64;
-
-                if usage_count == 0 {
-                    disappearing_count += 1;
-                }
-            }
-
-            let new_to_ba_count = tags_being_added
-                .iter()
-                .filter(|tag| !existing_ba_tags_set.contains(*tag))
-                .count() as i64;
-
-            let net_change = new_to_ba_count - disappearing_count;
-
-            if current_tag_count + net_change > max_tags {
-                let remaining = max_tags.saturating_sub(current_tag_count);
-                let message = if remaining > 0 {
-                    format!(
-                        "You can create {} more tag{} across all organizations. Upgrade your plan to add more tags.",
-                        remaining,
-                        if remaining == 1 { "" } else { "s" }
-                    )
-                } else {
-                    "You have reached your tag limit across all organizations. Upgrade your plan to create more tags."
-                        .to_string()
-                };
-                return Ok(json_error(&message, 403));
+            match link_service
+                .check_tag_limit_for_update(&db, &billing_account_id, &link_id, &tags, max_tags)
+                .await
+            {
+                Ok(()) => {}
+                Err(crate::utils::AppError::Forbidden(msg)) => return Ok(json_error(&msg, 403)),
+                Err(e) => return Err(worker::Error::RustError(e.to_string())),
             }
         }
 
-        repo.set_tags(&db, &link_id, &user_ctx.org_id, &normalized_tags)
-            .await?;
-        updated_link.tags = normalized_tags;
-    } else {
-        updated_link.tags = repo.get_tags(&db, &link_id).await?;
+        normalized_tags = Some(tags);
     }
 
-    let kv_needs_update = update_req.destination_url.is_some()
-        || update_req.status.is_some()
-        || update_req.utm_params.is_some()
-        || update_req.forward_query_params.is_some()
-        || update_req.expires_at.is_some()
-        || update_req.clear_expiration.is_some();
-    if kv_needs_update {
-        repo.sync_kv_from_link(&db, &kv, &updated_link).await?;
-    }
+    let kv = ctx.kv("URL_MAPPINGS")?;
+
+    let expires_at_value = if update_req.clear_expiration == Some(true) {
+        Some(None)
+    } else {
+        update_req.expires_at.map(Some)
+    };
+
+    let status_str = update_req.status.as_ref().map(|s| s.as_str().to_string());
+
+    let updated_link = link_service
+        .update_link(
+            &db,
+            &kv,
+            &link_id,
+            &user_ctx.org_id,
+            update_req.destination_url.clone(),
+            update_req.title.clone(),
+            expires_at_value,
+            normalized_tags,
+            update_req
+                .utm_params
+                .clone()
+                .map(|u| if u.is_empty() { None } else { Some(u) }),
+            update_req.forward_query_params.map(Some),
+            status_str,
+            update_req.redirect_type.clone(),
+        )
+        .await
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
     Response::from_json(&updated_link)
 }

@@ -1,5 +1,4 @@
-use crate::auth;
-use crate::repositories::LinkRepository;
+use crate::services::LinkService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -23,26 +22,31 @@ use worker::*;
     )
 )]
 pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_get_link(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
+
+async fn inner_get_link(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
     let org_id = &user_ctx.org_id;
 
     let link_id = ctx
         .param("id")
-        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?;
+        .ok_or_else(|| crate::utils::AppError::BadRequest("Missing link ID".to_string()))?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = LinkRepository::new();
-    let link = repo.get_by_id(&db, link_id, org_id).await?;
+    let service = LinkService::new();
+    let link = service.get_link(&db, link_id, org_id).await?;
 
     match link {
-        Some(mut link) => {
-            link.tags = repo.get_tags(&db, &link.id).await?;
-            Response::from_json(&link)
-        }
-        None => Response::error("Link not found", 404),
+        Some(link) => Ok(Response::from_json(&link)?),
+        None => Err(crate::utils::AppError::NotFound(
+            "Link not found".to_string(),
+        )),
     }
 }
 
@@ -66,22 +70,30 @@ pub async fn handle_get_link(req: Request, ctx: RouteContext<()>) -> Result<Resp
     )
 )]
 pub async fn handle_get_link_by_code(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_get_link_by_code(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
+
+async fn inner_get_link_by_code(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
     let org_id = &user_ctx.org_id;
 
     let short_code = ctx
         .param("code")
-        .ok_or_else(|| Error::RustError("Missing short code".to_string()))?;
+        .ok_or_else(|| crate::utils::AppError::BadRequest("Missing short code".to_string()))?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = LinkRepository::new();
-    let link = repo.get_by_short_code(&db, short_code, org_id).await?;
+    let service = LinkService::new();
+    let link = service.get_link_by_code(&db, short_code, org_id).await?;
 
     match link {
-        Some(link) => Response::from_json(&link),
-        None => Response::error("Link not found", 404),
+        Some(link) => Ok(Response::from_json(&link)?),
+        None => Err(crate::utils::AppError::NotFound(
+            "Link not found".to_string(),
+        )),
     }
 }

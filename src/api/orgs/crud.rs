@@ -5,24 +5,11 @@
 /// PATCH  /api/orgs/{id} - Update organization
 /// DELETE /api/orgs/{id} - Delete organization
 use crate::auth;
-use crate::models::Tier;
-use crate::repositories::{BillingRepository, LinkRepository, OrgRepository};
+use crate::repositories::OrgRepository;
 use crate::services::OrgService;
 use crate::utils::AppError;
-use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::*;
-
-/// Helper to get effective tier for an organization
-async fn get_org_tier(db: &D1Database, org: &crate::models::Organization) -> Tier {
-    let billing_repo = BillingRepository::new();
-    if let Some(ref billing_account_id) = org.billing_account_id
-        && let Ok(Some(billing_account)) = billing_repo.get_by_id(db, billing_account_id).await
-    {
-        return Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
-    }
-    Tier::Free
-}
 
 #[utoipa::path(
     post,
@@ -48,10 +35,8 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     let user_ctx = auth::authenticate_request(&req, &ctx).await?;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = OrgRepository::new();
-    OrgService::new()
-        .check_org_limit(&db, &user_ctx.user_id)
-        .await?;
+    let service = OrgService::new();
+    service.check_org_limit(&db, &user_ctx.user_id).await?;
 
     let body: serde_json::Value = req
         .json()
@@ -72,15 +57,8 @@ async fn inner_create_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         ));
     }
 
-    // Create the org linked to the user's billing account
-    let billing_account = crate::repositories::BillingRepository::new()
-        .get_for_user(&db, &user_ctx.user_id)
-        .await?
-        .ok_or_else(|| AppError::Internal("No billing account found".to_string()))?;
-    let org = repo
-        .create_with_billing_account(&db, &name, &user_ctx.user_id, &billing_account.id)
-        .await?;
-    repo.add_member(&db, &org.id, &user_ctx.user_id, "owner")
+    let org = service
+        .create_org_with_billing(&db, &user_ctx.user_id, &name)
         .await?;
 
     // Issue a new access token scoped to the new org
@@ -150,24 +128,17 @@ async fn inner_get_org(req: Request, ctx: RouteContext<()>) -> Result<Response, 
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let service = OrgService::new();
     let repo = OrgRepository::new();
 
-    // Verify user is a member of this org
-    let member = repo.get_member(&db, &org_id, &user_ctx.user_id).await?;
-    let member = match member {
-        Some(m) => m,
-        None => return Err(AppError::NotFound("Organization not found".to_string())),
-    };
-
-    let org = repo
-        .get_by_id(&db, &org_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+    let (org, member) = service
+        .get_org_as_member(&db, &org_id, &user_ctx.user_id)
+        .await?;
 
     let members = repo.get_members(&db, &org_id).await?;
 
     // Get tier from billing account for API response
-    let tier = get_org_tier(&db, &org).await;
+    let tier = service.get_org_tier(&db, &org).await;
 
     // Owners and admins see pending invitations
     let pending_invitations = if member.role == "owner" || member.role == "admin" {
@@ -225,19 +196,17 @@ async fn inner_update_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+    let service = OrgService::new();
     let repo = OrgRepository::new();
 
-    // Verify user is an owner or admin of this org
-    let member = repo.get_member(&db, &org_id, &user_ctx.user_id).await?;
-    match &member {
-        Some(m) if m.role == "owner" || m.role == "admin" => {}
-        Some(_) => {
-            return Err(AppError::Forbidden(
-                "Only org owners and admins can rename the organization".to_string(),
-            ));
-        }
-        None => return Err(AppError::NotFound("Organization not found".to_string())),
-    }
+    service
+        .require_owner_or_admin(
+            &db,
+            &org_id,
+            &user_ctx.user_id,
+            "Only org owners and admins can rename the organization",
+        )
+        .await?;
 
     let body: serde_json::Value = req
         .json()
@@ -266,7 +235,7 @@ async fn inner_update_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         .ok_or_else(|| AppError::Internal("Organization not found after update".to_string()))?;
 
     // Get tier from billing account for API response
-    let tier = get_org_tier(&db, &updated_org).await;
+    let tier = service.get_org_tier(&db, &updated_org).await;
 
     Ok(Response::from_json(&serde_json::json!({
         "org": {
@@ -313,19 +282,17 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let kv = ctx.kv("URL_MAPPINGS")?;
+    let service = OrgService::new();
     let repo = OrgRepository::new();
 
-    // Verify user is an owner of this org
-    let member = repo.get_member(&db, &org_id, &user_ctx.user_id).await?;
-    match &member {
-        Some(m) if m.role == "owner" => {}
-        Some(_) => {
-            return Err(AppError::Forbidden(
-                "Only org owners can delete the organization".to_string(),
-            ));
-        }
-        None => return Err(AppError::NotFound("Organization not found".to_string())),
-    }
+    service
+        .require_owner(
+            &db,
+            &org_id,
+            &user_ctx.user_id,
+            "Only org owners can delete the organization",
+        )
+        .await?;
 
     // Verify user has multiple orgs
     let owned_orgs = repo.count_user_owned_orgs(&db, &user_ctx.user_id).await?;
@@ -344,122 +311,11 @@ async fn inner_delete_org(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     let action = body["action"].as_str().ok_or_else(|| {
         AppError::BadRequest("action is required (delete or migrate)".to_string())
     })?;
+    let target_org_id = body["target_org_id"].as_str();
 
-    let link_repo = LinkRepository::new();
-    let billing_repo = BillingRepository::new();
-
-    match action {
-        "delete" => {
-            // Get all link IDs and their short codes for KV cleanup
-            let link_ids = repo.get_link_ids(&db, &org_id).await?;
-
-            // Delete from KV first
-            for link_id in &link_ids {
-                if let Some(link) = link_repo.get_by_id(&db, link_id, &org_id).await? {
-                    let _ = kv.delete(&link.short_code).await;
-                }
-            }
-
-            // Hard delete links and analytics from D1
-            repo.delete_all_links(&db, &org_id).await?;
-        }
-        "migrate" => {
-            let target_org_id = body["target_org_id"].as_str().ok_or_else(|| {
-                AppError::BadRequest("target_org_id is required when action is migrate".to_string())
-            })?;
-
-            // Verify user is owner of target org
-            let target_member = repo
-                .get_member(&db, target_org_id, &user_ctx.user_id)
-                .await?;
-            match &target_member {
-                Some(m) if m.role == "owner" => {}
-                Some(_) => {
-                    return Err(AppError::Forbidden(
-                        "You must be an owner of the target organization".to_string(),
-                    ));
-                }
-                None => {
-                    return Err(AppError::NotFound(
-                        "Target organization not found".to_string(),
-                    ));
-                }
-            }
-
-            // Get target org and check capacity at billing account level
-            let target_org = repo
-                .get_by_id(&db, target_org_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound("Target organization not found".to_string()))?;
-
-            let target_billing_account_id =
-                target_org.billing_account_id.as_deref().ok_or_else(|| {
-                    AppError::Internal("Target organization has no billing account".to_string())
-                })?;
-            let target_billing_account = billing_repo
-                .get_by_id(&db, target_billing_account_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound("Billing account not found".to_string()))?;
-
-            let target_tier =
-                Tier::from_str_value(&target_billing_account.tier).unwrap_or(Tier::Free);
-            let target_limits = target_tier.limits();
-
-            // Count links in source org
-            let source_link_count = repo.count_links(&db, &org_id).await?;
-
-            // Check if target billing account has enough capacity
-            if let Some(max_links) = target_limits.max_links_per_month {
-                let now = chrono::Utc::now();
-                let year_month = format!("{}-{:02}", now.year(), now.month());
-                let target_current_usage = billing_repo
-                    .get_monthly_counter(&db, target_billing_account_id, &year_month)
-                    .await?;
-
-                let target_available = max_links - target_current_usage;
-
-                if source_link_count > target_available {
-                    return Err(AppError::BadRequest(format!(
-                        "Target billing account has insufficient capacity. Available slots: {}, Required: {}",
-                        target_available, source_link_count
-                    )));
-                }
-
-                // Update target billing account's monthly counter
-                billing_repo
-                    .increment_monthly_counter(
-                        &db,
-                        target_billing_account_id,
-                        &year_month,
-                        source_link_count,
-                    )
-                    .await?;
-            }
-
-            // Migrate links in D1
-            repo.migrate_links(&db, &org_id, target_org_id).await?;
-
-            // Update KV mappings
-            let migrated_link_ids = repo.get_link_ids(&db, target_org_id).await?;
-            for link_id in &migrated_link_ids {
-                if let Some(link) = link_repo.get_by_id(&db, link_id, target_org_id).await? {
-                    let resolved_forward = link.forward_query_params.unwrap_or(false);
-                    let mapping = link.to_mapping(resolved_forward);
-                    if let Ok(put_builder) = kv.put(&link.short_code, mapping) {
-                        let _ = put_builder.execute().await;
-                    }
-                }
-            }
-        }
-        _ => {
-            return Err(AppError::BadRequest(
-                "Invalid action. Must be 'delete' or 'migrate'".to_string(),
-            ));
-        }
-    }
-
-    // Delete the organization
-    repo.delete(&db, &org_id).await?;
+    service
+        .delete_org(&db, &kv, &org_id, &user_ctx.user_id, action, target_org_id)
+        .await?;
 
     // Find another owned org to switch to
     let user_orgs = repo.get_user_orgs(&db, &user_ctx.user_id).await?;

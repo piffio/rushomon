@@ -1,6 +1,5 @@
-use crate::auth;
 use crate::models::{PaginatedResponse, PaginationMeta};
-use crate::repositories::LinkRepository;
+use crate::services::LinkService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -28,13 +27,21 @@ use worker::*;
     )
 )]
 pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_list_links(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
+
+async fn inner_list_links(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
     let org_id = &user_ctx.org_id;
 
-    let url = req.url()?;
+    let url = req
+        .url()
+        .map_err(|e| crate::utils::AppError::Internal(format!("Invalid URL: {}", e)))?;
     let query = url.query().unwrap_or("");
 
     let page: i64 = query
@@ -106,20 +113,10 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
     let offset = (page - 1) * limit;
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = LinkRepository::new();
+    let service = LinkService::new();
 
-    let total = repo
-        .count_filtered(
-            &db,
-            org_id,
-            search.as_deref(),
-            status_filter,
-            tags_filter_opt,
-        )
-        .await?;
-
-    let mut links = repo
-        .list_filtered(
+    let (links, total, stats_json) = service
+        .list_links(
             &db,
             org_id,
             search.as_deref(),
@@ -131,18 +128,8 @@ pub async fn handle_list_links(req: Request, ctx: RouteContext<()>) -> Result<Re
         )
         .await?;
 
-    let stats = repo.get_dashboard_stats(&db, org_id).await?;
-
-    let link_ids: Vec<String> = links.iter().map(|l| l.id.clone()).collect();
-    let tags_map = repo.get_tags_for_links(&db, &link_ids).await?;
-    for link in &mut links {
-        link.tags = tags_map.get(&link.id).cloned().unwrap_or_default();
-    }
-
     let pagination = PaginationMeta::new(page, limit, total);
-    let stats_json = serde_json::to_value(&stats)
-        .map_err(|e| Error::RustError(format!("Failed to serialize stats: {}", e)))?;
     let response = PaginatedResponse::with_stats(links, pagination, stats_json);
 
-    Response::from_json(&response)
+    Ok(Response::from_json(&response)?)
 }

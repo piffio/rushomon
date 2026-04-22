@@ -1,7 +1,6 @@
 use crate::auth;
-use crate::kv;
-use crate::repositories::{LinkRepository, OrgRepository};
-use crate::services::ReportService;
+use crate::models::link::LinkStatus;
+use crate::services::LinkService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -25,16 +24,21 @@ use worker::*;
     security(("Bearer" = []), ("session_cookie" = []))
 )]
 pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_admin_list_links(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
 
-    if let Err(e) = auth::require_admin(&user_ctx) {
-        return Ok(e.into_response());
-    }
+async fn inner_admin_list_links(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
+    crate::auth::require_admin(&user_ctx)?;
 
-    let url = req.url()?;
+    let url = req
+        .url()
+        .map_err(|e| crate::utils::AppError::Internal(format!("Invalid URL: {}", e)))?;
     let page: i64 = url
         .query()
         .and_then(|q| {
@@ -56,7 +60,7 @@ pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Res
         .unwrap_or(50)
         .min(100);
 
-    let offset = (page - 1) * limit;
+    let _offset = (page - 1) * limit;
 
     let org_filter = url.query().and_then(|q| {
         q.split('&')
@@ -78,21 +82,18 @@ pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Res
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let kv = ctx.kv("URL_MAPPINGS")?;
-    let repo = LinkRepository::new();
+    let service = LinkService::new();
 
-    let links = repo
-        .list_admin(
+    let (links, total) = service
+        .admin_list_links(
             &db,
             &kv,
+            page,
             limit,
-            offset,
             org_filter,
             email_filter,
             domain_filter,
         )
-        .await?;
-    let total = repo
-        .count_admin(&db, org_filter, email_filter, domain_filter)
         .await?;
 
     Response::from_json(&serde_json::json!({
@@ -101,6 +102,7 @@ pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Res
         "page": page,
         "limit": limit,
     }))
+    .map_err(|e| crate::utils::AppError::Internal(format!("JSON error: {}", e)))
 }
 
 #[utoipa::path(
@@ -118,70 +120,70 @@ pub async fn handle_admin_list_links(req: Request, ctx: RouteContext<()>) -> Res
     security(("Bearer" = []), ("session_cookie" = []))
 )]
 pub async fn handle_admin_update_link_status(
-    mut req: Request,
+    req: Request,
     ctx: RouteContext<()>,
 ) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_admin_update_link_status(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
 
-    if let Err(e) = auth::require_admin(&user_ctx) {
-        return Ok(e.into_response());
-    }
+async fn inner_admin_update_link_status(
+    mut req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
+    crate::auth::require_admin(&user_ctx)?;
 
     let link_id = ctx
         .param("id")
-        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?
+        .ok_or_else(|| crate::utils::AppError::BadRequest("Missing link ID".to_string()))?
         .to_string();
 
-    let body: serde_json::Value = match req.json().await {
-        Ok(body) => body,
-        Err(e) => return Response::error(format!("Invalid JSON: {}", e), 400),
-    };
+    let body: serde_json::Value = req
+        .json()
+        .await
+        .map_err(|e| crate::utils::AppError::BadRequest(format!("Invalid JSON: {}", e)))?;
 
     let status = match body.get("status").and_then(|s| s.as_str()) {
         Some(s) if s == "active" || s == "disabled" || s == "blocked" => s.to_string(),
         Some(_) => {
-            return Response::error(
-                "Invalid status. Must be 'active', 'disabled', or 'blocked'",
-                400,
-            );
+            return Err(crate::utils::AppError::BadRequest(
+                "Invalid status. Must be 'active', 'disabled', or 'blocked'".to_string(),
+            ));
         }
-        None => return Response::error("Missing 'status' field", 400),
+        None => {
+            return Err(crate::utils::AppError::BadRequest(
+                "Missing 'status' field".to_string(),
+            ));
+        }
     };
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-
-    if let Err(e) = ReportService::new()
-        .update_link_status_and_resolve_reports(&db, &link_id, &status, &user_ctx.user_id)
-        .await
-    {
-        return Ok(e.into_response());
-    }
-
     let kv = ctx.kv("URL_MAPPINGS")?;
-    let repo = LinkRepository::new();
-    match repo.get_by_id_no_auth_all(&db, &link_id).await? {
-        Some(updated_link) => {
-            repo.sync_kv_from_link(&db, &kv, &updated_link).await?;
+    let service = LinkService::new();
+
+    // Parse status string to LinkStatus enum
+    let status_enum = match status.as_str() {
+        "active" => LinkStatus::Active,
+        "disabled" => LinkStatus::Disabled,
+        "blocked" => LinkStatus::Blocked,
+        _ => {
+            return Err(crate::utils::AppError::BadRequest(
+                "Invalid status".to_string(),
+            ));
         }
-        None => {
-            console_log!(
-                "{}",
-                serde_json::json!({
-                    "event": "admin_link_sync_not_found",
-                    "link_id": link_id,
-                    "level": "critical"
-                })
-            );
-        }
-    }
+    };
+
+    service
+        .admin_update_link_status(&db, &kv, &link_id, status_enum)
+        .await?;
 
     Response::from_json(&serde_json::json!({
         "success": true,
         "message": format!("Link status updated to {}", status)
     }))
+    .map_err(|e| crate::utils::AppError::Internal(format!("JSON error: {}", e)))
 }
 
 #[utoipa::path(
@@ -199,37 +201,34 @@ pub async fn handle_admin_update_link_status(
     security(("Bearer" = []), ("session_cookie" = []))
 )]
 pub async fn handle_admin_delete_link(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
-        Ok(ctx) => ctx,
-        Err(e) => return Ok(e.into_response()),
-    };
+    Ok(inner_admin_delete_link(req, ctx)
+        .await
+        .unwrap_or_else(|e| e.into_response()))
+}
 
-    if let Err(e) = auth::require_admin(&user_ctx) {
-        return Ok(e.into_response());
-    }
+async fn inner_admin_delete_link(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response, crate::utils::AppError> {
+    let user_ctx = crate::auth::authenticate_request(&req, &ctx).await?;
+    crate::auth::require_admin(&user_ctx)?;
 
     let link_id = ctx
         .param("id")
-        .ok_or_else(|| Error::RustError("Missing link ID".to_string()))?
+        .ok_or_else(|| crate::utils::AppError::BadRequest("Missing link ID".to_string()))?
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = LinkRepository::new();
-
-    let link = match repo.get_by_id_no_auth_all(&db, &link_id).await? {
-        Some(link) => link,
-        None => return Response::error("Link not found", 404),
-    };
-
-    repo.hard_delete(&db, &link_id, &link.org_id).await?;
-
     let kv = ctx.kv("URL_MAPPINGS")?;
-    kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
+    let service = LinkService::new();
+
+    service.admin_delete_link(&db, &kv, &link_id).await?;
 
     Response::from_json(&serde_json::json!({
         "success": true,
         "message": "Link deleted successfully"
     }))
+    .map_err(|e| crate::utils::AppError::Internal(format!("JSON error: {}", e)))
 }
 
 #[utoipa::path(
@@ -263,53 +262,11 @@ pub async fn handle_admin_sync_link_kv(req: Request, ctx: RouteContext<()>) -> R
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let kv = ctx.kv("URL_MAPPINGS")?;
-    let repo = LinkRepository::new();
 
-    let link = match repo.get_by_id_no_auth_all(&db, &link_id).await? {
-        Some(link) => link,
-        None => return Response::error("Link not found", 404),
-    };
-
-    match link.status.as_str() {
-        "active" => {
-            let link_model = crate::models::Link {
-                id: link.id.clone(),
-                org_id: link.org_id.clone(),
-                short_code: link.short_code.clone(),
-                destination_url: link.destination_url.clone(),
-                title: link.title.clone(),
-                created_by: link.created_by.clone(),
-                created_at: link.created_at,
-                updated_at: link.updated_at,
-                expires_at: link.expires_at,
-                status: crate::models::link::LinkStatus::Active,
-                click_count: link.click_count,
-                tags: link.tags,
-                utm_params: link.utm_params,
-                forward_query_params: link.forward_query_params,
-                redirect_type: link.redirect_type.clone(),
-            };
-
-            let org_repo = OrgRepository::new();
-            let resolved_forward = if let Some(forward) = link.forward_query_params {
-                forward
-            } else {
-                org_repo
-                    .get_forward_query_params(&db, &link.org_id)
-                    .await
-                    .unwrap_or(false)
-            };
-
-            let mapping = link_model.to_mapping(resolved_forward);
-            kv::store_link_mapping(&kv, &link.org_id, &link.short_code, &mapping).await?;
-        }
-        "blocked" | "disabled" => {
-            kv::delete_link_mapping(&kv, &link.org_id, &link.short_code).await?;
-        }
-        _ => {
-            return Response::error("Cannot sync link with unknown status", 400);
-        }
-    }
+    LinkService::new()
+        .admin_sync_link_kv(&db, &kv, &link_id)
+        .await
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
 
     Response::from_json(&serde_json::json!({
         "success": true,

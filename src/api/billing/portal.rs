@@ -1,7 +1,5 @@
 use crate::auth;
-use crate::billing::polar::polar_client_from_env;
-use crate::repositories::BillingRepository;
-use crate::utils::get_frontend_url;
+use crate::services::BillingService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -28,51 +26,22 @@ pub async fn handle_portal(req: Request, ctx: RouteContext<()>) -> Result<Respon
         Err(e) => return Ok(e.into_response()),
     };
 
-    let polar = match polar_client_from_env(&ctx.env) {
-        Ok(p) => p,
-        Err(_) => return Response::error("Billing not configured", 503),
-    };
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
-    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("[portal] DB binding unavailable: {}", e);
-            return Response::error("Service temporarily unavailable", 503);
-        }
-    };
-
-    let billing_account = match BillingRepository::new()
-        .get_for_user(&db, &user_ctx.user_id)
-        .await?
-    {
-        Some(ba) => ba,
-        None => return Response::error("No billing account found", 400),
-    };
-
-    let customer_id = match billing_account.provider_customer_id {
-        Some(ref id) if !id.is_empty() => id.clone(),
-        _ => {
-            console_error!(
-                "[portal] No Polar customer_id for billing_account: {}",
-                billing_account.id
-            );
-            return Response::error(
-                "No billing account found. Please create a subscription first.",
-                400,
-            );
-        }
-    };
-
-    let frontend_url = get_frontend_url(&ctx.env);
-    let return_url = format!("{}/billing", frontend_url);
-
-    match polar
-        .create_customer_portal_session(&customer_id, &return_url)
+    match BillingService::new()
+        .create_portal_session(&db, &ctx.env, &user_ctx.user_id)
         .await
     {
-        Ok(portal_url) => Response::from_json(&serde_json::json!({ "url": portal_url })),
+        Ok(session) => Response::from_json(&serde_json::json!({ "url": session.url })),
         Err(e) => {
-            console_error!("[portal] Polar API error: {}", e);
+            let msg = e.to_string();
+            if msg.contains("No billing account found") {
+                return Response::error(&msg, 400);
+            }
+            if msg.contains("Billing not configured") {
+                return Response::error("Billing not configured", 503);
+            }
+            console_error!("[portal] error: {}", e);
             Response::error("Failed to create portal session", 500)
         }
     }

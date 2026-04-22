@@ -1,5 +1,5 @@
 use crate::auth;
-use crate::repositories::{BillingRepository, OrgRepository};
+use crate::services::BillingService;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -25,73 +25,29 @@ pub async fn handle_get_status(req: Request, ctx: RouteContext<()>) -> Result<Re
     };
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let repo = BillingRepository::new();
-    let org_repo = OrgRepository::new();
 
-    let billing_account = match repo.get_for_user(&db, &user_ctx.user_id).await? {
-        Some(ba) => ba,
-        None => {
-            let org = org_repo
-                .create_default(&db, &user_ctx.user_id, "Personal")
-                .await?;
-            match repo
-                .get_by_id(&db, org.billing_account_id.as_deref().unwrap_or(""))
-                .await?
-            {
-                Some(ba) => ba,
-                None => {
-                    return Response::from_json(&serde_json::json!({
-                        "tier": "free",
-                        "subscription_status": null,
-                        "subscription_id": null,
-                        "current_period_end": null,
-                        "cancel_at_period_end": false,
-                        "provider_customer_id": null,
-                        "billing_account_id": null,
-                        "amount_cents": null,
-                        "currency": null,
-                        "discount_name": null,
-                        "interval": null,
-                        "subscription_plan": null,
-                    }));
-                }
-            }
+    match BillingService::new()
+        .get_billing_status(&db, &user_ctx.user_id)
+        .await
+    {
+        Ok(status) => Response::from_json(&serde_json::json!({
+            "tier": status.tier,
+            "is_billing_owner": status.is_billing_owner,
+            "subscription_status": status.subscription_status,
+            "subscription_id": status.subscription_id,
+            "current_period_end": status.current_period_end,
+            "cancel_at_period_end": status.cancel_at_period_end,
+            "provider_customer_id": status.provider_customer_id,
+            "billing_account_id": status.billing_account_id,
+            "amount_cents": status.amount_cents,
+            "currency": status.currency,
+            "discount_name": status.discount_name,
+            "interval": status.interval,
+            "subscription_plan": status.subscription_plan,
+        })),
+        Err(e) => {
+            console_error!("[billing] get_billing_status error: {}", e);
+            Response::error("Service temporarily unavailable", 503)
         }
-    };
-
-    let subscription = repo.get_subscription(&db, &billing_account.id).await?;
-    let is_billing_owner = billing_account.owner_user_id == user_ctx.user_id;
-
-    match subscription {
-        Some(sub) => Response::from_json(&serde_json::json!({
-            "tier": billing_account.tier,
-            "is_billing_owner": is_billing_owner,
-            "subscription_status": sub["status"],
-            "subscription_id": sub["id"],
-            "current_period_end": sub["current_period_end"],
-            "cancel_at_period_end": sub["cancel_at_period_end"].as_i64().unwrap_or(0) != 0,
-            "provider_customer_id": billing_account.provider_customer_id,
-            "billing_account_id": billing_account.id,
-            "amount_cents": sub["amount_cents"],
-            "currency": sub["currency"],
-            "discount_name": sub["discount_name"],
-            "interval": sub["interval"],
-            "subscription_plan": sub["plan"],
-        })),
-        None => Response::from_json(&serde_json::json!({
-            "tier": billing_account.tier,
-            "is_billing_owner": is_billing_owner,
-            "subscription_status": null,
-            "subscription_id": null,
-            "current_period_end": null,
-            "cancel_at_period_end": false,
-            "provider_customer_id": billing_account.provider_customer_id,
-            "billing_account_id": billing_account.id,
-            "amount_cents": null,
-            "currency": null,
-            "discount_name": null,
-            "interval": null,
-            "subscription_plan": null,
-        })),
     }
 }

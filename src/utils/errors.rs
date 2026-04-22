@@ -36,6 +36,8 @@ pub enum AppError {
     Internal(String),
     /// 403 with tier upgrade message
     TierLimitReached(String),
+    /// 429 Too Many Requests — rate limit or duplicate submission
+    TooManyRequests(String),
 }
 
 impl AppError {
@@ -49,8 +51,11 @@ impl AppError {
             AppError::Conflict(m) => (m, 409),
             AppError::Internal(m) => (m, 500),
             AppError::TierLimitReached(m) => (m, 403),
+            AppError::TooManyRequests(m) => (m, 429),
         };
-        Response::error(msg, status).unwrap_or_else(|_| Response::error("Error", status).unwrap())
+        Response::from_json(&serde_json::json!({ "message": msg }))
+            .unwrap_or_else(|_| Response::error("Error", status).unwrap())
+            .with_status(status)
     }
 }
 
@@ -63,7 +68,8 @@ impl std::fmt::Display for AppError {
             | AppError::NotFound(m)
             | AppError::Conflict(m)
             | AppError::Internal(m)
-            | AppError::TierLimitReached(m) => m.as_str(),
+            | AppError::TierLimitReached(m)
+            | AppError::TooManyRequests(m) => m.as_str(),
         };
         write!(f, "{}", msg)
     }

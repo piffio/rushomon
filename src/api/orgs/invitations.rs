@@ -6,8 +6,7 @@
 /// GET /api/invite/{token} - Get invite info (public)
 /// POST /api/invite/{token}/accept - Accept invite
 use crate::auth;
-use crate::models::Tier;
-use crate::repositories::{BillingRepository, OrgRepository, UserRepository};
+use crate::repositories::{OrgRepository, UserRepository};
 use crate::services::OrgService;
 use crate::utils::email::send_org_invitation;
 use crate::utils::{AppError, get_frontend_url};
@@ -459,16 +458,7 @@ async fn inner_accept_invite(req: Request, ctx: RouteContext<()>) -> Result<Resp
     };
     let access_cookie = auth::session::create_access_cookie_with_scheme(&new_access_token, scheme);
 
-    let billing_repo = BillingRepository::new();
-    let tier = if let Some(ref ba_id) = _org.billing_account_id {
-        if let Ok(Some(ba)) = billing_repo.get_by_id(&db, ba_id).await {
-            Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free)
-        } else {
-            Tier::Free
-        }
-    } else {
-        Tier::Free
-    };
+    let tier = OrgService::new().get_org_tier(&db, &_org).await;
 
     let mut response = Response::from_json(&serde_json::json!({
         "org": {

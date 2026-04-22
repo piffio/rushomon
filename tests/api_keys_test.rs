@@ -157,8 +157,11 @@ async fn test_api_key_middleware_status_validation() {
         .await
         .unwrap();
     assert_eq!(revoked_res.status(), StatusCode::UNAUTHORIZED);
-    let error_msg = revoked_res.text().await.unwrap();
-    assert_eq!(error_msg, "API Key has been deleted"); // User endpoint soft deletes
+    let error_body: serde_json::Value = revoked_res.json().await.unwrap();
+    assert_eq!(
+        error_body["message"].as_str().unwrap(),
+        "API Key has been deleted"
+    ); // User endpoint soft deletes
 }
 
 // Test admin listing with status filtering

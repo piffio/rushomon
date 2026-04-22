@@ -85,6 +85,281 @@ pub fn parse_time_range_from_query_with_now(query: &str, now: i64) -> TimeRange 
     }
 }
 
+/// Get usage information for an organization.
+///
+/// Returns tier, limits, current monthly usage, tag count, and next reset time.
+pub async fn get_usage(
+    db: &worker::d1::D1Database,
+    org_id: &str,
+) -> Result<UsageInfo, crate::utils::AppError> {
+    use crate::models::Tier;
+    use crate::repositories::{
+        AnalyticsRepository, BillingRepository, OrgRepository, TagRepository,
+    };
+    use chrono::{Datelike, TimeZone};
+
+    let org_repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
+
+    let org = org_repo
+        .get_by_id(db, org_id)
+        .await?
+        .ok_or_else(|| crate::utils::AppError::NotFound("Organization not found".to_string()))?;
+
+    // Get billing account for usage tracking
+    let billing_account_id = org.billing_account_id.as_ref().ok_or_else(|| {
+        crate::utils::AppError::Internal("Organization has no billing account".to_string())
+    })?;
+    let billing_account = billing_repo
+        .get_by_id(db, billing_account_id)
+        .await?
+        .ok_or_else(|| crate::utils::AppError::NotFound("Billing account not found".to_string()))?;
+
+    let tier = Tier::from_str_value(&billing_account.tier).unwrap_or(Tier::Free);
+    let limits = tier.limits();
+
+    // Use billing account monthly counter for efficiency
+    let now = chrono::Utc::now();
+    let year_month = format!("{}-{:02}", now.year(), now.month());
+    let analytics_repo = AnalyticsRepository::new();
+    let links_created_this_month = analytics_repo
+        .get_monthly_counter_for_billing_account(db, &billing_account.id, &year_month)
+        .await?;
+
+    // Get tag count for the billing account
+    let tags_count = TagRepository::new()
+        .count_distinct_tags_for_billing_account(db, &billing_account.id)
+        .await?;
+
+    // Calculate next reset time (first day of next month at midnight UTC)
+    let now = chrono::Utc::now();
+    let next_reset = chrono::Utc
+        .with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
+        .single()
+        .unwrap_or_else(chrono::Utc::now);
+    let next_reset_timestamp = next_reset.timestamp();
+
+    Ok(UsageInfo {
+        tier: tier.as_str().to_string(),
+        limits,
+        links_created_this_month,
+        tags_count,
+        next_reset_utc: next_reset.to_rfc3339(),
+        next_reset_timestamp,
+    })
+}
+
+/// Usage information for an organization.
+#[derive(Debug)]
+pub struct UsageInfo {
+    pub tier: String,
+    pub limits: crate::models::tier::TierLimits,
+    pub links_created_this_month: i64,
+    pub tags_count: i64,
+    pub next_reset_utc: String,
+    pub next_reset_timestamp: i64,
+}
+
+/// Get link-level analytics.
+///
+/// Returns click analytics for a single link with tier-based gating applied.
+pub async fn get_link_analytics(
+    db: &worker::d1::D1Database,
+    link_id: &str,
+    org_id: &str,
+    time_range: crate::models::TimeRange,
+) -> Result<LinkAnalyticsResult, crate::utils::AppError> {
+    use crate::models::Tier;
+    use crate::repositories::{
+        AnalyticsRepository, BillingRepository, LinkRepository, OrgRepository,
+    };
+
+    let link_repo = LinkRepository::new();
+    let org_repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
+    let analytics_repo = AnalyticsRepository::new();
+
+    // Verify link exists and belongs to org
+    let link = link_repo
+        .get_by_id(db, link_id, org_id)
+        .await?
+        .ok_or_else(|| crate::utils::AppError::NotFound("Link not found".to_string()))?;
+
+    // Get tier for gating
+    let org = org_repo
+        .get_by_id(db, org_id)
+        .await?
+        .ok_or_else(|| crate::utils::AppError::NotFound("Organization not found".to_string()))?;
+
+    let tier = if let Some(ref billing_account_id) = org.billing_account_id {
+        billing_repo
+            .get_by_id(db, billing_account_id)
+            .await?
+            .map(|ba| Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free))
+            .unwrap_or(Tier::Free)
+    } else {
+        Tier::Free
+    };
+
+    // Apply tier-based gating
+    let (mut start, end) = time_range.calculate_timestamps();
+    let now = crate::models::analytics::now_timestamp();
+    let gating_result = apply_analytics_gating(tier, start, end, now);
+    start = gating_result.adjusted_start;
+
+    // If gated, return empty data
+    if gating_result.gated {
+        return Ok(LinkAnalyticsResult {
+            link,
+            total_clicks: 0,
+            clicks_over_time: vec![],
+            referrers: vec![],
+            countries: vec![],
+            user_agents: vec![],
+            gated: true,
+            gated_reason: gating_result.reason,
+        });
+    }
+
+    // Fetch analytics data
+    let total_clicks = analytics_repo
+        .get_link_total_clicks_in_range(db, link_id, org_id, start, end)
+        .await?;
+
+    let clicks_over_time = analytics_repo
+        .get_link_clicks_over_time(db, link_id, org_id, start, end)
+        .await?;
+
+    let referrers = analytics_repo
+        .get_link_top_referrers(db, link_id, org_id, start, end, 10)
+        .await?;
+
+    let countries = analytics_repo
+        .get_link_top_countries(db, link_id, org_id, start, end, 10)
+        .await?;
+
+    let user_agents = analytics_repo
+        .get_link_top_user_agents(db, link_id, org_id, start, end, 20)
+        .await?;
+
+    Ok(LinkAnalyticsResult {
+        link,
+        total_clicks,
+        clicks_over_time,
+        referrers,
+        countries,
+        user_agents,
+        gated: false,
+        gated_reason: None,
+    })
+}
+
+/// Link analytics result.
+#[derive(Debug)]
+pub struct LinkAnalyticsResult {
+    pub link: crate::models::Link,
+    pub total_clicks: i64,
+    pub clicks_over_time: Vec<crate::models::analytics::DailyClicks>,
+    pub referrers: Vec<crate::models::analytics::ReferrerCount>,
+    pub countries: Vec<crate::models::analytics::CountryCount>,
+    pub user_agents: Vec<crate::models::analytics::UserAgentCount>,
+    pub gated: bool,
+    pub gated_reason: Option<String>,
+}
+
+/// Get organization-level analytics.
+///
+/// Returns aggregate click analytics for the entire organization with tier-based gating.
+pub async fn get_org_analytics(
+    db: &worker::d1::D1Database,
+    org_id: &str,
+    time_range: crate::models::TimeRange,
+) -> Result<OrgAnalyticsResult, crate::utils::AppError> {
+    use crate::models::Tier;
+    use crate::repositories::{AnalyticsRepository, BillingRepository, OrgRepository};
+
+    let org_repo = OrgRepository::new();
+    let billing_repo = BillingRepository::new();
+    let analytics_repo = AnalyticsRepository::new();
+
+    // Resolve tier from billing account
+    let org = org_repo
+        .get_by_id(db, org_id)
+        .await?
+        .ok_or_else(|| crate::utils::AppError::NotFound("Organization not found".to_string()))?;
+
+    let tier = if let Some(ref billing_account_id) = org.billing_account_id {
+        billing_repo
+            .get_by_id(db, billing_account_id)
+            .await?
+            .map(|ba| Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free))
+            .unwrap_or(Tier::Free)
+    } else {
+        Tier::Free
+    };
+
+    // Apply tier-based gating
+    let (mut start, end) = time_range.calculate_timestamps();
+    let now = crate::models::analytics::now_timestamp();
+    let gating_result = apply_analytics_gating(tier, start, end, now);
+    start = gating_result.adjusted_start;
+
+    // Fetch org-level analytics
+    let total_clicks = analytics_repo
+        .get_org_total_clicks_in_range(db, org_id, start, end)
+        .await?;
+
+    let unique_links = analytics_repo
+        .get_org_unique_links_clicked(db, org_id, start, end)
+        .await?;
+
+    let clicks_over_time = analytics_repo
+        .get_org_clicks_over_time(db, org_id, start, end)
+        .await?;
+
+    let top_links = analytics_repo
+        .get_org_top_links(db, org_id, start, end, 10)
+        .await?;
+
+    let referrers = analytics_repo
+        .get_org_top_referrers(db, org_id, start, end, 10)
+        .await?;
+
+    let countries = analytics_repo
+        .get_org_top_countries(db, org_id, start, end, 10)
+        .await?;
+
+    let user_agents = analytics_repo
+        .get_org_top_user_agents(db, org_id, start, end, 20)
+        .await?;
+
+    Ok(OrgAnalyticsResult {
+        total_clicks,
+        unique_links,
+        clicks_over_time,
+        top_links,
+        referrers,
+        countries,
+        user_agents,
+        gated: gating_result.gated,
+        gated_reason: gating_result.reason,
+    })
+}
+
+/// Organization analytics result.
+#[derive(Debug)]
+pub struct OrgAnalyticsResult {
+    pub total_clicks: i64,
+    pub unique_links: i64,
+    pub clicks_over_time: Vec<crate::models::analytics::DailyClicks>,
+    pub top_links: Vec<crate::models::analytics::TopLinkCount>,
+    pub referrers: Vec<crate::models::analytics::ReferrerCount>,
+    pub countries: Vec<crate::models::analytics::CountryCount>,
+    pub user_agents: Vec<crate::models::analytics::UserAgentCount>,
+    pub gated: bool,
+    pub gated_reason: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
