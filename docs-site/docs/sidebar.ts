@@ -98,12 +98,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "handle-delete-link",
-          label: "Delete a link",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
           id: "handle-get-link",
           label: "Get a link",
           className: "api-method get",
@@ -113,6 +107,12 @@ const sidebar: SidebarsConfig = {
           id: "handle-update-link",
           label: "Update a link",
           className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "handle-delete-link",
+          label: "Delete a link",
+          className: "api-method delete",
         },
         {
           type: "doc",
@@ -178,15 +178,15 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "handle-delete-org",
-          label: "Delete an organization",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
           id: "handle-get-org",
           label: "Get organization",
           className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "handle-delete-org",
+          label: "Delete an organization",
+          className: "api-method delete",
         },
         {
           type: "doc",
@@ -214,12 +214,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "handle-delete-org-logo",
-          label: "Delete org logo",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
           id: "handle-get-org-logo",
           label: "Get org logo",
           className: "api-method get",
@@ -229,6 +223,12 @@ const sidebar: SidebarsConfig = {
           id: "handle-upload-org-logo",
           label: "Upload org logo",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "handle-delete-org-logo",
+          label: "Delete org logo",
+          className: "api-method delete",
         },
         {
           type: "doc",
@@ -355,7 +355,7 @@ const sidebar: SidebarsConfig = {
         {
           type: "doc",
           id: "handle-get-org-tags",
-          label: "List org tags",
+          label: "Get organization tags",
           className: "api-method get",
         },
         {
@@ -462,7 +462,7 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "handle-admin-reset-billing-account-counter",
+          id: "handle-admin-reset-monthly-counter",
           label: "Reset billing account monthly counter",
           className: "api-method post",
         },
@@ -511,14 +511,8 @@ const sidebar: SidebarsConfig = {
         {
           type: "doc",
           id: "handle-admin-list-links",
-          label: "List all links (moderation)",
+          label: "List all links (admin)",
           className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "handle-admin-delete-link",
-          label: "Hard delete a link",
-          className: "api-method delete",
         },
         {
           type: "doc",
@@ -528,14 +522,14 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "handle-admin-sync-link-kv",
-          label: "Re-sync link KV entry",
-          className: "api-method post",
+          id: "handle-admin-delete-link",
+          label: "Hard delete a link",
+          className: "api-method delete",
         },
         {
           type: "doc",
-          id: "handle-admin-reset-monthly-counter",
-          label: "Reset org monthly counter",
+          id: "handle-admin-sync-link-kv",
+          label: "Re-sync link KV entry",
           className: "api-method post",
         },
         {
@@ -600,12 +594,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "handle-admin-delete-user",
-          label: "Delete a user",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
           id: "handle-admin-get-user",
           label: "Get a user",
           className: "api-method get",
@@ -615,6 +603,12 @@ const sidebar: SidebarsConfig = {
           id: "handle-admin-update-user-role",
           label: "Update user role",
           className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "handle-admin-delete-user",
+          label: "Delete a user",
+          className: "api-method delete",
         },
         {
           type: "doc",

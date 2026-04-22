@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Organization ID","in":"path","name":"id","required":true,"schema":{"type":"string"}},{"description":"User ID to remove","in":"path","name":"user_id","required":true,"schema":{"type":"string"}}]}
+{"parameters":[{"name":"id","in":"path","description":"Organization ID","required":true,"schema":{"type":"string"}},{"name":"user_id","in":"path","description":"User ID to remove","required":true,"schema":{"type":"string"}}]}

@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Invitation token","in":"path","name":"token","required":true,"schema":{"type":"string"}}]}
+{"parameters":[{"name":"token","in":"path","description":"Invitation token","required":true,"schema":{"type":"string"}}]}

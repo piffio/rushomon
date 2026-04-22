@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Tag name","in":"path","name":"name","required":true,"schema":{"type":"string"}}]}
+{"parameters":[{"name":"name","in":"path","description":"Tag name to delete","required":true,"schema":{"type":"string"}}]}

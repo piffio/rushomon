@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Org ID","in":"path","name":"id","required":true,"schema":{"type":"string"}}]}
+{"parameters":[{"name":"id","in":"path","description":"Billing Account ID","required":true,"schema":{"type":"string"}}]}

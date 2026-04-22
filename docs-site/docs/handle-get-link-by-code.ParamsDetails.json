@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Short code of the link","in":"path","name":"code","required":true,"schema":{"type":"string"}}]}
+{"parameters":[{"name":"code","in":"path","description":"Short code of the link","required":true,"schema":{"type":"string"}}]}

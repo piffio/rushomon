@@ -1,0 +1,793 @@
+{
+  "defaultSidebar": [
+    {
+      "type": "doc",
+      "id": "intro",
+      "label": "Getting Started"
+    },
+    {
+      "type": "category",
+      "label": "API",
+      "link": {
+        "type": "doc",
+        "id": "api"
+      },
+      "items": [
+        {
+          "type": "category",
+          "label": "Authentication",
+          "link": {
+            "type": "doc",
+            "id": "authentication"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-oauth-callback",
+              "label": "OAuth callback",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-github-login",
+              "label": "Initiate GitHub OAuth",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-google-login",
+              "label": "Initiate Google OAuth",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-logout",
+              "label": "Logout",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-current-user",
+              "label": "Get current user",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-list-auth-providers",
+              "label": "List enabled OAuth providers",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-token-refresh",
+              "label": "Refresh access token",
+              "className": "api-method post"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Links",
+          "link": {
+            "type": "doc",
+            "id": "links"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-list-links",
+              "label": "List links",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-create-link",
+              "label": "Create a link",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-link-by-code",
+              "label": "Get a link by short code",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-export-links",
+              "label": "Export links as CSV",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-import-links",
+              "label": "Import links from CSV",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-delete-link",
+              "label": "Delete a link",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-link",
+              "label": "Get a link",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-update-link",
+              "label": "Update a link",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-link-analytics",
+              "label": "Get link analytics",
+              "className": "api-method get"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Analytics",
+          "link": {
+            "type": "doc",
+            "id": "analytics"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-get-org-analytics",
+              "label": "Get org-level analytics",
+              "className": "api-method get"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Organizations",
+          "link": {
+            "type": "doc",
+            "id": "organizations"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-switch-org",
+              "label": "Switch active organization",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-invite-info",
+              "label": "Get invite info",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-accept-invite",
+              "label": "Accept an invitation",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-list-user-orgs",
+              "label": "List user organizations",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-create-org",
+              "label": "Create an organization",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-delete-org",
+              "label": "Delete an organization",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-org",
+              "label": "Get organization",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-update-org",
+              "label": "Update organization",
+              "className": "api-method patch"
+            },
+            {
+              "type": "doc",
+              "id": "handle-create-invitation",
+              "label": "Invite a member",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-revoke-invitation",
+              "label": "Revoke an invitation",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-resend-invitation",
+              "label": "Resend an invitation",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-delete-org-logo",
+              "label": "Delete org logo",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-org-logo",
+              "label": "Get org logo",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-upload-org-logo",
+              "label": "Upload org logo",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-remove-member",
+              "label": "Remove a member",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-org-settings",
+              "label": "Get org settings",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-update-org-settings",
+              "label": "Update org settings",
+              "className": "api-method patch"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "API Keys",
+          "link": {
+            "type": "doc",
+            "id": "api-keys"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-list-api-keys",
+              "label": "List API keys",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-create-api-key",
+              "label": "Create an API key",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-revoke-api-key",
+              "label": "Revoke an API key",
+              "className": "api-method delete"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Billing",
+          "link": {
+            "type": "doc",
+            "id": "billing"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-create-checkout",
+              "label": "Create checkout session",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-portal",
+              "label": "Get customer portal URL",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-get-status",
+              "label": "Get billing status",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-webhook",
+              "label": "Polar webhook receiver",
+              "className": "api-method post"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Settings",
+          "link": {
+            "type": "doc",
+            "id": "settings"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-get-public-settings",
+              "label": "Get public settings",
+              "className": "api-method get"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Usage",
+          "link": {
+            "type": "doc",
+            "id": "usage"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-get-usage",
+              "label": "Get current usage",
+              "className": "api-method get"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Tags",
+          "link": {
+            "type": "doc",
+            "id": "tags"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-get-org-tags",
+              "label": "Get organization tags",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-delete-org-tag",
+              "label": "Delete a tag",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-rename-org-tag",
+              "label": "Rename a tag",
+              "className": "api-method patch"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Reports",
+          "link": {
+            "type": "doc",
+            "id": "reports"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-report-link",
+              "label": "Report a link for abuse",
+              "className": "api-method post"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "System",
+          "link": {
+            "type": "doc",
+            "id": "system"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-version",
+              "label": "Get application version",
+              "className": "api-method get"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Admin",
+          "link": {
+            "type": "doc",
+            "id": "admin"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "handle-admin-list-api-keys",
+              "label": "List all API keys",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-revoke-api-key",
+              "label": "Revoke an API key",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-delete-api-key",
+              "label": "Soft-delete an API key",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-reactivate-api-key",
+              "label": "Reactivate an API key",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-restore-api-key",
+              "label": "Restore a deleted API key",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-list-billing-accounts",
+              "label": "List billing accounts",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-billing-account",
+              "label": "Get billing account details",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-reset-billing-account",
+              "label": "Reset billing account to free tier",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-reset-monthly-counter",
+              "label": "Reset billing account monthly counter",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-update-subscription-status",
+              "label": "Update subscription status",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-update-billing-account-tier",
+              "label": "Update billing account tier",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-blacklist",
+              "label": "List blacklisted destinations",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-block-destination",
+              "label": "Block a destination",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-remove-blacklist",
+              "label": "Remove blacklist entry",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-cron-trigger-downgrade",
+              "label": "Trigger subscription downgrade job",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-list-discounts",
+              "label": "List Polar discounts",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-list-links",
+              "label": "List all links (admin)",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-delete-link",
+              "label": "Hard delete a link",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-update-link-status",
+              "label": "Update link status",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-sync-link-kv",
+              "label": "Re-sync link KV entry",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-list-products",
+              "label": "List Polar products",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-save-products",
+              "label": "Sync and cache products from Polar",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-sync-products",
+              "label": "Sync products from Polar",
+              "className": "api-method post"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-reports",
+              "label": "List abuse reports",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-pending-reports-count",
+              "label": "Get pending reports count",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-report",
+              "label": "Get a single abuse report",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-update-report",
+              "label": "Update report status",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-settings",
+              "label": "Get system settings",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-update-setting",
+              "label": "Update a system setting",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-list-users",
+              "label": "List all users",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-delete-user",
+              "label": "Delete a user",
+              "className": "api-method delete"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-get-user",
+              "label": "Get a user",
+              "className": "api-method get"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-update-user-role",
+              "label": "Update user role",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-suspend-user",
+              "label": "Suspend a user",
+              "className": "api-method put"
+            },
+            {
+              "type": "doc",
+              "id": "handle-admin-unsuspend-user",
+              "label": "Unsuspend a user",
+              "className": "api-method put"
+            }
+          ]
+        },
+        {
+          "type": "category",
+          "label": "Schemas",
+          "items": [
+            {
+              "type": "doc",
+              "id": "schemas/billingaccount",
+              "label": "BillingAccount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/countrycount",
+              "label": "CountryCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/createapikeyrequest",
+              "label": "CreateApiKeyRequest",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/createapikeyresponse",
+              "label": "CreateApiKeyResponse",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/createlinkrequest",
+              "label": "CreateLinkRequest",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/dailyclicks",
+              "label": "DailyClicks",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/link",
+              "label": "Link",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/linkanalyticsresponse",
+              "label": "LinkAnalyticsResponse",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/linkstatus",
+              "label": "LinkStatus",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/organalyticsresponse",
+              "label": "OrgAnalyticsResponse",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orginvitation",
+              "label": "OrgInvitation",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orgmember",
+              "label": "OrgMember",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orgmemberwithuser",
+              "label": "OrgMemberWithUser",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/orgwithrole",
+              "label": "OrgWithRole",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/organization",
+              "label": "Organization",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/paginationmeta",
+              "label": "PaginationMeta",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/referrercount",
+              "label": "ReferrerCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/tier",
+              "label": "Tier",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/timerange",
+              "label": "TimeRange",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/toplinkcount",
+              "label": "TopLinkCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/updatelinkrequest",
+              "label": "UpdateLinkRequest",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/user",
+              "label": "User",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/useragentcount",
+              "label": "UserAgentCount",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/utmparams",
+              "label": "UtmParams",
+              "className": "schema"
+            },
+            {
+              "type": "doc",
+              "id": "schemas/versionresponse",
+              "label": "VersionResponse",
+              "className": "schema"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

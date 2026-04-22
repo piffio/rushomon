@@ -1,0 +1,1 @@
+{"schema":{"properties":{"joined_at":{"example":1609459200,"format":"int64","type":"integer"},"org_id":{"example":"org-123","type":"string"},"role":{"example":"admin","type":"string"},"user_id":{"example":"user-456","type":"string"}},"required":["org_id","user_id","role","joined_at"],"type":"object","title":"OrgMember"},"schemaType":"response"}

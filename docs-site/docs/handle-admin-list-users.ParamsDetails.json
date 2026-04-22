@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Page number","in":"query","name":"page","required":false,"schema":{"format":"int64","type":"integer"}},{"description":"Items per page (max 100)","in":"query","name":"limit","required":false,"schema":{"format":"int64","type":"integer"}}]}
+{"parameters":[{"name":"page","in":"query","description":"Page number","required":false,"schema":{"type":"integer","format":"int64"}},{"name":"limit","in":"query","description":"Items per page (max 100)","required":false,"schema":{"type":"integer","format":"int64"}}]}

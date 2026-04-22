@@ -1,0 +1,69 @@
+---
+id: handle-accept-invite
+title: "Accept an invitation"
+description: "Accepts a pending invitation. Validates the token, verifies the caller's email matches the invited email, adds the user to the organization as the invited role, marks the invitation as accepted, and re-issues a new access token scoped to the new org"
+sidebar_label: "Accept an invitation"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVs1y2zYQfpUd+FDHQ1NykpmkPFXNtB2lbqOx4/YQeSyIWImoQYABllYUDt+9swAlS7GbF+hJFPDt/7e76ITCUHrdkHZWFGJSlthQAAkNWqXtGrR90CT5Ooe/pNFKEgagCoHcPdoMHtDrlR7OSmkM+h8CYC21gVpSWQ1XURGqdJOBVCqdtwE9kIvfzq+l1V+jOZDHct4ZzKCW/v7gfI+U0XFUGUirwOO5DqFFDsTiJt6GkDyGULoG1c4kXzu/FplwDfqob6pEISpplcG7pPcuOSEy0UgvayT0QRSfum+yN310KZoSmdB83kiqRCasrFEUYnfl8XOrPSpRkG8xE6GssJai6ARtGwYG8tquRd/fMjg0zgYMfP9yPOaf/zT+mIynwSOJPhOvxxdPNdxY2VLlvP6KKoFePQW9ixUe6qscBrCOUqEPSpLEX3/XS5ZbudYqcB6k8SjVdu96UvDjUwWTHRBqrJfowa2AKh1iEVno4vu5wS9NTHrfZyJg2XpN21jKn1F69KL4dNtnnQgYgnb2rnTuXmM8vc0EyTXXXXw44GkQt5mokSrHtGlcoEgTqkQhRrLRo8SdURcL0I9ShIKt+4fneTTzTrVldHcym4pMtN4wJYmaUIxYae7bULna2bwsBft7rODSldKAwgc0rqnR0pGOYjQyDKhcoOLtm7dvBMe2S8Y10zDxbJeSTizj16/O15JEId7//ZGLNplN4XfcioG7zNkEFNmOw2wv5lrblWNNpbMkS+LPyCHmeds0ztNPhzHtu+VqOITrhOIaf8OI2RSUK1uOM9V45Xzs7b3szdUlhMp5QoseOPG6xHxu5/bkBCYtVWhJl1GYD/9wgQCtapy2FGBoVJBHQGgDz0fUVKEv5vYczs6uE2sgsSacncEp+7LBJcimMY+S6MOLJJJynLpzL8Ah3eOWMeziCdxEW0O+A59e5PDOoyQEaXd40DbGrWSolk56Bacz74A0t4mHSq8r9Ltw1Iu5fZnD1JamVRjlDlRMhkmQHK5QqhgkACwWi/h7hChgiMO7u0bSXZ7nj+CTE7gaxhckCnEAE2NgP9VAeoT31x/+5NrVkghVDr947/wBZuWMcZvU7YF8W1LrsZjbxWLxT+DKdWxzLpDl5qKAuUgqagxBrhESb5acyk0lCTZoCTbe2fVczG0fNQ2kmMm1tntCXOojQgyEhWYPgo2mChaNXOMibqCF0bWmBXxu0W/hcWtEoiRcwUYQbBvH2OnFubYKv/DUVriSraECLiJJBl0FTAnrAA16towscjEeH8Bfjl/MebMYXaINyD02dNHkt9nl+at8/GSWbDabfG3b3Pn1aBALI7luDKPzimrDDUeazFEzckNd7xsqDSkeZqkja6njBuBhWEt76EccfkzZg13xTUOnGcFD6//9HhkmKOEXGjVmSGmsXjfsl09CNjo+MobXSbF7WwxL5jYTPOQZ2XVLGfDGm77n48hLXmuZeJBeyyXXlxeRDvytRLGSJuB3SnN6tZsj8My751nnh0NpeWU8SNPyP5GJe9zu30X9bX+wTmcfrj9yOC2Hu38Y7ZfMcrezu+d1d11CfIyrt39qqu//BdY42CU=
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Accept an invitation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/invite/{token}/accept"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Accepts a pending invitation. Validates the token, verifies the caller's email matches the invited email, adds the user to the organization as the invited role, marks the invitation as accepted, and re-issues a new access token scoped to the new org
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-accept-invite.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-accept-invite.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-accept-invite.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

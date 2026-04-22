@@ -1,1 +1,1 @@
-{"parameters":[{"description":"Current tag name","in":"path","name":"name","required":true,"schema":{"type":"string"}}]}
+{"parameters":[{"name":"name","in":"path","description":"Current tag name","required":true,"schema":{"type":"string"}}]}
