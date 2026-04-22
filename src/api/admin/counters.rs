@@ -2,9 +2,8 @@
 ///
 /// POST /api/admin/billing-accounts/{id}/reset-counter — Reset monthly counter for a billing account
 use crate::auth;
-use crate::repositories::BillingRepository;
+use crate::services::BillingService;
 use crate::utils::AppError;
-use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::*;
 
@@ -54,12 +53,8 @@ async fn inner_handle_admin_reset_monthly_counter(
         .get_binding::<D1Database>("rushomon")
         .map_err(|_| AppError::Internal("Database not available".to_string()))?;
 
-    let now = chrono::Utc::now();
-    let year_month = format!("{}-{:02}", now.year(), now.month());
-
-    let billing_repo = BillingRepository::new();
-    billing_repo
-        .reset_monthly_counter(&db, billing_account_id, &year_month)
+    BillingService::new()
+        .reset_monthly_counter(&db, billing_account_id)
         .await
         .map_err(|e| {
             console_log!(

@@ -426,6 +426,23 @@ impl BillingService {
         repo.reset_to_free(db, billing_account_id).await
     }
 
+    /// Reset the monthly link counter for a billing account (admin only).
+    ///
+    /// Deletes the monthly_counters row for the current month, effectively
+    /// resetting usage back to zero.
+    pub async fn reset_monthly_counter(
+        &self,
+        db: &D1Database,
+        billing_account_id: &str,
+    ) -> Result<(), worker::Error> {
+        use chrono::Datelike;
+        let now = chrono::Utc::now();
+        let year_month = format!("{}-{:02}", now.year(), now.month());
+        BillingRepository::new()
+            .reset_monthly_counter(db, billing_account_id, &year_month)
+            .await
+    }
+
     /// List all billing accounts with stats (admin only).
     pub async fn admin_list_billing_accounts(
         &self,
