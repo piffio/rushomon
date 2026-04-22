@@ -1,8 +1,8 @@
 use crate::auth;
 use crate::kv;
 use crate::models::link::{Link, LinkStatus};
-use crate::repositories::tag_repository::validate_and_normalize_tags;
 use crate::services::LinkService;
+use crate::utils::validate_and_normalize_tags;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
 use worker::d1::D1Database;
 use worker::*;

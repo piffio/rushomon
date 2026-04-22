@@ -1,8 +1,8 @@
 use crate::auth;
 use crate::models::link::UpdateLinkRequest;
 use crate::repositories::BlacklistRepository;
-use crate::repositories::tag_repository::validate_and_normalize_tags;
 use crate::services::LinkService;
+use crate::utils::validate_and_normalize_tags;
 use crate::utils::{now_timestamp, validate_url};
 use serde_json::json;
 use worker::d1::D1Database;

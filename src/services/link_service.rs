@@ -317,8 +317,7 @@ impl LinkService {
 
         // Update tags if provided
         if let Some(new_tags) = tags {
-            let normalized_tags =
-                crate::repositories::tag_repository::validate_and_normalize_tags(&new_tags)?;
+            let normalized_tags = crate::utils::validate_and_normalize_tags(&new_tags)?;
             repo.set_tags(db, link_id, org_id, &normalized_tags).await?;
         }
 
