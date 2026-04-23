@@ -8,7 +8,7 @@
     UsageResponse,
     UtmParams
   } from "$lib/types/api";
-  import { debounce, fetchUrlTitle } from "$lib/utils/url-title";
+  import { debounce } from "$lib/utils/helpers";
   import { createEventDispatcher, onMount } from "svelte";
 
   interface Props {
@@ -295,7 +295,7 @@
     isFetchingTitle = true;
 
     try {
-      const fetchedTitle = await fetchUrlTitle(url.trim());
+      const fetchedTitle = await linksApi.fetchUrlTitle(url.trim());
       // Only set the title if user hasn't entered one and we got a valid title
       if (!hasUserEnteredTitle && fetchedTitle) {
         title = fetchedTitle;

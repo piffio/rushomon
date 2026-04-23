@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { fetchUrlTitle } from "./metadata";
 import type {
   Link,
   CreateLinkRequest,
@@ -90,10 +91,7 @@ export const linksApi = {
    * @throws ApiError if link not found (404) or validation fails (400)
    */
   async update(id: string, data: UpdateLinkRequest): Promise<Link> {
-    return apiClient.request<Link>(`/api/links/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data)
-    });
+    return apiClient.put<Link>(`/api/links/${id}`, data);
   },
 
   /**
@@ -138,6 +136,15 @@ export const linksApi = {
 
   async importBatch(links: ImportLinkRow[]): Promise<ImportBatchResult> {
     return apiClient.post<ImportBatchResult>("/api/links/import", { links });
+  },
+
+  /**
+   * Fetch the title of a destination URL
+   * @param url - The URL to fetch the title from
+   * @returns Page title or null if unable to fetch
+   */
+  async fetchUrlTitle(url: string): Promise<string | null> {
+    return fetchUrlTitle(url);
   }
 };
 
