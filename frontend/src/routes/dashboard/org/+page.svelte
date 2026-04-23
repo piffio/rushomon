@@ -356,16 +356,14 @@
   let canDelete = $state(false);
 
   async function checkCanDelete() {
-    if (!orgDetails) return;
     try {
       const orgsRes = await orgsApi.listMyOrgs();
       const ownedOrgs = orgsRes.orgs.filter((o) => o.role === "owner");
       userOrgs = ownedOrgs.filter((o) => o.id !== orgDetails!.org.id);
       canDelete = ownedOrgs.length > 1;
 
-      // Get link count from usage API
-      const usage = await orgsApi.getUsage();
-      linkCount = usage.usage?.links_created_this_month || 0;
+      // Get link count from org details (actual links in this org, not billing account level)
+      linkCount = orgDetails?.org.link_count || 0;
     } catch {
       canDelete = false;
     }
@@ -378,6 +376,14 @@
       setTimeout(() => (actionError = ""), 3000);
       return;
     }
+
+    // If org has no links, delete directly without showing modal
+    if (linkCount === 0) {
+      deleteAction = "delete";
+      await handleDeleteOrg();
+      return;
+    }
+
     showDeleteModal = true;
     deleteError = "";
     deleteAction = "delete";

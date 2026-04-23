@@ -150,14 +150,8 @@ fi
 echo "🔨 Building worker..."
 worker-build --release --quiet
 
-# Create R2 bucket for logos (if it doesn't exist)
-echo "🪣 Setting up R2 assets bucket..."
-if ! wrangler r2 bucket list | grep -q "rushomon-assets"; then
-    echo "Creating R2 bucket: rushomon-assets"
-    wrangler r2 bucket create rushomon-assets
-else
-    echo "R2 bucket 'rushomon-assets' already exists"
-fi
+# Note: R2 bucket is created automatically by wrangler dev --local
+# Remote bucket creation is skipped for local development
 
 # Apply migrations (passing environment if specified)
 echo "🔨 Applying migrations..."

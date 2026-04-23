@@ -148,6 +148,7 @@ async fn inner_get_org(req: Request, ctx: RouteContext<()>) -> Result<Response, 
     };
 
     let logo_url = repo.get_logo_url(&db, &org_id).await.unwrap_or(None);
+    let link_count = repo.count_links(&db, &org_id).await.unwrap_or(0);
 
     Ok(Response::from_json(&serde_json::json!({
         "org": {
@@ -157,6 +158,7 @@ async fn inner_get_org(req: Request, ctx: RouteContext<()>) -> Result<Response, 
             "created_at": org.created_at,
             "role": member.role,
             "logo_url": logo_url,
+            "link_count": link_count,
         },
         "members": members,
         "pending_invitations": pending_invitations,

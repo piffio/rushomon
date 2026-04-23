@@ -310,6 +310,7 @@ export interface OrgDetails {
     created_at: number;
     role: "owner" | "member";
     logo_url: string | null;
+    link_count: number;
   };
   members: OrgMember[];
   pending_invitations: OrgInvitation[];
