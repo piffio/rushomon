@@ -468,6 +468,30 @@
 
 <svelte:head>
   <title>Import Links - Rushomon</title>
+  <style>
+    @keyframes progress-stripes {
+      from {
+        background-position: 40px 0;
+      }
+      to {
+        background-position: 0 0;
+      }
+    }
+    .progress-animated {
+      background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(255, 255, 255, 0.15) 75%,
+        transparent 75%,
+        transparent
+      );
+      background-size: 40px 40px;
+      animation: progress-stripes 1s linear infinite;
+    }
+  </style>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50">
@@ -876,7 +900,9 @@
           <p class="text-sm text-gray-500 mb-6">
             Please wait. Don't close this tab.
           </p>
-          <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+          <div
+            class="w-full bg-gray-200 rounded-full h-3 mb-2 progress-animated"
+          >
             <div
               class="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full transition-all duration-300"
               style="width: {progress}%"
