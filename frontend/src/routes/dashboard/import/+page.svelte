@@ -106,7 +106,7 @@
   let skipInvalidRows = $state(true);
 
   // ── Step 5: Progress + Results ────────────────────────────────────────────
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 5;
   const MAX_SHORT_CODE_LENGTH = 100;
   let progress = $state(0); // 0-100
   let importDone = $state(false);
@@ -413,6 +413,9 @@
       return;
     }
 
+    // Yield to the browser so Svelte can paint the 0% state before the first request
+    await new Promise((r) => setTimeout(r, 0));
+
     const chunks: ImportLinkRow[][] = [];
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       chunks.push(rows.slice(i, i + BATCH_SIZE));
@@ -569,7 +572,7 @@
               : "Drag and drop a CSV file, or click to browse"}
           </p>
           <p class="text-xs text-gray-400 mt-1">
-            Supports .csv files up to any size (batched in chunks of 50)
+            Supports .csv files up to any size (batched in chunks of 5)
           </p>
         </label>
 
