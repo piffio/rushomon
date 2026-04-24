@@ -113,8 +113,22 @@
       dropdownPosition = null;
     } else {
       activeDropdown = linkId;
+
+      // Estimate dropdown height (~5 items at ~33px each + padding ≈ 200px)
+      const estimatedMenuHeight = 200;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      let top: number;
+      if (spaceBelow < estimatedMenuHeight && rect.top > estimatedMenuHeight) {
+        // Not enough space below, open upward
+        top = rect.top - estimatedMenuHeight - 4;
+      } else {
+        // Default: open below
+        top = rect.bottom + 4;
+      }
+
       dropdownPosition = {
-        top: rect.bottom + 4,
+        top,
         right: window.innerWidth - rect.right
       };
     }
