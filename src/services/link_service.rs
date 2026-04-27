@@ -258,7 +258,7 @@ impl LinkService {
         let repo = LinkRepository::new();
 
         // Verify link exists and belongs to org
-        let existing = repo
+        let _existing = repo
             .get_by_id(db, link_id, org_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
@@ -293,16 +293,19 @@ impl LinkService {
             )
             .await?;
 
-        // Sync KV if status changed
-        if let Some(ref new_status_str) = status {
-            let new_status = match new_status_str.as_str() {
-                "active" => LinkStatus::Active,
-                "disabled" => LinkStatus::Disabled,
-                "blocked" => LinkStatus::Blocked,
-                _ => return Ok(updated),
-            };
+        // Determine if KV sync is needed
+        // Sync if: status changed, destination_url changed, device URLs changed, redirect_type changed, or expires_at changed
+        let needs_kv_sync = status.is_some()
+            || destination_url.is_some()
+            || ios_url.is_some()
+            || android_url.is_some()
+            || desktop_url.is_some()
+            || redirect_type.is_some()
+            || expires_at.is_some();
 
-            if new_status != existing.status {
+        if needs_kv_sync {
+            // Only sync to KV if the link is active
+            if updated.status == LinkStatus::Active {
                 // Get org default for forward_query_params if needed
                 let org_repo = crate::repositories::OrgRepository::new();
                 let resolved_forward = if updated.forward_query_params.is_none() {
@@ -314,15 +317,12 @@ impl LinkService {
                     updated.forward_query_params.unwrap_or(false)
                 };
 
-                if new_status == LinkStatus::Active {
-                    // Re-enable in KV by storing the mapping
-                    let mapping = updated.to_mapping(resolved_forward);
-                    crate::kv::store_link_mapping(kv, org_id, &updated.short_code, &mapping)
-                        .await?;
-                } else {
-                    // Disable in KV
-                    crate::kv::delete_link_mapping(kv, org_id, &updated.short_code).await?;
-                }
+                // Update KV with new mapping
+                let mapping = updated.to_mapping(resolved_forward);
+                crate::kv::store_link_mapping(kv, org_id, &updated.short_code, &mapping).await?;
+            } else {
+                // Link is not active, ensure it's removed from KV
+                crate::kv::delete_link_mapping(kv, org_id, &updated.short_code).await?;
             }
         }
 
