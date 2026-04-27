@@ -2,9 +2,11 @@
   import { linksApi, tagsApi } from "$lib/api/links";
   import TagInput from "$lib/components/TagInput.svelte";
   import type {
+    CreateLinkRequest,
     Link,
     LinkStatus,
     TagWithCount,
+    UpdateLinkRequest,
     UsageResponse,
     UtmParams
   } from "$lib/types/api";
@@ -243,20 +245,39 @@
         : undefined;
 
       // TODO: Review in the future if we can avoid this
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const linkData: any = {
-        destination_url: destinationUrl,
-        title: title || undefined,
-        tags: tags.length > 0 ? tags : [],
+
+      let linkData: CreateLinkRequest & Partial<UpdateLinkRequest> = {
+        destination_url: destinationUrl.trim(),
+        title: title.trim() || undefined,
+        tags: tags.length > 0 ? tags : undefined,
         utm_params: utmParams,
         forward_query_params: allowQueryForwarding
           ? forwardQueryParams
           : undefined,
-        redirect_type: redirectType,
-        ios_url: iosUrl.trim() || undefined,
-        android_url: androidUrl.trim() || undefined,
-        desktop_url: desktopUrl.trim() || undefined
+        redirect_type: redirectType
       };
+
+      // Handle device URLs: set, clear, or don't update
+      if (iosUrl.trim()) {
+        linkData.ios_url = iosUrl.trim();
+      } else if (link?.ios_url) {
+        // Send clear_ios_url flag to explicitly clear iOS URL
+        linkData.clear_ios_url = true;
+      }
+
+      if (androidUrl.trim()) {
+        linkData.android_url = androidUrl.trim();
+      } else if (link?.android_url) {
+        // Send clear_android_url flag to explicitly clear Android URL
+        linkData.clear_android_url = true;
+      }
+
+      if (desktopUrl.trim()) {
+        linkData.desktop_url = desktopUrl.trim();
+      } else if (link?.desktop_url) {
+        // Send clear_desktop_url flag to explicitly clear Desktop URL
+        linkData.clear_desktop_url = true;
+      }
 
       // Handle expiration: set, clear, or don't update
       if (expiresAt) {
