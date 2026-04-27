@@ -2,6 +2,7 @@ use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::{AnalyticsEvent, link::LinkStatus};
 use crate::repositories::LinkRepository;
+use crate::utils::device::{DeviceType, detect_device};
 use crate::utils::{get_client_ip, get_frontend_url, hash_ip, now_timestamp};
 use std::future::Future;
 use std::pin::Pin;
@@ -99,7 +100,27 @@ pub async fn handle_redirect(
         }
     }
 
-    let mut destination_url = Url::parse(&mapping.destination_url)?;
+    // Apply device-based routing if configured
+    let effective_destination = {
+        let user_agent = req.headers().get("User-Agent").ok().flatten();
+        if let Some(ref ua) = user_agent {
+            let device = detect_device(ua);
+            match device {
+                DeviceType::IOS if mapping.ios_url.is_some() => mapping.ios_url.as_ref().unwrap(),
+                DeviceType::Android if mapping.android_url.is_some() => {
+                    mapping.android_url.as_ref().unwrap()
+                }
+                DeviceType::Desktop if mapping.desktop_url.is_some() => {
+                    mapping.desktop_url.as_ref().unwrap()
+                }
+                _ => &mapping.destination_url,
+            }
+        } else {
+            &mapping.destination_url
+        }
+    };
+
+    let mut destination_url = Url::parse(effective_destination)?;
 
     if let Some(ref utm) = mapping.utm_params {
         let pairs: Vec<(&str, &str)> = [

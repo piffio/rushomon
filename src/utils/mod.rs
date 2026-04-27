@@ -1,4 +1,5 @@
 pub mod crypto;
+pub mod device;
 pub mod email;
 pub mod env;
 pub mod errors;

@@ -42,6 +42,7 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
             "allow_custom_short_code": usage_info.limits.allow_custom_short_code,
             "allow_utm_parameters": usage_info.limits.allow_utm_parameters,
             "allow_query_forwarding": usage_info.limits.allow_query_forwarding,
+            "allow_device_routing": usage_info.limits.allow_device_routing,
             "max_tags": usage_info.limits.max_tags,
         },
         "usage": {

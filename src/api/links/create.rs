@@ -95,13 +95,16 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         "utm_params",
         "forward_query_params",
         "redirect_type",
+        "ios_url",
+        "android_url",
+        "desktop_url",
     ];
     if let Some(obj) = raw_body.as_object() {
         for field_name in obj.keys() {
             if !expected_fields.contains(&field_name.as_str()) {
                 return Response::error(
                     format!(
-                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+), redirect_type (optional, defaults to 301)",
+                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+), redirect_type (optional, defaults to 301), ios_url (optional, Business+), android_url (optional, Business+), desktop_url (optional, Business+)",
                         field_name
                     ),
                     400,
@@ -163,6 +166,20 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             "UTM parameters and query parameter forwarding require a Pro plan or above."
         };
         return Response::error(error_msg, 403);
+    }
+
+    // Check device routing tier requirement
+    let wants_device_routing =
+        body.ios_url.is_some() || body.android_url.is_some() || body.desktop_url.is_some();
+    let allow_device_routing = limits
+        .as_ref()
+        .map(|l| l.allow_device_routing)
+        .unwrap_or(false);
+    if wants_device_routing && !allow_device_routing {
+        return Response::error(
+            "Device-based routing is available on Business tier and above.",
+            403,
+        );
     }
 
     let kv = ctx.kv("URL_MAPPINGS")?;
@@ -238,6 +255,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         utm_params,
         forward_query_params: body.forward_query_params,
         redirect_type: body.redirect_type.clone(),
+        ios_url: body.ios_url,
+        android_url: body.android_url,
+        desktop_url: body.desktop_url,
     };
 
     let link_service = LinkService::new();

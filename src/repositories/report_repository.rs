@@ -71,6 +71,9 @@ pub struct LinkReportQueryResult {
     #[serde(serialize_with = "serialize_optional_int_as_bool")]
     pub link__forward_query_params: Option<i64>, // Stored as INTEGER in D1 (0/1/NULL)
     pub link__redirect_type: String,
+    pub link__ios_url: Option<String>,
+    pub link__android_url: Option<String>,
+    pub link__desktop_url: Option<String>,
     pub link__creator_email: String,
     pub link__org_name: String,
     pub report_count: i64,
@@ -176,6 +179,7 @@ impl ReportRepository {
                 l.status as link__status, l.click_count as link__click_count,
                 l.utm_params as link__utm_params, l.forward_query_params as link__forward_query_params,
                 l.redirect_type as link__redirect_type,
+                l.ios_url as link__ios_url, l.android_url as link__android_url, l.desktop_url as link__desktop_url,
                 u.email as link__creator_email, o.name as link__org_name,
                 COUNT(lr_sub.id) as report_count
              FROM link_reports lr
@@ -230,6 +234,9 @@ impl ReportRepository {
                         utm_params: qr.link__utm_params,
                         forward_query_params: qr.link__forward_query_params,
                         redirect_type: qr.link__redirect_type,
+                        ios_url: qr.link__ios_url,
+                        android_url: qr.link__android_url,
+                        desktop_url: qr.link__desktop_url,
                         creator_email: qr.link__creator_email,
                         org_name: qr.link__org_name,
                     },
@@ -390,6 +397,9 @@ mod link_report_serialization_tests {
             "link__utm_params": null,
             "link__forward_query_params": 1,
             "link__redirect_type": "301",
+            "link__ios_url": null,
+            "link__android_url": null,
+            "link__desktop_url": null,
             "link__creator_email": "creator@example.com",
             "link__org_name": "Test Org",
             "report_count": 1
@@ -427,6 +437,9 @@ mod link_report_serialization_tests {
             link__utm_params: None,
             link__forward_query_params: Some(1),
             link__redirect_type: "301".to_string(),
+            link__ios_url: None,
+            link__android_url: None,
+            link__desktop_url: None,
             link__creator_email: "creator@example.com".to_string(),
             link__org_name: "Test Org".to_string(),
             report_count: 1,

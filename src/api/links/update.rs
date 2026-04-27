@@ -108,6 +108,12 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         .map(|u| !u.is_empty())
         .unwrap_or(false)
         || update_req.forward_query_params.is_some();
+    let wants_device_routing = update_req.ios_url.is_some()
+        || update_req.android_url.is_some()
+        || update_req.desktop_url.is_some()
+        || update_req.clear_ios_url == Some(true)
+        || update_req.clear_android_url == Some(true)
+        || update_req.clear_desktop_url == Some(true);
 
     let (billing_account_id, tier) = match link_service
         .check_pro_features_for_org(
@@ -122,6 +128,20 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         Err(crate::utils::AppError::Forbidden(msg)) => return Ok(json_error(&msg, 403)),
         Err(e) => return Err(worker::Error::RustError(e.to_string())),
     };
+
+    // Check device routing tier requirement
+    if wants_device_routing {
+        let allow_device_routing = tier
+            .as_ref()
+            .map(|t| t.limits().allow_device_routing)
+            .unwrap_or(false);
+        if !allow_device_routing {
+            return Ok(json_error(
+                "Device-based routing is available on Business tier and above.",
+                403,
+            ));
+        }
+    }
 
     let mut normalized_tags = None;
     if let Some(ref tags) = update_req.tags {
@@ -155,6 +175,23 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         update_req.expires_at.map(Some)
     };
 
+    // Handle device URL updates with clear flags
+    let ios_url_value = if update_req.clear_ios_url == Some(true) {
+        Some(None) // Clear the URL
+    } else {
+        update_req.ios_url.map(Some)
+    };
+    let android_url_value = if update_req.clear_android_url == Some(true) {
+        Some(None) // Clear the URL
+    } else {
+        update_req.android_url.map(Some)
+    };
+    let desktop_url_value = if update_req.clear_desktop_url == Some(true) {
+        Some(None) // Clear the URL
+    } else {
+        update_req.desktop_url.map(Some)
+    };
+
     let status_str = update_req.status.as_ref().map(|s| s.as_str().to_string());
 
     let updated_link = link_service
@@ -174,6 +211,9 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             update_req.forward_query_params.map(Some),
             status_str,
             update_req.redirect_type.clone(),
+            ios_url_value,
+            android_url_value,
+            desktop_url_value,
         )
         .await
         .map_err(|e| worker::Error::RustError(e.to_string()))?;

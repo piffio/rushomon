@@ -284,6 +284,9 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
 
         links_to_import.push(link);

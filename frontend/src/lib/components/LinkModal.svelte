@@ -2,9 +2,11 @@
   import { linksApi, tagsApi } from "$lib/api/links";
   import TagInput from "$lib/components/TagInput.svelte";
   import type {
+    CreateLinkRequest,
     Link,
     LinkStatus,
     TagWithCount,
+    UpdateLinkRequest,
     UsageResponse,
     UtmParams
   } from "$lib/types/api";
@@ -36,6 +38,9 @@
   const allowQueryForwarding = $derived(
     usage?.limits?.allow_query_forwarding ?? false
   );
+  const allowDeviceRouting = $derived(
+    usage?.limits?.allow_device_routing ?? false
+  );
   const isProOrAbove = $derived(allowUtmParameters || allowQueryForwarding);
   const modalTitle = $derived(
     isEditMode ? "Edit Link" : "Create New Short Link"
@@ -60,6 +65,12 @@
   let forwardQueryParams = $state(false);
   let redirectType = $state("301"); // Default to 301 for SEO
 
+  // Device routing state
+  let showDeviceRouting = $state(false);
+  let iosUrl = $state("");
+  let androidUrl = $state("");
+  let desktopUrl = $state("");
+
   const hasUtmParams = $derived(
     !!(
       utmSource.trim() ||
@@ -69,6 +80,10 @@
       utmContent.trim() ||
       utmRef.trim()
     )
+  );
+
+  const hasDeviceUrls = $derived(
+    !!(iosUrl.trim() || androidUrl.trim() || desktopUrl.trim())
   );
 
   function buildPreviewUrl(): string {
@@ -143,6 +158,10 @@
     forwardQueryParams = false;
     redirectType = "301"; // Reset to default
     showUtmBuilder = false;
+    iosUrl = "";
+    androidUrl = "";
+    desktopUrl = "";
+    showDeviceRouting = false;
     populatedLinkId = null;
   }
 
@@ -180,6 +199,11 @@
         showUtmBuilder = false; // Always start collapsed
         forwardQueryParams = link.forward_query_params ?? false;
         redirectType = link.redirect_type || "301"; // Load existing redirect type
+        // Device URLs
+        iosUrl = link.ios_url || "";
+        androidUrl = link.android_url || "";
+        desktopUrl = link.desktop_url || "";
+        showDeviceRouting = false; // Start collapsed
         error = "";
         populatedLinkId = link.id;
       } else if (!link) {
@@ -221,17 +245,39 @@
         : undefined;
 
       // TODO: Review in the future if we can avoid this
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const linkData: any = {
-        destination_url: destinationUrl,
-        title: title || undefined,
-        tags: tags.length > 0 ? tags : [],
+
+      let linkData: CreateLinkRequest & Partial<UpdateLinkRequest> = {
+        destination_url: destinationUrl.trim(),
+        title: title.trim() || undefined,
+        tags: tags.length > 0 ? tags : undefined,
         utm_params: utmParams,
         forward_query_params: allowQueryForwarding
           ? forwardQueryParams
           : undefined,
         redirect_type: redirectType
       };
+
+      // Handle device URLs: set, clear, or don't update
+      if (iosUrl.trim()) {
+        linkData.ios_url = iosUrl.trim();
+      } else if (link?.ios_url) {
+        // Send clear_ios_url flag to explicitly clear iOS URL
+        linkData.clear_ios_url = true;
+      }
+
+      if (androidUrl.trim()) {
+        linkData.android_url = androidUrl.trim();
+      } else if (link?.android_url) {
+        // Send clear_android_url flag to explicitly clear Android URL
+        linkData.clear_android_url = true;
+      }
+
+      if (desktopUrl.trim()) {
+        linkData.desktop_url = desktopUrl.trim();
+      } else if (link?.desktop_url) {
+        // Send clear_desktop_url flag to explicitly clear Desktop URL
+        linkData.clear_desktop_url = true;
+      }
 
       // Handle expiration: set, clear, or don't update
       if (expiresAt) {
@@ -928,6 +974,184 @@
               UTM parameters &amp; query forwarding —
               <a href="/pricing" class="text-orange-600 hover:underline"
                 >Upgrade to Pro</a
+              ></span
+            >
+          </div>
+        {/if}
+
+        <!-- Device Routing Section -->
+        {#if allowDeviceRouting}
+          <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+              onclick={() => (showDeviceRouting = !showDeviceRouting)}
+              disabled={loading}
+            >
+              <span class="flex items-center gap-2">
+                <svg
+                  class="w-4 h-4 text-purple-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
+                </svg>
+                Device-Based Routing
+                {#if hasDeviceUrls}
+                  <span
+                    class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full"
+                    >active</span
+                  >
+                {/if}
+              </span>
+              <svg
+                class="w-4 h-4 text-gray-400 transition-transform {showDeviceRouting
+                  ? 'rotate-180'
+                  : ''}"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+            {#if showDeviceRouting}
+              <div class="p-4 space-y-4 border-t border-gray-200">
+                <p class="text-xs text-gray-500">
+                  Redirect visitors to different URLs based on their device
+                  type. Leave empty to use the default destination URL.
+                </p>
+
+                <!-- iOS URL -->
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+                  >
+                    <svg
+                      class="w-4 h-4 text-gray-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.21-1.96 1.07-3.11-1.05.05-2.31.71-3.06 1.64-.68.84-1.21 2.19-1.06 3.28 1.18.09 2.38-.59 3.05-1.81z"
+                      />
+                    </svg>
+                  </div>
+                  <label
+                    for="modal-ios-url"
+                    class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+                    >iOS URL</label
+                  >
+                  <input
+                    type="url"
+                    id="modal-ios-url"
+                    bind:value={iosUrl}
+                    placeholder="https://apps.apple.com/..."
+                    disabled={loading}
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100"
+                  />
+                </div>
+
+                <!-- Android URL -->
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+                  >
+                    <svg
+                      class="w-4 h-4 text-green-600"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0225 3.503C15.5902 8.4797 13.8535 8.178 12 8.178c-1.8535 0-3.5902.3017-5.1367.8494L4.8408 5.5244a.416.416 0 00-.5676-.1521.416.416 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589.3432 18.6617h23.3136c0-4.0028-2.3457-7.475-5.775-9.3403"
+                      />
+                    </svg>
+                  </div>
+                  <label
+                    for="modal-android-url"
+                    class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+                    >Android URL</label
+                  >
+                  <input
+                    type="url"
+                    id="modal-android-url"
+                    bind:value={androidUrl}
+                    placeholder="https://play.google.com/..."
+                    disabled={loading}
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100"
+                  />
+                </div>
+
+                <!-- Desktop URL -->
+                <div class="flex items-center gap-3">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"
+                  >
+                    <svg
+                      class="w-4 h-4 text-gray-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                  <label
+                    for="modal-desktop-url"
+                    class="text-sm font-medium text-gray-700 w-20 flex-shrink-0"
+                    >Desktop URL</label
+                  >
+                  <input
+                    type="url"
+                    id="modal-desktop-url"
+                    bind:value={desktopUrl}
+                    placeholder="https://example.com/desktop-version"
+                    disabled={loading}
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100"
+                  />
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <!-- Device routing upsell for lower tiers -->
+          <div
+            class="flex items-center gap-2 p-3 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500"
+          >
+            <svg
+              class="w-4 h-4 text-purple-500 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+            <span
+              ><strong class="text-gray-700">Business feature:</strong>
+              Device-based routing —
+              <a href="/pricing" class="text-orange-600 hover:underline"
+                >Upgrade to Business</a
               ></span
             >
           </div>

@@ -3479,6 +3479,30 @@
             "type": "string",
             "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301, available on Pro+ plans.",
             "example": "301"
+          },
+          "ios_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "iOS-specific destination URL (Business tier feature).",
+            "example": "https://apps.apple.com/app/id123456789"
+          },
+          "android_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Android-specific destination URL (Business tier feature).",
+            "example": "https://play.google.com/store/apps/details?id=com.example"
+          },
+          "desktop_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Desktop-specific destination URL (Business tier feature).",
+            "example": "https://example.com/desktop-app"
           }
         },
         "additionalProperties": false
@@ -3604,6 +3628,30 @@
             "type": "string",
             "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301 for SEO, 307 available on Pro+ plans.",
             "example": "301"
+          },
+          "ios_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "iOS-specific destination URL (Business tier feature).\nRedirects iPhone/iPad users to this URL instead of the default.",
+            "example": "https://apps.apple.com/app/id123456789"
+          },
+          "android_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Android-specific destination URL (Business tier feature).\nRedirects Android users to this URL instead of the default.",
+            "example": "https://play.google.com/store/apps/details?id=com.example"
+          },
+          "desktop_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Desktop-specific destination URL (Business tier feature).\nRedirects desktop users (Windows, macOS, Linux) to this URL instead of the default.",
+            "example": "https://example.com/desktop-app"
           }
         }
       },
@@ -4178,6 +4226,54 @@
             ],
             "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nAvailable on Pro+ plans.",
             "example": "307"
+          },
+          "ios_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "iOS-specific destination URL (Business tier feature).\nSet to clear the iOS URL.",
+            "example": "https://apps.apple.com/app/id123456789"
+          },
+          "clear_ios_url": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Set to true to clear the iOS URL",
+            "example": false
+          },
+          "android_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Android-specific destination URL (Business tier feature).\nSet to clear the Android URL.",
+            "example": "https://play.google.com/store/apps/details?id=com.example"
+          },
+          "clear_android_url": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Set to true to clear the Android URL",
+            "example": false
+          },
+          "desktop_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Desktop-specific destination URL (Business tier feature).\nSet to clear the Desktop URL.",
+            "example": "https://example.com/desktop-app"
+          },
+          "clear_desktop_url": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Set to true to clear the Desktop URL",
+            "example": false
           }
         }
       },
