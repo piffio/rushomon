@@ -258,8 +258,7 @@ impl LinkService {
         let repo = LinkRepository::new();
 
         // Verify link exists and belongs to org
-        let _existing = repo
-            .get_by_id(db, link_id, org_id)
+        repo.get_by_id(db, link_id, org_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Link not found".to_string()))?;
 
