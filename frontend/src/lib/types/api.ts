@@ -42,6 +42,9 @@ export interface Link {
   utm_params?: UtmParams | null;
   forward_query_params?: boolean | null;
   redirect_type: string; // "301" or "307"
+  ios_url?: string | null;
+  android_url?: string | null;
+  desktop_url?: string | null;
 }
 
 export interface TagWithCount {
@@ -58,6 +61,9 @@ export interface CreateLinkRequest {
   utm_params?: UtmParams;
   forward_query_params?: boolean;
   redirect_type: string; // "301" or "307" - required field with default "301"
+  ios_url?: string;
+  android_url?: string;
+  desktop_url?: string;
 }
 
 export interface UpdateLinkRequest {
@@ -70,6 +76,12 @@ export interface UpdateLinkRequest {
   utm_params?: UtmParams;
   forward_query_params?: boolean;
   redirect_type?: string; // "301" or "307"
+  ios_url?: string;
+  android_url?: string;
+  desktop_url?: string;
+  clear_ios_url?: boolean;
+  clear_android_url?: boolean;
+  clear_desktop_url?: boolean;
 }
 
 export interface OrgSettings {
@@ -161,6 +173,7 @@ export interface UsageResponse {
     allow_custom_short_code: boolean;
     allow_utm_parameters: boolean;
     allow_query_forwarding: boolean;
+    allow_device_routing: boolean;
     max_tags: number | null;
   };
   usage: {

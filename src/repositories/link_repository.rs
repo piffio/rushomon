@@ -57,6 +57,9 @@ pub struct AdminLinkBase {
     #[serde(serialize_with = "serialize_optional_int_as_bool")]
     pub forward_query_params: Option<i64>, // Stored as INTEGER in D1 (0/1/NULL)
     pub redirect_type: String,
+    pub ios_url: Option<String>,
+    pub android_url: Option<String>,
+    pub desktop_url: Option<String>,
     pub creator_email: String,
     pub org_name: String,
 }
@@ -87,8 +90,8 @@ impl LinkRepository {
         let utm_json = link.utm_params.as_ref().and_then(|u| u.to_json_string());
 
         let stmt = db.prepare(
-            "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
+            "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"
         );
 
         stmt.bind(&[
@@ -112,6 +115,18 @@ impl LinkRepository {
                 .map(|v| (if v { 1i64 } else { 0i64 } as f64).into())
                 .unwrap_or(JsValue::NULL),
             link.redirect_type.clone().into(),
+            link.ios_url
+                .clone()
+                .map(|s| s.into())
+                .unwrap_or(JsValue::NULL),
+            link.android_url
+                .clone()
+                .map(|s| s.into())
+                .unwrap_or(JsValue::NULL),
+            link.desktop_url
+                .clone()
+                .map(|s| s.into())
+                .unwrap_or(JsValue::NULL),
         ])?
         .run()
         .await?;
@@ -127,7 +142,7 @@ impl LinkRepository {
         org_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE id = ?1
              AND org_id = ?2
@@ -141,7 +156,7 @@ impl LinkRepository {
     /// Get a link by ID without org check — active only (public redirects)
     pub async fn get_by_id_no_auth(&self, db: &D1Database, link_id: &str) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE id = ?1
              AND status = 'active'"
@@ -156,7 +171,7 @@ impl LinkRepository {
         link_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE id = ?1"
         );
@@ -171,7 +186,7 @@ impl LinkRepository {
         org_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE short_code = ?1
              AND org_id = ?2
@@ -189,7 +204,7 @@ impl LinkRepository {
         short_code: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE short_code = ?1
              AND status = 'active'"
@@ -211,7 +226,7 @@ impl LinkRepository {
         tags_filter: Option<&[String]>,
     ) -> Result<Vec<Link>> {
         let mut query = String::from(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE org_id = ?1"
         );
@@ -343,7 +358,8 @@ impl LinkRepository {
     }
 
     /// Update a link. Only provided fields are changed.
-    /// For expires_at: None = don't update, Some(None) = clear to NULL, Some(Some(ts)) = set to timestamp
+    /// For expires_at, utm_params, forward_query_params, device URLs:
+    ///   None = don't update, Some(None) = clear to NULL, Some(Some(val)) = set to value
     #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
@@ -357,6 +373,9 @@ impl LinkRepository {
         utm_params: Option<Option<&str>>,
         forward_query_params: Option<Option<bool>>,
         redirect_type: Option<&str>,
+        ios_url: Option<Option<&str>>,
+        android_url: Option<Option<&str>>,
+        desktop_url: Option<Option<&str>>,
     ) -> Result<Link> {
         let now = now_timestamp();
 
@@ -411,6 +430,24 @@ impl LinkRepository {
         if let Some(rt) = redirect_type {
             query.push_str(&format!(", redirect_type = ?{}", param_count));
             params.push(rt.into());
+            param_count += 1;
+        }
+
+        if let Some(ios_val) = ios_url {
+            query.push_str(&format!(", ios_url = ?{}", param_count));
+            params.push(ios_val.map(|s| s.into()).unwrap_or(JsValue::NULL));
+            param_count += 1;
+        }
+
+        if let Some(android_val) = android_url {
+            query.push_str(&format!(", android_url = ?{}", param_count));
+            params.push(android_val.map(|s| s.into()).unwrap_or(JsValue::NULL));
+            param_count += 1;
+        }
+
+        if let Some(desktop_val) = desktop_url {
+            query.push_str(&format!(", desktop_url = ?{}", param_count));
+            params.push(desktop_val.map(|s| s.into()).unwrap_or(JsValue::NULL));
             param_count += 1;
         }
 
@@ -631,7 +668,7 @@ impl LinkRepository {
     /// Get all active/disabled links for an org (for CSV/JSON export)
     pub async fn get_all_for_export(&self, db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
              FROM links
              WHERE org_id = ?1
              AND status IN ('active', 'disabled')
@@ -654,7 +691,7 @@ impl LinkRepository {
         domain_filter: Option<&str>,
     ) -> Result<Vec<AdminLinkBase>> {
         let mut query = String::from(
-            "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, l.utm_params, l.forward_query_params, l.redirect_type, u.email as creator_email, o.name as org_name
+            "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, l.utm_params, l.forward_query_params, l.redirect_type, l.ios_url, l.android_url, l.desktop_url, u.email as creator_email, o.name as org_name
              FROM links l
              JOIN users u ON l.created_by = u.id
              JOIN organizations o ON l.org_id = o.id
@@ -913,6 +950,9 @@ mod admin_link_serialization_tests {
             utm_params: None,
             forward_query_params: Some(1),
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
             creator_email: "test@example.com".to_string(),
             org_name: "Test Org".to_string(),
         };
@@ -941,6 +981,9 @@ mod admin_link_serialization_tests {
             utm_params: None,
             forward_query_params: Some(0),
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
             creator_email: "test@example.com".to_string(),
             org_name: "Test Org".to_string(),
         };
@@ -968,6 +1011,9 @@ mod admin_link_serialization_tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
             creator_email: "test@example.com".to_string(),
             org_name: "Test Org".to_string(),
         };

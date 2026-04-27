@@ -41,6 +41,7 @@ impl Tier {
                 allow_custom_short_code: false,
                 allow_utm_parameters: false,
                 allow_query_forwarding: false,
+                allow_device_routing: false,
                 allow_api_keys: false,
                 max_members: Some(1),
                 max_orgs: Some(1),
@@ -53,6 +54,7 @@ impl Tier {
                 allow_custom_short_code: true,
                 allow_utm_parameters: true,
                 allow_query_forwarding: true,
+                allow_device_routing: false,
                 allow_api_keys: true,
                 max_members: Some(1),
                 max_orgs: Some(1),
@@ -65,6 +67,7 @@ impl Tier {
                 allow_custom_short_code: true,
                 allow_utm_parameters: true,
                 allow_query_forwarding: true,
+                allow_device_routing: true,
                 allow_api_keys: true,
                 max_members: Some(20),
                 max_orgs: Some(3),
@@ -77,6 +80,7 @@ impl Tier {
                 allow_custom_short_code: true,
                 allow_utm_parameters: true,
                 allow_query_forwarding: true,
+                allow_device_routing: true,
                 allow_api_keys: true,
                 max_members: None,
                 max_orgs: None,
@@ -106,6 +110,8 @@ pub struct TierLimits {
     pub allow_utm_parameters: bool,
     /// Whether query parameter forwarding is allowed for this tier.
     pub allow_query_forwarding: bool,
+    /// Whether device-based routing (iOS/Android/Desktop URLs) is allowed for this tier.
+    pub allow_device_routing: bool,
     /// Whether API key creation and usage is allowed for this tier.
     pub allow_api_keys: bool,
     /// Maximum members per organization (including owner). None = unlimited.

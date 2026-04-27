@@ -251,6 +251,9 @@ impl LinkService {
         forward_query_params: Option<Option<bool>>,
         status: Option<String>,
         redirect_type: Option<String>,
+        ios_url: Option<Option<String>>,
+        android_url: Option<Option<String>>,
+        desktop_url: Option<Option<String>>,
     ) -> Result<Link, AppError> {
         let repo = LinkRepository::new();
 
@@ -266,6 +269,11 @@ impl LinkService {
         let utm_ref: Option<Option<&str>> =
             utm_string.as_ref().map(|o| o.as_ref().map(|s| s.as_str()));
 
+        // Convert device URLs for repository
+        let ios_ref: Option<Option<&str>> = ios_url.as_ref().map(|o| o.as_deref());
+        let android_ref: Option<Option<&str>> = android_url.as_ref().map(|o| o.as_deref());
+        let desktop_ref: Option<Option<&str>> = desktop_url.as_ref().map(|o| o.as_deref());
+
         // Update the link (single call handles all fields)
         let updated = repo
             .update(
@@ -279,6 +287,9 @@ impl LinkService {
                 utm_ref, // utm_params as Option<Option<&str>>
                 forward_query_params,
                 redirect_type.as_deref(),
+                ios_ref,
+                android_ref,
+                desktop_ref,
             )
             .await?;
 
@@ -436,6 +447,9 @@ impl LinkService {
                 forward_query_params: link.forward_query_params.unwrap_or(false),
                 utm_params: link.utm_params.clone(),
                 redirect_type: link.redirect_type.clone(),
+                ios_url: link.ios_url.clone(),
+                android_url: link.android_url.clone(),
+                desktop_url: link.desktop_url.clone(),
             };
             crate::kv::store_link_mapping(kv, &link.org_id, &link.short_code, &mapping).await?;
         } else {
@@ -553,6 +567,9 @@ impl LinkService {
                     utm_params: link.utm_params,
                     forward_query_params: link.forward_query_params,
                     redirect_type: link.redirect_type.clone(),
+                    ios_url: link.ios_url.clone(),
+                    android_url: link.android_url.clone(),
+                    desktop_url: link.desktop_url.clone(),
                 };
                 let org_repo = crate::repositories::OrgRepository::new();
                 let resolved_forward = if let Some(forward) = link.forward_query_params {

@@ -104,6 +104,18 @@ pub struct Link {
     /// Default is 301 for SEO, 307 available on Pro+ plans.
     #[schema(example = "301")]
     pub redirect_type: String,
+    /// iOS-specific destination URL (Business tier feature).
+    /// Redirects iPhone/iPad users to this URL instead of the default.
+    #[schema(example = "https://apps.apple.com/app/id123456789")]
+    pub ios_url: Option<String>,
+    /// Android-specific destination URL (Business tier feature).
+    /// Redirects Android users to this URL instead of the default.
+    #[schema(example = "https://play.google.com/store/apps/details?id=com.example")]
+    pub android_url: Option<String>,
+    /// Desktop-specific destination URL (Business tier feature).
+    /// Redirects desktop users (Windows, macOS, Linux) to this URL instead of the default.
+    #[schema(example = "https://example.com/desktop-app")]
+    pub desktop_url: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for Link {
@@ -127,6 +139,9 @@ impl<'de> Deserialize<'de> for Link {
             utm_params: Option<String>,        // JSON string from D1
             forward_query_params: Option<i64>, // 0/1/NULL from D1
             redirect_type: String,             // "301" or "307"
+            ios_url: Option<String>,           // Device routing URL
+            android_url: Option<String>,       // Device routing URL
+            desktop_url: Option<String>,       // Device routing URL
         }
 
         let helper = LinkHelper::deserialize(deserializer)?;
@@ -164,6 +179,9 @@ impl<'de> Deserialize<'de> for Link {
             utm_params,
             forward_query_params,
             redirect_type: helper.redirect_type,
+            ios_url: helper.ios_url,
+            android_url: helper.android_url,
+            desktop_url: helper.desktop_url,
         })
     }
 }
@@ -187,6 +205,18 @@ pub struct LinkMapping {
     /// Missing in old KV entries = "301" (safe default: permanent for SEO).
     #[serde(default = "default_redirect_type")]
     pub redirect_type: String,
+    /// iOS-specific destination URL (Business tier feature).
+    /// Missing in old KV entries = None (no device routing).
+    #[serde(default)]
+    pub ios_url: Option<String>,
+    /// Android-specific destination URL (Business tier feature).
+    /// Missing in old KV entries = None (no device routing).
+    #[serde(default)]
+    pub android_url: Option<String>,
+    /// Desktop-specific destination URL (Business tier feature).
+    /// Missing in old KV entries = None (no device routing).
+    #[serde(default)]
+    pub desktop_url: Option<String>,
 }
 
 fn default_redirect_type() -> String {
@@ -213,6 +243,15 @@ pub struct CreateLinkRequest {
     #[serde(default = "default_redirect_type")]
     #[schema(example = "301")]
     pub redirect_type: String,
+    /// iOS-specific destination URL (Business tier feature).
+    #[schema(example = "https://apps.apple.com/app/id123456789")]
+    pub ios_url: Option<String>,
+    /// Android-specific destination URL (Business tier feature).
+    #[schema(example = "https://play.google.com/store/apps/details?id=com.example")]
+    pub android_url: Option<String>,
+    /// Desktop-specific destination URL (Business tier feature).
+    #[schema(example = "https://example.com/desktop-app")]
+    pub desktop_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -237,6 +276,27 @@ pub struct UpdateLinkRequest {
     /// Available on Pro+ plans.
     #[schema(example = "307")]
     pub redirect_type: Option<String>,
+    /// iOS-specific destination URL (Business tier feature).
+    /// Set to clear the iOS URL.
+    #[schema(example = "https://apps.apple.com/app/id123456789")]
+    pub ios_url: Option<String>,
+    /// Set to true to clear the iOS URL
+    #[schema(example = false)]
+    pub clear_ios_url: Option<bool>,
+    /// Android-specific destination URL (Business tier feature).
+    /// Set to clear the Android URL.
+    #[schema(example = "https://play.google.com/store/apps/details?id=com.example")]
+    pub android_url: Option<String>,
+    /// Set to true to clear the Android URL
+    #[schema(example = false)]
+    pub clear_android_url: Option<bool>,
+    /// Desktop-specific destination URL (Business tier feature).
+    /// Set to clear the Desktop URL.
+    #[schema(example = "https://example.com/desktop-app")]
+    pub desktop_url: Option<String>,
+    /// Set to true to clear the Desktop URL
+    #[schema(example = false)]
+    pub clear_desktop_url: Option<bool>,
 }
 
 impl Link {
@@ -261,6 +321,9 @@ impl Link {
             utm_params: self.utm_params.clone(),
             forward_query_params: resolved_forward,
             redirect_type: self.redirect_type.clone(),
+            ios_url: self.ios_url.clone(),
+            android_url: self.android_url.clone(),
+            desktop_url: self.desktop_url.clone(),
         }
     }
 }
@@ -287,6 +350,9 @@ mod tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
         assert!(!link.is_expired());
     }
@@ -315,6 +381,9 @@ mod tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
         assert!(!link.is_expired());
     }
@@ -339,6 +408,9 @@ mod tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
         assert!(link.is_expired());
     }
@@ -361,6 +433,9 @@ mod tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
 
         let mapping = link.to_mapping(false);
@@ -390,6 +465,9 @@ mod tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
 
         let mapping = link.to_mapping(false);
@@ -455,6 +533,9 @@ mod tests {
             utm_params: Some(utm.clone()),
             forward_query_params: Some(true),
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
 
         let mapping = link.to_mapping(true);
@@ -529,6 +610,9 @@ mod redirect_type_tests {
             utm_params: None,
             forward_query_params: None,
             redirect_type: "301".to_string(),
+            ios_url: None,
+            android_url: None,
+            desktop_url: None,
         };
 
         let json = serde_json::to_string(&link).unwrap();
