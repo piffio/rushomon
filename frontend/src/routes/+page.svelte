@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Header from "$lib/components/Header.svelte";
-  import Footer from "$lib/components/Footer.svelte";
-  import SEO from "$lib/components/SEO.svelte";
-  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import Footer from "$lib/components/Footer.svelte";
+  import Header from "$lib/components/Header.svelte";
+  import SEO from "$lib/components/SEO.svelte";
+  import { onMount } from "svelte";
   import type { PageData } from "./$types";
 
   const { data }: { data: PageData } = $props();
@@ -28,8 +28,8 @@
 
 <svelte:head>
   <SEO
-    title="Rushomon – Self-Hosted URL Shortener"
-    description="Self-hosted, blazing fast URL shortener with analytics. Deploy on your own domain with Cloudflare Workers."
+    title="Rushomon — URL Shortener with Analytics"
+    description="URL shortener with powerful analytics. Free tier available, open source, self-hostable."
   />
 </svelte:head>
 
@@ -48,18 +48,18 @@
           <h1
             class="text-5xl md:text-7xl font-bold text-gray-900 mb-8 leading-tight"
           >
-            Your Own<br />
+            Short Links with<br />
             <span
               class="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-600"
             >
-              URL Shortener
+              Powerful Analytics
             </span>
           </h1>
           <p
             class="text-xl md:text-2xl text-gray-600 mb-12 leading-relaxed max-w-2xl mx-auto"
           >
-            Self-hosted, blazing fast, and powerful. Create custom short links
-            with analytics on your own domain.
+            The URL shortener that grows with you. Start free, no setup
+            required.
           </p>
 
           <!-- Signups Disabled Error -->
@@ -99,7 +99,7 @@
                 />
               </svg>
             {:else}
-              {data.user ? "Go to Dashboard" : "Get Started"}
+              {data.user ? "Go to Dashboard" : "Create Your First Link — Free"}
               <svg
                 class="w-6 h-6"
                 fill="none"
@@ -119,65 +119,85 @@
       </div>
     </section>
 
-    <!-- Dashboard Preview Section -->
+    <!-- How It Works Section -->
     <section class="bg-gradient-to-b from-gray-50 to-white py-20">
       <div class="container mx-auto px-4">
-        <div class="max-w-5xl mx-auto">
+        <div class="max-w-6xl mx-auto">
           <h3
             class="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-6"
           >
-            Simple, Powerful Interface
+            Get Started in Seconds
           </h3>
           <p class="text-lg text-gray-600 text-center mb-12 max-w-2xl mx-auto">
-            A clean dashboard to create, manage, and track your short links. No
-            complexity, just what you need.
+            No complex setup. Just sign up and start creating links.
           </p>
-          <div
-            class="bg-gradient-to-br from-gray-100 to-gray-50 rounded-2xl p-8 md:p-12 shadow-xl border border-gray-200"
-          >
-            <div
-              class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200"
-            >
-              <!-- Mock Dashboard Preview -->
-              <div
-                class="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 flex items-center justify-between"
-              >
-                <div class="flex items-center gap-2">
-                  <div class="w-6 h-6 bg-white/20 rounded"></div>
-                  <div class="text-white font-semibold">Dashboard</div>
+
+          <div class="grid md:grid-cols-3 gap-8">
+            <!-- Step 1: Sign Up -->
+            <div class="text-center">
+              <div class="relative mb-6">
+                <div
+                  class="absolute -top-3 -left-3 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg"
+                >
+                  1
                 </div>
-                <div class="w-8 h-8 bg-white/20 rounded-full"></div>
+                <img
+                  src="/step-1-signup.png"
+                  alt="Sign up with GitHub or Google OAuth"
+                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                />
               </div>
-              <div class="p-6 space-y-4">
-                <div class="flex gap-4">
-                  <div class="flex-1 h-12 bg-gray-100 rounded-lg"></div>
-                  <div
-                    class="w-32 h-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg"
-                  ></div>
+              <h4 class="text-xl font-semibold text-gray-900 mb-2">
+                Sign Up Free
+              </h4>
+              <p class="text-gray-600">
+                Connect with your GitHub or Google account. No credit card
+                required.
+              </p>
+            </div>
+
+            <!-- Step 2: Create Links -->
+            <div class="text-center">
+              <div class="relative mb-6">
+                <div
+                  class="absolute -top-3 -left-3 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg"
+                >
+                  2
                 </div>
-                <div class="space-y-3">
-                  <div
-                    class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    <div class="w-10 h-10 bg-orange-100 rounded-lg"></div>
-                    <div class="flex-1 space-y-2">
-                      <div class="h-4 bg-gray-200 rounded w-2/3"></div>
-                      <div class="h-3 bg-gray-100 rounded w-1/2"></div>
-                    </div>
-                    <div class="h-8 w-20 bg-gray-200 rounded"></div>
-                  </div>
-                  <div
-                    class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    <div class="w-10 h-10 bg-orange-100 rounded-lg"></div>
-                    <div class="flex-1 space-y-2">
-                      <div class="h-4 bg-gray-200 rounded w-2/3"></div>
-                      <div class="h-3 bg-gray-100 rounded w-1/2"></div>
-                    </div>
-                    <div class="h-8 w-20 bg-gray-200 rounded"></div>
-                  </div>
-                </div>
+                <img
+                  src="/step-2-create.png"
+                  alt="Dashboard with link creation form"
+                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                />
               </div>
+              <h4 class="text-xl font-semibold text-gray-900 mb-2">
+                Create Your Links
+              </h4>
+              <p class="text-gray-600">
+                Paste any URL, customize your short code, and share instantly.
+              </p>
+            </div>
+
+            <!-- Step 3: Track Analytics -->
+            <div class="text-center">
+              <div class="relative mb-6">
+                <div
+                  class="absolute -top-3 -left-3 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg"
+                >
+                  3
+                </div>
+                <img
+                  src="/step-3-analytics.png"
+                  alt="Analytics dashboard showing link performance"
+                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                />
+              </div>
+              <h4 class="text-xl font-semibold text-gray-900 mb-2">
+                Track Analytics
+              </h4>
+              <p class="text-gray-600">
+                See clicks, referrers, and geographic data in real-time.
+              </p>
             </div>
           </div>
         </div>
@@ -225,36 +245,6 @@
               </p>
             </div>
 
-            <!-- Custom Codes -->
-            <div
-              class="group p-8 rounded-2xl border-2 border-gray-200 hover:border-orange-500 transition-all duration-300 hover:shadow-lg bg-white"
-            >
-              <div
-                class="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mb-5"
-              >
-                <svg
-                  class="w-7 h-7 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                  />
-                </svg>
-              </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
-                Custom Codes
-              </h4>
-              <p class="text-gray-600 leading-relaxed">
-                Choose your own memorable short codes or let the system generate
-                them automatically.
-              </p>
-            </div>
-
             <!-- Analytics -->
             <div
               class="group p-8 rounded-2xl border-2 border-gray-200 hover:border-orange-500 transition-all duration-300 hover:shadow-lg bg-white"
@@ -285,7 +275,7 @@
               </p>
             </div>
 
-            <!-- Self-Hosted -->
+            <!-- Custom Codes -->
             <div
               class="group p-8 rounded-2xl border-2 border-gray-200 hover:border-orange-500 transition-all duration-300 hover:shadow-lg bg-white"
             >
@@ -302,16 +292,46 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
                   />
                 </svg>
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-3">
-                Self-Hosted
+                Custom Codes
               </h4>
               <p class="text-gray-600 leading-relaxed">
-                Full control over your data. Deploy on your own domain with
-                Cloudflare Workers.
+                Choose your own memorable short codes or let the system generate
+                them automatically.
+              </p>
+            </div>
+
+            <!-- Team Collaboration -->
+            <div
+              class="group p-8 rounded-2xl border-2 border-gray-200 hover:border-orange-500 transition-all duration-300 hover:shadow-lg bg-white"
+            >
+              <div
+                class="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mb-5"
+              >
+                <svg
+                  class="w-7 h-7 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
+              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+                Team Collaboration
+              </h4>
+              <p class="text-gray-600 leading-relaxed">
+                Organization support built-in. Perfect for teams and personal
+                use alike.
               </p>
             </div>
 
@@ -345,7 +365,7 @@
               </p>
             </div>
 
-            <!-- Multi-Tenant -->
+            <!-- Self-Hosted -->
             <div
               class="group p-8 rounded-2xl border-2 border-gray-200 hover:border-orange-500 transition-all duration-300 hover:shadow-lg bg-white"
             >
@@ -362,19 +382,421 @@
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="2"
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                   />
                 </svg>
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-3">
-                Multi-Tenant
+                Self-Hostable
               </h4>
               <p class="text-gray-600 leading-relaxed">
-                Organization support built-in. Perfect for teams and personal
-                use alike.
+                Full control over your data. Deploy on your own domain with
+                Cloudflare Workers.
               </p>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing Preview Section -->
+    <section class="py-20 bg-gray-50">
+      <div class="container mx-auto px-4">
+        <div class="max-w-6xl mx-auto">
+          <h2
+            class="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-6"
+          >
+            Choose What Works for You
+          </h2>
+          <p class="text-xl text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+            Start free and upgrade when you need more.
+          </p>
+
+          <div class="grid md:grid-cols-3 gap-8">
+            <!-- Free Tier -->
+            <div
+              class="bg-white rounded-2xl border-2 border-orange-500 p-8 shadow-lg"
+            >
+              <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">Free</h3>
+                <p class="text-gray-600">Perfect for personal use</p>
+              </div>
+              <ul class="space-y-3 mb-8 text-gray-600">
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  15 links/month
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  7-day analytics history
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Basic click tracking
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Custom short codes
+                </li>
+              </ul>
+              <a
+                href="/login"
+                class="block w-full text-center bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 transition-all"
+              >
+                Get Started
+              </a>
+            </div>
+
+            <!-- Pro Tier -->
+            <div
+              class="bg-white rounded-2xl border-2 border-gray-200 p-8 hover:border-orange-300 transition-all"
+            >
+              <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
+                <p class="text-gray-600">For creators & professionals</p>
+              </div>
+              <ul class="space-y-3 mb-8 text-gray-600">
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Unlimited links
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  365-day analytics history
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Advanced analytics
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Custom domains
+                </li>
+              </ul>
+              <a
+                href="/pricing"
+                class="block w-full text-center border-2 border-orange-500 text-orange-600 px-6 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
+              >
+                View Pricing
+              </a>
+            </div>
+
+            <!-- Business Tier -->
+            <div
+              class="bg-white rounded-2xl border-2 border-gray-200 p-8 hover:border-orange-300 transition-all"
+            >
+              <div class="text-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">Business</h3>
+                <p class="text-gray-600">For teams & organizations</p>
+              </div>
+              <ul class="space-y-3 mb-8 text-gray-600">
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Unlimited links
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Unlimited analytics history
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Team management
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  Priority support
+                </li>
+                <li class="flex items-center gap-3">
+                  <svg
+                    class="w-5 h-5 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  SSO & API access
+                </li>
+              </ul>
+              <a
+                href="/pricing"
+                class="block w-full text-center border-2 border-orange-500 text-orange-600 px-6 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
+              >
+                View Pricing
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Self-Hosting Section (For Developers) -->
+    <section class="py-20 bg-white">
+      <div class="container mx-auto px-4">
+        <div class="max-w-4xl mx-auto text-center">
+          <div
+            class="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"
+          >
+            <svg
+              class="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+              />
+            </svg>
+          </div>
+          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+            For Developers & Privacy-Focused Teams
+          </h2>
+          <p class="text-xl text-gray-600 mb-10">
+            Full control over your data and infrastructure. Deploy on your own
+            domain with Cloudflare Workers.
+          </p>
+
+          <div class="grid md:grid-cols-3 gap-8 mb-10">
+            <div class="text-center">
+              <div
+                class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-3 mx-auto"
+              >
+                <svg
+                  class="w-6 h-6 text-orange-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+              <h4 class="font-semibold text-gray-900 mb-1">Open Source</h4>
+              <p class="text-gray-600 text-sm">
+                AGPL-3.0 license. Audit the code.
+              </p>
+            </div>
+            <div class="text-center">
+              <div
+                class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-3 mx-auto"
+              >
+                <svg
+                  class="w-6 h-6 text-orange-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                  />
+                </svg>
+              </div>
+              <h4 class="font-semibold text-gray-900 mb-1">Self-Hostable</h4>
+              <p class="text-gray-600 text-sm">Deploy on Cloudflare Workers.</p>
+            </div>
+            <div class="text-center">
+              <div
+                class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-3 mx-auto"
+              >
+                <svg
+                  class="w-6 h-6 text-orange-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                  />
+                </svg>
+              </div>
+              <h4 class="font-semibold text-gray-900 mb-1">Your Domain</h4>
+              <p class="text-gray-600 text-sm">Use your own custom domain.</p>
+            </div>
+          </div>
+
+          <a
+            href="https://github.com/piffio/rushomon/blob/main/docs/SELF_HOSTING.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-orange-600 font-semibold hover:text-orange-700 transition-colors"
+          >
+            View Self-Hosting Guide
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
+          </a>
         </div>
       </div>
     </section>
