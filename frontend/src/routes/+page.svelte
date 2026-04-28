@@ -137,6 +137,8 @@
                 </div>
                 <img
                   src="/step-1-signup.webp"
+                  srcset="/step-1-signup-662.webp 662w, /step-1-signup.webp 1324w"
+                  sizes="(max-width: 768px) 662px, 1324px"
                   alt="Sign up with GitHub or Google OAuth"
                   width="1324"
                   height="746"
@@ -163,6 +165,8 @@
                 </div>
                 <img
                   src="/step-2-create.webp"
+                  srcset="/step-2-create-662.webp 662w, /step-2-create.webp 1324w"
+                  sizes="(max-width: 768px) 662px, 1324px"
                   alt="Dashboard with link creation form"
                   width="1324"
                   height="746"
@@ -188,6 +192,8 @@
                 </div>
                 <img
                   src="/step-3-analytics.webp"
+                  srcset="/step-3-analytics-662.webp 662w, /step-3-analytics.webp 1324w"
+                  sizes="(max-width: 768px) 662px, 1324px"
                   alt="Analytics dashboard showing link performance"
                   width="1324"
                   height="746"
