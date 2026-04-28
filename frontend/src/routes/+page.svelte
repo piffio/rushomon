@@ -138,7 +138,7 @@
                 <img
                   src="/step-1-signup.webp"
                   srcset="/step-1-signup-662.webp 662w, /step-1-signup.webp 1324w"
-                  sizes="(max-width: 768px) 662px, 1324px"
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   alt="Sign up with GitHub or Google OAuth"
                   width="1324"
                   height="746"
@@ -146,9 +146,9 @@
                   class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
                 />
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-2">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
                 Sign Up Free
-              </h4>
+              </h3>
               <p class="text-gray-600">
                 Connect with your GitHub or Google account. No credit card
                 required.
@@ -166,7 +166,7 @@
                 <img
                   src="/step-2-create.webp"
                   srcset="/step-2-create-662.webp 662w, /step-2-create.webp 1324w"
-                  sizes="(max-width: 768px) 662px, 1324px"
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   alt="Dashboard with link creation form"
                   width="1324"
                   height="746"
@@ -174,9 +174,9 @@
                   class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
                 />
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-2">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
                 Create Your Links
-              </h4>
+              </h3>
               <p class="text-gray-600">
                 Paste any URL, customize your short code, and share instantly.
               </p>
@@ -193,7 +193,7 @@
                 <img
                   src="/step-3-analytics.webp"
                   srcset="/step-3-analytics-662.webp 662w, /step-3-analytics.webp 1324w"
-                  sizes="(max-width: 768px) 662px, 1324px"
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   alt="Analytics dashboard showing link performance"
                   width="1324"
                   height="746"
@@ -201,9 +201,9 @@
                   class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
                 />
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-2">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
                 Track Analytics
-              </h4>
+              </h3>
               <p class="text-gray-600">
                 See clicks, referrers, and geographic data in real-time.
               </p>
@@ -245,9 +245,9 @@
                   />
                 </svg>
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+              <h3 class="text-xl font-semibold text-gray-900 mb-3">
                 Lightning Fast
-              </h4>
+              </h3>
               <p class="text-gray-600 leading-relaxed">
                 Powered by Cloudflare's edge network for sub-millisecond
                 redirects worldwide.
@@ -275,9 +275,9 @@
                   />
                 </svg>
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+              <h3 class="text-xl font-semibold text-gray-900 mb-3">
                 Analytics
-              </h4>
+              </h3>
               <p class="text-gray-600 leading-relaxed">
                 Track clicks, referrers, and geographic data to understand your
                 link performance.
@@ -305,9 +305,9 @@
                   />
                 </svg>
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+              <h3 class="text-xl font-semibold text-gray-900 mb-3">
                 Custom Codes
-              </h4>
+              </h3>
               <p class="text-gray-600 leading-relaxed">
                 Choose your own memorable short codes or let the system generate
                 them automatically.
@@ -335,9 +335,9 @@
                   />
                 </svg>
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+              <h3 class="text-xl font-semibold text-gray-900 mb-3">
                 Team Collaboration
-              </h4>
+              </h3>
               <p class="text-gray-600 leading-relaxed">
                 Organization support built-in. Perfect for teams and personal
                 use alike.
@@ -365,9 +365,9 @@
                   />
                 </svg>
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+              <h3 class="text-xl font-semibold text-gray-900 mb-3">
                 Open Source
-              </h4>
+              </h3>
               <p class="text-gray-600 leading-relaxed">
                 Built with Rust and SvelteKit. Free and open source under
                 AGPL-3.0 license.
@@ -395,9 +395,9 @@
                   />
                 </svg>
               </div>
-              <h4 class="text-xl font-semibold text-gray-900 mb-3">
+              <h3 class="text-xl font-semibold text-gray-900 mb-3">
                 Self-Hostable
-              </h4>
+              </h3>
               <p class="text-gray-600 leading-relaxed">
                 Full control over your data. Deploy on your own domain with
                 Cloudflare Workers.
@@ -736,7 +736,7 @@
                   />
                 </svg>
               </div>
-              <h4 class="font-semibold text-gray-900 mb-1">Open Source</h4>
+              <h3 class="font-semibold text-gray-900 mb-1">Open Source</h3>
               <p class="text-gray-600 text-sm">
                 AGPL-3.0 license. Audit the code.
               </p>
@@ -759,7 +759,7 @@
                   />
                 </svg>
               </div>
-              <h4 class="font-semibold text-gray-900 mb-1">Self-Hostable</h4>
+              <h3 class="font-semibold text-gray-900 mb-1">Self-Hostable</h3>
               <p class="text-gray-600 text-sm">Deploy on Cloudflare Workers.</p>
             </div>
             <div class="text-center">
@@ -780,7 +780,7 @@
                   />
                 </svg>
               </div>
-              <h4 class="font-semibold text-gray-900 mb-1">Your Domain</h4>
+              <h3 class="font-semibold text-gray-900 mb-1">Your Domain</h3>
               <p class="text-gray-600 text-sm">Use your own custom domain.</p>
             </div>
           </div>
