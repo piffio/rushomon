@@ -117,12 +117,12 @@
     <section class="bg-gradient-to-b from-gray-50 to-white py-20">
       <div class="container mx-auto px-4">
         <div class="max-w-6xl mx-auto">
-          <h3
+          <h2
             class="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-6"
           >
             Get Started in Seconds
-          </h3>
-          <p class="text-lg text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+          </h2>
+          <p class="text-xl text-gray-600 text-center mb-4">
             No complex setup. Just sign up and start creating links.
           </p>
 
@@ -574,7 +574,7 @@
               </ul>
               <a
                 href="/pricing"
-                class="block w-full text-center border-2 border-orange-500 text-orange-600 px-6 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
+                class="block w-full text-center border-2 border-orange-500 text-orange-700 px-6 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
               >
                 View Pricing
               </a>
@@ -672,7 +672,7 @@
               </ul>
               <a
                 href="/pricing"
-                class="block w-full text-center border-2 border-orange-500 text-orange-600 px-6 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
+                class="block w-full text-center border-2 border-orange-500 text-orange-700 px-6 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
               >
                 View Pricing
               </a>
@@ -783,7 +783,7 @@
             href="https://github.com/piffio/rushomon/blob/main/docs/SELF_HOSTING.md"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-2 text-orange-600 font-semibold hover:text-orange-700 transition-colors"
+            class="inline-flex items-center gap-2 text-orange-700 font-semibold hover:text-orange-800 transition-colors"
           >
             View Self-Hosting Guide
             <svg
