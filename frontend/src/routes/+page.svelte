@@ -9,12 +9,10 @@
 
   const { data }: { data: PageData } = $props();
 
-  let mounted = $state(false);
   let signupsDisabled = $state(false);
   let navigating = $state(false);
 
   onMount(() => {
-    mounted = true;
     signupsDisabled = page.url.searchParams.get("error") === "signups_disabled";
   });
 
@@ -40,11 +38,7 @@
   <main class="flex-1">
     <section class="container mx-auto px-4 py-20 md:py-32">
       <div class="max-w-4xl mx-auto text-center">
-        <div
-          class="transition-all duration-700 {mounted
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 translate-y-4'}"
-        >
+        <div class="hero-fade-in">
           <h1
             class="text-5xl md:text-7xl font-bold text-gray-900 mb-8 leading-tight"
           >
@@ -141,11 +135,17 @@
                 >
                   1
                 </div>
-                <img
-                  src="/step-1-signup.png"
-                  alt="Sign up with GitHub or Google OAuth"
-                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
-                />
+                <picture>
+                  <source srcset="/step-1-signup.webp" type="image/webp" />
+                  <img
+                    src="/step-1-signup.png"
+                    alt="Sign up with GitHub or Google OAuth"
+                    width="1324"
+                    height="746"
+                    loading="eager"
+                    class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                  />
+                </picture>
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-2">
                 Sign Up Free
@@ -164,11 +164,17 @@
                 >
                   2
                 </div>
-                <img
-                  src="/step-2-create.png"
-                  alt="Dashboard with link creation form"
-                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
-                />
+                <picture>
+                  <source srcset="/step-2-create.webp" type="image/webp" />
+                  <img
+                    src="/step-2-create.png"
+                    alt="Dashboard with link creation form"
+                    width="1324"
+                    height="746"
+                    loading="lazy"
+                    class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                  />
+                </picture>
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-2">
                 Create Your Links
@@ -186,11 +192,17 @@
                 >
                   3
                 </div>
-                <img
-                  src="/step-3-analytics.png"
-                  alt="Analytics dashboard showing link performance"
-                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
-                />
+                <picture>
+                  <source srcset="/step-3-analytics.webp" type="image/webp" />
+                  <img
+                    src="/step-3-analytics.png"
+                    alt="Analytics dashboard showing link performance"
+                    width="1324"
+                    height="746"
+                    loading="lazy"
+                    class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                  />
+                </picture>
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-2">
                 Track Analytics

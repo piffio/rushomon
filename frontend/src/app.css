@@ -2,6 +2,21 @@
 @import "tailwindcss/preflight";
 @import "tailwindcss/utilities";
 
+@keyframes hero-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hero-fade-in {
+  animation: hero-fade-in 0.7s ease-out forwards;
+}
+
 @theme {
   --color-orange-50: #fff7ed;
   --color-orange-100: #ffedd5;
