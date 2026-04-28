@@ -17,6 +17,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
+    "critters": "^0.0.23",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
@@ -35,7 +36,7 @@
   "name": "frontend",
   "private": true,
   "scripts": {
-    "build": "vite build && node scripts/generate-sitemap.js",
+    "build": "vite build && node scripts/inline-critical-css.js && node scripts/generate-sitemap.js",
     "build:sitemap": "node scripts/generate-sitemap.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
