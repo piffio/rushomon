@@ -135,17 +135,14 @@
                 >
                   1
                 </div>
-                <picture>
-                  <source srcset="/step-1-signup.webp" type="image/webp" />
-                  <img
-                    src="/step-1-signup.png"
-                    alt="Sign up with GitHub or Google OAuth"
-                    width="1324"
-                    height="746"
-                    loading="eager"
-                    class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
-                  />
-                </picture>
+                <img
+                  src="/step-1-signup.webp"
+                  alt="Sign up with GitHub or Google OAuth"
+                  width="1324"
+                  height="746"
+                  loading="eager"
+                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                />
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-2">
                 Sign Up Free
@@ -164,17 +161,14 @@
                 >
                   2
                 </div>
-                <picture>
-                  <source srcset="/step-2-create.webp" type="image/webp" />
-                  <img
-                    src="/step-2-create.png"
-                    alt="Dashboard with link creation form"
-                    width="1324"
-                    height="746"
-                    loading="lazy"
-                    class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
-                  />
-                </picture>
+                <img
+                  src="/step-2-create.webp"
+                  alt="Dashboard with link creation form"
+                  width="1324"
+                  height="746"
+                  loading="lazy"
+                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                />
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-2">
                 Create Your Links
@@ -192,17 +186,14 @@
                 >
                   3
                 </div>
-                <picture>
-                  <source srcset="/step-3-analytics.webp" type="image/webp" />
-                  <img
-                    src="/step-3-analytics.png"
-                    alt="Analytics dashboard showing link performance"
-                    width="1324"
-                    height="746"
-                    loading="lazy"
-                    class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
-                  />
-                </picture>
+                <img
+                  src="/step-3-analytics.webp"
+                  alt="Analytics dashboard showing link performance"
+                  width="1324"
+                  height="746"
+                  loading="lazy"
+                  class="rounded-xl aspect-video object-cover shadow-lg border border-gray-200"
+                />
               </div>
               <h4 class="text-xl font-semibold text-gray-900 mb-2">
                 Track Analytics
