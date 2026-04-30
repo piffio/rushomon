@@ -16,7 +16,10 @@ export const load: LayoutLoad = async ({ url, fetch }) => {
     "/privacy",
     "/report",
     "/login",
-    "/invite"
+    "/invite",
+    "/alternatives",
+    "/compare",
+    "/use-cases"
   ];
   const isPublicRoute =
     url.pathname === "/" ||

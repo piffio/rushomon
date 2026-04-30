@@ -7,7 +7,7 @@
 
 <footer class="bg-gray-50 border-t border-gray-200 mt-auto">
   <div class="container mx-auto px-4 py-8">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-8">
       <!-- Branding Section -->
       <div class="col-span-1">
         <div class="flex items-center gap-2 mb-4">
@@ -48,6 +48,55 @@
               rel="noopener noreferrer"
               class="text-gray-600 hover:text-orange-600 transition-colors"
               >Self-Hosting Guide</a
+            >
+          </li>
+        </ul>
+      </div>
+
+      <!-- Resources Links -->
+      <div>
+        <h3 class="font-semibold text-gray-900 mb-3">Resources</h3>
+        <ul class="space-y-2 text-sm">
+          <li>
+            <a
+              href="/alternatives/bitly"
+              class="text-gray-600 hover:text-orange-600 transition-colors"
+              >Bitly Alternative</a
+            >
+          </li>
+          <li>
+            <a
+              href="/alternatives/dub"
+              class="text-gray-600 hover:text-orange-600 transition-colors"
+              >Dub Alternative</a
+            >
+          </li>
+          <li>
+            <a
+              href="/alternatives/short-io"
+              class="text-gray-600 hover:text-orange-600 transition-colors"
+              >Short.io Alternative</a
+            >
+          </li>
+          <li>
+            <a
+              href="/use-cases/self-hosted"
+              class="text-gray-600 hover:text-orange-600 transition-colors"
+              >Self-Hosted URL Shortener</a
+            >
+          </li>
+          <li>
+            <a
+              href="/use-cases/open-source"
+              class="text-gray-600 hover:text-orange-600 transition-colors"
+              >Open Source URL Shortener</a
+            >
+          </li>
+          <li>
+            <a
+              href="/use-cases/teams"
+              class="text-gray-600 hover:text-orange-600 transition-colors"
+              >URL Shortener for Teams</a
             >
           </li>
         </ul>
