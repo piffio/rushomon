@@ -201,6 +201,16 @@
           >Affero General Public License v3.0.</a
         >
       </p>
+      <p class="mt-2">
+        Built by
+        <a
+          href="https://sergiovisinoni.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-gray-600 hover:text-orange-600 transition-colors"
+          >Sergio Visinoni</a
+        >.
+      </p>
     </div>
   </div>
 </footer>
