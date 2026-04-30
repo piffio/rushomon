@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Entry removed"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}

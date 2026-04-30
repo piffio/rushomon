@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Portal URL"},"401":{"description":"Unauthorized"},"404":{"description":"No billing account or customer ID found"},"502":{"description":"Polar API error"}}}

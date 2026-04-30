@@ -1,0 +1,1 @@
+{"responses":{"302":{"description":"Redirect to dashboard with session cookie set"},"400":{"description":"Missing or invalid parameters"},"401":{"description":"OAuth state validation failed"},"500":{"description":"Internal server error"}}}

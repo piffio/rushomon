@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Updated user"},"400":{"description":"Invalid role or cannot demote last admin"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"},"404":{"description":"User not found"}}}

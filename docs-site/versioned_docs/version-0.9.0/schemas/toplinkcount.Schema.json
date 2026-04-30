@@ -1,0 +1,1 @@
+{"schema":{"properties":{"count":{"example":50,"format":"int64","type":"integer"},"link_id":{"example":"link-123","type":"string"},"short_code":{"example":"abc123","type":"string"},"title":{"example":"My Link","type":["string","null"]}},"required":["link_id","short_code","count"],"type":"object","title":"TopLinkCount"},"schemaType":"response"}
