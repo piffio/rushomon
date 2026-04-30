@@ -1,23 +1,32 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { authApi } from "$lib/api/auth";
   import Footer from "$lib/components/Footer.svelte";
   import Header from "$lib/components/Header.svelte";
   import SEO from "$lib/components/SEO.svelte";
+  import type { User } from "$lib/types/api";
   import { onMount } from "svelte";
   import type { PageData } from "./$types";
 
-  const { data }: { data: PageData } = $props();
+  const { data: _data }: { data: PageData } = $props();
 
+  let currentUser = $state<User | undefined>(undefined);
   let signupsDisabled = $state(false);
   let navigating = $state(false);
 
-  onMount(() => {
+  onMount(async () => {
     signupsDisabled = page.url.searchParams.get("error") === "signups_disabled";
+    try {
+      const user = await authApi.me();
+      currentUser = user;
+    } catch {
+      currentUser = undefined;
+    }
   });
 
   function handleNavigation() {
-    if (data.user) {
+    if (currentUser) {
       navigating = true;
       goto("/dashboard");
     }
@@ -26,13 +35,13 @@
 
 <svelte:head>
   <SEO
-    title="Rushomon — URL Shortener with Analytics"
-    description="URL shortener with powerful analytics. Free tier available, open source, self-hostable."
+    title="Rushomon - Open Source URL Shortener & Link Analytics"
+    description="Free, open source URL shortener with powerful analytics. Self-hostable on Cloudflare Workers. A better Bitly alternative - no lock-in, your data, your domain."
   />
 </svelte:head>
 
 <div class="min-h-screen bg-white flex flex-col">
-  <Header user={data.user} currentPage="landing" />
+  <Header user={currentUser} currentPage="landing" />
 
   <!-- Hero Section -->
   <main class="flex-1">
@@ -70,8 +79,8 @@
 
           <!-- CTA Button -->
           <a
-            href={data.user ? "/dashboard" : "/login"}
-            onclick={data.user ? handleNavigation : undefined}
+            href={currentUser ? "/dashboard" : "/login"}
+            onclick={currentUser ? handleNavigation : undefined}
             class="inline-flex items-center gap-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-10 py-5 rounded-xl text-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 transform duration-200 {navigating
               ? 'opacity-70 cursor-not-allowed'
               : ''}"
@@ -93,7 +102,9 @@
                 />
               </svg>
             {:else}
-              {data.user ? "Go to Dashboard" : "Create Your First Link — Free"}
+              {currentUser
+                ? "Go to Dashboard"
+                : "Create Your First Link — Free"}
               <svg
                 class="w-6 h-6"
                 fill="none"
@@ -561,22 +572,6 @@
                   </svg>
                   Advanced analytics
                 </li>
-                <li class="flex items-center gap-3">
-                  <svg
-                    class="w-5 h-5 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Custom domains
-                </li>
               </ul>
               <a
                 href="/pricing"
@@ -781,7 +776,7 @@
                 </svg>
               </div>
               <h3 class="font-semibold text-gray-900 mb-1">Your Domain</h3>
-              <p class="text-gray-600 text-sm">Use your own custom domain.</p>
+              <p class="text-gray-600 text-sm">Run it on your own domain.</p>
             </div>
           </div>
 

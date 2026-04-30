@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
 import { writeFileSync } from "fs";
-import { join } from "path";
+import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,8 +21,9 @@ const pagesContent = pagesMatch ? pagesMatch[1] : "";
 
 // Parse the pages array (simplified - just extract path, changefreq, priority)
 const PUBLIC_PAGES = [];
+// Handle both single and double quotes, and multi-line formatting
 const pageMatches = pagesContent.matchAll(
-  /\{ path: '([^']+)', changefreq: '([^']+)', priority: '([^']+)'/g
+  /\{\s*path:\s*["']([^"']+)["']\s*,\s*changefreq:\s*["']([^"']+)["']\s*,\s*priority:\s*["']([^"']+)["']/g
 );
 for (const match of pageMatches) {
   PUBLIC_PAGES.push({
