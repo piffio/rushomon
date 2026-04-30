@@ -1,0 +1,38 @@
+---
+id: billingaccount
+title: "BillingAccount"
+description: "Billing Account represents the payment entity that owns one or more organizations."
+sidebar_label: "BillingAccount"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"created_at":1609459200,"id":"ba_abc123def456","owner_user_id":"user-123456","provider_customer_id":"cust_abc123","tier":"pro"}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"BillingAccount"}
+>
+</Heading>
+
+
+
+Billing Account represents the payment entity that owns one or more organizations.
+Tier limits and quotas are enforced at the billing account level, not per-organization.
+
+This prevents abuse where users could create multiple orgs to multiply their quotas.
+For example:
+- Business tier ($29) = 10k links/month across ALL orgs in the billing account
+- Not 10k per org (which would be 30k for 3 orgs)
+
+<Schema
+  {...require("./billingaccount.Schema.json")}
+>
+  
+</Schema>
+            

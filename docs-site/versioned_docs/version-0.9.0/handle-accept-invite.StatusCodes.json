@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Invitation accepted, new access token set"},"401":{"description":"Unauthorized"},"403":{"description":"Caller email does not match invitation"},"404":{"description":"Invitation not found or already accepted"},"409":{"description":"Already a member of this org"},"410":{"description":"Invitation expired"}}}

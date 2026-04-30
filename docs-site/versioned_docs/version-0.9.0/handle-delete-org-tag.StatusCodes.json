@@ -1,0 +1,1 @@
+{"responses":{"204":{"description":"Tag deleted successfully"},"400":{"description":"Missing tag name"},"401":{"description":"Unauthorized"},"404":{"description":"Tag not found"},"500":{"description":"Failed to delete tag"}}}

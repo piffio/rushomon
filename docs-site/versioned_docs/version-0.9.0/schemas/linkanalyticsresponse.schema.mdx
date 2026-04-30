@@ -1,0 +1,32 @@
+---
+id: linkanalyticsresponse
+title: "LinkAnalyticsResponse"
+description: ""
+sidebar_label: "LinkAnalyticsResponse"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"analytics_gated":true,"clicks_over_time":[{"count":42,"date":"2024-01-15"}],"gated_reason":"string","link":{"android_url":"https://play.google.com/store/apps/details?id=com.example","click_count":42,"created_at":1609459200,"created_by":"user-123","desktop_url":"https://example.com/desktop-app","destination_url":"https://example.com/very/long/url","expires_at":1640995200,"forward_query_params":true,"id":"link-123456","ios_url":"https://apps.apple.com/app/id123456789","org_id":"org-789","redirect_type":"301","short_code":"abc123","status":"active","tags":["marketing","social"],"title":"My Awesome Link","updated_at":1609459300,"utm_params":"null"},"top_countries":[{"count":25,"country":"US"}],"top_referrers":[{"count":15,"referrer":"https://google.com"}],"top_user_agents":[{"count":10,"user_agent":"Mozilla/5.0..."}],"total_clicks_in_range":150}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"LinkAnalyticsResponse"}
+>
+</Heading>
+
+
+
+
+
+<Schema
+  {...require("./linkanalyticsresponse.Schema.json")}
+>
+  
+</Schema>
+            

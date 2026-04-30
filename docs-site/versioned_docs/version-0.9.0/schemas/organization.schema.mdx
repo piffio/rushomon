@@ -1,0 +1,35 @@
+---
+id: organization
+title: "Organization"
+description: "Organization (team/tenant) model."
+sidebar_label: "Organization"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"billing_account_id":"ba_abc123def456","created_at":1609459200,"created_by":"user-789","id":"org-123456","name":"My Organization","slug":"my-org"}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Organization"}
+>
+</Heading>
+
+
+
+Organization (team/tenant) model.
+
+Tier limits are enforced at the billing account level via `billing_account.tier`.
+The organization is linked to a billing account which contains the authoritative tier.
+
+<Schema
+  {...require("./organization.Schema.json")}
+>
+  
+</Schema>
+            
