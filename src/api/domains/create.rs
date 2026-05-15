@@ -4,7 +4,7 @@ use crate::auth;
 use crate::models::custom_domain::{CustomDomain, DnsInstructions, STATUS_PENDING};
 use crate::repositories::{BillingRepository, CustomDomainRepository, OrgRepository};
 use crate::services::OrgService;
-use crate::utils::env::get_domain;
+use crate::utils::env::get_fallback_domain;
 use crate::utils::{AppError, cf_saas};
 use worker::d1::D1Database;
 use worker::*;
@@ -108,7 +108,7 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         let txt_name = cf.ownership_verification.as_ref().map(|v| v.name.clone());
         let txt_value = cf.ownership_verification.as_ref().map(|v| v.value.clone());
         let needs_txt = txt_name.is_some();
-        let cname_target = get_domain(&ctx.env);
+        let cname_target = get_fallback_domain(&ctx.env);
         let instructions = DnsInstructions {
             cname_target,
             txt_name,
@@ -119,7 +119,7 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         (Some(cf.id), instructions)
     } else {
         // CF for SaaS not configured (dev/test mode) — return stub instructions
-        let cname_target = get_domain(&ctx.env);
+        let cname_target = get_fallback_domain(&ctx.env);
         let instructions = DnsInstructions {
             cname_target,
             txt_name: None,

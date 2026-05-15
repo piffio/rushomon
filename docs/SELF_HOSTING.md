@@ -478,6 +478,7 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 DOMAIN = "api.myapp.com"  # Where OAuth callbacks go (your API domain)
+FALLBACK_DOMAIN = "redirect.myapp.com"  # CNAME target for custom domains (optional, defaults to DOMAIN)
 FRONTEND_URL = "https://myapp.com"  # Main web interface URL
 ALLOWED_ORIGINS = "https://myapp.com,https://api.myapp.com"  # CORS allowed origins
 # KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
@@ -497,6 +498,7 @@ Replace the placeholder values:
 - `YOUR_GITHUB_CLIENT_ID` — from Step 3a (omit key entirely to disable GitHub login)
 - `YOUR_GOOGLE_CLIENT_ID` — from Step 3b (omit key entirely to disable Google login)
 - `api.myapp.com` — your API domain/subdomain (must match OAuth callback URL)
+- `redirect.myapp.com` — optional fallback domain for custom domain CNAMEs (defaults to DOMAIN if not set)
 - `myapp.com` — your main web domain
 - Adjust `ALLOWED_ORIGINS` to match your domain setup
 - Set Mailgun values to match your [Mailgun account](https://www.mailgun.com/) configuration (see Step 3c)
@@ -543,6 +545,14 @@ wrangler secret put JWT_SECRET -c wrangler.toml
 
 # Mailgun API key (from Step 3c) — required for team invitation emails
 wrangler secret put MAILGUN_API_KEY -c wrangler.toml
+
+# Cloudflare for SaaS (optional — required for custom domains)
+# Get your Zone ID from Cloudflare Dashboard → Select zone → Overview → Zone ID
+wrangler secret put CF_ZONE_ID -c wrangler.toml
+
+# Get API token from Cloudflare Dashboard → My Profile → API Tokens → Create Token
+# Required permissions: Zone - SSL and Certificates - Edit
+wrangler secret put CF_API_TOKEN -c wrangler.toml
 ```
 
 **Security Requirements**:
@@ -910,6 +920,7 @@ As an admin, you can:
 | `GITHUB_TOKEN_URL` | GitHub OAuth token endpoint | `https://github.com/login/oauth/access_token` |
 | `GITHUB_USER_URL` | GitHub user API endpoint | `https://api.github.com/user` |
 | `DOMAIN` | Domain where OAuth callbacks go (no protocol) | `api.myapp.com` |
+| `FALLBACK_DOMAIN` | CNAME target for custom domains (optional, defaults to DOMAIN) | `redirect.myapp.com` |
 | `FRONTEND_URL` | Main web interface URL (with protocol) | `https://myapp.com` |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins | `https://myapp.com,https://api.myapp.com` |
 | `ENABLE_KV_RATE_LIMITING` | Enable KV-based rate limiting (default: false) | `false` |
@@ -925,6 +936,8 @@ As an admin, you can:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth App client secret (if enabled) |
 | `JWT_SECRET` | JWT signing key (32+ random characters) |
 | `MAILGUN_API_KEY` | Mailgun API key (team invitations) |
+| `CF_ZONE_ID` | Cloudflare Zone ID for custom domains (Cloudflare for SaaS) |
+| `CF_API_TOKEN` | Cloudflare API token with SSL/Certificates Edit permission (custom domains) |
 
 ### Frontend Build-Time Variables
 

@@ -15,6 +15,14 @@ pub fn get_domain(env: &Env) -> String {
         .unwrap_or_else(|_| "localhost:8787".to_string())
 }
 
+/// Get the fallback domain for custom domain CNAMEs
+/// Falls back to DOMAIN if not configured
+pub fn get_fallback_domain(env: &Env) -> String {
+    env.var("FALLBACK_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| get_domain(env))
+}
+
 /// Determine the scheme (http/https) based on domain
 pub fn get_scheme(env: &Env) -> String {
     let domain = get_domain(env);
