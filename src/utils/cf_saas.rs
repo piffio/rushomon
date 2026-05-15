@@ -21,11 +21,23 @@ pub struct CfCustomHostnameResult {
     pub ssl: CfSslResult,
     pub ownership_verification: Option<CfOwnershipVerification>,
     pub ownership_verification_http: Option<CfOwnershipVerificationHttp>,
+    #[serde(default)]
+    pub custom_origin_server: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CfSslResult {
     pub status: String,
+    #[serde(default)]
+    pub validation_records: Option<Vec<CfValidationRecord>>,
+}
+
+/// ACME validation record for SSL certificates
+#[derive(Debug, Deserialize)]
+pub struct CfValidationRecord {
+    pub txt_name: Option<String>,
+    pub txt_value: Option<String>,
+    pub txt_status: Option<String>,
 }
 
 /// TXT-based domain ownership verification (DNS challenge)

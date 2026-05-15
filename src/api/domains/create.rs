@@ -116,8 +116,23 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
     };
 
     let (cf_hostname_id, dns_instructions) = if let Some(cf) = cf_result {
-        let txt_name = cf.ownership_verification.as_ref().map(|v| v.name.clone());
-        let txt_value = cf.ownership_verification.as_ref().map(|v| v.value.clone());
+        // Cloudflare for SaaS may return TXT records in two places:
+        // 1. ownership_verification - for domain ownership (older method)
+        // 2. ssl.validation_records - for ACME SSL challenges (newer method)
+        let (txt_name, txt_value) = if let Some(records) = cf.ssl.validation_records {
+            // Use ACME validation records if available
+            if let Some(record) = records.first() {
+                (record.txt_name.clone(), record.txt_value.clone())
+            } else {
+                (None, None)
+            }
+        } else {
+            // Fall back to ownership_verification (older method)
+            (
+                cf.ownership_verification.as_ref().map(|v| v.name.clone()),
+                cf.ownership_verification.as_ref().map(|v| v.value.clone()),
+            )
+        };
         let needs_txt = txt_name.is_some();
         let cname_target = get_fallback_domain(&ctx.env);
         let instructions = DnsInstructions {
