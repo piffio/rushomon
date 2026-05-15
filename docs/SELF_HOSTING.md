@@ -547,6 +547,9 @@ wrangler secret put JWT_SECRET -c wrangler.toml
 wrangler secret put MAILGUN_API_KEY -c wrangler.toml
 
 # Cloudflare for SaaS (optional — required for custom domains)
+# IMPORTANT: Cloudflare for SaaS is an Enterprise-only feature
+# Requires quota allocation from Cloudflare - not available on Free/Pro/Business plans
+# Contact Cloudflare sales or use Enterprise preview: https://developers.cloudflare.com/billing/understand/preview-services/
 # Get your Zone ID from Cloudflare Dashboard → Select zone → Overview → Zone ID
 wrangler secret put CF_ZONE_ID -c wrangler.toml
 
@@ -936,8 +939,8 @@ As an admin, you can:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth App client secret (if enabled) |
 | `JWT_SECRET` | JWT signing key (32+ random characters) |
 | `MAILGUN_API_KEY` | Mailgun API key (team invitations) |
-| `CF_ZONE_ID` | Cloudflare Zone ID for custom domains (Cloudflare for SaaS) |
-| `CF_API_TOKEN` | Cloudflare API token with SSL/Certificates Edit permission (custom domains) |
+| `CF_ZONE_ID` | Cloudflare Zone ID for custom domains (Cloudflare for SaaS - Enterprise only) |
+| `CF_API_TOKEN` | Cloudflare API token with SSL/Certificates Edit permission (custom domains - Enterprise only) |
 
 ### Frontend Build-Time Variables
 

@@ -14,7 +14,6 @@ pub async fn handle_create_domain(req: Request, ctx: RouteContext<()>) -> Result
 }
 
 async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppError> {
-    console_log!("[domains] Starting domain creation");
     let user_ctx = auth::authenticate_request(&req, &ctx).await?;
 
     let org_id = ctx
@@ -22,7 +21,6 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         .ok_or_else(|| AppError::BadRequest("Missing org id".to_string()))?
         .to_string();
 
-    console_log!("[domains] Org ID: {}", org_id);
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     OrgService::new()
@@ -45,7 +43,6 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         .filter(|s| !s.is_empty())
         .ok_or_else(|| AppError::BadRequest("hostname is required".to_string()))?;
 
-    console_log!("[domains] Hostname: {}", hostname);
     validate_hostname(&hostname)?;
 
     let org = OrgRepository::new()
@@ -101,13 +98,22 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
     }
 
     // Register with Cloudflare for SaaS
-    console_log!("[domains] Calling Cloudflare for SaaS API");
-    let cf_result = cf_saas::create_custom_hostname(&ctx.env, &hostname)
-        .await
-        .map_err(|e| {
-            console_error!("[domains] CF API error: {}", e);
-            AppError::Internal(format!("Failed to register domain with Cloudflare: {}", e))
-        })?;
+    let cf_result = match cf_saas::create_custom_hostname(&ctx.env, &hostname).await {
+        Ok(result) => result,
+        Err(e) => {
+            // Check if it's a quota error (Enterprise-only feature)
+            let error_msg = e.to_string();
+            if error_msg.contains("quota") || error_msg.contains("1404") {
+                // CF for SaaS not available - fall back to dev/test mode
+                None
+            } else {
+                return Err(AppError::Internal(format!(
+                    "Failed to register domain with Cloudflare: {}",
+                    e
+                )));
+            }
+        }
+    };
 
     let (cf_hostname_id, dns_instructions) = if let Some(cf) = cf_result {
         let txt_name = cf.ownership_verification.as_ref().map(|v| v.name.clone());
