@@ -14,6 +14,7 @@ pub async fn handle_create_domain(req: Request, ctx: RouteContext<()>) -> Result
 }
 
 async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppError> {
+    console_log!("[domains] Starting domain creation");
     let user_ctx = auth::authenticate_request(&req, &ctx).await?;
 
     let org_id = ctx
@@ -21,6 +22,7 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         .ok_or_else(|| AppError::BadRequest("Missing org id".to_string()))?
         .to_string();
 
+    console_log!("[domains] Org ID: {}", org_id);
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
 
     OrgService::new()
@@ -43,6 +45,7 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         .filter(|s| !s.is_empty())
         .ok_or_else(|| AppError::BadRequest("hostname is required".to_string()))?;
 
+    console_log!("[domains] Hostname: {}", hostname);
     validate_hostname(&hostname)?;
 
     let org = OrgRepository::new()
@@ -98,9 +101,11 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
     }
 
     // Register with Cloudflare for SaaS
+    console_log!("[domains] Calling Cloudflare for SaaS API");
     let cf_result = cf_saas::create_custom_hostname(&ctx.env, &hostname)
         .await
         .map_err(|e| {
+            console_error!("[domains] CF API error: {}", e);
             AppError::Internal(format!("Failed to register domain with Cloudflare: {}", e))
         })?;
 
