@@ -92,8 +92,16 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         .await
         .map_err(AppError::from)?;
 
-    // Build dns_instructions with current SSL validation records (if still pending)
-    let dns_instructions = if new_status != STATUS_ACTIVE {
+    // Build dns_instructions with current SSL validation records
+    // Return them if SSL certificate is still pending validation (even if hostname is active)
+    let ssl_pending = cf_result.as_ref().map_or(false, |cf| {
+        matches!(
+            cf.ssl.status.as_str(),
+            "pending_validation" | "pending" | "initializing"
+        )
+    });
+
+    let dns_instructions = if ssl_pending {
         let mut txt_records: Vec<TxtRecord> = Vec::new();
 
         if let Some(ref cf) = cf_result {
