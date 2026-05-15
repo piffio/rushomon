@@ -94,7 +94,7 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
 
     // Build dns_instructions with current SSL validation records
     // Return them if SSL certificate is still pending validation (even if hostname is active)
-    let ssl_pending = cf_result.as_ref().map_or(false, |cf| {
+    let ssl_pending = cf_result.as_ref().is_some_and(|cf| {
         matches!(
             cf.ssl.status.as_str(),
             "pending_validation" | "pending" | "initializing"
