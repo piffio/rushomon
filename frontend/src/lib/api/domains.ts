@@ -23,10 +23,12 @@ export interface TxtRecord {
   purpose: "ownership" | "ssl_validation";
 }
 
-export interface CreateDomainResponse {
+export interface DomainWithInstructions {
   domain: CustomDomain;
-  dns_instructions: DnsInstructions;
+  dns_instructions: DnsInstructions | null;
 }
+
+export type CreateDomainResponse = DomainWithInstructions;
 
 export const domainsApi = {
   async listDomains(orgId: string): Promise<CustomDomain[]> {
@@ -51,8 +53,11 @@ export const domainsApi = {
     );
   },
 
-  async refreshDomain(orgId: string, hostname: string): Promise<CustomDomain> {
-    return apiClient.post<CustomDomain>(
+  async refreshDomain(
+    orgId: string,
+    hostname: string
+  ): Promise<DomainWithInstructions> {
+    return apiClient.post<DomainWithInstructions>(
       `/api/orgs/${orgId}/domains/${hostname}/refresh`,
       {}
     );

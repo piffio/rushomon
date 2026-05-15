@@ -318,11 +318,18 @@
     if (!orgDetails) return;
     refreshingDomain = hostname;
     try {
-      const updated = await domainsApi.refreshDomain(
+      const result = await domainsApi.refreshDomain(
         orgDetails.org.id,
         hostname
       );
-      domains = domains.map((d) => (d.hostname === hostname ? updated : d));
+      domains = domains.map((d) =>
+        d.hostname === hostname ? result.domain : d
+      );
+      // If refresh returned SSL validation records and domain is still pending,
+      // show them in the DNS instructions panel
+      if (result.dns_instructions?.needs_txt) {
+        newDomainResult = result;
+      }
     } catch (e: unknown) {
       actionError =
         e instanceof Error ? e.message : "Failed to refresh domain status.";
@@ -1136,7 +1143,7 @@
           {/if}
 
           <!-- Add domain form -->
-          {#if newDomainResult}
+          {#if newDomainResult && newDomainResult.dns_instructions}
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <h3 class="text-sm font-semibold text-blue-900 mb-2">
                 DNS Setup Required

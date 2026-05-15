@@ -2,9 +2,10 @@
 /// Poll CF for SaaS to update the status of a pending custom domain.
 /// If the domain is now active, also syncs KV entries for all active links in the org.
 use crate::auth;
-use crate::models::custom_domain::STATUS_ACTIVE;
+use crate::models::custom_domain::{DnsInstructions, STATUS_ACTIVE, TxtRecord, TxtRecordPurpose};
 use crate::repositories::CustomDomainRepository;
 use crate::services::OrgService;
+use crate::utils::env::get_fallback_domain;
 use crate::utils::{AppError, cf_saas};
 use worker::d1::D1Database;
 use worker::*;
@@ -91,7 +92,50 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         .await
         .map_err(AppError::from)?;
 
-    Ok(Response::from_json(&updated)?)
+    // Build dns_instructions with current SSL validation records (if still pending)
+    let dns_instructions = if new_status != STATUS_ACTIVE {
+        let mut txt_records: Vec<TxtRecord> = Vec::new();
+
+        if let Some(ref cf) = cf_result {
+            // Add ownership TXT (always present)
+            if let Some(ref ownership) = cf.ownership_verification {
+                txt_records.push(TxtRecord {
+                    name: ownership.name.clone(),
+                    value: ownership.value.clone(),
+                    purpose: TxtRecordPurpose::Ownership,
+                });
+            }
+            // Add SSL validation TXT records if certificate is pending
+            if let Some(ref records) = cf.ssl.validation_records {
+                for record in records {
+                    if let (Some(name), Some(value)) =
+                        (record.txt_name.clone(), record.txt_value.clone())
+                    {
+                        txt_records.push(TxtRecord {
+                            name,
+                            value,
+                            purpose: TxtRecordPurpose::SslValidation,
+                        });
+                    }
+                }
+            }
+        }
+
+        let needs_txt = !txt_records.is_empty();
+        Some(DnsInstructions {
+            cname_target: get_fallback_domain(&ctx.env),
+            txt_records,
+            needs_cname: true,
+            needs_txt,
+        })
+    } else {
+        None
+    };
+
+    Ok(Response::from_json(&serde_json::json!({
+        "domain": updated,
+        "dns_instructions": dns_instructions,
+    }))?)
 }
 
 /// Write {hostname}:{short_code} KV entries for all active links in the org.
