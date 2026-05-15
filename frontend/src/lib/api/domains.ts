@@ -6,6 +6,7 @@ export interface CustomDomain {
   hostname: string;
   status: "pending" | "active" | "failed";
   cf_hostname_id: string | null;
+  ssl_status: "pending" | "active" | "failed";
   created_at: number;
   verified_at: number | null;
 }

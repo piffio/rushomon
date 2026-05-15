@@ -7,6 +7,12 @@ pub const STATUS_ACTIVE: &str = "active";
 #[allow(dead_code)]
 pub const STATUS_FAILED: &str = "failed";
 
+/// SSL certificate status values
+pub const SSL_STATUS_PENDING: &str = "pending";
+pub const SSL_STATUS_ACTIVE: &str = "active";
+#[allow(dead_code)]
+pub const SSL_STATUS_FAILED: &str = "failed";
+
 /// A custom domain registered to an organization.
 ///
 /// SSL certificates and domain verification are managed via Cloudflare for SaaS.
@@ -24,6 +30,9 @@ pub struct CustomDomain {
     pub status: String,
     /// Cloudflare for SaaS custom hostname record ID
     pub cf_hostname_id: Option<String>,
+    /// SSL certificate status ("pending" | "active" | "failed")
+    #[schema(example = "pending")]
+    pub ssl_status: String,
     #[schema(example = 1609459200)]
     pub created_at: i64,
     pub verified_at: Option<i64>,
@@ -87,6 +96,7 @@ mod tests {
             hostname: "go.example.com".to_string(),
             status: STATUS_PENDING.to_string(),
             cf_hostname_id: None,
+            ssl_status: SSL_STATUS_PENDING.to_string(),
             created_at: 0,
             verified_at: None,
         };

@@ -2,7 +2,7 @@
 /// Add a custom domain to an organization (Pro+ only)
 use crate::auth;
 use crate::models::custom_domain::{
-    CustomDomain, DnsInstructions, STATUS_PENDING, TxtRecord, TxtRecordPurpose,
+    CustomDomain, DnsInstructions, SSL_STATUS_PENDING, STATUS_PENDING, TxtRecord, TxtRecordPurpose,
 };
 use crate::repositories::{BillingRepository, CustomDomainRepository, OrgRepository};
 use crate::services::OrgService;
@@ -170,6 +170,7 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         hostname,
         status: STATUS_PENDING.to_string(),
         cf_hostname_id,
+        ssl_status: SSL_STATUS_PENDING.to_string(),
         created_at: crate::utils::now_timestamp(),
         verified_at: None,
     };

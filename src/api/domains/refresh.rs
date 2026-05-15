@@ -2,7 +2,10 @@
 /// Poll CF for SaaS to update the status of a pending custom domain.
 /// If the domain is now active, also syncs KV entries for all active links in the org.
 use crate::auth;
-use crate::models::custom_domain::{DnsInstructions, STATUS_ACTIVE, TxtRecord, TxtRecordPurpose};
+use crate::models::custom_domain::{
+    DnsInstructions, SSL_STATUS_ACTIVE, SSL_STATUS_FAILED, SSL_STATUS_PENDING, STATUS_ACTIVE,
+    TxtRecord, TxtRecordPurpose,
+};
 use crate::repositories::CustomDomainRepository;
 use crate::services::OrgService;
 use crate::utils::env::get_fallback_domain;
@@ -66,6 +69,17 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         "pending"
     };
 
+    // Determine SSL status from Cloudflare response
+    let new_ssl_status = if let Some(ref cf) = cf_result {
+        match cf.ssl.status.as_str() {
+            "active" => SSL_STATUS_ACTIVE,
+            "pending_validation" | "pending" | "initializing" => SSL_STATUS_PENDING,
+            _ => SSL_STATUS_FAILED,
+        }
+    } else {
+        SSL_STATUS_PENDING
+    };
+
     // Persist updated status
     domain_repo
         .update_status(
@@ -79,6 +93,12 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
                 None
             },
         )
+        .await
+        .map_err(AppError::from)?;
+
+    // Persist SSL status
+    domain_repo
+        .update_ssl_status(&db, &domain.id, new_ssl_status)
         .await
         .map_err(AppError::from)?;
 

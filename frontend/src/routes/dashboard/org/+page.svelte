@@ -261,6 +261,21 @@
     domainsError = "";
     try {
       domains = await domainsApi.listDomains(orgId);
+      // Check if any domain has pending SSL status and fetch DNS instructions
+      const pendingSslDomain = domains.find((d) => d.ssl_status === "pending");
+      if (pendingSslDomain) {
+        try {
+          const result = await domainsApi.refreshDomain(
+            orgId,
+            pendingSslDomain.hostname
+          );
+          if (result.dns_instructions?.needs_txt) {
+            newDomainResult = result;
+          }
+        } catch {
+          // Non-critical - if refresh fails, we'll just not show DNS instructions
+        }
+      }
     } catch (e: unknown) {
       domainsError = e instanceof Error ? e.message : "Failed to load domains.";
     } finally {
@@ -1112,7 +1127,7 @@
                     {/if}
                   </div>
                   <div class="flex items-center gap-2 ml-4">
-                    {#if domain.status === "pending"}
+                    {#if domain.status === "pending" || domain.status === "active"}
                       <button
                         onclick={() => handleRefreshDomain(domain.hostname)}
                         disabled={refreshingDomain === domain.hostname}
