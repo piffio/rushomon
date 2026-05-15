@@ -117,6 +117,19 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         }
     };
 
+    // If CF registration succeeded, fetch the hostname details to get validation_records
+    // SSL validation records are only returned when certificate is in pending_validation state
+    let cf_result = if let Some(cf) = cf_result {
+        // Fetch the hostname details to get the validation_records
+        match cf_saas::get_custom_hostname(&ctx.env, &cf.id).await {
+            Ok(Some(details)) => Some(details),
+            Ok(None) => Some(cf), // Fallback to original if GET fails
+            Err(_) => Some(cf),   // Fallback to original if GET fails
+        }
+    } else {
+        None
+    };
+
     let (cf_hostname_id, dns_instructions) = if let Some(cf) = cf_result {
         // Collect all TXT records needed for verification
         let mut txt_records: Vec<TxtRecord> = Vec::new();
