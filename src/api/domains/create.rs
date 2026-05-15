@@ -1,7 +1,9 @@
 /// POST /api/orgs/:id/domains
 /// Add a custom domain to an organization (Pro+ only)
 use crate::auth;
-use crate::models::custom_domain::{CustomDomain, DnsInstructions, STATUS_PENDING};
+use crate::models::custom_domain::{
+    CustomDomain, DnsInstructions, STATUS_PENDING, TxtRecord, TxtRecordPurpose,
+};
 use crate::repositories::{BillingRepository, CustomDomainRepository, OrgRepository};
 use crate::services::OrgService;
 use crate::utils::env::get_fallback_domain;
@@ -116,29 +118,36 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
     };
 
     let (cf_hostname_id, dns_instructions) = if let Some(cf) = cf_result {
-        // Cloudflare for SaaS may return TXT records in two places:
-        // 1. ownership_verification - for domain ownership (older method)
-        // 2. ssl.validation_records - for ACME SSL challenges (newer method)
-        let (txt_name, txt_value) = if let Some(records) = cf.ssl.validation_records {
-            // Use ACME validation records if available
-            if let Some(record) = records.first() {
-                (record.txt_name.clone(), record.txt_value.clone())
-            } else {
-                (None, None)
+        // Collect all TXT records needed for verification
+        let mut txt_records: Vec<TxtRecord> = Vec::new();
+
+        // Add ownership verification TXT record (if present)
+        if let Some(ownership) = cf.ownership_verification {
+            txt_records.push(TxtRecord {
+                name: ownership.name,
+                value: ownership.value,
+                purpose: TxtRecordPurpose::Ownership,
+            });
+        }
+
+        // Add SSL validation TXT records from validation_records (if present)
+        if let Some(records) = cf.ssl.validation_records {
+            for record in records {
+                if let (Some(name), Some(value)) = (record.txt_name, record.txt_value) {
+                    txt_records.push(TxtRecord {
+                        name,
+                        value,
+                        purpose: TxtRecordPurpose::SslValidation,
+                    });
+                }
             }
-        } else {
-            // Fall back to ownership_verification (older method)
-            (
-                cf.ownership_verification.as_ref().map(|v| v.name.clone()),
-                cf.ownership_verification.as_ref().map(|v| v.value.clone()),
-            )
-        };
-        let needs_txt = txt_name.is_some();
+        }
+
+        let needs_txt = !txt_records.is_empty();
         let cname_target = get_fallback_domain(&ctx.env);
         let instructions = DnsInstructions {
             cname_target,
-            txt_name,
-            txt_value,
+            txt_records,
             needs_cname: true,
             needs_txt,
         };
@@ -148,8 +157,7 @@ async fn inner(mut req: Request, ctx: RouteContext<()>) -> Result<Response, AppE
         let cname_target = get_fallback_domain(&ctx.env);
         let instructions = DnsInstructions {
             cname_target,
-            txt_name: None,
-            txt_value: None,
+            txt_records: vec![],
             needs_cname: true,
             needs_txt: false,
         };

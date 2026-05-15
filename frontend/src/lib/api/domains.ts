@@ -12,10 +12,15 @@ export interface CustomDomain {
 
 export interface DnsInstructions {
   cname_target: string;
-  txt_name: string | null;
-  txt_value: string | null;
+  txt_records: TxtRecord[];
   needs_cname: boolean;
   needs_txt: boolean;
+}
+
+export interface TxtRecord {
+  name: string;
+  value: string;
+  purpose: "ownership" | "ssl_validation";
 }
 
 export interface CreateDomainResponse {

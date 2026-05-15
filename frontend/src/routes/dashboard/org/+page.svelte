@@ -1162,21 +1162,26 @@
                     </div>
                   </div>
                 {/if}
-                {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_name}
-                  <div class="bg-white rounded border border-blue-200 p-3">
-                    <div class="text-xs font-medium text-gray-500 mb-1">
-                      TXT Record (ownership verification)
+                {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_records.length > 0}
+                  {#each newDomainResult.dns_instructions.txt_records as record (record.name)}
+                    <div
+                      class="bg-white rounded border border-blue-200 p-3 mb-2 last:mb-0"
+                    >
+                      <div class="text-xs font-medium text-gray-500 mb-1">
+                        TXT Record
+                        {record.purpose === "ownership"
+                          ? " (domain ownership verification)"
+                          : " (SSL certificate validation)"}
+                      </div>
+                      <div class="font-mono text-xs">
+                        <span class="text-gray-700">{record.name}</span>
+                        <span class="text-gray-400 mx-2">=</span>
+                        <span class="text-blue-700 break-all"
+                          >{record.value}</span
+                        >
+                      </div>
                     </div>
-                    <div class="font-mono text-xs">
-                      <span class="text-gray-700"
-                        >{newDomainResult.dns_instructions.txt_name}</span
-                      >
-                      <span class="text-gray-400 mx-2">=</span>
-                      <span class="text-blue-700 break-all"
-                        >{newDomainResult.dns_instructions.txt_value}</span
-                      >
-                    </div>
-                  </div>
+                  {/each}
                 {/if}
               </div>
               <p class="text-xs text-blue-700 mt-3">

@@ -46,14 +46,33 @@ pub struct DnsInstructions {
     /// The CNAME target the user should point their subdomain to
     #[schema(example = "rush.mn")]
     pub cname_target: String,
-    /// TXT record name for domain ownership verification (from CF for SaaS)
-    pub txt_name: Option<String>,
-    /// TXT record value for domain ownership verification (from CF for SaaS)
-    pub txt_value: Option<String>,
+    /// TXT records for verification (may include both ownership and SSL validation)
+    pub txt_records: Vec<TxtRecord>,
     /// Whether the user needs to add a CNAME record
     pub needs_cname: bool,
-    /// Whether the user needs to add a TXT record (for CF verification)
+    /// Whether the user needs to add TXT records (for CF verification)
     pub needs_txt: bool,
+}
+
+/// A single TXT record for domain verification
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct TxtRecord {
+    /// The DNS record name (e.g., "_cf-custom-hostname.go.example.com" or "_acme-challenge.go.example.com")
+    pub name: String,
+    /// The DNS record value
+    pub value: String,
+    /// The purpose of this TXT record
+    pub purpose: TxtRecordPurpose,
+}
+
+/// The purpose of a TXT record
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TxtRecordPurpose {
+    /// Domain ownership verification (hostname validation)
+    Ownership,
+    /// SSL certificate validation (DCV for certificate issuance)
+    SslValidation,
 }
 
 #[cfg(test)]
