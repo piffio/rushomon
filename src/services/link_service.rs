@@ -319,9 +319,18 @@ impl LinkService {
                 // Update KV with new mapping
                 let mapping = updated.to_mapping(resolved_forward);
                 crate::kv::store_link_mapping(kv, org_id, &updated.short_code, &mapping).await?;
+                crate::kv::sync_custom_domain_kv(
+                    kv,
+                    db,
+                    org_id,
+                    &updated.short_code,
+                    Some(&mapping),
+                )
+                .await?;
             } else {
                 // Link is not active, ensure it's removed from KV
                 crate::kv::delete_link_mapping(kv, org_id, &updated.short_code).await?;
+                crate::kv::sync_custom_domain_kv(kv, db, org_id, &updated.short_code, None).await?;
             }
         }
 
@@ -359,6 +368,7 @@ impl LinkService {
 
         // Delete from KV
         crate::kv::delete_link_mapping(kv, org_id, &link.short_code).await?;
+        crate::kv::sync_custom_domain_kv(kv, db, org_id, &link.short_code, None).await?;
 
         Ok(())
     }
@@ -527,9 +537,12 @@ impl LinkService {
             link.forward_query_params.unwrap_or(false)
         };
 
-        // Store in KV
+        // Store in KV (default domain — bare short_code)
         let mapping = link.to_mapping(resolved_forward);
         crate::kv::store_link_mapping(kv, org_id, &link.short_code, &mapping).await?;
+
+        // Dual-write for any active custom domains on this org
+        crate::kv::sync_custom_domain_kv(kv, db, org_id, &link.short_code, Some(&mapping)).await?;
 
         Ok(())
     }

@@ -32,6 +32,7 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 - **Rate Limiting**: Comprehensive IP, user, and session-based rate limiting
 - **Instance Settings**: Configurable admin settings including signup control and default tiers
 - **Email Notifications**: Transactional email via Mailgun for team invitations
+- **Custom Domains**: Pro (1) and Business (3) custom domains per organization with SSL via Cloudflare for SaaS
 
 ## Planned Features
 
@@ -39,7 +40,6 @@ Never forget that naming things is a hard problem to solve. Nevertheless, I'm gl
 - **More OAuth providers**: GitLab and other providers beyond GitHub/Google
 - **QR Codes Generation**: Generate QR codes for links
 - **Bulk link operations**: Import/export and batch management
-- **Custom domains per organization**: Organization-specific branded domains
 
 ## How to try it out
 

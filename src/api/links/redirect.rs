@@ -9,6 +9,29 @@ use std::pin::Pin;
 use worker::d1::D1Database;
 use worker::*;
 
+/// Determine if the request is on a custom domain by comparing the request host
+/// to the configured SHORT_DOMAIN. Returns Some(hostname) if it's a custom domain,
+/// or None if it's the default short domain.
+fn get_custom_host(req: &Request, env: &Env) -> Option<String> {
+    let short_domain = env.var("SHORT_DOMAIN").ok().map(|v| v.to_string());
+    let request_host = req
+        .url()
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()));
+
+    match (short_domain, request_host) {
+        (Some(sd), Some(rh)) if sd != rh => {
+            // Never treat localhost / loopback addresses as custom domains
+            if rh == "localhost" || rh == "127.0.0.1" || rh.starts_with("localhost:") {
+                None
+            } else {
+                Some(rh)
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Result of a redirect operation, containing the response and optional deferred analytics work.
 pub struct RedirectResult {
     pub response: Response,
@@ -71,7 +94,14 @@ pub async fn handle_redirect(
         });
     }
 
-    let mapping = kv::get_link_mapping(&kv, &short_code).await?;
+    // Determine if request came via a custom domain
+    let custom_host = get_custom_host(&req, &ctx.env);
+
+    let mapping = if let Some(ref hostname) = custom_host {
+        kv::links::get_link_mapping_for_domain(&kv, hostname, &short_code).await?
+    } else {
+        kv::get_link_mapping(&kv, &short_code).await?
+    };
 
     let Some(mapping) = mapping else {
         let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;

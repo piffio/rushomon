@@ -2,6 +2,8 @@
   import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { resolveLogoUrl } from "$lib/api/client";
+  import type { CreateDomainResponse, CustomDomain } from "$lib/api/domains";
+  import { domainsApi } from "$lib/api/domains";
   import { tagsApi } from "$lib/api/links";
   import { orgsApi } from "$lib/api/orgs";
   import Avatar from "$lib/components/Avatar.svelte";
@@ -39,6 +41,18 @@
   let actionError = $state("");
   let actionSuccess = $state("");
 
+  // Custom domains
+  let domains = $state<CustomDomain[]>([]);
+  let domainsLoading = $state(false);
+  let domainsError = $state("");
+  let newHostname = $state("");
+  let addingDomain = $state(false);
+  let addDomainError = $state("");
+  let newDomainResult = $state<CreateDomainResponse | null>(null);
+  let deletingDomain = $state<string | null>(null);
+  let refreshingDomain = $state<string | null>(null);
+  let confirmingDomainHostname = $state<string | null>(null);
+
   // Tags management
   let tags = $state<TagWithCount[]>([]);
   let tagsLoading = $state(false);
@@ -62,6 +76,7 @@
       orgDetails = await orgsApi.getOrg(currentOrgId);
       await loadOrgSettings(currentOrgId);
       await loadTags();
+      await loadDomains(currentOrgId);
     } catch (e: unknown) {
       error =
         e instanceof Error ? e.message : "Failed to load organization details.";
@@ -238,6 +253,82 @@
       orgSettings = await orgsApi.getOrgSettings(orgId);
     } catch {
       // Non-critical
+    }
+  }
+
+  async function loadDomains(orgId: string) {
+    domainsLoading = true;
+    domainsError = "";
+    try {
+      domains = await domainsApi.listDomains(orgId);
+    } catch (e: unknown) {
+      domainsError = e instanceof Error ? e.message : "Failed to load domains.";
+    } finally {
+      domainsLoading = false;
+    }
+  }
+
+  async function handleAddDomain() {
+    if (!orgDetails || !newHostname.trim()) return;
+    addingDomain = true;
+    addDomainError = "";
+    newDomainResult = null;
+    try {
+      const result = await domainsApi.addDomain(
+        orgDetails.org.id,
+        newHostname.trim()
+      );
+      domains = [...domains, result.domain];
+      newDomainResult = result;
+      newHostname = "";
+    } catch (e: unknown) {
+      addDomainError = e instanceof Error ? e.message : "Failed to add domain.";
+    } finally {
+      addingDomain = false;
+    }
+  }
+
+  async function handleDeleteDomain(hostname: string) {
+    if (!orgDetails) return;
+    confirmingDomainHostname = hostname;
+  }
+
+  async function confirmDeleteDomain() {
+    if (!orgDetails || !confirmingDomainHostname) return;
+    const hostname = confirmingDomainHostname;
+    deletingDomain = hostname;
+    try {
+      await domainsApi.deleteDomain(orgDetails.org.id, hostname);
+      domains = domains.filter((d) => d.hostname !== hostname);
+      if (newDomainResult?.domain.hostname === hostname) newDomainResult = null;
+    } catch (e: unknown) {
+      actionError = e instanceof Error ? e.message : "Failed to remove domain.";
+      setTimeout(() => (actionError = ""), 5000);
+    } finally {
+      deletingDomain = null;
+      confirmingDomainHostname = null;
+    }
+  }
+
+  function closeConfirmDomain() {
+    confirmingDomainHostname = null;
+  }
+
+  async function handleRefreshDomain(hostname: string) {
+    if (!orgDetails) return;
+    refreshingDomain = hostname;
+    try {
+      const updated = await domainsApi.refreshDomain(
+        orgDetails.org.id,
+        hostname
+      );
+      domains = domains.map((d) => (d.hostname === hostname ? updated : d));
+    } catch (e: unknown) {
+      actionError =
+        e instanceof Error ? e.message : "Failed to refresh domain status.";
+      setTimeout(() => (actionError = ""), 5000);
+    } finally {
+      refreshingDomain = null;
     }
   }
 
@@ -940,6 +1031,192 @@
         {/if}
       </div>
 
+      <!-- Custom Domains -->
+      <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-lg font-semibold text-gray-900">Custom Domains</h2>
+          {#if orgDetails.org.tier === "free"}
+            <span
+              class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium"
+              >Pro+ feature</span
+            >
+          {/if}
+        </div>
+        <p class="text-sm text-gray-500 mb-4">
+          Point your own domain at your short links (e.g. <code
+            class="bg-gray-100 px-1 rounded">go.example.com</code
+          >).
+        </p>
+
+        {#if orgDetails.org.tier === "free"}
+          <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <p class="text-sm text-orange-800">
+              Custom domains require a <strong>Pro plan</strong> or higher.
+              <a href="/billing" class="underline font-medium"
+                >Upgrade your plan</a
+              > to add custom domains.
+            </p>
+          </div>
+        {:else}
+          {#if domainsLoading}
+            <div class="flex items-center gap-2 text-sm text-gray-500">
+              <div
+                class="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"
+              ></div>
+              Loading domains...
+            </div>
+          {:else if domainsError}
+            <div class="text-sm text-red-600 mb-3">{domainsError}</div>
+          {/if}
+
+          {#if domains.length > 0}
+            <ul class="space-y-3 mb-4">
+              {#each domains as domain (domain.id)}
+                <li
+                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-sm text-gray-800 truncate"
+                        >{domain.hostname}</span
+                      >
+                      {#if domain.status === "active"}
+                        <span
+                          class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full"
+                          >Active</span
+                        >
+                      {:else if domain.status === "pending"}
+                        <span
+                          class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full"
+                          >Pending DNS</span
+                        >
+                      {:else}
+                        <span
+                          class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full"
+                          >Failed</span
+                        >
+                      {/if}
+                    </div>
+                    {#if domain.status === "pending"}
+                      <p class="text-xs text-gray-500 mt-1">
+                        Add the CNAME record, then click Refresh to check
+                        status.
+                      </p>
+                    {/if}
+                  </div>
+                  <div class="flex items-center gap-2 ml-4">
+                    {#if domain.status === "pending"}
+                      <button
+                        onclick={() => handleRefreshDomain(domain.hostname)}
+                        disabled={refreshingDomain === domain.hostname}
+                        class="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors"
+                      >
+                        {refreshingDomain === domain.hostname
+                          ? "Checking..."
+                          : "Refresh"}
+                      </button>
+                    {/if}
+                    <button
+                      onclick={() => handleDeleteDomain(domain.hostname)}
+                      disabled={deletingDomain === domain.hostname}
+                      class="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {deletingDomain === domain.hostname
+                        ? "Removing..."
+                        : "Remove"}
+                    </button>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {:else if !domainsLoading}
+            <p class="text-sm text-gray-500 mb-4">
+              No custom domains configured yet.
+            </p>
+          {/if}
+
+          <!-- Add domain form -->
+          {#if newDomainResult}
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h3 class="text-sm font-semibold text-blue-900 mb-2">
+                DNS Setup Required
+              </h3>
+              <p class="text-sm text-blue-800 mb-3">
+                Add the following DNS records at your DNS provider to verify
+                ownership and enable routing:
+              </p>
+              <div class="space-y-2">
+                {#if newDomainResult.dns_instructions.needs_cname}
+                  <div class="bg-white rounded border border-blue-200 p-3">
+                    <div class="text-xs font-medium text-gray-500 mb-1">
+                      CNAME Record
+                    </div>
+                    <div class="font-mono text-xs">
+                      <span class="text-gray-700"
+                        >{newDomainResult.domain.hostname}</span
+                      >
+                      <span class="text-gray-400 mx-2">→</span>
+                      <span class="text-blue-700"
+                        >{newDomainResult.dns_instructions.cname_target}</span
+                      >
+                    </div>
+                  </div>
+                {/if}
+                {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_name}
+                  <div class="bg-white rounded border border-blue-200 p-3">
+                    <div class="text-xs font-medium text-gray-500 mb-1">
+                      TXT Record (ownership verification)
+                    </div>
+                    <div class="font-mono text-xs">
+                      <span class="text-gray-700"
+                        >{newDomainResult.dns_instructions.txt_name}</span
+                      >
+                      <span class="text-gray-400 mx-2">=</span>
+                      <span class="text-blue-700 break-all"
+                        >{newDomainResult.dns_instructions.txt_value}</span
+                      >
+                    </div>
+                  </div>
+                {/if}
+              </div>
+              <p class="text-xs text-blue-700 mt-3">
+                DNS propagation can take a few minutes. Use the Refresh button
+                to check verification status.
+              </p>
+              <button
+                onclick={() => {
+                  newDomainResult = null;
+                }}
+                class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                >Dismiss</button
+              >
+            </div>
+          {/if}
+
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              bind:value={newHostname}
+              placeholder="go.yourdomain.com"
+              class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono"
+              onkeydown={(e) => {
+                if (e.key === "Enter") handleAddDomain();
+              }}
+            />
+            <button
+              onclick={handleAddDomain}
+              disabled={addingDomain || !newHostname.trim()}
+              class="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {addingDomain ? "Adding..." : "Add Domain"}
+            </button>
+          </div>
+          {#if addDomainError}
+            <p class="text-xs text-red-600 mt-2">{addDomainError}</p>
+          {/if}
+        {/if}
+      </div>
+
       <!-- Tags Management -->
       <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Tags</h2>
@@ -1233,6 +1510,47 @@
         </button>
         <button class="btn btn-danger" onclick={confirmRemoveMember}>
           Remove Member
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Domain Deletion Confirmation Modal -->
+{#if confirmingDomainHostname}
+  <div
+    class="modal-backdrop"
+    role="button"
+    tabindex="0"
+    onclick={closeConfirmDomain}
+    onkeydown={(e) => e.key === "Enter" && closeConfirmDomain()}
+  >
+    <div
+      class="modal"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      tabindex="0"
+      onkeydown={(e) => e.key === "Escape" && closeConfirmDomain()}
+    >
+      <div class="modal-header">
+        <h3>Remove Custom Domain?</h3>
+        <button class="modal-close" onclick={closeConfirmDomain}>&times;</button
+        >
+      </div>
+      <div class="modal-body">
+        <p>
+          Remove custom domain "{confirmingDomainHostname}"? All short links
+          served through this domain will stop working. This action cannot be
+          undone.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick={closeConfirmDomain}>
+          Cancel
+        </button>
+        <button class="btn btn-danger" onclick={confirmDeleteDomain}>
+          Remove
         </button>
       </div>
     </div>

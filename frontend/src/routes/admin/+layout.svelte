@@ -15,7 +15,8 @@
     | "blacklist"
     | "reports"
     | "api-keys"
-    | "settings";
+    | "settings"
+    | "domains";
 
   const { children } = $props();
 
@@ -121,6 +122,13 @@
       >
         <span class="nav-icon">🔗</span>
         <span class="nav-label">Links</span>
+      </button>
+      <button
+        class="nav-item {activeModule === 'domains' ? 'active' : ''}"
+        onclick={() => navigateTo("domains")}
+      >
+        <span class="nav-icon">🌐</span>
+        <span class="nav-label">Custom Domains</span>
       </button>
       <button
         class="nav-item {activeModule === 'blacklist' ? 'active' : ''}"
@@ -277,6 +285,14 @@
         >
           <span class="mobile-nav-icon">🔗</span>
           <span>Links</span>
+        </a>
+        <a
+          href="/admin/domains"
+          class="mobile-nav-item {activeModule === 'domains' ? 'active' : ''}"
+          onclick={() => (mobileMenuOpen = false)}
+        >
+          <span class="mobile-nav-icon">🌐</span>
+          <span>Custom Domains</span>
         </a>
         <a
           href="/admin/blacklist"

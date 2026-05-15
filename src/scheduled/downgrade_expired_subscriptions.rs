@@ -32,6 +32,17 @@ pub async fn scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
             console_log!("[cron] Starting webhook cleanup job (4 AM UTC)");
             service.cleanup_webhooks(&db).await;
         }
+        "*/15 * * * *" => {
+            console_log!("[cron] Starting domain status poll job (every 15 minutes)");
+            let kv = match env.kv("URL_MAPPINGS") {
+                Ok(kv) => kv,
+                Err(e) => {
+                    console_error!("[cron] Failed to get KV binding: {}", e);
+                    return;
+                }
+            };
+            super::poll_domain_status::run(&db, &kv, &env).await;
+        }
         other => {
             console_warn!("[cron] Unexpected cron expression: {}", other);
         }

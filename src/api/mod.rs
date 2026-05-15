@@ -2,6 +2,7 @@ pub mod admin;
 pub mod analytics;
 pub mod auth;
 pub mod billing;
+pub mod domains;
 pub mod keys;
 pub mod links;
 pub mod orgs;

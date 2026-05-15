@@ -9,6 +9,47 @@ fn make_key(_org_id: &str, short_code: &str) -> String {
     short_code.to_string()
 }
 
+/// KV key for custom-domain-scoped lookups: {hostname}:{short_code}
+fn make_domain_key(hostname: &str, short_code: &str) -> String {
+    format!("{}:{}", hostname, short_code)
+}
+
+/// Store a link mapping for a specific custom domain
+pub async fn store_link_mapping_for_domain(
+    kv: &KvStore,
+    hostname: &str,
+    short_code: &str,
+    mapping: &LinkMapping,
+) -> Result<()> {
+    let key = make_domain_key(hostname, short_code);
+    kv.put(&key, mapping)?.execute().await?;
+    Ok(())
+}
+
+/// Get a link mapping for a specific custom domain
+pub async fn get_link_mapping_for_domain(
+    kv: &KvStore,
+    hostname: &str,
+    short_code: &str,
+) -> Result<Option<LinkMapping>> {
+    let key = make_domain_key(hostname, short_code);
+    kv.get(&key)
+        .json::<LinkMapping>()
+        .await
+        .map_err(|e| worker::Error::RustError(format!("KV error: {:?}", e)))
+}
+
+/// Delete a link mapping for a specific custom domain
+pub async fn delete_link_mapping_for_domain(
+    kv: &KvStore,
+    hostname: &str,
+    short_code: &str,
+) -> Result<()> {
+    let key = make_domain_key(hostname, short_code);
+    kv.delete(&key).await?;
+    Ok(())
+}
+
 /// Store a link mapping in KV
 pub async fn store_link_mapping(
     kv: &KvStore,

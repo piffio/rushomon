@@ -234,6 +234,15 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             "/api/admin/products/save",
             crate::api::billing::products::handle_admin_save_products,
         )
+        // Admin custom domain routes
+        .get_async(
+            "/api/admin/domains",
+            crate::api::admin::domains::handle_admin_list_domains,
+        )
+        .post_async(
+            "/api/admin/domains/poll",
+            crate::api::admin::domains::handle_admin_poll_domains,
+        )
         // Admin API keys routes
         .get_async(
             "/api/admin/api-keys",
@@ -293,6 +302,23 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         .delete_async(
             "/api/settings/api-keys/:id",
             crate::api::keys::handle_revoke_api_key,
+        )
+        // Custom domain routes (Pro+ feature)
+        .get_async(
+            "/api/orgs/:id/domains",
+            crate::api::domains::handle_list_domains,
+        )
+        .post_async(
+            "/api/orgs/:id/domains",
+            crate::api::domains::handle_create_domain,
+        )
+        .delete_async(
+            "/api/orgs/:id/domains/:hostname",
+            crate::api::domains::handle_delete_domain,
+        )
+        .post_async(
+            "/api/orgs/:id/domains/:hostname/refresh",
+            crate::api::domains::handle_refresh_domain,
         )
         // Org management routes
         .get_async("/api/orgs", crate::api::orgs::handle_list_user_orgs)

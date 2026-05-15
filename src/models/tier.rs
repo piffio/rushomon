@@ -34,7 +34,7 @@ impl Tier {
 
     pub fn limits(&self) -> TierLimits {
         match self {
-            // Free: 1 user, 1 org, 15 links/month, 7-day analytics, 5 tags, no API keys
+            // Free: 1 user, 1 org, 15 links/month, 7-day analytics, 5 tags, no API keys, no custom domains
             Tier::Free => TierLimits {
                 max_links_per_month: Some(15),
                 analytics_retention_days: Some(7),
@@ -46,8 +46,9 @@ impl Tier {
                 max_members: Some(1),
                 max_orgs: Some(1),
                 max_tags: Some(5),
+                max_custom_domains: Some(0),
             },
-            // Pro ($9): 1 user, 1 org, 1000 links/month, 1-year analytics, custom codes, 25 tags, API keys
+            // Pro ($9): 1 user, 1 org, 1000 links/month, 1-year analytics, custom codes, 25 tags, API keys, 1 custom domain
             Tier::Pro => TierLimits {
                 max_links_per_month: Some(1000),
                 analytics_retention_days: Some(365),
@@ -59,8 +60,9 @@ impl Tier {
                 max_members: Some(1),
                 max_orgs: Some(1),
                 max_tags: Some(25),
+                max_custom_domains: Some(1),
             },
-            // Business ($29): 20 users, 3 orgs, 10000 links/month, unlimited analytics, unlimited tags, API keys
+            // Business ($29): 20 users, 3 orgs, 10000 links/month, unlimited analytics, unlimited tags, API keys, 3 custom domains
             Tier::Business => TierLimits {
                 max_links_per_month: Some(10000),
                 analytics_retention_days: None,
@@ -72,6 +74,7 @@ impl Tier {
                 max_members: Some(20),
                 max_orgs: Some(3),
                 max_tags: None,
+                max_custom_domains: Some(3),
             },
             // Unlimited (self-hosted): no limits
             Tier::Unlimited => TierLimits {
@@ -85,6 +88,7 @@ impl Tier {
                 max_members: None,
                 max_orgs: None,
                 max_tags: None,
+                max_custom_domains: None,
             },
         }
     }
@@ -120,6 +124,8 @@ pub struct TierLimits {
     pub max_orgs: Option<i64>,
     /// Maximum distinct tag names across all orgs in the billing account. None = unlimited.
     pub max_tags: Option<i64>,
+    /// Maximum custom domains per organization. None = unlimited. Some(0) = not allowed.
+    pub max_custom_domains: Option<u32>,
 }
 
 #[cfg(test)]
@@ -153,6 +159,7 @@ mod tests {
         assert_eq!(limits.max_members, Some(1));
         assert_eq!(limits.max_orgs, Some(1));
         assert_eq!(limits.max_tags, Some(5));
+        assert_eq!(limits.max_custom_domains, Some(0));
     }
 
     #[test]
@@ -165,6 +172,7 @@ mod tests {
         assert_eq!(limits.max_members, Some(1));
         assert_eq!(limits.max_orgs, Some(1));
         assert_eq!(limits.max_tags, Some(25));
+        assert_eq!(limits.max_custom_domains, Some(1));
     }
 
     #[test]
@@ -177,6 +185,7 @@ mod tests {
         assert_eq!(limits.max_members, Some(20));
         assert_eq!(limits.max_orgs, Some(3));
         assert!(limits.max_tags.is_none());
+        assert_eq!(limits.max_custom_domains, Some(3));
     }
 
     #[test]
@@ -189,6 +198,7 @@ mod tests {
         assert!(limits.max_members.is_none());
         assert!(limits.max_orgs.is_none());
         assert!(limits.max_tags.is_none());
+        assert!(limits.max_custom_domains.is_none());
     }
 
     #[test]
