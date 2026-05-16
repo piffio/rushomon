@@ -178,6 +178,7 @@ export interface UsageResponse {
     allow_query_forwarding: boolean;
     allow_device_routing: boolean;
     max_tags: number | null;
+    max_custom_domains: number | null;
   };
   usage: {
     links_created_this_month: number;

@@ -6,6 +6,7 @@
   import { domainsApi } from "$lib/api/domains";
   import { tagsApi } from "$lib/api/links";
   import { orgsApi } from "$lib/api/orgs";
+  import { usageApi } from "$lib/api/usage";
   import Avatar from "$lib/components/Avatar.svelte";
   import LoadingButton from "$lib/components/LoadingButton.svelte";
   import type {
@@ -14,7 +15,8 @@
     OrgMember,
     OrgSettings,
     OrgWithRole,
-    TagWithCount
+    TagWithCount,
+    UsageResponse
   } from "$lib/types/api";
   import type { PageData } from "./$types";
 
@@ -24,6 +26,7 @@
   let loading = $state(true);
   let error = $state("");
   let billingStatus = $state<BillingStatus | null>(null);
+  let usage = $state<UsageResponse | null>(null);
 
   // Rename org
   let editingName = $state(false);
@@ -95,6 +98,7 @@
       await loadOrgSettings(currentOrgId);
       await loadTags();
       await loadDomains(currentOrgId);
+      usage = await usageApi.getUsage();
     } catch (e: unknown) {
       error =
         e instanceof Error ? e.message : "Failed to load organization details.";
@@ -260,6 +264,28 @@
   const canInviteMembers = $derived(
     ["business", "unlimited"].includes(orgDetails?.org.tier ?? "")
   );
+
+  // Custom domain quota check
+  const maxCustomDomains = $derived(usage?.limits.max_custom_domains);
+  const activeDomainCount = $derived(
+    domains.filter((d) => d.status === "active").length
+  );
+  const domainQuotaReached = $derived(
+    usage !== null &&
+      maxCustomDomains !== null &&
+      maxCustomDomains !== undefined &&
+      maxCustomDomains > 0 &&
+      activeDomainCount >= maxCustomDomains
+  );
+  const domainFeatureLocked = $derived(
+    usage !== null && maxCustomDomains === 0
+  );
+  const domainUpgradeTarget = $derived(() => {
+    const tier = orgDetails?.org.tier ?? "free";
+    if (tier === "free") return "Pro";
+    if (tier === "pro") return "Business";
+    return null;
+  });
 
   // Org settings: forward_query_params
   let orgSettings = $state<OrgSettings | null>(null);
@@ -1087,7 +1113,7 @@
           <h2 class="text-lg font-semibold text-gray-900">Custom Domains</h2>
           {#if orgDetails.org.tier === "free"}
             <span
-              class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium"
+              class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium"
               >Pro+ feature</span
             >
           {/if}
@@ -1317,24 +1343,43 @@
             </div>
           {/if}
 
-          <div class="flex items-center gap-2">
-            <input
-              type="text"
-              bind:value={newHostname}
-              placeholder="go.yourdomain.com"
-              class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono"
-              onkeydown={(e) => {
-                if (e.key === "Enter") handleAddDomain();
-              }}
-            />
-            <button
-              onclick={handleAddDomain}
-              disabled={addingDomain || !newHostname.trim()}
-              class="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+          {#if domainFeatureLocked || domainQuotaReached}
+            <div
+              class="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2 text-sm text-amber-800"
             >
-              {addingDomain ? "Adding..." : "Add Domain"}
-            </button>
-          </div>
+              {#if domainFeatureLocked}
+                Custom domains require the <strong>Pro plan</strong> or higher.
+                <a href="/billing" class="underline font-medium"
+                  >Upgrade your plan</a
+                >
+              {:else}
+                You've reached your custom domain limit ({activeDomainCount}/
+                {maxCustomDomains}). Upgrade to
+                <strong>{domainUpgradeTarget()}</strong>
+                to add more domains.
+                <a href="/billing" class="underline font-medium">Upgrade</a>
+              {/if}
+            </div>
+          {:else}
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                bind:value={newHostname}
+                placeholder="go.yourdomain.com"
+                class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono"
+                onkeydown={(e) => {
+                  if (e.key === "Enter") handleAddDomain();
+                }}
+              />
+              <button
+                onclick={handleAddDomain}
+                disabled={addingDomain || !newHostname.trim()}
+                class="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {addingDomain ? "Adding..." : "Add Domain"}
+              </button>
+            </div>
+          {/if}
           {#if addDomainError}
             <p class="text-xs text-red-600 mt-2">{addDomainError}</p>
           {/if}
