@@ -3503,6 +3503,14 @@
             ],
             "description": "Desktop-specific destination URL (Business tier feature).",
             "example": "https://example.com/desktop-app"
+          },
+          "custom_domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Custom domain to associate this link with (must be an active domain on the org).\nImmutable after creation. None = use default short domain.",
+            "example": "go.mybrand.com"
           }
         },
         "additionalProperties": false
@@ -3652,6 +3660,14 @@
             ],
             "description": "Desktop-specific destination URL (Business tier feature).\nRedirects desktop users (Windows, macOS, Linux) to this URL instead of the default.",
             "example": "https://example.com/desktop-app"
+          },
+          "custom_domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Custom domain this link was created under (immutable after creation).\nNone means the link uses the default short domain.",
+            "example": "go.mybrand.com"
           }
         }
       },
@@ -4143,6 +4159,14 @@
             "type": "integer",
             "format": "int64",
             "example": 50
+          },
+          "custom_domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Custom domain this link belongs to, if any.",
+            "example": "go.mybrand.com"
           }
         }
       },
