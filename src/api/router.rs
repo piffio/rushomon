@@ -25,23 +25,20 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
                 .to_string();
 
             // Skip API routes and known frontend routes on the frontend domain.
-            // Frontend routes (dashboard, auth, settings, admin, 404) must not be
+            // Frontend routes (dashboard, auth, settings, admin) must not be
             // treated as short codes — they should fall through to the SPA fallback.
-            // Without this, /404 would redirect to /404 in an infinite loop.
+            // The /404 path is reserved globally on all domains to prevent infinite
+            // redirect loops when a short code is not found.
             if code.starts_with("api") {
+                return Response::error("Not found", 404);
+            }
+            if code == "404" {
                 return Response::error("Not found", 404);
             }
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard"
-                        | "auth"
-                        | "settings"
-                        | "admin"
-                        | "404"
-                        | "login"
-                        | "billing"
-                        | "pricing"
+                    "dashboard" | "auth" | "settings" | "admin" | "login" | "billing" | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -62,17 +59,13 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             if code.starts_with("api") {
                 return Response::error("Not found", 404);
             }
+            if code == "404" {
+                return Response::error("Not found", 404);
+            }
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard"
-                        | "auth"
-                        | "settings"
-                        | "admin"
-                        | "404"
-                        | "login"
-                        | "billing"
-                        | "pricing"
+                    "dashboard" | "auth" | "settings" | "admin" | "login" | "billing" | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
