@@ -400,7 +400,19 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         // Title fetch route (public, can be called by anyone)
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
-        .get_async("/", |_req, ctx| async move {
+        // Skip redirect if request comes via the fallback domain (used for Cloudflare for SaaS
+        // custom hostname routing) — the fallback domain is internal infrastructure and should
+        // not redirect, otherwise Cloudflare for SaaS will see a 301 and fail with a 522 error.
+        .get_async("/", |req, ctx| async move {
+            let fallback_domain = crate::utils::get_fallback_domain(&ctx.env);
+            let request_host = req
+                .url()
+                .ok()
+                .and_then(|u| u.host_str().map(|h| h.to_string()))
+                .unwrap_or_default();
+            if request_host == fallback_domain {
+                return Response::error("Not found", 404);
+            }
             let url = Url::parse(&crate::utils::get_frontend_url(&ctx.env))?;
             Response::redirect_with_status(url, 301)
         })

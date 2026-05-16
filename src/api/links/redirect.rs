@@ -103,18 +103,21 @@ pub async fn handle_redirect(
         kv::get_link_mapping(&kv, &short_code).await?
     };
 
+    let not_found_url = match &custom_host {
+        Some(hostname) => Url::parse(&format!("https://{}/404", hostname))?,
+        None => Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?,
+    };
+
     let Some(mapping) = mapping else {
-        let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
         return Ok(RedirectResult {
-            response: Response::redirect_with_status(url, 302)?,
+            response: Response::redirect_with_status(not_found_url, 302)?,
             analytics_future: None,
         });
     };
 
     if !matches!(mapping.status, LinkStatus::Active) {
-        let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
         return Ok(RedirectResult {
-            response: Response::redirect_with_status(url, 302)?,
+            response: Response::redirect_with_status(not_found_url, 302)?,
             analytics_future: None,
         });
     }
@@ -122,9 +125,8 @@ pub async fn handle_redirect(
     if let Some(expires_at) = mapping.expires_at {
         let now = now_timestamp();
         if now > expires_at {
-            let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
             return Ok(RedirectResult {
-                response: Response::redirect_with_status(url, 302)?,
+                response: Response::redirect_with_status(not_found_url, 302)?,
                 analytics_future: None,
             });
         }
