@@ -121,12 +121,15 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         )
     });
 
-    let dns_instructions = if ssl_pending {
+    // Check if CNAME is still needed (hostname is not active yet)
+    let cname_needed = cf_result.as_ref().is_some_and(|cf| cf.status != "active");
+
+    let dns_instructions = if ssl_pending || cname_needed {
         let mut txt_records: Vec<TxtRecord> = Vec::new();
 
         if let Some(ref cf) = cf_result {
-            // Add ownership TXT (always present)
-            if let Some(ref ownership) = cf.ownership_verification {
+            // Add ownership TXT (always present while hostname is pending)
+            if cname_needed && let Some(ref ownership) = cf.ownership_verification {
                 txt_records.push(TxtRecord {
                     name: ownership.name.clone(),
                     value: ownership.value.clone(),
@@ -134,7 +137,7 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
                 });
             }
             // Add SSL validation TXT records if certificate is pending
-            if let Some(ref records) = cf.ssl.validation_records {
+            if ssl_pending && let Some(ref records) = cf.ssl.validation_records {
                 for record in records {
                     if let (Some(name), Some(value)) =
                         (record.txt_name.clone(), record.txt_value.clone())
@@ -153,7 +156,7 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         Some(DnsInstructions {
             cname_target: get_fallback_domain(&ctx.env),
             txt_records,
-            needs_cname: true,
+            needs_cname: cname_needed,
             needs_txt,
         })
     } else {

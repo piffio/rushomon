@@ -49,8 +49,26 @@
   let addingDomain = $state(false);
   let addDomainError = $state("");
   let newDomainResult = $state<CreateDomainResponse | null>(null);
-  let deletingDomain = $state<string | null>(null);
   let refreshingDomain = $state<string | null>(null);
+  let deletingDomain = $state<string | null>(null);
+
+  // Copy to clipboard feedback
+  let copiedValue = $state<string | null>(null);
+  let copyTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  async function copyToClipboard(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      copiedValue = value;
+      if (copyTimeout) clearTimeout(copyTimeout);
+      copyTimeout = setTimeout(() => {
+        copiedValue = null;
+      }, 2000);
+    } catch {
+      // Fallback for browsers that don't support clipboard API
+      console.error("Failed to copy to clipboard");
+    }
+  }
   let confirmingDomainHostname = $state<string | null>(null);
 
   // Tags management
@@ -271,10 +289,20 @@
           );
           if (result.dns_instructions?.needs_txt) {
             newDomainResult = result;
+          } else {
+            // Clear DNS instructions if SSL is now active
+            if (
+              newDomainResult?.domain.hostname === pendingSslDomain.hostname
+            ) {
+              newDomainResult = null;
+            }
           }
         } catch {
           // Non-critical - if refresh fails, we'll just not show DNS instructions
         }
+      } else {
+        // If no domains have pending SSL, clear any stale DNS instructions
+        newDomainResult = null;
       }
     } catch (e: unknown) {
       domainsError = e instanceof Error ? e.message : "Failed to load domains.";
@@ -1102,7 +1130,12 @@
                       <span class="font-mono text-sm text-gray-800 truncate"
                         >{domain.hostname}</span
                       >
-                      {#if domain.status === "active"}
+                      {#if domain.status === "active" && domain.ssl_status === "pending"}
+                        <span
+                          class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+                          >Pending Certificate</span
+                        >
+                      {:else if domain.status === "active"}
                         <span
                           class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full"
                           >Active</span
@@ -1169,38 +1202,102 @@
               </p>
               <div class="space-y-2">
                 {#if newDomainResult.dns_instructions.needs_cname}
-                  <div class="bg-white rounded border border-blue-200 p-3">
-                    <div class="text-xs font-medium text-gray-500 mb-1">
+                  <div class="bg-white rounded border border-blue-200 p-4">
+                    <div class="text-xs font-medium text-gray-500 mb-3">
                       CNAME Record
                     </div>
-                    <div class="font-mono text-xs">
-                      <span class="text-gray-700"
-                        >{newDomainResult.domain.hostname}</span
-                      >
-                      <span class="text-gray-400 mx-2">→</span>
-                      <span class="text-blue-700"
-                        >{newDomainResult.dns_instructions.cname_target}</span
-                      >
+                    <div class="space-y-2">
+                      <div>
+                        <div class="text-xs text-gray-400 mb-1">Name</div>
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="font-mono text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded"
+                            >{newDomainResult.domain.hostname}</span
+                          >
+                          <button
+                            onclick={() =>
+                              copyToClipboard(newDomainResult!.domain.hostname)}
+                            class="text-xs text-blue-600 hover:text-blue-800 underline"
+                            title="Copy"
+                          >
+                            {copiedValue === newDomainResult!.domain.hostname
+                              ? "Copied!"
+                              : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="text-xs text-gray-400 mb-1">Target</div>
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="font-mono text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded"
+                            >{newDomainResult.dns_instructions
+                              .cname_target}</span
+                          >
+                          <button
+                            onclick={() =>
+                              copyToClipboard(
+                                newDomainResult!.dns_instructions!.cname_target
+                              )}
+                            class="text-xs text-blue-600 hover:text-blue-800 underline"
+                            title="Copy"
+                          >
+                            {copiedValue ===
+                            newDomainResult!.dns_instructions!.cname_target
+                              ? "Copied!"
+                              : "Copy"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 {/if}
                 {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_records.length > 0}
                   {#each newDomainResult.dns_instructions.txt_records as record, index (index)}
                     <div
-                      class="bg-white rounded border border-blue-200 p-3 mb-2 last:mb-0"
+                      class="bg-white rounded border border-blue-200 p-4 mb-2 last:mb-0"
                     >
-                      <div class="text-xs font-medium text-gray-500 mb-1">
+                      <div class="text-xs font-medium text-gray-500 mb-3">
                         TXT Record
                         {record.purpose === "ownership"
                           ? " (domain ownership verification)"
                           : " (SSL certificate validation)"}
                       </div>
-                      <div class="font-mono text-xs">
-                        <span class="text-gray-700">{record.name}</span>
-                        <span class="text-gray-400 mx-2">=</span>
-                        <span class="text-blue-700 break-all"
-                          >{record.value}</span
-                        >
+                      <div class="space-y-2">
+                        <div>
+                          <div class="text-xs text-gray-400 mb-1">Name</div>
+                          <div class="flex items-center gap-2">
+                            <span
+                              class="font-mono text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded"
+                              >{record.name}</span
+                            >
+                            <button
+                              onclick={() => copyToClipboard(record.name)}
+                              class="text-xs text-blue-600 hover:text-blue-800 underline"
+                              title="Copy"
+                            >
+                              {copiedValue === record.name ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <div class="text-xs text-gray-400 mb-1">Value</div>
+                          <div class="flex items-start gap-2">
+                            <span
+                              class="font-mono text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded break-all flex-1"
+                              >{record.value}</span
+                            >
+                            <button
+                              onclick={() => copyToClipboard(record.value)}
+                              class="text-xs text-blue-600 hover:text-blue-800 underline"
+                              title="Copy"
+                            >
+                              {copiedValue === record.value
+                                ? "Copied!"
+                                : "Copy"}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   {/each}
