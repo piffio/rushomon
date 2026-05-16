@@ -1185,7 +1185,7 @@
                   </div>
                 {/if}
                 {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_records.length > 0}
-                  {#each newDomainResult.dns_instructions.txt_records as record (record.name)}
+                  {#each newDomainResult.dns_instructions.txt_records as record, index (index)}
                     <div
                       class="bg-white rounded border border-blue-200 p-3 mb-2 last:mb-0"
                     >
