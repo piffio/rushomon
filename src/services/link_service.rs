@@ -582,6 +582,7 @@ impl LinkService {
                     ios_url: link.ios_url.clone(),
                     android_url: link.android_url.clone(),
                     desktop_url: link.desktop_url.clone(),
+                    custom_domain: link.custom_domain.clone(),
                 };
                 let org_repo = crate::repositories::OrgRepository::new();
                 let resolved_forward = if let Some(forward) = link.forward_query_params {

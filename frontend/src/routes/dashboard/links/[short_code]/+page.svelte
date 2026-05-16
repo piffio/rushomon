@@ -71,7 +71,11 @@
   const analytics = $derived(data.analytics);
   const days = $derived(data.days ?? 7);
   const shortUrl = $derived(
-    link ? `${SHORT_LINK_BASE}/${link.short_code}` : ""
+    link
+      ? link.custom_domain
+        ? `https://${link.custom_domain}/${link.short_code}`
+        : `${SHORT_LINK_BASE}/${link.short_code}`
+      : ""
   );
 
   // Reset loading state when data loads

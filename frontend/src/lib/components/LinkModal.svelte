@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { CustomDomain } from "$lib/api/domains";
   import { linksApi, tagsApi } from "$lib/api/links";
   import TagInput from "$lib/components/TagInput.svelte";
   import type {
@@ -17,12 +18,14 @@
     link?: Link | null;
     isOpen?: boolean;
     usage?: UsageResponse | null;
+    activeDomains?: CustomDomain[];
   }
 
   let {
     link = null,
     isOpen = $bindable(false),
-    usage = null
+    usage = null,
+    activeDomains = []
   }: Props = $props();
 
   const dispatch = createEventDispatcher<{ saved: Link }>();
@@ -70,6 +73,9 @@
   let iosUrl = $state("");
   let androidUrl = $state("");
   let desktopUrl = $state("");
+
+  // Domain selection: default is the first active custom domain (if any), else "" (default domain)
+  let selectedDomain = $state("");
 
   const hasUtmParams = $derived(
     !!(
@@ -162,6 +168,8 @@
     androidUrl = "";
     desktopUrl = "";
     showDeviceRouting = false;
+    selectedDomain =
+      activeDomains.length === 1 ? activeDomains[0].hostname : "";
     populatedLinkId = null;
   }
 
@@ -211,6 +219,14 @@
         resetForm();
         populatedLinkId = null;
       }
+    }
+  });
+
+  // When activeDomains loads (or changes), set the default selected domain for create mode
+  $effect(() => {
+    if (!isEditMode && activeDomains) {
+      selectedDomain =
+        activeDomains.length === 1 ? activeDomains[0].hostname : "";
     }
   });
 
@@ -309,6 +325,9 @@
         // Create new link
         if (shortCode) {
           linkData.short_code = shortCode;
+        }
+        if (selectedDomain) {
+          linkData.custom_domain = selectedDomain;
         }
         savedLink = await linksApi.create(linkData);
       }
@@ -449,6 +468,45 @@
             disabled={loading}
           />
         </div>
+
+        <!-- Domain Selection -->
+        {#if activeDomains.length > 0 || (isEditMode && link?.custom_domain)}
+          <div>
+            <label
+              for="link-domain"
+              class="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Domain
+            </label>
+            {#if isEditMode}
+              <div class="flex items-center gap-2">
+                <span
+                  class="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 border border-gray-300 font-mono"
+                >
+                  {link?.custom_domain ?? "Default domain"}
+                </span>
+                <span class="text-xs text-gray-500"
+                  >Domain cannot be changed after creation</span
+                >
+              </div>
+            {:else}
+              <select
+                id="link-domain"
+                bind:value={selectedDomain}
+                disabled={loading}
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Default domain</option>
+                {#each activeDomains as domain (domain.id)}
+                  <option value={domain.hostname}>{domain.hostname}</option>
+                {/each}
+              </select>
+              <p class="text-xs text-gray-500 mt-1">
+                Domain is locked after creation
+              </p>
+            {/if}
+          </div>
+        {/if}
 
         <!-- Short Code -->
         <div>

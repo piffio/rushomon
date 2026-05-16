@@ -116,6 +116,10 @@ pub struct Link {
     /// Redirects desktop users (Windows, macOS, Linux) to this URL instead of the default.
     #[schema(example = "https://example.com/desktop-app")]
     pub desktop_url: Option<String>,
+    /// Custom domain this link was created under (immutable after creation).
+    /// None means the link uses the default short domain.
+    #[schema(example = "go.mybrand.com")]
+    pub custom_domain: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for Link {
@@ -142,6 +146,7 @@ impl<'de> Deserialize<'de> for Link {
             ios_url: Option<String>,           // Device routing URL
             android_url: Option<String>,       // Device routing URL
             desktop_url: Option<String>,       // Device routing URL
+            custom_domain: Option<String>,     // Custom domain this link belongs to
         }
 
         let helper = LinkHelper::deserialize(deserializer)?;
@@ -182,6 +187,7 @@ impl<'de> Deserialize<'de> for Link {
             ios_url: helper.ios_url,
             android_url: helper.android_url,
             desktop_url: helper.desktop_url,
+            custom_domain: helper.custom_domain,
         })
     }
 }
@@ -252,6 +258,10 @@ pub struct CreateLinkRequest {
     /// Desktop-specific destination URL (Business tier feature).
     #[schema(example = "https://example.com/desktop-app")]
     pub desktop_url: Option<String>,
+    /// Custom domain to associate this link with (must be an active domain on the org).
+    /// Immutable after creation. None = use default short domain.
+    #[schema(example = "go.mybrand.com")]
+    pub custom_domain: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -353,6 +363,7 @@ mod tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
         assert!(!link.is_expired());
     }
@@ -384,6 +395,7 @@ mod tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
         assert!(!link.is_expired());
     }
@@ -411,6 +423,7 @@ mod tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
         assert!(link.is_expired());
     }
@@ -436,6 +449,7 @@ mod tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
 
         let mapping = link.to_mapping(false);
@@ -468,6 +482,7 @@ mod tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
 
         let mapping = link.to_mapping(false);
@@ -536,6 +551,7 @@ mod tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
 
         let mapping = link.to_mapping(true);
@@ -613,6 +629,7 @@ mod redirect_type_tests {
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
 
         let json = serde_json::to_string(&link).unwrap();

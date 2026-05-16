@@ -287,6 +287,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             ios_url: None,
             android_url: None,
             desktop_url: None,
+            custom_domain: None,
         };
 
         links_to_import.push(link);

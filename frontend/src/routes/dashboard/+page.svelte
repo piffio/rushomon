@@ -1,5 +1,7 @@
 <script lang="ts">
   import { goto, invalidate } from "$app/navigation";
+  import type { CustomDomain } from "$lib/api/domains";
+  import { domainsApi } from "$lib/api/domains";
   import { linksApi, tagsApi } from "$lib/api/links";
   import LinkList from "$lib/components/LinkList.svelte";
   import LinkModal from "$lib/components/LinkModal.svelte";
@@ -60,6 +62,7 @@
   let isExporting = $state(false);
   let deletingLinkId = $state<string | null>(null);
   let recentlySavedLinkId = $state<string | null>(null);
+  let activeDomains = $state<CustomDomain[]>([]);
 
   let highlightTimer: ReturnType<typeof setTimeout>;
 
@@ -93,6 +96,15 @@
     } catch {
       // Non-critical
     }
+    // Load active custom domains for domain selector in LinkModal
+    if (orgId) {
+      try {
+        const all = await domainsApi.listDomains(orgId);
+        activeDomains = all.filter((d) => d.status === "active");
+      } catch {
+        // Non-critical — domain selector just won't appear
+      }
+    }
   });
 
   // Initialize links, pagination, and stats from data (runs on mount and when data changes)
@@ -119,6 +131,20 @@
         | "title"
         | "code") || "created";
     selectedTags = data.initialTags || [];
+  });
+
+  // Re-fetch active domains when orgId is available (it's loaded from data effect above)
+  $effect(() => {
+    if (orgId) {
+      domainsApi
+        .listDomains(orgId)
+        .then((all) => {
+          activeDomains = all.filter((d) => d.status === "active");
+        })
+        .catch(() => {
+          // Non-critical
+        });
+    }
   });
 
   const linksUsagePercent = $derived(
@@ -680,6 +706,7 @@
         link={editingLink}
         bind:isOpen={isModalOpen}
         {usage}
+        {activeDomains}
         on:saved={handleLinkSaved}
       />
 

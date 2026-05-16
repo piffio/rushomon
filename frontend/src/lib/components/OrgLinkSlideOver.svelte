@@ -51,7 +51,11 @@
     PUBLIC_VITE_API_BASE_URL ||
     "http://localhost:8787";
 
-  const shortUrl = $derived(`${SHORT_LINK_BASE}/${link.short_code}`);
+  const shortUrl = $derived(
+    link.custom_domain
+      ? `https://${link.custom_domain}/${link.short_code}`
+      : `${SHORT_LINK_BASE}/${link.short_code}`
+  );
 
   let analytics = $state<LinkAnalyticsResponse | null>(null);
   let loading = $state(true);

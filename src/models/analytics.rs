@@ -543,6 +543,9 @@ pub struct TopLinkCount {
     pub title: Option<String>,
     #[schema(example = 50)]
     pub count: i64,
+    /// Custom domain this link belongs to, if any.
+    #[schema(example = "go.mybrand.com")]
+    pub custom_domain: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

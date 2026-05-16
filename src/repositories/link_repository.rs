@@ -90,8 +90,8 @@ impl LinkRepository {
         let utm_json = link.utm_params.as_ref().and_then(|u| u.to_json_string());
 
         let stmt = db.prepare(
-            "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"
+            "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"
         );
 
         stmt.bind(&[
@@ -127,6 +127,10 @@ impl LinkRepository {
                 .clone()
                 .map(|s| s.into())
                 .unwrap_or(JsValue::NULL),
+            link.custom_domain
+                .clone()
+                .map(|s| s.into())
+                .unwrap_or(JsValue::NULL),
         ])?
         .run()
         .await?;
@@ -142,7 +146,7 @@ impl LinkRepository {
         org_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE id = ?1
              AND org_id = ?2
@@ -156,7 +160,7 @@ impl LinkRepository {
     /// Get a link by ID without org check — active only (public redirects)
     pub async fn get_by_id_no_auth(&self, db: &D1Database, link_id: &str) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE id = ?1
              AND status = 'active'"
@@ -171,7 +175,7 @@ impl LinkRepository {
         link_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE id = ?1"
         );
@@ -186,7 +190,7 @@ impl LinkRepository {
         org_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE short_code = ?1
              AND org_id = ?2
@@ -204,7 +208,7 @@ impl LinkRepository {
         short_code: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE short_code = ?1
              AND status = 'active'"
@@ -226,7 +230,7 @@ impl LinkRepository {
         tags_filter: Option<&[String]>,
     ) -> Result<Vec<Link>> {
         let mut query = String::from(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE org_id = ?1"
         );
@@ -668,7 +672,7 @@ impl LinkRepository {
     /// Get all active/disabled links for an org (for CSV/JSON export)
     pub async fn get_all_for_export(&self, db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url
+            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE org_id = ?1
              AND status IN ('active', 'disabled')

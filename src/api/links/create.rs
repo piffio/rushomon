@@ -2,6 +2,7 @@ use crate::auth;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
+use crate::repositories::CustomDomainRepository;
 use crate::services::LinkService;
 use crate::utils::validate_and_normalize_tags;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
@@ -98,6 +99,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         "ios_url",
         "android_url",
         "desktop_url",
+        "custom_domain",
     ];
     if let Some(obj) = raw_body.as_object() {
         for field_name in obj.keys() {
@@ -182,6 +184,24 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         );
     }
 
+    // Validate custom_domain if provided: it must be an active domain on this org.
+    let custom_domain: Option<String> = if let Some(ref hostname) = body.custom_domain {
+        let repo = CustomDomainRepository::new();
+        let active_domains = repo.get_active_for_org(&db, org_id).await.map_err(|e| {
+            worker::Error::RustError(format!("Failed to query custom domains: {:?}", e))
+        })?;
+        let found = active_domains.iter().any(|d| &d.hostname == hostname);
+        if !found {
+            return Response::error(
+                "The specified custom domain is not an active domain for your organization.",
+                400,
+            );
+        }
+        Some(hostname.clone())
+    } else {
+        None
+    };
+
     let kv = ctx.kv("URL_MAPPINGS")?;
 
     let short_code = if let Some(custom_code) = body.short_code {
@@ -258,6 +278,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         ios_url: body.ios_url,
         android_url: body.android_url,
         desktop_url: body.desktop_url,
+        custom_domain,
     };
 
     let link_service = LinkService::new();
