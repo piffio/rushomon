@@ -5,7 +5,7 @@ on:
     types: [closed]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   issues: write
   deployments: write
@@ -399,7 +399,7 @@ jobs:
           # Delete the environment
           DELETE_RESPONSE=$(gh api \
             --method DELETE \
-            repos/${{ github.repository }}/environments/$ENVIRONMENT 2>&1)
+            repos/${{ github.repository }}/environments/$ENVIRONMENT 2>&1) || true
           DELETE_EXIT_CODE=$?
 
           if [ $DELETE_EXIT_CODE -eq 0 ]; then
