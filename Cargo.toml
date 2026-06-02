@@ -7,16 +7,16 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-worker = { version = "0.8.0", features = ["d1"] }
-wasm-bindgen = { version = "0.2.121", features = ["serde-serialize"] }
+worker = { version = "0.8.3", features = ["d1"] }
+wasm-bindgen = { version = "0.2.122", features = ["serde-serialize"] }
 web-sys = { version = "0.3", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.22.0", features = ["v4", "serde", "js"] }
+uuid = { version = "1.23.2", features = ["v4", "serde", "js"] }
 url = "2.5"
 console_error_panic_hook = "0.1"
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
-rand = "0.10.0"
+rand = "0.10.1"
 wasm-bindgen-futures = "0.4"
 jwt-compact = { version = "0.8.0", default-features = false, features = ["clock"] }
 hmac = "0.13"
