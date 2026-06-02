@@ -1244,7 +1244,7 @@
           {/if}
 
           <!-- Add domain form -->
-          {#if newDomainResult && newDomainResult.dns_instructions}
+          {#if newDomainResult?.dns_instructions}
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <h3 class="text-sm font-semibold text-blue-900 mb-2">
                 DNS Setup Required
@@ -1254,7 +1254,7 @@
                 ownership and enable routing:
               </p>
               <div class="space-y-2">
-                {#if newDomainResult.dns_instructions.needs_cname}
+                {#if newDomainResult?.dns_instructions?.needs_cname}
                   <div class="bg-white rounded border border-blue-200 p-4">
                     <div class="text-xs font-medium text-gray-500 mb-3">
                       CNAME Record
@@ -1305,7 +1305,7 @@
                     </div>
                   </div>
                 {/if}
-                {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_records.length > 0}
+                {#if newDomainResult?.dns_instructions?.needs_txt && newDomainResult.dns_instructions.txt_records.length > 0}
                   {#each newDomainResult.dns_instructions.txt_records as record, index (index)}
                     <div
                       class="bg-white rounded border border-blue-200 p-4 mb-2 last:mb-0"

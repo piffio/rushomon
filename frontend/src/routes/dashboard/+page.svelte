@@ -600,7 +600,7 @@
         </span>
 
         <!-- Usage counter for tiers with limits -->
-        {#if usage && usage.limits.max_links_per_month}
+        {#if usage?.limits.max_links_per_month}
           <span class="text-gray-300 hidden sm:inline">·</span>
           <span class="flex flex-col gap-1 text-sm">
             <span class="flex items-center gap-2">

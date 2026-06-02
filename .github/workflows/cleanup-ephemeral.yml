@@ -378,6 +378,30 @@ jobs:
 
           echo "✅ GitHub deployment records marked as inactive"
 
+      - name: Delete GitHub Environment
+        if: always() && steps.check_deployment.outputs.should_cleanup == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
+          ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
+
+          echo "Deleting GitHub environment: $ENVIRONMENT"
+
+          # Delete the environment
+          DELETE_RESPONSE=$(gh api \
+            --method DELETE \
+            repos/${{ github.repository }}/environments/$ENVIRONMENT 2>&1)
+          DELETE_EXIT_CODE=$?
+
+          if [ $DELETE_EXIT_CODE -eq 0 ]; then
+            echo "✅ Successfully deleted GitHub environment: $ENVIRONMENT"
+          else
+            echo "⚠️  Failed to delete GitHub environment: $ENVIRONMENT"
+            echo "Response: $DELETE_RESPONSE"
+            # Continue anyway - environment may not exist or may have been deleted already
+          fi
+
       - name: Post Cleanup Notification
         if: always()
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
