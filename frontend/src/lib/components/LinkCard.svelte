@@ -397,7 +397,7 @@
         </div>
 
         <!-- UTM Indicator -->
-        {#if link.utm_params && (link.utm_params.utm_source || link.utm_params.utm_medium || link.utm_params.utm_campaign || link.utm_params.utm_term || link.utm_params.utm_content || link.utm_params.utm_ref)}
+        {#if link.utm_params?.utm_source || link.utm_params?.utm_medium || link.utm_params?.utm_campaign || link.utm_params?.utm_term || link.utm_params?.utm_content || link.utm_params?.utm_ref}
           <div
             class="flex items-center gap-1.5"
             title="UTM parameters configured"
