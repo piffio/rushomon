@@ -365,7 +365,7 @@ jobs:
           PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
           ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
 
-          echo "Marking all deployments for $ENVIRONMENT as inactive..."
+          echo "Marking all deployments for $ENVIRONMENT as inactive and deleting them..."
 
           DEPLOY_IDS=$(gh api repos/${{ github.repository }}/deployments \
             --jq ".[] | select(.environment == \"$ENVIRONMENT\") | .id")
@@ -373,10 +373,12 @@ jobs:
           for dep_id in $DEPLOY_IDS; do
             gh api repos/${{ github.repository }}/deployments/$dep_id/statuses \
               -X POST -f state=inactive >/dev/null 2>&1 || true
-            echo "  Marked deployment $dep_id as inactive"
+            gh api --method DELETE \
+              repos/${{ github.repository }}/deployments/$dep_id >/dev/null 2>&1 || true
+            echo "  Deleted deployment $dep_id"
           done
 
-          echo "✅ GitHub deployment records marked as inactive"
+          echo "✅ GitHub deployment records deleted"
 
       - name: Generate GitHub App Token
         id: app_token
