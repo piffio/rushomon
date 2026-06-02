@@ -48,10 +48,16 @@ export const domainsApi = {
   async deleteDomain(
     orgId: string,
     hostname: string
-  ): Promise<{ deleted: boolean }> {
-    return apiClient.delete<{ deleted: boolean }>(
-      `/api/orgs/${orgId}/domains/${hostname}`
-    );
+  ): Promise<{
+    deleted: boolean;
+    cf_deleted: boolean;
+    cf_deleted_message?: string;
+  }> {
+    return apiClient.delete<{
+      deleted: boolean;
+      cf_deleted: boolean;
+      cf_deleted_message?: string;
+    }>(`/api/orgs/${orgId}/domains/${hostname}`);
   },
 
   async refreshDomain(

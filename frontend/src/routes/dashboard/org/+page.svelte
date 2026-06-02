@@ -43,6 +43,7 @@
   // General feedback
   let actionError = $state("");
   let actionSuccess = $state("");
+  let actionWarning = $state("");
 
   // Custom domains
   let domains = $state<CustomDomain[]>([]);
@@ -367,9 +368,15 @@
     const hostname = confirmingDomainHostname;
     deletingDomain = hostname;
     try {
-      await domainsApi.deleteDomain(orgDetails.org.id, hostname);
+      const result = await domainsApi.deleteDomain(orgDetails.org.id, hostname);
       domains = domains.filter((d) => d.hostname !== hostname);
       if (newDomainResult?.domain.hostname === hostname) newDomainResult = null;
+
+      // Show warning if domain was not found in Cloudflare
+      if (!result.cf_deleted && result.cf_deleted_message) {
+        actionWarning = result.cf_deleted_message;
+        setTimeout(() => (actionWarning = ""), 10000);
+      }
     } catch (e: unknown) {
       actionError = e instanceof Error ? e.message : "Failed to remove domain.";
       setTimeout(() => (actionError = ""), 5000);
@@ -704,6 +711,13 @@
           class="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm"
         >
           {actionError}
+        </div>
+      {/if}
+      {#if actionWarning}
+        <div
+          class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-700 text-sm"
+        >
+          {actionWarning}
         </div>
       {/if}
 

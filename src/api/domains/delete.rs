@@ -43,13 +43,19 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         .ok_or_else(|| AppError::NotFound("Custom domain not found".to_string()))?;
 
     // Delete from Cloudflare for SaaS (if registered)
-    if let Some(ref cf_id) = domain.cf_hostname_id {
-        cf_saas::delete_custom_hostname(&ctx.env, cf_id)
-            .await
-            .map_err(|e| {
-                AppError::Internal(format!("Failed to remove domain from Cloudflare: {}", e))
-            })?;
-    }
+    // If the domain was already deleted externally, we proceed with cleanup
+    let cf_deleted = if let Some(ref cf_id) = domain.cf_hostname_id {
+        match cf_saas::delete_custom_hostname(&ctx.env, cf_id).await {
+            Ok(()) => true,
+            Err(e) => {
+                // Log the error but don't fail - proceed with local cleanup
+                console_error!("Failed to delete from Cloudflare: {}", e);
+                false
+            }
+        }
+    } else {
+        true // No CF record to delete
+    };
 
     // Clean up all KV entries for this hostname
     let kv = ctx.kv("URL_MAPPINGS")?;
@@ -76,7 +82,13 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
         .await
         .map_err(AppError::from)?;
 
-    Ok(Response::from_json(
-        &serde_json::json!({ "deleted": true }),
-    )?)
+    Ok(Response::from_json(&serde_json::json!({
+        "deleted": true,
+        "cf_deleted": cf_deleted,
+        "cf_deleted_message": if cf_deleted {
+            None
+        } else {
+            Some("Domain was not found in Cloudflare and may have been deleted externally. The local configuration has been removed.".to_string())
+        }
+    }))?)
 }

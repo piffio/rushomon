@@ -170,7 +170,7 @@ pub async fn create_custom_hostname(
 }
 
 /// Fetch the current status of a custom hostname from CF.
-/// Returns None if CF credentials are not configured.
+/// Returns None if CF credentials are not configured or the hostname was not found (deleted externally).
 pub async fn get_custom_hostname(
     env: &Env,
     cf_hostname_id: &str,
@@ -190,6 +190,12 @@ pub async fn get_custom_hostname(
 
     let request = WorkerRequest::new_with_init(&url, &init)?;
     let mut resp = Fetch::Request(request).send().await?;
+
+    let status = resp.status_code();
+    if status == 404 {
+        // Domain not found in Cloudflare - return None to indicate it was deleted externally
+        return Ok(None);
+    }
 
     let text = resp.text().await?;
     let parsed: CfApiResponse<CfCustomHostnameResult> =
@@ -235,7 +241,7 @@ pub async fn delete_custom_hostname(env: &Env, cf_hostname_id: &str) -> worker::
     let mut resp = Fetch::Request(request).send().await?;
 
     let status = resp.status_code();
-    if status != 200 && status != 204 {
+    if status != 200 && status != 204 && status != 404 {
         let text = resp.text().await.unwrap_or_default();
         return Err(worker::Error::RustError(format!(
             "CF delete hostname failed ({}): {}",
@@ -243,6 +249,7 @@ pub async fn delete_custom_hostname(env: &Env, cf_hostname_id: &str) -> worker::
         )));
     }
 
+    // 404 means the hostname was already deleted - treat as success
     Ok(())
 }
 
