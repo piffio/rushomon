@@ -1171,6 +1171,11 @@
                           class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full"
                           >Pending DNS</span
                         >
+                      {:else if domain.status === "inactive_downgrade"}
+                        <span
+                          class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                          >Inactive – Upgrade Required</span
+                        >
                       {:else}
                         <span
                           class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full"
@@ -1182,6 +1187,14 @@
                       <p class="text-xs text-gray-500 mt-1">
                         Add the CNAME record, then click Refresh to check
                         status.
+                      </p>
+                    {:else if domain.status === "inactive_downgrade"}
+                      <p class="text-xs text-gray-500 mt-1">
+                        This domain was deactivated due to a plan downgrade.
+                        <a href="/billing" class="text-blue-600 hover:underline"
+                          >Upgrade your plan</a
+                        >
+                        to reactivate it and create new links.
                       </p>
                     {/if}
                   </div>

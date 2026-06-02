@@ -187,17 +187,37 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     // Validate custom_domain if provided: it must be an active domain on this org.
     let custom_domain: Option<String> = if let Some(ref hostname) = body.custom_domain {
         let repo = CustomDomainRepository::new();
-        let active_domains = repo.get_active_for_org(&db, org_id).await.map_err(|e| {
-            worker::Error::RustError(format!("Failed to query custom domains: {:?}", e))
-        })?;
-        let found = active_domains.iter().any(|d| &d.hostname == hostname);
-        if !found {
-            return Response::error(
-                "The specified custom domain is not an active domain for your organization.",
-                400,
-            );
+        // First check if domain exists at all (including inactive)
+        let domain = repo
+            .get_by_hostname_and_org(&db, hostname, org_id)
+            .await
+            .map_err(|e| {
+                worker::Error::RustError(format!("Failed to query custom domains: {:?}", e))
+            })?;
+
+        match domain {
+            Some(d) => {
+                if d.status == crate::models::custom_domain::STATUS_INACTIVE_DOWNGRADE {
+                    return Response::error(
+                        "This custom domain has been deactivated due to a plan downgrade. Upgrade your plan to reactivate it and create new links.",
+                        403,
+                    );
+                }
+                if d.status != crate::models::custom_domain::STATUS_ACTIVE {
+                    return Response::error(
+                        "The specified custom domain is not active. Please verify your domain first.",
+                        400,
+                    );
+                }
+                Some(hostname.clone())
+            }
+            None => {
+                return Response::error(
+                    "The specified custom domain is not registered for your organization.",
+                    400,
+                );
+            }
         }
-        Some(hostname.clone())
     } else {
         None
     };

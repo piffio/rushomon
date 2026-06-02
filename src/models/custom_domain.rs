@@ -4,6 +4,7 @@ use utoipa::ToSchema;
 /// Status values for a custom domain
 pub const STATUS_PENDING: &str = "pending";
 pub const STATUS_ACTIVE: &str = "active";
+pub const STATUS_INACTIVE_DOWNGRADE: &str = "inactive_downgrade";
 #[allow(dead_code)]
 pub const STATUS_FAILED: &str = "failed";
 
@@ -43,9 +44,22 @@ impl CustomDomain {
         format!("cd_{}", crate::utils::generate_short_code_with_length(16))
     }
 
+    /// Domain is verified and active (not pending, failed, or inactive due to downgrade)
     #[allow(dead_code)]
     pub fn is_active(&self) -> bool {
         self.status == STATUS_ACTIVE
+    }
+
+    /// Domain can be used for creating new links (active only, not inactive due to downgrade)
+    #[allow(dead_code)]
+    pub fn is_usable_for_links(&self) -> bool {
+        self.status == STATUS_ACTIVE
+    }
+
+    /// Domain was deactivated due to tier downgrade
+    #[allow(dead_code)]
+    pub fn is_inactive_downgrade(&self) -> bool {
+        self.status == STATUS_INACTIVE_DOWNGRADE
     }
 }
 

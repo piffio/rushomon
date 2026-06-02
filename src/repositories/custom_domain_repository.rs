@@ -1,5 +1,5 @@
 use crate::models::CustomDomain;
-use crate::models::custom_domain::{STATUS_ACTIVE, STATUS_PENDING};
+use crate::models::custom_domain::{STATUS_ACTIVE, STATUS_INACTIVE_DOWNGRADE, STATUS_PENDING};
 use crate::utils::now_timestamp;
 use wasm_bindgen::JsValue;
 use worker::Result;
@@ -233,5 +233,63 @@ impl CustomDomainRepository {
     #[allow(dead_code)]
     pub async fn set_pending(&self, db: &D1Database, id: &str) -> Result<()> {
         self.update_status(db, id, STATUS_PENDING, None, None).await
+    }
+
+    /// Deactivate a domain due to tier downgrade
+    pub async fn deactivate_for_downgrade(&self, db: &D1Database, id: &str) -> Result<()> {
+        db.prepare("UPDATE custom_domains SET status = ?1 WHERE id = ?2")
+            .bind(&[STATUS_INACTIVE_DOWNGRADE.into(), id.into()])?
+            .run()
+            .await?;
+        Ok(())
+    }
+
+    /// Reactivate a domain (e.g., when user upgrades again)
+    #[allow(dead_code)]
+    pub async fn reactivate(&self, db: &D1Database, id: &str) -> Result<()> {
+        db.prepare("UPDATE custom_domains SET status = ?1 WHERE id = ?2")
+            .bind(&[STATUS_ACTIVE.into(), id.into()])?
+            .run()
+            .await?;
+        Ok(())
+    }
+
+    /// Get domains usable for redirect (active + inactive_downgrade) by hostname
+    /// Used during redirect to resolve org - includes inactive domains so we can show a warning
+    #[allow(dead_code)]
+    pub async fn get_by_hostname_for_redirect(
+        &self,
+        db: &D1Database,
+        hostname: &str,
+    ) -> Result<Option<CustomDomain>> {
+        db.prepare(
+            "SELECT id, org_id, hostname, status, cf_hostname_id, ssl_status, created_at, verified_at
+             FROM custom_domains
+             WHERE hostname = ?1 AND (status = ?2 OR status = ?3)",
+        )
+        .bind(&[hostname.into(), STATUS_ACTIVE.into(), STATUS_INACTIVE_DOWNGRADE.into()])?
+        .first::<CustomDomain>(None)
+        .await
+    }
+
+    /// Get all active domains for an org, ordered by created_at (oldest first)
+    /// Used for downgrade - we keep the oldest N domains based on tier limit
+    pub async fn get_active_ordered(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+    ) -> Result<Vec<CustomDomain>> {
+        let results = db
+            .prepare(
+                "SELECT id, org_id, hostname, status, cf_hostname_id, ssl_status, created_at, verified_at
+                 FROM custom_domains
+                 WHERE org_id = ?1 AND status = ?2
+                 ORDER BY created_at ASC",
+            )
+            .bind(&[org_id.into(), STATUS_ACTIVE.into()])?
+            .all()
+            .await?;
+
+        results.results::<CustomDomain>()
     }
 }
