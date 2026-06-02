@@ -354,6 +354,104 @@ wrangler r2 bucket cors list rushomon-assets
 
 If you are not using the logo feature, you still need the bucket binding in `wrangler.toml` for the Worker to deploy successfully — create an empty bucket and leave it unused.
 
+### Configure Cloudflare for SaaS (Required for Custom Domains)
+
+Rushomon uses Cloudflare for SaaS to allow users to add their own custom domains for short links. This requires Cloudflare for SaaS to be enabled on your zone.
+
+**Prerequisites:**
+- Your zone must be on a Cloudflare plan that supports Cloudflare for SaaS
+- Check your plan eligibility at [Cloudflare for SaaS documentation](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/)
+
+**Step 1: Enable Cloudflare for SaaS on your zone**
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Select your zone (e.g., `myapp.com`)
+3. Navigate to **SSL/TLS** → **Edge Certificates**
+4. Scroll to **Cloudflare for SaaS** section
+5. Click **Enable Cloudflare for SaaS**
+6. If you don't see this option, your plan may not support it — contact Cloudflare support
+
+**Step 2: Configure the fallback domain**
+
+The fallback domain is the CNAME target that users will point their custom domains to. This is typically your main application domain or a dedicated subdomain.
+
+1. In the **Cloudflare for SaaS** section, click **Configure**
+2. Enter your fallback domain (e.g., `redirect.myapp.com` or `api.myapp.com`)
+3. Click **Save**
+
+> **Note**: The fallback domain must be a subdomain of a zone you control in Cloudflare. It will be used as the CNAME target for all custom domains added by users.
+
+**Step 3: Note your Zone ID**
+
+You'll need your Zone ID for the Worker configuration:
+
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/?to=/:account/:zone/overview)
+2. Select your zone
+3. In the right sidebar, find **Zone ID**
+4. Copy this value — you'll need it for `CF_ZONE_ID` secret
+
+**Step 4: Create a Cloudflare API Token**
+
+The Worker needs an API token to manage custom hostnames programmatically:
+
+1. Go to [API Tokens page](https://dash.cloudflare.com/profile/api-tokens)
+2. Click **Create Token**
+3. Click **Create Custom Token**
+4. Configure permissions:
+   - **Zone** → **SSL and Certificates** → **Edit**
+   - **Zone** → **Custom Hostnames** → **Edit**
+5. Set **Zone Resources** to:
+   - **Include** → **Specific zone** → select your zone
+6. Click **Continue to summary** → **Create Token**
+7. Copy the token — you'll need it for `CF_API_TOKEN` secret
+
+> **Security**: Store this token securely. It has permissions to manage SSL certificates and custom hostnames on your zone.
+
+**Step 5: Update wrangler.toml configuration**
+
+Add the fallback domain to your `wrangler.toml`:
+
+```toml
+[vars]
+DOMAIN = "api.myapp.com"
+FALLBACK_DOMAIN = "redirect.myapp.com"  # CNAME target for custom domains
+FRONTEND_URL = "https://myapp.com"
+```
+
+If you don't set `FALLBACK_DOMAIN`, it defaults to `DOMAIN`.
+
+**Step 6: Set Worker secrets**
+
+Set the Cloudflare for SaaS secrets (see Step 5 for full secret setup):
+
+```bash
+# Zone ID from Step 3
+wrangler secret put CF_ZONE_ID -c wrangler.toml
+
+# API Token from Step 4
+wrangler secret put CF_API_TOKEN -c wrangler.toml
+```
+
+**Verification:**
+
+After deployment, verify Cloudflare for SaaS is working:
+
+1. Go to your Rushomon instance
+2. Navigate to **Organization Settings** → **Custom Domains**
+3. Try adding a test custom domain (e.g., `test.example.com`)
+4. You should see DNS instructions with CNAME and TXT records
+5. Add the CNAME record to your DNS: `test.example.com → {FALLBACK_DOMAIN}`
+   - The CNAME target will be your `FALLBACK_DOMAIN` environment variable value (e.g., `redirect.myapp.com`)
+   - If you didn't set `FALLBACK_DOMAIN`, it defaults to `DOMAIN` (e.g., `api.myapp.com`)
+   - **Important**: The CNAME target must be a real domain in your Cloudflare zone, not a workers.dev subdomain
+6. Click **Refresh** in Rushomon to verify the domain
+
+> **Troubleshooting**: If custom domain creation fails, check:
+> - Cloudflare for SaaS is enabled on your zone
+> - `CF_ZONE_ID` and `CF_API_TOKEN` secrets are set correctly
+> - API token has the required permissions
+> - Fallback domain is configured in Cloudflare for SaaS settings
+
 ### Note Your Account ID
 
 Find your Account ID in the Cloudflare dashboard: click on any zone → **Overview** → right sidebar shows **Account ID**. Save this value.
@@ -478,6 +576,7 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 DOMAIN = "api.myapp.com"  # Where OAuth callbacks go (your API domain)
+FALLBACK_DOMAIN = "redirect.myapp.com"  # CNAME target for custom domains (optional, defaults to DOMAIN)
 FRONTEND_URL = "https://myapp.com"  # Main web interface URL
 ALLOWED_ORIGINS = "https://myapp.com,https://api.myapp.com"  # CORS allowed origins
 # KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
@@ -497,6 +596,7 @@ Replace the placeholder values:
 - `YOUR_GITHUB_CLIENT_ID` — from Step 3a (omit key entirely to disable GitHub login)
 - `YOUR_GOOGLE_CLIENT_ID` — from Step 3b (omit key entirely to disable Google login)
 - `api.myapp.com` — your API domain/subdomain (must match OAuth callback URL)
+- `redirect.myapp.com` — optional fallback domain for custom domain CNAMEs (defaults to DOMAIN if not set)
 - `myapp.com` — your main web domain
 - Adjust `ALLOWED_ORIGINS` to match your domain setup
 - Set Mailgun values to match your [Mailgun account](https://www.mailgun.com/) configuration (see Step 3c)
@@ -543,6 +643,18 @@ wrangler secret put JWT_SECRET -c wrangler.toml
 
 # Mailgun API key (from Step 3c) — required for team invitation emails
 wrangler secret put MAILGUN_API_KEY -c wrangler.toml
+
+# Cloudflare for SaaS (required for custom domains)
+# Get your Zone ID from Cloudflare Dashboard → Select zone → Overview → Zone ID
+# https://dash.cloudflare.com/?to=/:account/:zone/overview
+wrangler secret put CF_ZONE_ID -c wrangler.toml
+
+# Get API token from Cloudflare Dashboard → My Profile → API Tokens → Create Token
+# https://dash.cloudflare.com/profile/api-tokens
+# Required permissions:
+#   - Zone - SSL and Certificates - Edit
+#   - Custom Hostnames - Edit
+wrangler secret put CF_API_TOKEN -c wrangler.toml
 ```
 
 **Security Requirements**:
@@ -910,6 +1022,7 @@ As an admin, you can:
 | `GITHUB_TOKEN_URL` | GitHub OAuth token endpoint | `https://github.com/login/oauth/access_token` |
 | `GITHUB_USER_URL` | GitHub user API endpoint | `https://api.github.com/user` |
 | `DOMAIN` | Domain where OAuth callbacks go (no protocol) | `api.myapp.com` |
+| `FALLBACK_DOMAIN` | CNAME target for custom domains (optional, defaults to DOMAIN) | `redirect.myapp.com` |
 | `FRONTEND_URL` | Main web interface URL (with protocol) | `https://myapp.com` |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins | `https://myapp.com,https://api.myapp.com` |
 | `ENABLE_KV_RATE_LIMITING` | Enable KV-based rate limiting (default: false) | `false` |
@@ -925,6 +1038,8 @@ As an admin, you can:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth App client secret (if enabled) |
 | `JWT_SECRET` | JWT signing key (32+ random characters) |
 | `MAILGUN_API_KEY` | Mailgun API key (team invitations) |
+| `CF_ZONE_ID` | Cloudflare Zone ID for custom domains (Cloudflare for SaaS - Required for custom domains) |
+| `CF_API_TOKEN` | Cloudflare API token with SSL/Certificates Edit permission (Required for custom domains) |
 
 ### Frontend Build-Time Variables
 

@@ -45,6 +45,7 @@ export interface Link {
   ios_url?: string | null;
   android_url?: string | null;
   desktop_url?: string | null;
+  custom_domain?: string | null;
 }
 
 export interface TagWithCount {
@@ -64,6 +65,7 @@ export interface CreateLinkRequest {
   ios_url?: string;
   android_url?: string;
   desktop_url?: string;
+  custom_domain?: string;
 }
 
 export interface UpdateLinkRequest {
@@ -151,6 +153,7 @@ export interface TopLinkCount {
   short_code: string;
   title: string | null;
   count: number;
+  custom_domain?: string | null;
 }
 
 export interface OrgAnalyticsResponse {
@@ -175,6 +178,7 @@ export interface UsageResponse {
     allow_query_forwarding: boolean;
     allow_device_routing: boolean;
     max_tags: number | null;
+    max_custom_domains: number | null;
   };
   usage: {
     links_created_this_month: number;

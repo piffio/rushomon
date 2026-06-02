@@ -143,6 +143,21 @@ impl OrgRepository {
         Ok(())
     }
 
+    /// Get the primary organization ID for a billing account
+    /// Used in webhooks to apply tier changes to the correct org
+    pub async fn get_org_id_by_billing_account(
+        &self,
+        db: &D1Database,
+        billing_account_id: &str,
+    ) -> Result<Option<String>> {
+        let result = db
+            .prepare("SELECT id FROM organizations WHERE billing_account_id = ?1 LIMIT 1")
+            .bind(&[billing_account_id.into()])?
+            .first::<serde_json::Value>(None)
+            .await?;
+        Ok(result.and_then(|v| v["id"].as_str().map(|s| s.to_string())))
+    }
+
     // ─── Org Membership ─────────────────────────────────────────────────────────────
 
     /// Get all organizations a user belongs to (via org_members junction table)

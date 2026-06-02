@@ -1,13 +1,36 @@
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::{AnalyticsEvent, link::LinkStatus};
-use crate::repositories::LinkRepository;
+use crate::repositories::{CustomDomainRepository, LinkRepository};
 use crate::utils::device::{DeviceType, detect_device};
 use crate::utils::{get_client_ip, get_frontend_url, hash_ip, now_timestamp};
 use std::future::Future;
 use std::pin::Pin;
 use worker::d1::D1Database;
 use worker::*;
+
+/// Determine if the request is on a custom domain by comparing the request host
+/// to the configured SHORT_DOMAIN. Returns Some(hostname) if it's a custom domain,
+/// or None if it's the default short domain.
+fn get_custom_host(req: &Request, env: &Env) -> Option<String> {
+    let short_domain = env.var("SHORT_DOMAIN").ok().map(|v| v.to_string());
+    let request_host = req
+        .url()
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()));
+
+    match (short_domain, request_host) {
+        (Some(sd), Some(rh)) if sd != rh => {
+            // Never treat localhost / loopback addresses as custom domains
+            if rh == "localhost" || rh == "127.0.0.1" || rh.starts_with("localhost:") {
+                None
+            } else {
+                Some(rh)
+            }
+        }
+        _ => None,
+    }
+}
 
 /// Result of a redirect operation, containing the response and optional deferred analytics work.
 pub struct RedirectResult {
@@ -71,20 +94,50 @@ pub async fn handle_redirect(
         });
     }
 
-    let mapping = kv::get_link_mapping(&kv, &short_code).await?;
+    // Determine if request came via a custom domain
+    let custom_host = get_custom_host(&req, &ctx.env);
+
+    // Check if custom domain is inactive due to downgrade (Option C enforcement)
+    if let Some(ref hostname) = custom_host {
+        let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+        let repo = CustomDomainRepository::new();
+        if let Some(domain) = repo.get_by_hostname(&db, hostname).await?
+            && domain.status == crate::models::custom_domain::STATUS_INACTIVE_DOWNGRADE
+        {
+            // Domain is inactive due to downgrade - redirect to upgrade notice
+            let upgrade_url = Url::parse(&format!(
+                "{}/billing?downgrade_notice=1&domain={}",
+                get_frontend_url(&ctx.env),
+                hostname
+            ))?;
+            return Ok(RedirectResult {
+                response: Response::redirect_with_status(upgrade_url, 302)?,
+                analytics_future: None,
+            });
+        }
+    }
+
+    let mapping = if let Some(ref hostname) = custom_host {
+        kv::links::get_link_mapping_for_domain(&kv, hostname, &short_code).await?
+    } else {
+        kv::get_link_mapping(&kv, &short_code).await?
+    };
+
+    let not_found_url = match &custom_host {
+        Some(hostname) => Url::parse(&format!("https://{}/404", hostname))?,
+        None => Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?,
+    };
 
     let Some(mapping) = mapping else {
-        let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
         return Ok(RedirectResult {
-            response: Response::redirect_with_status(url, 302)?,
+            response: Response::redirect_with_status(not_found_url, 302)?,
             analytics_future: None,
         });
     };
 
     if !matches!(mapping.status, LinkStatus::Active) {
-        let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
         return Ok(RedirectResult {
-            response: Response::redirect_with_status(url, 302)?,
+            response: Response::redirect_with_status(not_found_url, 302)?,
             analytics_future: None,
         });
     }
@@ -92,9 +145,8 @@ pub async fn handle_redirect(
     if let Some(expires_at) = mapping.expires_at {
         let now = now_timestamp();
         if now > expires_at {
-            let url = Url::parse(&format!("{}/404", get_frontend_url(&ctx.env)))?;
             return Ok(RedirectResult {
-                response: Response::redirect_with_status(url, 302)?,
+                response: Response::redirect_with_status(not_found_url, 302)?,
                 analytics_future: None,
             });
         }

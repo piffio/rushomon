@@ -125,6 +125,7 @@ export const createPricingTiers = (
       "Custom short codes",
       "Advanced QR codes (sizes, SVG, org logo)",
       "Redirect type selection (301/307)",
+      "1 custom domain",
       "API access",
       "Email support"
     ],
@@ -190,6 +191,7 @@ export const createPricingTiers = (
       "3-year analytics retention",
       "3 organizations",
       "20 team members",
+      "3 custom domains",
       "Device-based routing",
       "Password protection",
       "API access",

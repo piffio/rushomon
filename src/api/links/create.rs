@@ -2,6 +2,7 @@ use crate::auth;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
+use crate::repositories::CustomDomainRepository;
 use crate::services::LinkService;
 use crate::utils::validate_and_normalize_tags;
 use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
@@ -98,6 +99,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         "ios_url",
         "android_url",
         "desktop_url",
+        "custom_domain",
     ];
     if let Some(obj) = raw_body.as_object() {
         for field_name in obj.keys() {
@@ -182,6 +184,44 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         );
     }
 
+    // Validate custom_domain if provided: it must be an active domain on this org.
+    let custom_domain: Option<String> = if let Some(ref hostname) = body.custom_domain {
+        let repo = CustomDomainRepository::new();
+        // First check if domain exists at all (including inactive)
+        let domain = repo
+            .get_by_hostname_and_org(&db, hostname, org_id)
+            .await
+            .map_err(|e| {
+                worker::Error::RustError(format!("Failed to query custom domains: {:?}", e))
+            })?;
+
+        match domain {
+            Some(d) => {
+                if d.status == crate::models::custom_domain::STATUS_INACTIVE_DOWNGRADE {
+                    return Response::error(
+                        "This custom domain has been deactivated due to a plan downgrade. Upgrade your plan to reactivate it and create new links.",
+                        403,
+                    );
+                }
+                if d.status != crate::models::custom_domain::STATUS_ACTIVE {
+                    return Response::error(
+                        "The specified custom domain is not active. Please verify your domain first.",
+                        400,
+                    );
+                }
+                Some(hostname.clone())
+            }
+            None => {
+                return Response::error(
+                    "The specified custom domain is not registered for your organization.",
+                    400,
+                );
+            }
+        }
+    } else {
+        None
+    };
+
     let kv = ctx.kv("URL_MAPPINGS")?;
 
     let short_code = if let Some(custom_code) = body.short_code {
@@ -258,6 +298,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         ios_url: body.ios_url,
         android_url: body.android_url,
         desktop_url: body.desktop_url,
+        custom_domain,
     };
 
     let link_service = LinkService::new();

@@ -59,6 +59,7 @@ GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USER_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 DOMAIN = "yourdomain.com"
+FALLBACK_DOMAIN = "redirect.yourdomain.com"
 FRONTEND_URL = "http://localhost:5173"
 # KV-based rate limiting is disabled by default in favor of Cloudflare rate limiting rules
 # Set to "true" to re-enable KV-based rate limiting for specific use cases

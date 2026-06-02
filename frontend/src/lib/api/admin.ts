@@ -9,6 +9,7 @@ import type {
   User
 } from "$lib/types/api";
 import { apiClient } from "./client";
+import type { CustomDomain } from "./domains";
 
 export interface AdminUsersResponse {
   users: User[];
@@ -16,6 +17,13 @@ export interface AdminUsersResponse {
   page: number;
   limit: number;
   org_tiers: Record<string, string>;
+}
+
+export interface PollDomainsResponse {
+  success: boolean;
+  domains_processed: number;
+  status_changes: number;
+  message: string;
 }
 
 export interface UpdateUserRoleRequest {
@@ -654,5 +662,19 @@ export const adminApi = {
       `/api/admin/api-keys/${id}/restore`,
       { method: "POST" }
     );
+  },
+
+  /**
+   * List all custom domains across all orgs (admin only)
+   */
+  async listDomains(): Promise<CustomDomain[]> {
+    return apiClient.get<CustomDomain[]>("/api/admin/domains");
+  },
+
+  /**
+   * Manually poll all pending custom domains (admin only)
+   */
+  async pollDomains(): Promise<PollDomainsResponse> {
+    return apiClient.post<PollDomainsResponse>("/api/admin/domains/poll", {});
   }
 };

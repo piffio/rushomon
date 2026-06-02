@@ -247,6 +247,8 @@ jobs:
           # Format: array of cron expressions (Cloudflare doesn't support named triggers)
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
+          # NOTE: Custom domain polling is done manually via admin panel
+          # in ephemeral/staging due to cron trigger limits.
           [triggers]
           crons = ["0 0 * * *", "0 4 * * *"]
 
@@ -278,12 +280,14 @@ jobs:
           MAILGUN_BASE_URL = "${{ secrets.MAILGUN_BASE_URL }}"
           MAILGUN_FROM = "${{ secrets.MAILGUN_FROM }}"
           DOMAIN = "rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
+          FALLBACK_DOMAIN = "${{ secrets.FALLBACK_DOMAIN }}"
           FRONTEND_URL = "https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174,https://rushomon-pr-${{ env.PR_NUMBER }}.${{ env.WORKERS_DOMAIN }}"
           EPHEMERAL_ORIGIN_PATTERN = "https://rushomon-pr-{}.${{ env.WORKERS_DOMAIN }}"
           ENABLE_KV_RATE_LIMITING = "false"
           POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
           POLAR_SANDBOX = "true"
+          CF_ZONE_ID = "${{ secrets.CF_ZONE_ID }}"
           EOF
 
       - name: Apply D1 Migrations
@@ -328,6 +332,7 @@ jobs:
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
           POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
           POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
+          CF_SAAS_API_TOKEN: ${{ secrets.CF_SAAS_API_TOKEN }}
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "$GH_CLIENT_SECRET" | wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.ephemeral.toml
@@ -337,6 +342,9 @@ jobs:
           if [ -n "$POLAR_ACCESS_TOKEN" ]; then
             echo "$POLAR_ACCESS_TOKEN" | wrangler secret put POLAR_ACCESS_TOKEN -c wrangler.ephemeral.toml
             echo "$POLAR_WEBHOOK_SECRET" | wrangler secret put POLAR_WEBHOOK_SECRET -c wrangler.ephemeral.toml
+          fi
+          if [ -n "$CF_SAAS_API_TOKEN" ]; then
+            echo "$CF_SAAS_API_TOKEN" | wrangler secret put CF_API_TOKEN -c wrangler.ephemeral.toml
           fi
 
       - name: Deploy to Ephemeral Environment

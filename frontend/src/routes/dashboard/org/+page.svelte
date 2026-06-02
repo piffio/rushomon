@@ -2,8 +2,11 @@
   import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { resolveLogoUrl } from "$lib/api/client";
+  import type { CreateDomainResponse, CustomDomain } from "$lib/api/domains";
+  import { domainsApi } from "$lib/api/domains";
   import { tagsApi } from "$lib/api/links";
   import { orgsApi } from "$lib/api/orgs";
+  import { usageApi } from "$lib/api/usage";
   import Avatar from "$lib/components/Avatar.svelte";
   import LoadingButton from "$lib/components/LoadingButton.svelte";
   import type {
@@ -12,7 +15,8 @@
     OrgMember,
     OrgSettings,
     OrgWithRole,
-    TagWithCount
+    TagWithCount,
+    UsageResponse
   } from "$lib/types/api";
   import type { PageData } from "./$types";
 
@@ -22,6 +26,7 @@
   let loading = $state(true);
   let error = $state("");
   let billingStatus = $state<BillingStatus | null>(null);
+  let usage = $state<UsageResponse | null>(null);
 
   // Rename org
   let editingName = $state(false);
@@ -38,6 +43,37 @@
   // General feedback
   let actionError = $state("");
   let actionSuccess = $state("");
+  let actionWarning = $state("");
+
+  // Custom domains
+  let domains = $state<CustomDomain[]>([]);
+  let domainsLoading = $state(false);
+  let domainsError = $state("");
+  let newHostname = $state("");
+  let addingDomain = $state(false);
+  let addDomainError = $state("");
+  let newDomainResult = $state<CreateDomainResponse | null>(null);
+  let refreshingDomain = $state<string | null>(null);
+  let deletingDomain = $state<string | null>(null);
+
+  // Copy to clipboard feedback
+  let copiedValue = $state<string | null>(null);
+  let copyTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  async function copyToClipboard(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      copiedValue = value;
+      if (copyTimeout) clearTimeout(copyTimeout);
+      copyTimeout = setTimeout(() => {
+        copiedValue = null;
+      }, 2000);
+    } catch {
+      // Fallback for browsers that don't support clipboard API
+      console.error("Failed to copy to clipboard");
+    }
+  }
+  let confirmingDomainHostname = $state<string | null>(null);
 
   // Tags management
   let tags = $state<TagWithCount[]>([]);
@@ -62,6 +98,8 @@
       orgDetails = await orgsApi.getOrg(currentOrgId);
       await loadOrgSettings(currentOrgId);
       await loadTags();
+      await loadDomains(currentOrgId);
+      usage = await usageApi.getUsage();
     } catch (e: unknown) {
       error =
         e instanceof Error ? e.message : "Failed to load organization details.";
@@ -228,6 +266,28 @@
     ["business", "unlimited"].includes(orgDetails?.org.tier ?? "")
   );
 
+  // Custom domain quota check
+  const maxCustomDomains = $derived(usage?.limits.max_custom_domains);
+  const activeDomainCount = $derived(
+    domains.filter((d) => d.status === "active").length
+  );
+  const domainQuotaReached = $derived(
+    usage !== null &&
+      maxCustomDomains !== null &&
+      maxCustomDomains !== undefined &&
+      maxCustomDomains > 0 &&
+      activeDomainCount >= maxCustomDomains
+  );
+  const domainFeatureLocked = $derived(
+    usage !== null && maxCustomDomains === 0
+  );
+  const domainUpgradeTarget = $derived(() => {
+    const tier = orgDetails?.org.tier ?? "free";
+    if (tier === "free") return "Pro";
+    if (tier === "pro") return "Business";
+    return null;
+  });
+
   // Org settings: forward_query_params
   let orgSettings = $state<OrgSettings | null>(null);
   let settingsError = $state("");
@@ -238,6 +298,120 @@
       orgSettings = await orgsApi.getOrgSettings(orgId);
     } catch {
       // Non-critical
+    }
+  }
+
+  async function loadDomains(orgId: string) {
+    domainsLoading = true;
+    domainsError = "";
+    try {
+      domains = await domainsApi.listDomains(orgId);
+      // Check if any domain has pending SSL status and fetch DNS instructions
+      const pendingSslDomain = domains.find((d) => d.ssl_status === "pending");
+      if (pendingSslDomain) {
+        try {
+          const result = await domainsApi.refreshDomain(
+            orgId,
+            pendingSslDomain.hostname
+          );
+          if (result.dns_instructions?.needs_txt) {
+            newDomainResult = result;
+          } else {
+            // Clear DNS instructions if SSL is now active
+            if (
+              newDomainResult?.domain.hostname === pendingSslDomain.hostname
+            ) {
+              newDomainResult = null;
+            }
+          }
+        } catch {
+          // Non-critical - if refresh fails, we'll just not show DNS instructions
+        }
+      } else {
+        // If no domains have pending SSL, clear any stale DNS instructions
+        newDomainResult = null;
+      }
+    } catch (e: unknown) {
+      domainsError = e instanceof Error ? e.message : "Failed to load domains.";
+    } finally {
+      domainsLoading = false;
+    }
+  }
+
+  async function handleAddDomain() {
+    if (!orgDetails || !newHostname.trim()) return;
+    addingDomain = true;
+    addDomainError = "";
+    newDomainResult = null;
+    try {
+      const result = await domainsApi.addDomain(
+        orgDetails.org.id,
+        newHostname.trim()
+      );
+      domains = [...domains, result.domain];
+      newDomainResult = result;
+      newHostname = "";
+    } catch (e: unknown) {
+      addDomainError = e instanceof Error ? e.message : "Failed to add domain.";
+    } finally {
+      addingDomain = false;
+    }
+  }
+
+  async function handleDeleteDomain(hostname: string) {
+    if (!orgDetails) return;
+    confirmingDomainHostname = hostname;
+  }
+
+  async function confirmDeleteDomain() {
+    if (!orgDetails || !confirmingDomainHostname) return;
+    const hostname = confirmingDomainHostname;
+    deletingDomain = hostname;
+    try {
+      const result = await domainsApi.deleteDomain(orgDetails.org.id, hostname);
+      domains = domains.filter((d) => d.hostname !== hostname);
+      if (newDomainResult?.domain.hostname === hostname) newDomainResult = null;
+
+      // Show warning if domain was not found in Cloudflare
+      if (!result.cf_deleted && result.cf_deleted_message) {
+        actionWarning = result.cf_deleted_message;
+        setTimeout(() => (actionWarning = ""), 10000);
+      }
+    } catch (e: unknown) {
+      actionError = e instanceof Error ? e.message : "Failed to remove domain.";
+      setTimeout(() => (actionError = ""), 5000);
+    } finally {
+      deletingDomain = null;
+      confirmingDomainHostname = null;
+    }
+  }
+
+  function closeConfirmDomain() {
+    confirmingDomainHostname = null;
+  }
+
+  async function handleRefreshDomain(hostname: string) {
+    if (!orgDetails) return;
+    refreshingDomain = hostname;
+    try {
+      const result = await domainsApi.refreshDomain(
+        orgDetails.org.id,
+        hostname
+      );
+      domains = domains.map((d) =>
+        d.hostname === hostname ? result.domain : d
+      );
+      // If refresh returned SSL validation records and domain is still pending,
+      // show them in the DNS instructions panel
+      if (result.dns_instructions?.needs_txt) {
+        newDomainResult = result;
+      }
+    } catch (e: unknown) {
+      actionError =
+        e instanceof Error ? e.message : "Failed to refresh domain status.";
+      setTimeout(() => (actionError = ""), 5000);
+    } finally {
+      refreshingDomain = null;
     }
   }
 
@@ -537,6 +711,13 @@
           class="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm"
         >
           {actionError}
+        </div>
+      {/if}
+      {#if actionWarning}
+        <div
+          class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-700 text-sm"
+        >
+          {actionWarning}
         </div>
       {/if}
 
@@ -940,6 +1121,298 @@
         {/if}
       </div>
 
+      <!-- Custom Domains -->
+      <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-lg font-semibold text-gray-900">Custom Domains</h2>
+          {#if orgDetails.org.tier === "free"}
+            <span
+              class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium"
+              >Pro+ feature</span
+            >
+          {/if}
+        </div>
+        <p class="text-sm text-gray-500 mb-4">
+          Point your own domain at your short links (e.g. <code
+            class="bg-gray-100 px-1 rounded">go.example.com</code
+          >).
+        </p>
+
+        {#if orgDetails.org.tier === "free"}
+          <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <p class="text-sm text-orange-800">
+              Custom domains require a <strong>Pro plan</strong> or higher.
+              <a href="/billing" class="underline font-medium"
+                >Upgrade your plan</a
+              > to add custom domains.
+            </p>
+          </div>
+        {:else}
+          {#if domainsLoading}
+            <div class="flex items-center gap-2 text-sm text-gray-500">
+              <div
+                class="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"
+              ></div>
+              Loading domains...
+            </div>
+          {:else if domainsError}
+            <div class="text-sm text-red-600 mb-3">{domainsError}</div>
+          {/if}
+
+          {#if domains.length > 0}
+            <ul class="space-y-3 mb-4">
+              {#each domains as domain (domain.id)}
+                <li
+                  class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-sm text-gray-800 truncate"
+                        >{domain.hostname}</span
+                      >
+                      {#if domain.status === "active" && domain.ssl_status === "pending"}
+                        <span
+                          class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+                          >Pending Certificate</span
+                        >
+                      {:else if domain.status === "active"}
+                        <span
+                          class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full"
+                          >Active</span
+                        >
+                      {:else if domain.status === "pending"}
+                        <span
+                          class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full"
+                          >Pending DNS</span
+                        >
+                      {:else if domain.status === "inactive_downgrade"}
+                        <span
+                          class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                          >Inactive – Upgrade Required</span
+                        >
+                      {:else}
+                        <span
+                          class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full"
+                          >Failed</span
+                        >
+                      {/if}
+                    </div>
+                    {#if domain.status === "pending"}
+                      <p class="text-xs text-gray-500 mt-1">
+                        Add the CNAME record, then click Refresh to check
+                        status.
+                      </p>
+                    {:else if domain.status === "inactive_downgrade"}
+                      <p class="text-xs text-gray-500 mt-1">
+                        This domain was deactivated due to a plan downgrade.
+                        <a href="/billing" class="text-blue-600 hover:underline"
+                          >Upgrade your plan</a
+                        >
+                        to reactivate it and create new links.
+                      </p>
+                    {/if}
+                  </div>
+                  <div class="flex items-center gap-2 ml-4">
+                    {#if domain.status === "pending" || domain.status === "active"}
+                      <button
+                        onclick={() => handleRefreshDomain(domain.hostname)}
+                        disabled={refreshingDomain === domain.hostname}
+                        class="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors"
+                      >
+                        {refreshingDomain === domain.hostname
+                          ? "Checking..."
+                          : "Refresh"}
+                      </button>
+                    {/if}
+                    <button
+                      onclick={() => handleDeleteDomain(domain.hostname)}
+                      disabled={deletingDomain === domain.hostname}
+                      class="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {deletingDomain === domain.hostname
+                        ? "Removing..."
+                        : "Remove"}
+                    </button>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {:else if !domainsLoading}
+            <p class="text-sm text-gray-500 mb-4">
+              No custom domains configured yet.
+            </p>
+          {/if}
+
+          <!-- Add domain form -->
+          {#if newDomainResult && newDomainResult.dns_instructions}
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h3 class="text-sm font-semibold text-blue-900 mb-2">
+                DNS Setup Required
+              </h3>
+              <p class="text-sm text-blue-800 mb-3">
+                Add the following DNS records at your DNS provider to verify
+                ownership and enable routing:
+              </p>
+              <div class="space-y-2">
+                {#if newDomainResult.dns_instructions.needs_cname}
+                  <div class="bg-white rounded border border-blue-200 p-4">
+                    <div class="text-xs font-medium text-gray-500 mb-3">
+                      CNAME Record
+                    </div>
+                    <div class="space-y-2">
+                      <div>
+                        <div class="text-xs text-gray-400 mb-1">Name</div>
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="font-mono text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded"
+                            >{newDomainResult.domain.hostname}</span
+                          >
+                          <button
+                            onclick={() =>
+                              copyToClipboard(newDomainResult!.domain.hostname)}
+                            class="text-xs text-blue-600 hover:text-blue-800 underline"
+                            title="Copy"
+                          >
+                            {copiedValue === newDomainResult!.domain.hostname
+                              ? "Copied!"
+                              : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <div class="text-xs text-gray-400 mb-1">Target</div>
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="font-mono text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded"
+                            >{newDomainResult.dns_instructions
+                              .cname_target}</span
+                          >
+                          <button
+                            onclick={() =>
+                              copyToClipboard(
+                                newDomainResult!.dns_instructions!.cname_target
+                              )}
+                            class="text-xs text-blue-600 hover:text-blue-800 underline"
+                            title="Copy"
+                          >
+                            {copiedValue ===
+                            newDomainResult!.dns_instructions!.cname_target
+                              ? "Copied!"
+                              : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+                {#if newDomainResult.dns_instructions.needs_txt && newDomainResult.dns_instructions.txt_records.length > 0}
+                  {#each newDomainResult.dns_instructions.txt_records as record, index (index)}
+                    <div
+                      class="bg-white rounded border border-blue-200 p-4 mb-2 last:mb-0"
+                    >
+                      <div class="text-xs font-medium text-gray-500 mb-3">
+                        TXT Record
+                        {record.purpose === "ownership"
+                          ? " (domain ownership verification)"
+                          : " (SSL certificate validation)"}
+                      </div>
+                      <div class="space-y-2">
+                        <div>
+                          <div class="text-xs text-gray-400 mb-1">Name</div>
+                          <div class="flex items-center gap-2">
+                            <span
+                              class="font-mono text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded"
+                              >{record.name}</span
+                            >
+                            <button
+                              onclick={() => copyToClipboard(record.name)}
+                              class="text-xs text-blue-600 hover:text-blue-800 underline"
+                              title="Copy"
+                            >
+                              {copiedValue === record.name ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <div class="text-xs text-gray-400 mb-1">Value</div>
+                          <div class="flex items-start gap-2">
+                            <span
+                              class="font-mono text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded break-all flex-1"
+                              >{record.value}</span
+                            >
+                            <button
+                              onclick={() => copyToClipboard(record.value)}
+                              class="text-xs text-blue-600 hover:text-blue-800 underline"
+                              title="Copy"
+                            >
+                              {copiedValue === record.value
+                                ? "Copied!"
+                                : "Copy"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  {/each}
+                {/if}
+              </div>
+              <p class="text-xs text-blue-700 mt-3">
+                DNS propagation can take a few minutes. Use the Refresh button
+                to check verification status.
+              </p>
+              <button
+                onclick={() => {
+                  newDomainResult = null;
+                }}
+                class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                >Dismiss</button
+              >
+            </div>
+          {/if}
+
+          {#if domainFeatureLocked || domainQuotaReached}
+            <div
+              class="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2 text-sm text-amber-800"
+            >
+              {#if domainFeatureLocked}
+                Custom domains require the <strong>Pro plan</strong> or higher.
+                <a href="/billing" class="underline font-medium"
+                  >Upgrade your plan</a
+                >
+              {:else}
+                You've reached your custom domain limit ({activeDomainCount}/
+                {maxCustomDomains}). Upgrade to
+                <strong>{domainUpgradeTarget()}</strong>
+                to add more domains.
+                <a href="/billing" class="underline font-medium">Upgrade</a>
+              {/if}
+            </div>
+          {:else}
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                bind:value={newHostname}
+                placeholder="go.yourdomain.com"
+                class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono"
+                onkeydown={(e) => {
+                  if (e.key === "Enter") handleAddDomain();
+                }}
+              />
+              <button
+                onclick={handleAddDomain}
+                disabled={addingDomain || !newHostname.trim()}
+                class="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {addingDomain ? "Adding..." : "Add Domain"}
+              </button>
+            </div>
+          {/if}
+          {#if addDomainError}
+            <p class="text-xs text-red-600 mt-2">{addDomainError}</p>
+          {/if}
+        {/if}
+      </div>
+
       <!-- Tags Management -->
       <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Tags</h2>
@@ -1233,6 +1706,47 @@
         </button>
         <button class="btn btn-danger" onclick={confirmRemoveMember}>
           Remove Member
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Domain Deletion Confirmation Modal -->
+{#if confirmingDomainHostname}
+  <div
+    class="modal-backdrop"
+    role="button"
+    tabindex="0"
+    onclick={closeConfirmDomain}
+    onkeydown={(e) => e.key === "Enter" && closeConfirmDomain()}
+  >
+    <div
+      class="modal"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      tabindex="0"
+      onkeydown={(e) => e.key === "Escape" && closeConfirmDomain()}
+    >
+      <div class="modal-header">
+        <h3>Remove Custom Domain?</h3>
+        <button class="modal-close" onclick={closeConfirmDomain}>&times;</button
+        >
+      </div>
+      <div class="modal-body">
+        <p>
+          Remove custom domain "{confirmingDomainHostname}"? All short links
+          served through this domain will stop working. This action cannot be
+          undone.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick={closeConfirmDomain}>
+          Cancel
+        </button>
+        <button class="btn btn-danger" onclick={confirmDeleteDomain}>
+          Remove
         </button>
       </div>
     </div>

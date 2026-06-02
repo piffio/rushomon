@@ -1,4 +1,5 @@
-use crate::repositories::{BillingRepository, ProductRepository};
+use crate::repositories::{BillingRepository, OrgRepository, ProductRepository};
+use crate::services::DomainService;
 use crate::utils::{now_timestamp, verify_polar_webhook_signature};
 use worker::d1::D1Database;
 use worker::*;
@@ -269,12 +270,42 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 return Response::error("Service temporarily unavailable", 503);
             }
 
+            // Get current tier before update for downgrade detection
+            let old_tier = billing_repo
+                .get_by_id(&db, &billing_account_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|ba| ba.tier)
+                .unwrap_or_else(|| "free".to_string());
+
             if let Err(e) = billing_repo
                 .update_tier(&db, &billing_account_id, &plan)
                 .await
             {
                 console_error!("[webhook] DB error updating billing tier: {}", e);
                 return Response::error("Service temporarily unavailable", 503);
+            }
+
+            // Apply domain downgrade/upgrade enforcement
+            if old_tier != plan
+                && let Some(org_id) = OrgRepository::new()
+                    .get_org_id_by_billing_account(&db, &billing_account_id)
+                    .await?
+            {
+                let domain_service = DomainService::new();
+                let old_tier_enum = crate::models::Tier::from_str_value(&old_tier)
+                    .unwrap_or(crate::models::Tier::Free);
+                let new_tier_enum =
+                    crate::models::Tier::from_str_value(&plan).unwrap_or(crate::models::Tier::Free);
+
+                if let Err(e) = domain_service
+                    .apply_downgrade(&db, &org_id, old_tier_enum, new_tier_enum)
+                    .await
+                {
+                    console_error!("[webhook] Domain downgrade enforcement failed: {}", e);
+                    // Don't fail the webhook, just log the error
+                }
             }
 
             if let Err(e) = billing_repo
@@ -415,6 +446,15 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                 );
             }
 
+            // Get current tier before update for downgrade detection
+            let old_tier = billing_repo
+                .get_by_id(&db, &billing_account_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|ba| ba.tier)
+                .unwrap_or_else(|| "free".to_string());
+
             if status == "active"
                 && let Err(e) = billing_repo
                     .update_tier(&db, &billing_account_id, &plan)
@@ -422,6 +462,28 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
             {
                 console_error!("[webhook] DB error updating billing tier: {}", e);
                 return Response::error("Service temporarily unavailable", 503);
+            }
+
+            // Apply domain downgrade/upgrade enforcement
+            if old_tier != plan
+                && status == "active"
+                && let Some(org_id) = OrgRepository::new()
+                    .get_org_id_by_billing_account(&db, &billing_account_id)
+                    .await?
+            {
+                let domain_service = DomainService::new();
+                let old_tier_enum = crate::models::Tier::from_str_value(&old_tier)
+                    .unwrap_or(crate::models::Tier::Free);
+                let new_tier_enum =
+                    crate::models::Tier::from_str_value(&plan).unwrap_or(crate::models::Tier::Free);
+
+                if let Err(e) = domain_service
+                    .apply_downgrade(&db, &org_id, old_tier_enum, new_tier_enum)
+                    .await
+                {
+                    console_error!("[webhook] Domain downgrade enforcement failed: {}", e);
+                    // Don't fail the webhook, just log the error
+                }
             }
         }
 
@@ -484,12 +546,40 @@ pub async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<R
                     return Response::error("Service temporarily unavailable", 503);
                 }
 
+                // Get current tier before cancellation for downgrade detection
+                let old_tier = billing_repo
+                    .get_by_id(&db, &billing_account_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|ba| ba.tier)
+                    .unwrap_or_else(|| "free".to_string());
+
                 if let Err(e) = billing_repo
                     .update_tier(&db, &billing_account_id, "free")
                     .await
                 {
                     console_error!("[webhook] DB error downgrading tier: {}", e);
                     return Response::error("Service temporarily unavailable", 503);
+                }
+
+                // Apply domain downgrade enforcement (to free tier)
+                if old_tier != "free"
+                    && let Some(org_id) = OrgRepository::new()
+                        .get_org_id_by_billing_account(&db, &billing_account_id)
+                        .await?
+                {
+                    let domain_service = DomainService::new();
+                    let old_tier_enum = crate::models::Tier::from_str_value(&old_tier)
+                        .unwrap_or(crate::models::Tier::Free);
+
+                    if let Err(e) = domain_service
+                        .apply_downgrade(&db, &org_id, old_tier_enum, crate::models::Tier::Free)
+                        .await
+                    {
+                        console_error!("[webhook] Domain downgrade enforcement failed: {}", e);
+                        // Don't fail the webhook, just log the error
+                    }
                 }
             }
         }

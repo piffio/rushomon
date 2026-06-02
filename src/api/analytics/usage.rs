@@ -44,6 +44,7 @@ async fn inner(req: Request, ctx: RouteContext<()>) -> Result<Response, AppError
             "allow_query_forwarding": usage_info.limits.allow_query_forwarding,
             "allow_device_routing": usage_info.limits.allow_device_routing,
             "max_tags": usage_info.limits.max_tags,
+            "max_custom_domains": usage_info.limits.max_custom_domains,
         },
         "usage": {
             "links_created_this_month": usage_info.links_created_this_month,

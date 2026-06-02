@@ -1,5 +1,6 @@
 pub mod analytics;
 pub mod billing_account;
+pub mod custom_domain;
 pub mod link;
 pub mod org_member;
 pub mod organization;
@@ -9,6 +10,7 @@ pub mod user;
 
 pub use analytics::{AnalyticsEvent, LinkAnalyticsResponse, TimeRange};
 pub use billing_account::BillingAccount;
+pub use custom_domain::CustomDomain;
 pub use link::{Link, LinkMapping};
 pub use org_member::{OrgInvitation, OrgMember, OrgMemberWithUser, OrgWithRole};
 pub use organization::Organization;

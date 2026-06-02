@@ -25,23 +25,20 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
                 .to_string();
 
             // Skip API routes and known frontend routes on the frontend domain.
-            // Frontend routes (dashboard, auth, settings, admin, 404) must not be
+            // Frontend routes (dashboard, auth, settings, admin) must not be
             // treated as short codes — they should fall through to the SPA fallback.
-            // Without this, /404 would redirect to /404 in an infinite loop.
+            // The /404 path is reserved globally on all domains to prevent infinite
+            // redirect loops when a short code is not found.
             if code.starts_with("api") {
+                return Response::error("Not found", 404);
+            }
+            if code == "404" {
                 return Response::error("Not found", 404);
             }
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard"
-                        | "auth"
-                        | "settings"
-                        | "admin"
-                        | "404"
-                        | "login"
-                        | "billing"
-                        | "pricing"
+                    "dashboard" | "auth" | "settings" | "admin" | "login" | "billing" | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -62,17 +59,13 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             if code.starts_with("api") {
                 return Response::error("Not found", 404);
             }
+            if code == "404" {
+                return Response::error("Not found", 404);
+            }
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard"
-                        | "auth"
-                        | "settings"
-                        | "admin"
-                        | "404"
-                        | "login"
-                        | "billing"
-                        | "pricing"
+                    "dashboard" | "auth" | "settings" | "admin" | "login" | "billing" | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -234,6 +227,15 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             "/api/admin/products/save",
             crate::api::billing::products::handle_admin_save_products,
         )
+        // Admin custom domain routes
+        .get_async(
+            "/api/admin/domains",
+            crate::api::admin::domains::handle_admin_list_domains,
+        )
+        .post_async(
+            "/api/admin/domains/poll",
+            crate::api::admin::domains::handle_admin_poll_domains,
+        )
         // Admin API keys routes
         .get_async(
             "/api/admin/api-keys",
@@ -293,6 +295,23 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         .delete_async(
             "/api/settings/api-keys/:id",
             crate::api::keys::handle_revoke_api_key,
+        )
+        // Custom domain routes (Pro+ feature)
+        .get_async(
+            "/api/orgs/:id/domains",
+            crate::api::domains::handle_list_domains,
+        )
+        .post_async(
+            "/api/orgs/:id/domains",
+            crate::api::domains::handle_create_domain,
+        )
+        .delete_async(
+            "/api/orgs/:id/domains/:hostname",
+            crate::api::domains::handle_delete_domain,
+        )
+        .post_async(
+            "/api/orgs/:id/domains/:hostname/refresh",
+            crate::api::domains::handle_refresh_domain,
         )
         // Org management routes
         .get_async("/api/orgs", crate::api::orgs::handle_list_user_orgs)
@@ -374,7 +393,19 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         // Title fetch route (public, can be called by anyone)
         .post_async("/api/fetch-title", crate::api::title_fetch::fetch_title)
         // Root redirect: redirect to frontend (e.g., rush.mn/ → rushomon.cc/)
-        .get_async("/", |_req, ctx| async move {
+        // Skip redirect if request comes via the fallback domain (used for Cloudflare for SaaS
+        // custom hostname routing) — the fallback domain is internal infrastructure and should
+        // not redirect, otherwise Cloudflare for SaaS will see a 301 and fail with a 522 error.
+        .get_async("/", |req, ctx| async move {
+            let fallback_domain = crate::utils::get_fallback_domain(&ctx.env);
+            let request_host = req
+                .url()
+                .ok()
+                .and_then(|u| u.host_str().map(|h| h.to_string()))
+                .unwrap_or_default();
+            if request_host == fallback_domain {
+                return Response::error("Not found", 404);
+            }
             let url = Url::parse(&crate::utils::get_frontend_url(&ctx.env))?;
             Response::redirect_with_status(url, 301)
         })

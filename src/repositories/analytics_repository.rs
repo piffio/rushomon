@@ -312,7 +312,7 @@ impl AnalyticsRepository {
         limit: i64,
     ) -> Result<Vec<TopLinkCount>> {
         let stmt = db.prepare(
-            "SELECT ae.link_id, l.short_code, l.title, COUNT(*) as count
+            "SELECT ae.link_id, l.short_code, l.title, l.custom_domain, COUNT(*) as count
              FROM analytics_events ae
              JOIN links l ON ae.link_id = l.id
              WHERE ae.org_id = ?1 AND ae.timestamp >= ?2 AND ae.timestamp <= ?3
@@ -338,12 +338,14 @@ impl AnalyticsRepository {
                 let link_id = row["link_id"].as_str()?.to_string();
                 let short_code = row["short_code"].as_str()?.to_string();
                 let title = row["title"].as_str().map(|s| s.to_string());
+                let custom_domain = row["custom_domain"].as_str().map(|s| s.to_string());
                 let count = row["count"].as_f64()? as i64;
                 Some(TopLinkCount {
                     link_id,
                     short_code,
                     title,
                     count,
+                    custom_domain,
                 })
             })
             .collect();
