@@ -440,7 +440,10 @@ After deployment, verify Cloudflare for SaaS is working:
 2. Navigate to **Organization Settings** → **Custom Domains**
 3. Try adding a test custom domain (e.g., `test.example.com`)
 4. You should see DNS instructions with CNAME and TXT records
-5. Add the CNAME record to your DNS: `test.example.com → redirect.myapp.com`
+5. Add the CNAME record to your DNS: `test.example.com → {FALLBACK_DOMAIN}`
+   - The CNAME target will be your `FALLBACK_DOMAIN` environment variable value (e.g., `redirect.myapp.com`)
+   - If you didn't set `FALLBACK_DOMAIN`, it defaults to `DOMAIN` (e.g., `api.myapp.com`)
+   - **Important**: The CNAME target must be a real domain in your Cloudflare zone, not a workers.dev subdomain
 6. Click **Refresh** in Rushomon to verify the domain
 
 > **Troubleshooting**: If custom domain creation fails, check:
