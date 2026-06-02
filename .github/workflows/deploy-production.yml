@@ -72,8 +72,9 @@ jobs:
           # Format: array of cron expressions (Cloudflare doesn't support named triggers)
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
+          # - "*/15 * * * *" = every 15 min (custom domain status polling)
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *"]
+          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *"]
 
           [[d1_databases]]
           binding = "rushomon"
@@ -107,6 +108,7 @@ jobs:
           MAILGUN_BASE_URL = "${{ env.MAILGUN_BASE_URL }}"
           MAILGUN_FROM = "${{ env.MAILGUN_FROM }}"
           DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FALLBACK_DOMAIN = "${{ secrets.FALLBACK_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
           ENABLE_KV_RATE_LIMITING = "false"
@@ -225,8 +227,9 @@ jobs:
           # Format: array of cron expressions (Cloudflare doesn't support named triggers)
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
+          # - "*/15 * * * *" = every 15 min (custom domain status polling)
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *"]
+          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *"]
 
           [[d1_databases]]
           binding = "rushomon"
@@ -260,6 +263,7 @@ jobs:
           MAILGUN_BASE_URL = "${{ env.MAILGUN_BASE_URL }}"
           MAILGUN_FROM = "${{ env.MAILGUN_FROM }}"
           DOMAIN = "${{ secrets.API_DOMAIN }}"
+          FALLBACK_DOMAIN = "${{ secrets.FALLBACK_DOMAIN }}"
           FRONTEND_URL = "https://${{ secrets.WEB_DOMAIN }}"
           ALLOWED_ORIGINS = "https://${{ secrets.WEB_DOMAIN }},https://${{ secrets.API_DOMAIN }}"
           ENABLE_KV_RATE_LIMITING = "false"
@@ -283,6 +287,7 @@ jobs:
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
           POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
           POLAR_WEBHOOK_SECRET: ${{ secrets.POLAR_WEBHOOK_SECRET }}
+          CF_SAAS_API_TOKEN: ${{ secrets.CF_SAAS_API_TOKEN }}
         run: |
           # Set secrets using wrangler secrets API (not visible in Worker dashboard)
           echo "🔐 Setting Worker secrets..."
@@ -293,6 +298,9 @@ jobs:
           if [ -n "$POLAR_ACCESS_TOKEN" ]; then
             echo "$POLAR_ACCESS_TOKEN" | wrangler secret put POLAR_ACCESS_TOKEN --config wrangler.production.toml
             echo "$POLAR_WEBHOOK_SECRET" | wrangler secret put POLAR_WEBHOOK_SECRET --config wrangler.production.toml
+          fi
+          if [ -n "$CF_SAAS_API_TOKEN" ]; then
+            echo "$CF_SAAS_API_TOKEN" | wrangler secret put CF_API_TOKEN --config wrangler.production.toml
           fi
           echo "✅ Secrets configured securely"
 
