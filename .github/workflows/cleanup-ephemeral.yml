@@ -378,10 +378,18 @@ jobs:
 
           echo "✅ GitHub deployment records marked as inactive"
 
+      - name: Generate GitHub App Token
+        id: app_token
+        if: always() && steps.check_deployment.outputs.should_cleanup == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
       - name: Delete GitHub Environment
         if: always() && steps.check_deployment.outputs.should_cleanup == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
           ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
