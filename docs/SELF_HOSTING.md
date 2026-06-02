@@ -1035,8 +1035,8 @@ As an admin, you can:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth App client secret (if enabled) |
 | `JWT_SECRET` | JWT signing key (32+ random characters) |
 | `MAILGUN_API_KEY` | Mailgun API key (team invitations) |
-| `CF_ZONE_ID` | Cloudflare Zone ID for custom domains (Cloudflare for SaaS - Enterprise only) |
-| `CF_API_TOKEN` | Cloudflare API token with SSL/Certificates Edit permission (custom domains - Enterprise only) |
+| `CF_ZONE_ID` | Cloudflare Zone ID for custom domains (Cloudflare for SaaS - Required for custom domains) |
+| `CF_API_TOKEN` | Cloudflare API token with SSL/Certificates Edit permission (Required for custom domains) |
 
 ### Frontend Build-Time Variables
 
