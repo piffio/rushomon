@@ -95,7 +95,11 @@ impl SettingsService {
     }
 
     /// Get public settings for frontend consumption
-    pub async fn get_public_settings(&self, db: &D1Database) -> Result<serde_json::Value> {
+    pub async fn get_public_settings(
+        &self,
+        db: &D1Database,
+        env: &worker::Env,
+    ) -> Result<serde_json::Value> {
         let settings = self.repository.get_all_settings(db).await?;
 
         // Get founder pricing status from settings
@@ -112,12 +116,16 @@ impl SettingsService {
                 .unwrap_or(0)
         };
 
+        // Email notification toggles are only shown when Mailgun is configured
+        let email_notifications_enabled = crate::utils::is_mailgun_configured(env);
+
         Ok(serde_json::json!({
             "founder_pricing_active": founder_pricing_active,
             "active_discount_amount_pro_monthly": get_setting_i64("active_discount_amount_pro_monthly"),
             "active_discount_amount_pro_annual": get_setting_i64("active_discount_amount_pro_annual"),
             "active_discount_amount_business_monthly": get_setting_i64("active_discount_amount_business_monthly"),
             "active_discount_amount_business_annual": get_setting_i64("active_discount_amount_business_annual"),
+            "email_notifications_enabled": email_notifications_enabled,
         }))
     }
 }

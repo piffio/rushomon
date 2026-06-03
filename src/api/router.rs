@@ -17,6 +17,15 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
     let router = Router::new();
 
     router
+        // Notification preference routes (must come before catch-all /:code)
+        .get_async(
+            "/api/notifications/preferences",
+            crate::api::notifications::handle_get_notification_preferences,
+        )
+        .patch_async(
+            "/api/notifications/preferences",
+            crate::api::notifications::handle_update_notification_preferences,
+        )
         // Public redirect routes - must come first to catch short codes
         .get_async("/:code", move |req, route_ctx| async move {
             let code = route_ctx
@@ -380,6 +389,10 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         .post_async(
             "/api/admin/cron/trigger-downgrade",
             crate::api::billing::handle_cron_trigger_downgrade,
+        )
+        .post_async(
+            "/api/admin/cron/trigger-monthly-stats",
+            crate::api::notifications::handle_cron_trigger_monthly_stats,
         )
         .post_async(
             "/api/admin/billing-accounts/:id/reset",

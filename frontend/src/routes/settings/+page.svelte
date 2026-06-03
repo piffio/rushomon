@@ -2,10 +2,11 @@
   import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { apiClient } from "$lib/api/client";
+  import { notificationsApi } from "$lib/api/notifications";
   import { orgsApi } from "$lib/api/orgs";
   import { apiKeysApi, type ApiKey } from "$lib/api/settings";
   import Header from "$lib/components/Header.svelte";
-  import type { OrgWithRole } from "$lib/types/api";
+  import type { NotificationPreferences, OrgWithRole } from "$lib/types/api";
   import type { PageData } from "./$types";
 
   const { data }: { data: PageData } = $props();
@@ -37,6 +38,16 @@
   let isCreatingKey = $state(false);
   let createError = $state<string | null>(null);
   let copySuccess = $state(false);
+
+  // Email notification feature flag (from public settings)
+  let emailNotificationsEnabled = $state(false);
+
+  // Notification preferences
+  let notifPrefs = $state<NotificationPreferences>({
+    email_monthly_stats: true
+  });
+  let notifPrefsLoading = $state(true);
+  let notifSaving = $state(false);
 
   // Helper for version API URL
   const versionApiUrl = `${apiClient["baseUrl"]}/api/version`;
@@ -81,6 +92,26 @@
       .catch(() => {})
       .finally(() => {
         keysLoading = false;
+      });
+
+    // Fetch public settings to determine if email notifications feature is enabled
+    apiClient
+      .get<{ email_notifications_enabled?: boolean }>("/api/settings")
+      .then((s) => {
+        emailNotificationsEnabled = s.email_notifications_enabled ?? false;
+      })
+      .catch(() => {});
+
+    // Fetch notification preferences (only meaningful when feature is enabled,
+    // but we pre-load regardless so there's no flicker when the flag arrives)
+    notificationsApi
+      .getPreferences()
+      .then((prefs) => {
+        notifPrefs = prefs;
+      })
+      .catch(() => {})
+      .finally(() => {
+        notifPrefsLoading = false;
       });
   });
 
@@ -152,6 +183,24 @@
       setTimeout(() => {
         copySuccess = false;
       }, 3000);
+    }
+  }
+
+  async function handleToggleNotifPref(
+    key: keyof NotificationPreferences,
+    value: boolean
+  ) {
+    notifSaving = true;
+    try {
+      const updated = await notificationsApi.updatePreferences({
+        [key]: value
+      });
+      notifPrefs = updated;
+    } catch {
+      // Revert optimistic update on failure
+      notifPrefs = { ...notifPrefs, [key]: !value };
+    } finally {
+      notifSaving = false;
     }
   }
 </script>
@@ -352,6 +401,75 @@
                   </button>
                 </li>
               {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Email Notifications Section -->
+      {#if emailNotificationsEnabled}
+        <div class="mt-6 bg-white rounded-2xl border-2 border-gray-200 p-6">
+          <h3 class="font-semibold text-gray-900 mb-1">Email Notifications</h3>
+          <p class="text-xs text-gray-500 mb-4">
+            Choose which emails you'd like to receive from Rushomon.
+          </p>
+
+          {#if notifPrefsLoading}
+            <div class="flex items-center gap-2 text-sm text-gray-500 py-2">
+              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Loading preferences...
+            </div>
+          {:else}
+            <ul class="divide-y divide-gray-100">
+              <!-- Monthly statistics -->
+              <li
+                class="flex items-start justify-between py-4 first:pt-0 last:pb-0"
+              >
+                <div class="flex-1 pr-4">
+                  <p class="text-sm font-medium text-gray-900">
+                    Monthly statistics summary
+                  </p>
+                  <p class="text-xs text-gray-500 mt-0.5">
+                    Receive a monthly recap of your link performance at the
+                    start of each month.
+                  </p>
+                </div>
+                <!-- Toggle switch -->
+                <button
+                  role="switch"
+                  aria-checked={notifPrefs.email_monthly_stats}
+                  disabled={notifSaving}
+                  onclick={() =>
+                    handleToggleNotifPref(
+                      "email_monthly_stats",
+                      !notifPrefs.email_monthly_stats
+                    )}
+                  class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed {notifPrefs.email_monthly_stats
+                    ? 'bg-orange-500'
+                    : 'bg-gray-200'}"
+                >
+                  <span class="sr-only">Monthly statistics email</span>
+                  <span
+                    class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {notifPrefs.email_monthly_stats
+                      ? 'translate-x-5'
+                      : 'translate-x-0'}"
+                  ></span>
+                </button>
+              </li>
             </ul>
           {/if}
         </div>

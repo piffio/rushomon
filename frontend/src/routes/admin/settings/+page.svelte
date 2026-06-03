@@ -23,6 +23,13 @@
   } | null>(null);
   let showCronResult = $state(false);
 
+  let monthlyStatsLoading = $state(false);
+  let monthlyStatsResult = $state<{
+    sent: number;
+    errors: number;
+  } | null>(null);
+  let showMonthlyStatsResult = $state(false);
+
   let discounts = $state<Discount[]>([]);
   let discountsLoading = $state(false);
   let discountsError = $state("");
@@ -455,6 +462,20 @@
       cronLoading = false;
     }
   }
+
+  async function triggerMonthlyStats() {
+    try {
+      monthlyStatsLoading = true;
+      const result = await adminApi.triggerCronMonthlyStats();
+      monthlyStatsResult = result;
+      showMonthlyStatsResult = true;
+    } catch (err) {
+      console.error("Failed to trigger monthly stats:", err);
+      showToastMessage("Failed to trigger monthly stats");
+    } finally {
+      monthlyStatsLoading = false;
+    }
+  }
 </script>
 
 <div class="settings-page">
@@ -751,7 +772,6 @@
             </button>
           </div>
         </div>
-
         {#if showCronResult && cronResult}
           <div
             class="cron-result {cronResult.errors > 0
@@ -781,6 +801,68 @@
             {:else}
               <p class="success-message">
                 All expired subscriptions were processed successfully.
+              </p>
+            {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- Email Notifications Section -->
+      <div class="pricing-section">
+        <h2 class="pricing-section-header">📧 Email Notifications</h2>
+        <p class="pricing-section-description">
+          Trigger email jobs for user notifications
+        </p>
+      </div>
+
+      <!-- Monthly Stats Email Trigger -->
+      <div class="setting-card">
+        <div class="setting-content">
+          <div class="setting-info">
+            <h3>Monthly stats email</h3>
+            <p class="setting-description">
+              Manually trigger the monthly statistics summary email job. This
+              normally runs automatically on day 2 of each month at 8 AM UTC.
+            </p>
+          </div>
+          <div class="setting-control">
+            <button
+              class="btn btn-primary"
+              onclick={triggerMonthlyStats}
+              disabled={monthlyStatsLoading}
+            >
+              {#if monthlyStatsLoading}
+                Sending...
+              {:else}
+                Send Now
+              {/if}
+            </button>
+          </div>
+        </div>
+        {#if showMonthlyStatsResult && monthlyStatsResult}
+          <div
+            class="cron-result {monthlyStatsResult.errors > 0
+              ? 'has-errors'
+              : 'success'}"
+          >
+            <h4>Email Results</h4>
+            <div class="result-stats">
+              <div class="stat">
+                <span class="stat-value">{monthlyStatsResult.sent}</span>
+                <span class="stat-label">Sent</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value">{monthlyStatsResult.errors}</span>
+                <span class="stat-label">Errors</span>
+              </div>
+            </div>
+            {#if monthlyStatsResult.errors > 0}
+              <p class="error-message">
+                Some emails failed to send. Check the logs for details.
+              </p>
+            {:else}
+              <p class="success-message">
+                Monthly stats emails sent successfully.
               </p>
             {/if}
           </div>

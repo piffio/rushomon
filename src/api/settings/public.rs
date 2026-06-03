@@ -18,6 +18,6 @@ use worker::*;
 pub async fn handle_get_public_settings(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let db = ctx.env.get_binding::<worker::d1::D1Database>("rushomon")?;
     let settings_service = SettingsService::new();
-    let public_settings = settings_service.get_public_settings(&db).await?;
+    let public_settings = settings_service.get_public_settings(&db, &ctx.env).await?;
     Response::from_json(&public_settings)
 }
