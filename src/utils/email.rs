@@ -528,3 +528,320 @@ mod urlencoding {
         url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── escape_html ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_escape_html_ampersand() {
+        assert_eq!(escape_html("a&b"), "a&amp;b");
+    }
+
+    #[test]
+    fn test_escape_html_lt_gt() {
+        assert_eq!(escape_html("<b>"), "&lt;b&gt;");
+    }
+
+    #[test]
+    fn test_escape_html_double_quote() {
+        assert_eq!(escape_html(r#"say "hi""#), "say &quot;hi&quot;");
+    }
+
+    #[test]
+    fn test_escape_html_combined() {
+        assert_eq!(
+            escape_html(r#"<a href="x&y">"#),
+            "&lt;a href=&quot;x&amp;y&quot;&gt;"
+        );
+    }
+
+    #[test]
+    fn test_escape_html_clean_passthrough() {
+        assert_eq!(escape_html("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_escape_html_empty_string() {
+        assert_eq!(escape_html(""), "");
+    }
+
+    #[test]
+    fn test_escape_html_multiple_ampersands() {
+        assert_eq!(escape_html("a&b&c"), "a&amp;b&amp;c");
+    }
+
+    // ── build_trend_html ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_trend_html_new_when_previous_zero() {
+        let html = build_trend_html(100, 0);
+        assert!(html.contains("New"), "expected 'New' badge, got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_new_when_both_zero() {
+        // previous == 0 always triggers "New", regardless of current
+        let html = build_trend_html(0, 0);
+        assert!(html.contains("New"), "expected 'New' badge, got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_positive_ten_percent() {
+        let html = build_trend_html(110, 100);
+        assert!(html.contains("↑10%"), "expected '↑10%', got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_negative_ten_percent() {
+        let html = build_trend_html(90, 100);
+        assert!(html.contains("↓10%"), "expected '↓10%', got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_zero_change_shows_up_zero() {
+        let html = build_trend_html(100, 100);
+        assert!(html.contains("↑0%"), "expected '↑0%', got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_large_positive() {
+        let html = build_trend_html(300, 100);
+        assert!(html.contains("↑200%"), "expected '↑200%', got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_large_negative() {
+        let html = build_trend_html(1, 100);
+        assert!(html.contains("↓99%"), "expected '↓99%', got: {html}");
+    }
+
+    #[test]
+    fn test_trend_html_rounding() {
+        // 1/3 ≈ 33.33% rounds to 33%
+        let html = build_trend_html(133, 100);
+        assert!(html.contains("↑33%"), "expected '↑33%', got: {html}");
+    }
+
+    // ── build_trend_text ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_trend_text_new_when_previous_zero() {
+        assert_eq!(build_trend_text(5, 0), " (New)");
+    }
+
+    #[test]
+    fn test_trend_text_positive() {
+        let text = build_trend_text(200, 100);
+        assert!(text.contains("↑100%"), "expected '↑100%', got: {text}");
+        assert!(text.contains("vs last month"));
+    }
+
+    #[test]
+    fn test_trend_text_negative() {
+        let text = build_trend_text(50, 100);
+        assert!(text.contains("↓50%"), "expected '↓50%', got: {text}");
+        assert!(text.contains("vs last month"));
+    }
+
+    #[test]
+    fn test_trend_text_zero_change() {
+        let text = build_trend_text(100, 100);
+        assert!(text.contains("↑0%"), "expected '↑0%', got: {text}");
+    }
+
+    // ── build_top_links_html ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_top_links_html_empty_returns_empty_string() {
+        assert_eq!(build_top_links_html(&[]), String::new());
+    }
+
+    #[test]
+    fn test_top_links_html_uses_title_when_present() {
+        let link = TopLinkSummary {
+            short_code: "abc".into(),
+            title: Some("My Link".into()),
+            clicks: 42,
+        };
+        let html = build_top_links_html(&[link]);
+        assert!(html.contains("My Link"), "title should appear in HTML");
+        assert!(html.contains("/abc"), "short_code should appear as /abc");
+        assert!(html.contains("42"), "click count should appear");
+    }
+
+    #[test]
+    fn test_top_links_html_falls_back_to_short_code_when_no_title() {
+        let link = TopLinkSummary {
+            short_code: "xyz".into(),
+            title: None,
+            clicks: 5,
+        };
+        let html = build_top_links_html(&[link]);
+        // short_code used as the label in the first <td>
+        let count = html.matches("xyz").count();
+        assert!(
+            count >= 2,
+            "short_code should appear as both label and code column, got {count} occurrences in: {html}"
+        );
+    }
+
+    #[test]
+    fn test_top_links_html_falls_back_to_short_code_when_title_empty() {
+        let link = TopLinkSummary {
+            short_code: "xyz".into(),
+            title: Some("".into()), // empty string → fall back to short_code
+            clicks: 5,
+        };
+        let html = build_top_links_html(&[link]);
+        let count = html.matches("xyz").count();
+        assert!(
+            count >= 2,
+            "empty title should fall back to short_code as label, got {count} occurrences"
+        );
+    }
+
+    #[test]
+    fn test_top_links_html_escapes_special_chars_in_title() {
+        let link = TopLinkSummary {
+            short_code: "ok".into(),
+            title: Some("<script>alert(1)</script>".into()),
+            clicks: 1,
+        };
+        let html = build_top_links_html(&[link]);
+        assert!(
+            !html.contains("<script>"),
+            "raw <script> tag must not appear in HTML"
+        );
+        assert!(
+            html.contains("&lt;script&gt;"),
+            "title must be HTML-escaped"
+        );
+    }
+
+    #[test]
+    fn test_top_links_html_escapes_special_chars_in_short_code() {
+        let link = TopLinkSummary {
+            short_code: "a&b".into(),
+            title: None,
+            clicks: 3,
+        };
+        let html = build_top_links_html(&[link]);
+        assert!(
+            !html.contains("a&b"),
+            "raw & in short_code must not appear unescaped"
+        );
+        assert!(html.contains("a&amp;b"), "short_code must be HTML-escaped");
+    }
+
+    #[test]
+    fn test_top_links_html_multiple_links() {
+        let links = vec![
+            TopLinkSummary {
+                short_code: "a1".into(),
+                title: Some("Alpha".into()),
+                clicks: 100,
+            },
+            TopLinkSummary {
+                short_code: "b2".into(),
+                title: Some("Beta".into()),
+                clicks: 50,
+            },
+            TopLinkSummary {
+                short_code: "c3".into(),
+                title: None,
+                clicks: 10,
+            },
+        ];
+        let html = build_top_links_html(&links);
+        assert!(html.contains("Alpha"));
+        assert!(html.contains("Beta"));
+        assert!(html.contains("c3"));
+        assert!(html.contains("100"));
+        assert!(html.contains("50"));
+        assert!(html.contains("10"));
+    }
+
+    // ── build_top_links_text ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_top_links_text_empty_returns_empty_string() {
+        assert_eq!(build_top_links_text(&[]), String::new());
+    }
+
+    #[test]
+    fn test_top_links_text_uses_title_when_present() {
+        let link = TopLinkSummary {
+            short_code: "abc".into(),
+            title: Some("My Link".into()),
+            clicks: 7,
+        };
+        let text = build_top_links_text(&[link]);
+        assert!(text.contains("My Link"), "title should appear in text");
+        assert!(text.contains("/abc"), "short_code should appear with /");
+        assert!(text.contains("7 clicks"), "click count should appear");
+    }
+
+    #[test]
+    fn test_top_links_text_falls_back_to_short_code_when_no_title() {
+        let link = TopLinkSummary {
+            short_code: "xyz".into(),
+            title: None,
+            clicks: 3,
+        };
+        let text = build_top_links_text(&[link]);
+        assert!(text.contains("xyz"), "short_code should be the label");
+    }
+
+    #[test]
+    fn test_top_links_text_falls_back_to_short_code_when_title_empty() {
+        let link = TopLinkSummary {
+            short_code: "xyz".into(),
+            title: Some("".into()),
+            clicks: 3,
+        };
+        let text = build_top_links_text(&[link]);
+        // label should be short_code, not empty string
+        assert!(
+            text.contains("xyz"),
+            "empty title should fall back to short_code"
+        );
+    }
+
+    #[test]
+    fn test_top_links_text_header_line() {
+        let link = TopLinkSummary {
+            short_code: "x".into(),
+            title: None,
+            clicks: 1,
+        };
+        let text = build_top_links_text(&[link]);
+        assert!(
+            text.starts_with("\nTop links:\n"),
+            "text block should start with header, got: {text:?}"
+        );
+    }
+
+    #[test]
+    fn test_top_links_text_multiple_links() {
+        let links = vec![
+            TopLinkSummary {
+                short_code: "a1".into(),
+                title: Some("Alpha".into()),
+                clicks: 10,
+            },
+            TopLinkSummary {
+                short_code: "b2".into(),
+                title: None,
+                clicks: 5,
+            },
+        ];
+        let text = build_top_links_text(&links);
+        assert!(text.contains("Alpha"));
+        assert!(text.contains("b2"));
+        assert!(text.contains("10 clicks"));
+        assert!(text.contains("5 clicks"));
+    }
+}

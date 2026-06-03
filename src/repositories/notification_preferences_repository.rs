@@ -138,3 +138,90 @@ impl NotificationPreferencesRepository {
         Ok(users)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── NotificationPreferences struct & Default ──────────────────────────────
+
+    #[test]
+    fn test_default_is_fully_opted_in() {
+        // A missing row in the DB is treated as opted in for all notifications.
+        let prefs = NotificationPreferences::default();
+        assert!(
+            prefs.email_monthly_stats,
+            "default should be opted in for monthly stats"
+        );
+    }
+
+    #[test]
+    fn test_explicit_opt_out() {
+        let prefs = NotificationPreferences {
+            email_monthly_stats: false,
+        };
+        assert!(!prefs.email_monthly_stats);
+    }
+
+    #[test]
+    fn test_explicit_opt_in() {
+        let prefs = NotificationPreferences {
+            email_monthly_stats: true,
+        };
+        assert!(prefs.email_monthly_stats);
+    }
+
+    #[test]
+    fn test_clone_preserves_values() {
+        let original = NotificationPreferences {
+            email_monthly_stats: false,
+        };
+        let cloned = original.clone();
+        assert_eq!(cloned.email_monthly_stats, original.email_monthly_stats);
+    }
+
+    // ── UserForNotification struct ────────────────────────────────────────────
+
+    #[test]
+    fn test_user_for_notification_with_name() {
+        let u = UserForNotification {
+            user_id: "u-123".into(),
+            email: "alice@example.com".into(),
+            name: Some("Alice".into()),
+        };
+        assert_eq!(u.user_id, "u-123");
+        assert_eq!(u.email, "alice@example.com");
+        assert_eq!(u.name.as_deref(), Some("Alice"));
+    }
+
+    #[test]
+    fn test_user_for_notification_without_name() {
+        let u = UserForNotification {
+            user_id: "u-456".into(),
+            email: "bob@example.com".into(),
+            name: None,
+        };
+        assert!(u.name.is_none(), "name should be None when not provided");
+    }
+
+    #[test]
+    fn test_user_for_notification_clone_preserves_values() {
+        let u = UserForNotification {
+            user_id: "u-789".into(),
+            email: "charlie@example.com".into(),
+            name: Some("Charlie".into()),
+        };
+        let cloned = u.clone();
+        assert_eq!(cloned.user_id, u.user_id);
+        assert_eq!(cloned.email, u.email);
+        assert_eq!(cloned.name, u.name);
+    }
+
+    // ── Repository construction ───────────────────────────────────────────────
+
+    #[test]
+    fn test_repository_new_does_not_panic() {
+        // Smoke test: constructing the repo must not panic
+        let _repo = NotificationPreferencesRepository::new();
+    }
+}

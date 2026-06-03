@@ -322,4 +322,115 @@ mod tests {
         assert_eq!(month_label(2025, 12), "December 2025");
         assert_eq!(month_label(2026, 1), "January 2026");
     }
+
+    #[test]
+    fn test_month_label_all_twelve_months() {
+        let expected = [
+            (1, "January"),
+            (2, "February"),
+            (3, "March"),
+            (4, "April"),
+            (5, "May"),
+            (6, "June"),
+            (7, "July"),
+            (8, "August"),
+            (9, "September"),
+            (10, "October"),
+            (11, "November"),
+            (12, "December"),
+        ];
+        for (m, name) in expected {
+            assert_eq!(
+                month_label(2026, m),
+                format!("{name} 2026"),
+                "failed for month {m}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_month_label_invalid_month_does_not_panic() {
+        // Month 0 and 13 hit the _ => "Unknown" arm — must not panic
+        assert_eq!(month_label(2026, 0), "Unknown 2026");
+        assert_eq!(month_label(2026, 13), "Unknown 2026");
+    }
+
+    #[test]
+    fn test_previous_month_ranges_february() {
+        // February 2026 → previous month is January 2026, prev-prev is December 2025
+        // This is the case where prev-prev wraps back across a year boundary.
+        let now = Utc.with_ymd_and_hms(2026, 2, 2, 8, 0, 0).unwrap();
+        let (prev_start, prev_end, pp_start, pp_end) = previous_month_ranges(now);
+
+        let jan1_2026 = Utc
+            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+        let feb1_2026 = Utc
+            .with_ymd_and_hms(2026, 2, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+        let dec1_2025 = Utc
+            .with_ymd_and_hms(2025, 12, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+
+        assert_eq!(prev_start, jan1_2026, "prev month should start Jan 1 2026");
+        assert_eq!(
+            prev_end,
+            feb1_2026 - 1,
+            "prev month should end at end of Jan 2026"
+        );
+        assert_eq!(
+            pp_start, dec1_2025,
+            "prev-prev month should start Dec 1 2025"
+        );
+        assert_eq!(
+            pp_end,
+            jan1_2026 - 1,
+            "prev-prev month should end at end of Dec 2025"
+        );
+    }
+
+    #[test]
+    fn test_previous_month_ranges_march() {
+        // March 2026 → previous is February, prev-prev is January (no year wrap)
+        let now = Utc.with_ymd_and_hms(2026, 3, 15, 8, 0, 0).unwrap();
+        let (prev_start, prev_end, pp_start, pp_end) = previous_month_ranges(now);
+
+        let feb1 = Utc
+            .with_ymd_and_hms(2026, 2, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+        let mar1 = Utc
+            .with_ymd_and_hms(2026, 3, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+        let jan1 = Utc
+            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+
+        assert_eq!(prev_start, feb1);
+        assert_eq!(prev_end, mar1 - 1);
+        assert_eq!(pp_start, jan1);
+        assert_eq!(pp_end, feb1 - 1);
+    }
+
+    #[test]
+    fn test_previous_month_ranges_prev_end_is_one_second_before_current_month() {
+        // Verify the half-open interval: prev_end = first second of current month - 1
+        let now = Utc.with_ymd_and_hms(2026, 6, 3, 8, 0, 0).unwrap();
+        let (_, prev_end, _, _) = previous_month_ranges(now);
+
+        let jun1 = Utc
+            .with_ymd_and_hms(2026, 6, 1, 0, 0, 0)
+            .unwrap()
+            .timestamp();
+        assert_eq!(
+            prev_end,
+            jun1 - 1,
+            "prev_end must be exactly 1 second before the current month start"
+        );
+    }
 }
