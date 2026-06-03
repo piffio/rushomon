@@ -184,3 +184,140 @@ async fn test_update_settings_requires_auth() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+// ── GET /api/settings (public endpoint) ──────────────────────────────────────
+
+#[tokio::test]
+async fn test_public_settings_accessible_without_auth() {
+    // This endpoint has no authentication requirement — anyone can call it.
+    let client = test_client();
+
+    let response = client
+        .get(format!("{}/api/settings", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "public settings must be accessible without authentication"
+    );
+}
+
+#[tokio::test]
+async fn test_public_settings_contains_email_notifications_enabled() {
+    let client = test_client();
+
+    let response = client
+        .get(format!("{}/api/settings", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: serde_json::Value = response.json().await.unwrap();
+
+    assert!(
+        body.get("email_notifications_enabled").is_some(),
+        "public settings must include email_notifications_enabled, got: {:?}",
+        body
+    );
+    assert!(
+        body["email_notifications_enabled"].is_boolean(),
+        "email_notifications_enabled must be a boolean, got: {:?}",
+        body["email_notifications_enabled"]
+    );
+    // In the test environment MAILGUN_API_KEY and MAILGUN_DOMAIN are not set,
+    // so is_mailgun_configured() returns false.
+    assert_eq!(
+        body["email_notifications_enabled"].as_bool().unwrap(),
+        false,
+        "email_notifications_enabled should be false when Mailgun is not configured"
+    );
+}
+
+#[tokio::test]
+async fn test_public_settings_contains_required_fields() {
+    let client = test_client();
+
+    let response = client
+        .get(format!("{}/api/settings", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: serde_json::Value = response.json().await.unwrap();
+
+    // All fields that the frontend depends on must be present.
+    let required_fields = [
+        "founder_pricing_active",
+        "email_notifications_enabled",
+        "active_discount_amount_pro_monthly",
+        "active_discount_amount_pro_annual",
+        "active_discount_amount_business_monthly",
+        "active_discount_amount_business_annual",
+    ];
+
+    for field in required_fields {
+        assert!(
+            body.get(field).is_some(),
+            "public settings must include '{field}', got: {:?}",
+            body
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_public_settings_discount_amounts_are_numbers() {
+    let client = test_client();
+
+    let response = client
+        .get(format!("{}/api/settings", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: serde_json::Value = response.json().await.unwrap();
+
+    let amount_fields = [
+        "active_discount_amount_pro_monthly",
+        "active_discount_amount_pro_annual",
+        "active_discount_amount_business_monthly",
+        "active_discount_amount_business_annual",
+    ];
+
+    for field in amount_fields {
+        assert!(
+            body[field].is_number(),
+            "'{field}' must be a number, got: {:?}",
+            body[field]
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_public_settings_founder_pricing_is_boolean() {
+    let client = test_client();
+
+    let response = client
+        .get(format!("{}/api/settings", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: serde_json::Value = response.json().await.unwrap();
+
+    assert!(
+        body["founder_pricing_active"].is_boolean(),
+        "founder_pricing_active must be a boolean, got: {:?}",
+        body["founder_pricing_active"]
+    );
+}

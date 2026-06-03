@@ -250,7 +250,7 @@ jobs:
           # NOTE: Custom domain polling is done manually via admin panel
           # in ephemeral/staging due to cron trigger limits.
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *"]
+          crons = ["0 0 * * *", "0 4 * * *", "0 8 2 * *"]
 
           [[d1_databases]]
           binding = "rushomon"

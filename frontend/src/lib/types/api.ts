@@ -289,6 +289,13 @@ export interface AdminLinksResponse {
   limit: number;
 }
 
+// ─── Notification Preference Types ───────────────────────────────────────────
+
+export interface NotificationPreferences {
+  /** Receive a monthly stats summary email at the start of each month. Defaults to true. */
+  email_monthly_stats: boolean;
+}
+
 // ─── Org Management Types ─────────────────────────────────────────────────────
 
 export interface OrgWithRole {

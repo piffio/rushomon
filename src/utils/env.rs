@@ -32,3 +32,20 @@ pub fn get_scheme(env: &Env) -> String {
         "https".to_string()
     }
 }
+
+/// Returns true when the minimum Mailgun environment variables are present.
+///
+/// Used to conditionally enable email features (sending emails, surfacing
+/// notification preference toggles in the UI, etc.).
+/// Requires both `MAILGUN_API_KEY` and `MAILGUN_DOMAIN` to be non-empty.
+pub fn is_mailgun_configured(env: &Env) -> bool {
+    let api_key = env
+        .var("MAILGUN_API_KEY")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let domain = env
+        .var("MAILGUN_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    !api_key.is_empty() && !domain.is_empty()
+}

@@ -20,6 +20,7 @@ pub mod auth_service;
 pub mod billing_service;
 pub mod blacklist_service;
 pub mod domain_service;
+pub mod email_notification_service;
 pub mod link_service;
 pub mod oauth_service;
 pub mod org_service;

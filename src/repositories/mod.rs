@@ -20,6 +20,7 @@ pub mod billing_repository;
 pub mod blacklist_repository;
 pub mod custom_domain_repository;
 pub mod link_repository;
+pub mod notification_preferences_repository;
 pub mod org_repository;
 pub mod product_repository;
 pub mod report_repository;

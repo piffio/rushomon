@@ -43,6 +43,11 @@ pub async fn scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
             };
             super::poll_domain_status::run(&db, &kv, &env).await;
         }
+        "0 8 2 * *" => {
+            console_log!("[cron] Starting monthly stats email job (day 2, 8 AM UTC)");
+            crate::services::email_notification_service::send_monthly_stats_to_all_users(&db, &env)
+                .await;
+        }
         other => {
             console_warn!("[cron] Unexpected cron expression: {}", other);
         }

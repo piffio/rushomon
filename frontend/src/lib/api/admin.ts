@@ -599,6 +599,22 @@ export const adminApi = {
   },
 
   /**
+   * Trigger the monthly stats email cron job (admin only)
+   * @returns Object with sent and error counts
+   */
+  async triggerCronMonthlyStats(): Promise<{
+    sent: number;
+    errors: number;
+  }> {
+    return apiClient.request<{
+      sent: number;
+      errors: number;
+    }>("/api/admin/cron/trigger-monthly-stats", {
+      method: "POST"
+    });
+  },
+
+  /**
    * List all API keys instance-wide (admin only)
    */
   async listApiKeys(

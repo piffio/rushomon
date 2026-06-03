@@ -5,6 +5,7 @@ pub mod billing;
 pub mod domains;
 pub mod keys;
 pub mod links;
+pub mod notifications;
 pub mod orgs;
 pub mod reports;
 pub mod router;

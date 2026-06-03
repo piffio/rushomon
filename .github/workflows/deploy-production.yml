@@ -74,7 +74,7 @@ jobs:
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
           # - "*/15 * * * *" = every 15 min (custom domain status polling)
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *"]
+          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *", "0 8 2 * *"]
 
           [[d1_databases]]
           binding = "rushomon"
@@ -230,7 +230,7 @@ jobs:
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
           # - "*/15 * * * *" = every 15 min (custom domain status polling)
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *"]
+          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *", "0 8 2 * *"]
 
           [[d1_databases]]
           binding = "rushomon"
