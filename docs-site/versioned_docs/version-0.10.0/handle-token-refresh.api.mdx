@@ -1,0 +1,61 @@
+---
+id: handle-token-refresh
+title: "Refresh access token"
+description: "Validates the refresh token from the httpOnly cookie and issues a new short-lived access token. Rate limited to 30 requests per hour per session"
+sidebar_label: "Refresh access token"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVcFu4zYQ/ZUBc0kCRXayBXarU92iLbzNNka8aQ9xENPS2GKXIrnDkR3X8L8XQymJnfxAT6Lpmcd5wzePO1VhLMkENt6pQv2lrak0YwSuEQiXhLEG9t/QwZJ8k7Zr5nDj7BZK778ZBO0qMDG2GEGDww3E2hNfWLPGCnRZYowdRA63mhGsaQxjBezhwxAIv7cYOUJAgtq3lBYRY5SSMuUDkpbyxpUqVK1dZfExwT329alMEcbgXcSoip26Gg7lc8xsdFDHMzGsslRvzyMiq32mfhhevk//YmI0bpWBcWvpUQaeAJ+CIayO+5Qgrn58D/HKHfCpRKywUvt9piKWLRnequJ+p3rej11Jqrh/2D9kivUqquJejVqu0bEpU0PUQ6Ya5NpLY4KPrDIVNNeqUAMdzEC3XA9eexSR1kgxHXNc2YR81ZbyA0aTscpUS1Z6zRxiMRCsnNpY+8a7vCzVPnsLcO1LbaHCNVofGnR8hFEMBlYCah+5+PTx00clnJ5pT8sam+7ifkZNSLJapNVvnhrNqlCf//4q/R5NxvAHboVLSlJFH6gyxduA/Xmpq8YtvSCV3rEuWZbYaCM1xTYET/zTIadMOZ0Ab/tNmHZRcp1vlDQZQ+XLVnime4ClpzQYL7l3t9fdEKBLWqa1KTGfuZk7OYHjS5TNLz4yoKuCN45jmghDCPooEFoRIKDhGqmYuQs4P592aukFHM/P4VRq2eACdAj2NRMpnnUpXY87qb4kCKVvuJUYKfEE7tJZfb+j7F7m8AuhSFi753gwLvGudKwXXlMFpxPywAZJrqs2qxrpmU51NnNXOYxdadsKU94BhDTFk/m3K7hGXSWSADCfz9P3KKKAngf5x6D5Mc/z1+CTE7jt/QA6CQmBkbXwYhOgCeHz9OZPubtGM2OVw69Eng5ilt5avwGuTYTI1JbcEhYzN5/P/4lyczs5c6ZQ8maqgJnqIBqMUa8QOt0spJWbWjNs0DFsyLvVTM3cPiH1opjolXEvgrg2R4LoBQvhJQg2hmuYB73CefLfeTKWOXxvkbYQNOkGGSkmoXRxhRyC4NpmgQSnlxfGVfgkHljhUreWC7hMIumxChgzNp0vC4CkXA6HB+FXw7OZWLQ1JbqIMmP9FI1+n1xffMiH77xks9nkK9fmnlaDPi0O9CpYic5rbqwMHBu2R8MoAzV9GajOpMTMuolstEm2Kx7YaHdQx23vzIevkHoz0J1HiGn9L9+/3tgYn3gQbM80NXXXu/290sGoTIlfpLewc/yHTInjyv+73UJHvCO738t2Eom8LZlaazJ6YbuX5uA5mdxMv6r9/j/7PNd0
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Refresh access token"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/auth/refresh"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Validates the refresh token from the httpOnly cookie and issues a new short-lived access token. Rate limited to 30 requests per hour per session
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-token-refresh.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-token-refresh.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

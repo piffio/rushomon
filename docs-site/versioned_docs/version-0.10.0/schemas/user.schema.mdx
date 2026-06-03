@@ -1,0 +1,32 @@
+---
+id: user
+title: "User"
+description: ""
+sidebar_label: "User"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"avatar_url":"https://avatars.githubusercontent.com/u/123456","created_at":1609459200,"email":"user@example.com","id":"user-123456","name":"John Doe","oauth_id":"123456","oauth_provider":"github","org_id":"org-789","role":"member","suspended_at":0,"suspended_by":"string","suspension_reason":"string"}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"User"}
+>
+</Heading>
+
+
+
+
+
+<Schema
+  {...require("./user.Schema.json")}
+>
+  
+</Schema>
+            

@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Switched, new access token set in cookies"},"400":{"description":"Missing or invalid org_id"},"401":{"description":"Unauthorized"},"403":{"description":"Not a member of the target org"}}}

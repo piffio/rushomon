@@ -1,0 +1,1 @@
+{"schema":{"properties":{"expires_in_days":{"example":30,"format":"int64","type":["integer","null"]},"name":{"example":"My Production API Key","type":"string"}},"required":["name"],"type":"object","title":"CreateApiKeyRequest"},"schemaType":"response"}

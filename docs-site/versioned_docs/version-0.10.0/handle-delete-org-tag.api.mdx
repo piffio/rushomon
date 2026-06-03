@@ -1,0 +1,69 @@
+---
+id: handle-delete-org-tag
+title: "Delete a tag"
+description: "Deletes a tag from all links in the authenticated organization. Returns 204 No Content on success"
+sidebar_label: "Delete a tag"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VU1z2zYQ/Ss764vjoSnZTSYZnuomTsepk3r8MT1EHgsiVyRqEGCApRWFw//eWZCS5djtsSeS4NtPvH3bYUEh97ph7Sxm+IEMMQVQwKqEpXc1KGPAaHsfQFvgikC1XJFlnSumApwvldU/lDhI4ZK49TbA8fQ1fHHw3lkmy+AshDbPKQRM0DXkI/yswAwrZQtDd0UMfOd8eceqxAQb5VVNTD5g9rX7Kc1rVYJVNQE7GCwxQS1/GsUVJig/MRseCXr61mpPBWbsW0ow5BXVCrMOed0ILrDXtsS+vxVwaJwNFOT/8fS1PJ5HH6IWm7KWrTFr7BN8PZ0+N/isQ9C2jD2NKUXg0XPgjZXmOq9/UDGA/iW8dQxL19qIevNSzI9KGyoeGyTBse8TDJS3XvM6tvU3Up48Zl9v+6TDQCFoZ+9y5+41xdPbBFmVcgcSN+BtgjVx5eTqtp2PTc9woho9EfSkkyp7lGD+4eUrvPCuaHP5gJOLM0yw9UbowNyEbCKuUt+GytXOpnmOkt5TB+cuVwYKeiDjmposP/GRTSZGAJULnL17++4tSimb2q+EAMMNbzrQ4SK+fXS+VowZfvrrGpyX5OAPWuPIGmHLAMRkwx6JF1ur7dKJp9xZVjnLK9VKS06hbRrn+dfdmrY0vRwP4WpAyaU+LVayKFzeSp1xdmDpfJzGre3N5TmEynkmSx6k8TqndGZndm8PTh5nVjsrh59dYCBbNE5bDjCOyO5wS5Q28pY0V+SzmT2Eg4OrgSQwkCQcHMC+5LKiBaimMY+W5MOrwWToMbC7J7s1kJLuaS0YSXEPbmKssd9BTo9SeO9JMYGyG/xGhQoVqoVTvoD9C++ANXm5rkqXFflNOcWrmT1O4czmpi0o2u24OBlnbUi4IlXEIgFgPp/H5xNEBmMd3t01iu/SNH0E7+3B5SgcMFBICjgxBrZ6AsoTfLr684vcXa2YqUjh1HvndzBLZ4xbAVc6QGDf5tx6ymZ2Pp//HeTmOok5QxK7GWYww8FFTSGokmDgzUJauaoUw0r0d+WdLWc4s330NJLiQpXabglxrp8QYiQsNFsQrDRXMG9USXNQtoC50bXmOXxrya/hUbAjUQZcJkEIbFsvyMP+0aG2BX2nIoGClqo1nMFRJMnoK4MzpjpAQ14ik5gcTac78OPpq5nFBI3OyQaSGRun6OT3i/PDX9LpMy1ZrVZpadvU+XIymoWJKhsj6LTi2sjAsWbzZBhloK62AzWIlIjZMJG10lbMGhe4VnYnj2GHDisUfxrkQRtErP6fXTsqFNN3njRmTDl2pxtV+yuqRuOo8glmsYjbBEU45W/XLVSgG2/6Xo7jXctmSPBBea0W0jMRdx3kvcBsqUyg/yh7/3Izm/DiGn8x5fFQWRHiB2Va+cIE72m9WfP9bb+zmz6cnp9en2KC0sGdTb/V7sVm83UvO++6AXEtotX321hRxCRY3/8DLnQvww==
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a tag"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/tags/{name}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Deletes a tag from all links in the authenticated organization. Returns 204 No Content on success
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-delete-org-tag.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-delete-org-tag.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-delete-org-tag.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"New organization"},"400":{"description":"Missing name"},"401":{"description":"Unauthorized"},"403":{"description":"Org limit reached for current tier"}}}

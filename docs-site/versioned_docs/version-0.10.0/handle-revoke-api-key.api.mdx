@@ -1,0 +1,69 @@
+---
+id: handle-revoke-api-key
+title: "Revoke an API key"
+description: "Soft-deletes an API key owned by the authenticated user. Returns 204 on success"
+sidebar_label: "Revoke an API key"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1VU1v4zYQ/SuDySUJFNlJA+xCp6bdtMhu2gZ2gh7iwKbFscVaIrXkyF5X0H8vRpIde5P21pMkaj7fvHmsUVNIvSnZOIsJjt2CLzTlxBRAWbh5uIMVbcFtLGmYb4EzAlVxRpZNqpg0VIF8DCPiytsAV8NrcBZClaYUAkboSvJKot9pTDBTVuc09bR2K5qq0kxXtMUIS+VVQUw+YPJcf1fUroi7TxihkZNScYYRWlUQJmg0Rujpa2U8aUzYVxRhSDMqFCY18rYUq8De2CU2zYsYh9LZQEH+Xw2v5XGc8wttoatSYxPh9fDyrc2TFSScN3/vjP4lkHUMC1dZDc63H3s4BTxsmggDpZU3vG3b/4mUJ4/J80sT1RgoBOPsNHVuZag9fYmQ1VKwasH5QtuALxEWxJkTmLsJtrhyhgkOVGkGK9qGQW10g5LOr98H+8E7XaXyIcPHCCufy+CYy5AMJFDsq5C5wtk4TVEKPA5w71KVg6Y15a4syPJRjGQwyMUgc4GTjx8+fkBpZtf9WIbWTWWHQY3z9u0X5wvFmODnPx8Fxr5v7CctE+4MMdpNXPK14Bq7cBIpdZZVyvJKhTJSU6jK0nn+8bCnPbFG/SGMOysZ8ltqapdW0mfLclg43y7J3vdpdA8hc57JkgcB3qQUT+zEnpzAzesqGWfl8DcXGMjq0hnLAXpaH+6cZKmCsUsgwxn5ZGIv4Px83NEEOpqE83M4lVo2NAdVlvmrJ/lw1rl0GAO7Fdm9Q79tYiMlnsBTm2vHMzm9jOFnT4rpUCKMbfvWKmRzp7yG0wfvgA15GVdmlhn5XTv6bGKvYrizaV5pav0OQtz0W9UVnJHSbZMAMJvN2ueRRQJ9H95NS8XTOI5fjU9OYNQvO3QUkgZu8hz2GgDKE3we//G7zK5QzKRjuPXe+QObhctztwHOTIDAvkq58pRM7Gw2+yvI5GrJOUESvwkmMMEuREEhqCVBx5u5QLnJFMOGLMPGO7uc4MQ2baSeFA9qaeyeEPfmiBA9YaHcG8HGcAazUi1pBspqmOWmMDyDrxX5LbxKa0uUzi6RJAS2Kubk4fTywlhN30hHoGmhqpwTuGxJ0sdK4I6pCFCSl8wkLpfD4YH51fBsYjHC3KRkA8mO9Vt08+vD/cUP8fCNlmw2m3hpq9j55aB3CwO1LHOxjjMuclk4NpwfLaMs1Hi/UJ1IiZh1G1koY8WtdIELZQ/qGLVyfkBZ/G6bO4EQxfo/LsJelJi+8aDM+ypbQOpepp9RlQYjlO3DCBOjRdRFKeVfXc9VoCefN40ct8OVyyDCtfJGzQUkUXMT5F1jslB5oP9o8XS0W0Y4umHfLbQ/VFZQW6u8kq+u1u4Gbl6agwvo0+397eMtRigQHVzCe4me7664+v3Qdd1ZPIo2Nc0+U6tVkqxp/gEwVwBK
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Revoke an API key"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/keys/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-deletes an API key owned by the authenticated user. Returns 204 on success
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-revoke-api-key.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-revoke-api-key.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-revoke-api-key.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

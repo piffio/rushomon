@@ -1,0 +1,69 @@
+---
+id: handle-delete-org
+title: "Delete an organization"
+description: "Permanently deletes an organization. Requires owner role and the user must belong to at least one other org. Links can either be migrated to another org or deleted"
+sidebar_label: "Delete an organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVk1v20YQ/SuD8cUxaMpOAiTgqWriFk7dRrBj9BAZ1oock1svd5ndoRWF4H8vZknJkm2k555EDd98v5lhhwWF3OuGtbOY4Yx8rSxZNmsoyBBTAGXB+VJZ/UMJKoVL+tZqTwHcypIH7wyBsgVwRdAG8lC3gWFJxtkS2IFiMKQCg7MEjivyYjCFC23vA+TKAukoXRLUuvSKqYh6dgsG58d4CkzQNeRjLOcFZlgpWxi6HV7fOl9igo3yqiYmHzD72j1J8vNONnD+ERPUIm4UV5igVTVhhloc+SHTAjP2LSUY8opqhVmHvG4EFdhrW2Lf3wg4NM4GCvL+9cmJ/PzE8SadPsG3L4E/KGsdjzAwsX5DIbR9UEYXY63EFitfEg+mTp+buraq5cp5/WPj780LwQ3N3GQcYW//IwcJ8M61tsC+TzBQ3nrN61jyX0l58ph9vemTDgOFoJ29zZ271xSlNwmyKqU/ezYD3iRYE1dOejtkHxvKFWY4UY2eOF+GSaeLHsWnf3i5yzPvijaPYU5n55hg642whbkJ2UQMpb4NlaudTfMcJcp9AxcuVwYKeiDjmpos79nIJhMjgMoFzt6/e/8OJaNNCa6EKAMTNoXocBmffnO+VowZfvr7i3RzOjuHP2iNI7uEVQMQkw3LxF+ssLZ3TizlzrLKWR6pVlpiCm3TOM+/7Oa0JfPlKISrASXd3U9Woihc3kqeQ2/vnI8TvdW9vryAUDnPJESRwuuc0rmd24MDmLZckWWdR2UR/ukCA9micdpy2BAL1B4Q2qBtOc5/NrfHcHR0NXAFBq6EoyM4lFhWtATVNOZRk3x4NagMNQZ292S3CpLSPa0FIyEewHX0NdY7iPQ0hQ+eFMv+2uBB25h3oUK1dMoXcDjzDljHTQSVLqudOXk1t69TOLe5aQuKejsmpuPUDQFXpIqYJAAsFov4u4fIYMzDu9tG8W2apo/ggwO4HBcMDBSSBKbGwHbvgPIEn64+/yW9qxUzFSmcee/8DubOGeNWwJUOENi3ObeesrldLBb/BOlcJz7nSKI3xwzmOJioKQRVEgy8WUopV5ViWJFlWHlnyznObR8tjaSYqVLbLSEu9B4hRsJCswXBSnMFi0aVtIgHZWF0rXkB31rya3jc6ZEoAy4TJwS2rZfk4fD0WNuCvlORQEF3qjWcwWkkyWgrg3OmOkBDXjyTqJyenOzAX5+8mltM0OicbCCZsXGKpr/PLo7fpCfPdslqtUpL26bOl5NRLUxU2RhBpxXXRgaONZu9YZSButoO1LCkZJkNE1krbUWtcYFrZXfi+DichCd3GZ+M9LAlZG39X876uO2YvvOkMWP6sdLduP+/omq0fAD4MmCCmS7kWsgKlnddt1SBrr3pexFH1sipSfBBea2WUn05EzrIc4HZnTKBflK2w8vNlMPzb4YXox2Fyso+f1CmlX+Y4D2th2+K/qbfOW8fzy7OvpxhgrIVdz4rtgdgubmi3cumu25AfJHN1/dbT3ETirO+/xf69HCS
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete an organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/orgs/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Permanently deletes an organization. Requires owner role and the user must belong to at least one other org. Links can either be migrated to another org or deleted
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-delete-org.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-delete-org.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-delete-org.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

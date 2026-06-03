@@ -1,0 +1,69 @@
+---
+id: handle-upload-org-logo
+title: "Upload org logo"
+description: "Uploads an organization logo. Accepts multipart/form-data with a field named 'logo'. Max 500 KB. Accepted formats: image/png, image/jpeg, image/webp, image/svg+xml. Requires owner or admin role and Pro+ tier"
+sidebar_label: "Upload org logo"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVtty2zgM/RUM8tA0VWSn3Z129LTu3iZt2niSZvahzsS0CEtsKJIlqTipR/++A0p27CazH7BPYWgABHAODrRGSaH0ykVlDRZ45bQVMoAwYH0ljPoh+BfQtrI5TMqSXAzQtDoqJ3wcLa1vjqWIAlYq1iBgqUhLMKIhCS/Y60UOn8Q9/Doew8f3mxAkgT1FDAWoRlQ0cqbKhuM3R9vzihZucw531av7RudwQd9b5SmAXRnyYD0I2SgD3moCYSRMvX0FUZHHDK0jn2o4lVhgLYzUdNOmMm+sr244R8zQCS8aiuQDFl/XP3XlfLcVp39ghoqvnYg1ZsjFYoFKYoa+T01iEX1LGYaypkZgscb44NgqRK9MhV13zcbBWRMo8O+vx2P+s//wma0s9MmSzMBTbL0JEGuCq4sz7DL85Tm3TyoEZSpYKk0ZRGtBC19Rxq1qTWids/4Rgz7MydMwV0a0sbZe/SDZG715anT+EwZDA9JbCYdtS7ouw0Bl61V8SE1+T8KTx+LrdZetMVAIypqb0tpbRen2OsMoKkZkD4KA1xk2FGvLkDobYgIw1ljgSDg1sr4Ko7WS3WhAN5C/ex7aqbeyLROwk+kpZth6zTyJ0YVixNFy34baNtbkZYmc6M8QlUKDpDvS1jVk4l6MYjTSbFDbEIt3b9+9RS5q04VLZkcP/6YXa1yk0189NAV++OcLt3IyPYWP9IADpZhKvSFmG2rxe6nJyiwtRyqtiaKMfKRGKM5pwP633Zq2DL4YLuGyt2LM94vlLKQtW66zn4al9YmOW9+rizMINfOLecGNVyXlMzMzBwcwaWNNJqoyOfPlJxsikJHOKhPDhiwg9gyhTXQmFWvyxcwcw9HRZU8X6OkSjo7gkHNZ0QKEc/rRk3x42bv0PYZob8lsHbikW3pgG07xAK7SW0O/A9+e5PC7JxFZXDb2oEyqW4pQL6zwEg6n3ibRYbhqVdXkt9x/OTOvczg1pW4lJb+dEJNhyPqEaxIyFQkA8/k8/d2zKGCow9sbJ+JNnuePxgcHcDGoCvQU4gImWsNWbEB4gg+X55+H8Y8kc/jTe+t3bJZWa7uCWKsAIfq2jK2nYmbm8/m3wMit+c0ZEvvNsIAZ9iEaCkFUBD1vFtzKVS0irMhEWHlrqhnOTJciDaSYikqZLSHO1B4hBsKC2xr1m2buREXzpPZzrRoV5/C9Jf8Aj0KeiNLbFfwIgWmbBXk4PDlWRtI9q5SkpWh1LOAkkWSIVcBppCaAI88vE7ucjMc75q/HL2cGM9SqJBOIZ2yYosnf07PjN/n4iZasVqu8Mm1ufTUa3MJIVE6zdV7HRvPARRX13jDyQF1uB6oXKRazfiIboQy7sQo2wuzk0a9yXuMwqODeLPfywHr1f9z6gyRGuo8jp4ceJTjWw6b4isIp/j7wVcAMi7S+U6OuM2S5ZpP1eiECXXnddXydGMabKcM74ZVYMFK8UlTgs8RiKXSg/+j04cVGEeDpR8WzSQ+XwrD23wnd8n+Y4S099B8d3XW3sw2n55dfMEPWz52vju2qWGxW7vr5wOt1b/GFNbLrtu8kzeSnuu5fhbqGqw==
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Upload org logo"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/orgs/{id}/logo"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Uploads an organization logo. Accepts multipart/form-data with a field named 'logo'. Max 500 KB. Accepted formats: image/png, image/jpeg, image/webp, image/svg+xml. Requires owner or admin role and Pro+ tier
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-upload-org-logo.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-upload-org-logo.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-upload-org-logo.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

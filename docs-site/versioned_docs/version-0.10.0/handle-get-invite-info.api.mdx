@@ -1,0 +1,69 @@
+---
+id: handle-get-invite-info
+title: "Get invite info"
+description: "Validates an invitation token and returns the organization name and inviter details. Public endpoint — no authentication required. Used by the accept-invite page to show context before the user logs in"
+sidebar_label: "Get invite info"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVeFu20YMfhWC+ZMGiux0BVro17KhK9Jlq5E02486iM8SLd1yulN5VFzXELCH2BPuSQZKimun3R5gvyzffeSRH8mPWywo5mwbscFjhr8ZZwsjFMF4sP7BitEbkHBPHowvgEla9hGkIghcGm8/DxBvauoRvRkxFCTGupjCrF06mwP5ognWC/z951/gA5hWKvJi88Ge6WNrmYoUbiIVsNz0T5g8p0ZOB5/QmJJAAsQqrCEPXuiTwJJWgalHt5EYXCgjWI8Jhoa4d35RYIaV8YWju5LkbnB3Z/0qYIKNYVOTEEfMPmyfMHLxhARM0Op5Y6TCBDVrzPDx6jEJzIRbSjDmFdUGsy3KplFgFLa+xK67VXBsgo8U9f75dKo///r4yCZ2Cb6Yvvga+r6vkA8Cq9D6IgH61GgkCQQG45hMsRnZpAK7LkExpSaM7/aqGPE2wZqkCspYSdLTIxVmODGNnQzETbZ9vh0mGIkfvk3cjEPR5n3s57MLTLBlp1UQaWI2UW8pt7EKdfBpnmOXPHVwGXLjoKAHcqGpycuBj2wycQqoQpTs1ctXL1EpjZS3bGVzrbwPxP5Ahon1a9l//RS4NoIZvv39vXJzPruAn2mDY7G0SAMQk8ei6Xs9ZX3DZFvU1jO56CfVxmpMsW2awPL9fk679rgaD+F6QGkVD5PVKIqQt5rnUPBV4L6nd7Y3V5fa+CzkiUGJtzmlcz/3R0dwfjBMevhLiLKbufg4Xk+nro3Wl0BWKuJs7k/h5OSaYtSrPIR7S/HkBI41ljUtwTSN+2JJHJ8NJgPHw4DsDDSle9ooRkM8gpv+rZHvqKdnKfzIZESF4xEP1vd5FyZWy2C4gOMZBxBLrOWqbFkR79Ti2dw/T+HC564tBg3Yc6GkBH4UqIpM0ScJAIvFov89QGQw5sHhrjFyl6bpF/DREVyN8wpDC2kC587BbozBMMHb63e/au1qI6Ji9po58B5mFZwLa5DKRojCbS4tUzb3i8Xij6iV2+qbcyS1m2MGcxxc1BSjyt/QN0ulcl0ZgTV5gTUHX85x7rve09gUM1Nav2uIS3vQEGPDqqaOIFhbqWChIrvolXzhbG1lAR9b4g18kcm+UQZcpo8Q+LZeEsPx2an1BX1S2SloZVonGZz1TTL6yuBCqI7QEA9qfnx2ejad7sGfT5/NVUqdzclH0hkbp+j8zezy9Lt0+pWWrNfrtPRtGricjGZxYsrGKTqtpHY6cGLFHQyjDtT1bqAGkVIxGyayNtarWROi1MbvxfGGZFxyMG6Qg1ke5EH16v+2T0c5VNSkcSM/fSm245b4gKax/YpU/5hgNmzG2wRVqBWw3S5NpBt2XafHfW9h9uE2wQfD1iy1RrpMbNTvArOVcZH+g+Pjq0ctgG8s62/GPB4ar7L/YFyr/zDBe9rslnl32+2twjev32PX/QOxvznL
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get invite info"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/invite/{token}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Validates an invitation token and returns the organization name and inviter details. Public endpoint — no authentication required. Used by the accept-invite page to show context before the user logs in
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-get-invite-info.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-invite-info.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-invite-info.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

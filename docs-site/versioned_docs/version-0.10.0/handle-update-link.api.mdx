@@ -1,0 +1,69 @@
+---
+id: handle-update-link
+title: "Update a link"
+description: "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV atomically"
+sidebar_label: "Update a link"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "put api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update a link"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/api/links/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV atomically
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-update-link.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-update-link.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-update-link.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

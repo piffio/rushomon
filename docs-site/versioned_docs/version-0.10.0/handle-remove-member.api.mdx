@@ -1,0 +1,69 @@
+---
+id: handle-remove-member
+title: "Remove a member"
+description: "Removes a user from the organization. Owners can remove anyone except the last owner. Admins can remove members but not owners. Any member can remove themselves"
+sidebar_label: "Remove a member"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVk1v20YQ/SuD8cU2aMpOAiTgqWriFkqd2LBj9GAZ1oockVuTu8zuUIpC8L8Xs6RkKXYLNLeeSC7ffL+Z2RYz8qnTNWtrMMFrquySPChoPDlYOFsBFwTW5cro70pgMVyuDDkPqTLgggAos7aGgL6lVHOQKJVnsAKMYZxV2uzhK6rmomLeMBg7AH0MY7Me/u2iuaDKU7kkjxHamlzwY5JhgoUyWUkPPfChF8UIa+VURUzOY3LX/hDk5U4wMPmAEWo5rhUXGKFRFWGCOsMIHX1ttKMME3YNRejTgiqFSYu8rgXl2WmTY9dFPxq5lfxNPgDbIYqXzUiaH/6jrXsB+9oaT17+vzo9lce+/U99FnvbGXYRvnkJ9l4Zyf+Q6Kei9QJnzwVujWq4sE5/32h9/Rw0Mb5ZLHSqyTA4W1KPfPOPbooPC9uYTFKJntLGaV6H2v1KypHD5O5ekuzJe23NQ2rto6Zweh8hq1wKvVdZj/cRVsSFFZ5kVBJTYAYXmOBI1XpkXe5Hrc660cDHUTvUo0Pxwi1fJtCVs1mTBvqMryYYYeNK4SJz7ZORqI5d4wtbWROnKT4nx4VNVQkZLam0dUWG93Qko1EpgMJ6Tt69ffcWJcZNUm6EF33hN6lpcR7efrOuUowJfvzzC1gnzsEftMaBTEKiHojRhlRiL+Rcm4UVTak1rFKWV6qUFp98U9fW8S+7MW0JfD0cwk2PkkrvByteZDZtJM6+5xbWhRmxlb29vgBfWMdkyIEkXqcUT83UHBzAuOGCDOs0CMvhJ+sZyGS11YY9DJ0Dag8IjdcmB9JckEum5gSOj2969kDPHn98DIfiy4rmoOq6fJIk5496kT7HwPaRzFZAQnqktWDExQO4DbaGfHs5PYvhvSPFMhs3eNAmxJ0pX8ytchkcXjkLrMlJuQqdF6Fl+0FwNDWvYpiYtGyyMAN3VYyHJuwdLkhlIUgAmM1m4bmHSGCIw9mHWvFDHMdP4IMDuB7mCfQUkgDGZQnbMQPKEXy8ufwstasUM2UxnDtn3Q5mYcvSroAL7cGza1JuHCVTM5vN/vJSuVZsTpFEbooJTLFXUZH3KifoeTOXVK4KxbCS8bFy1uRTnJouaBpIcaVybbaEuNB7hBgIC/UWBCvNBcxqldMMlMlgVupK8wy+NuTW8LQuAlF6XCJGCEwTJtTh2Yk2GX2jLIKMFqopOYGzQJJBVwITpspDTU4sk4icnZ7uwF+dHk0NRljqlIwn6bGhi8a/X12cvI5Pn82S1WoV56aJrctHg5gfqbwuBR0XXJXScKy53GtGaaibbUP1Q0qGWd+RldJGxGrruVJmx4/rYZ3DdpPu9XI/HmRe/S+uCsOMY/rGo7ocgg75bYc9cIeq1nKpcLkIJGETDxble7Oe7yOUaSwCbTtXnm5d2XVyHAgkeyjCpXJazaUQsjG0l/cMk4UqPf1LIg+vNw0Pz28mL4YwHCojo32pyka+MMJHWvc3l7BxfsaBl24tP+HCJm3dfbezgz+cX5x/OccIZVDvXGy2O2m+WfXty/rbtkd8kWHcdVtzYTiLsa77Gw8Pv84=
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Remove a member"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/orgs/{id}/members/{user_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Removes a user from the organization. Owners can remove anyone except the last owner. Admins can remove members but not owners. Any member can remove themselves
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-remove-member.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-remove-member.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-remove-member.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

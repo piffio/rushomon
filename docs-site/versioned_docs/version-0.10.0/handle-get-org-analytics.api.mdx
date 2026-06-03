@@ -1,0 +1,69 @@
+---
+id: handle-get-org-analytics
+title: "Get org-level analytics"
+description: "Returns aggregate click analytics for the entire organization. Includes total clicks, unique links clicked, clicks over time, top links, referrers, countries, and user agents. The time range is capped by tier retention (7 days Free, 365 days Pro, unlimited Business/Unlimited)"
+sidebar_label: "Get org-level analytics"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1vGzcQ/SsD+mIba0lO0jjYU50iCZy6ieEP9BAJFrU72mXFJTfDWSuKoP9ezFJaSUkcNG3RU0+SqDecN8M3H0uVY8jI1Gy8U6m6Rm7IBdBFQVhoRsisyWagnbYLNlmAqSfgEgEdG0LwVGhnPmux78GFy2yTYwD2rG20DQk0znxsEKxxsxAPMU/W/4J/QAI2FSbAvo6gBAinSIQUEsh845gMhgS0y6EJSKALdBx6cFtiawukXYFgAmS6rjGHyQLYIAEhC1Pv4PAMcr0I8JoQE3j6/Kf484q8ELSmMow5vGyCcRhC/25zdKQS5WukNsSLXKWq1C63eF8g33sq7rvcqETVmnSFjBRU+mH5RXLfNdUECfw0emYP1vsZTHQ2g8Mcp7qxnMKZODSC/9ggLVSinK5QpUqMVKIIPzaGMFfpVNuAiQpZiZVW6VJNPVWaVaqM4+fPVKJ4UWP8iQWSWq2SLzndOfOpzWBgXdXrNAbWxHCoLSM5zeYBhaz4f4xba/HfkEOXP0Ii/vOPKIzEPtTeBQxi8WQwkI99Wu+p2CmIDR7mhstO8j8qZbVK1LPB6dfO7pxuuPRkPmMeQc++yairQnCeYeobl0tKVcCsIcOLVo8vUROSSj+MJNkBQzDe3Wfezwy2p6NEsS5EvOq8k/UoURVy6UX7BXIrcy5Vqvq6Nv0uE31PhRKH9PBt/V+Rz5us5Xh+daES1ZCVcmKuQ9qXy3rUhNJX3vWyTH2th0ufaQs5PqD1dYWO9+5I+30rgNIHTl+cvThTEs4m/htRQXzUTRaWatJ+e72Rxdvfb8GTkINfUYTVSkcUEoFbxYi/Nr3GTb3clHnHOmP5ipU2wik0de2Jf96NqdPq9foQbiJKnnY/WGGR+6yROOPDblpvZ3t3fQmh9MTokEASbzLsDd3QHRzAecOltL6sNZbD33xgKZ/aG8ci3LZQQO8BQRpgAWi4REqH7gSOj2+iUCAKJRwfw6FwmeMEdF3brSVSOIomMcfAfoauM5CQZrgQjFA8gLvW1zrfQU5Pe/ALoQwe7TZ4MK6NO9ehnHhNORxekY/93ROUpijbTh/r/mjonnSTqLXbueJ8XUuRcIk6b4MEgPF43H7uIVJYx0H+vtZ83+v1tuCDA7je1H6UkARwbm3XEgJoQnh78/4dxNbDmPfgFZGnHczUW+vnwKUJEJiajBvCdOjG4/EfQV5uKT6HCsVuqFIYqnhFhSHoAiHqZiKpnJeaYY6OYU7eFUM1dKv2prUornRhXCeIS7MniLVgoe5AsaeNa13guO1Y43YojqHtvLCddq1QIi4VJwguDrvD0xPjcvwkA78bcaetSNZ3pXDBWAWokcQzisnpYLADfzI4GjqVKGsydAGlxtZVdP7m6vLkaW/wVS+Zz+e9wjU9T0V/bRb6uqitoHslV1YKjg3bvWKUgrrpCio2KWlmsSIrbZyY1T5wpd0OjzfIsgmdWGlNsLsQ7NV0bBPSt/7ftB7ZtNb9lfET92u7Tnj7tsv11PmgdG1UonazLJNnlCjp/AJYLic64B3Z1UqO45rQziMT9MTu7AaPPs8P7GrfpDzDxXZle9C2EUgcaX+Zw9/Yzb7DZbOi/Ztk4sb1HacRsHU5kh9kxGfcQrabxZtXt/KqjbzxcnNnN3cnm82l+0u7xc7Vy2VE3MrAWa3UhkA7gNRqtFqt/gTKOn5K
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get org-level analytics"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/analytics/org"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns aggregate click analytics for the entire organization. Includes total clicks, unique links clicked, clicks over time, top links, referrers, countries, and user agents. The time range is capped by tier retention (7 days Free, 365 days Pro, unlimited Business/Unlimited)
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-get-org-analytics.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-org-analytics.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-org-analytics.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

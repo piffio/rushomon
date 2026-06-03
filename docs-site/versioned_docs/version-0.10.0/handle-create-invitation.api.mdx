@@ -1,0 +1,69 @@
+---
+id: handle-create-invitation
+title: "Invite a member"
+description: "Sends an email invitation to join the organization. Requires owner or admin role. Respects tier member limits. Sends an invitation email with a unique token"
+sidebar_label: "Invite a member"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVk1z2zgM/SsY5JJmFDlpd6Zdndb7Oe6mG0/czB5qT0xLiMSGIlWSiutq9N93QMqOnHT3vCfL1ANAAA8P6rAgl1vZeGk0ZrggXTgQGqgWUoHUj9ILfgfewGcjNfiKwNhSaPktvEjhhr600pIDs9VkwVgQRS01WKOI37qGcu/AS7JQU70hC0rW0rsUDuFGgWLkrfQVCGi1/NISePNAGhM0DdmAmhWYYSV0oegutyQ83T25wAQbYUVNnqzD7FP3LMnr0fVh9ismKPm4Eb7CBLWoCTOUBSZoY2oFZt62lKDLK6oFZh36XcMo563UJfb9isGuMdqR4/evLy745zjw7CnLeOkChC6GjB1pj32CP/yLpVByDzUWaumc1CXcS1KFi3aXL+1utWh9Zaz8RkUEvXkJun7WtyHpJMQZNQwsibzaO/rxpaOpsiSKHYi9mbHjzjaki1itBB3lrZV+F9rzMwlLFrNPqz7p0JFz0ui73JgHSeF0laAXJffyqHkOVwnW5CvDdGiM86H1vsIMJ6KRE2NLN+lk0U+eruGQo9vH73Njbk3R5uG60/kME2ytYqp537hswk5T27rK1EaneY5832MHVyYXCgp6JGWamns69pFNJooBlXE+e/f23Vvk3PbFWDC9In/2JelwE55+N7YWHjN8//dHLut0PoM/aYcDJ5mLEYjJnpscL9Ra6nvDnnKjvcg9PwYeMX/bpjHW/zTO6TACN8MhLCKK+/6s4fMZFCZvOc/Y43tjg0QcbG9vrsBVxnpiknHhZU7pUi/1yQlMW1+R9jIPxnz4wTgPpIvGSO3dnosgjoDQBu6T9BXZbKnP4exsEVkDkTXu7AxO+S5b2oBoGvVkSda9iiaxxlFcDgac0gPtGMNXPIHbEGuot+PTyxR+CePLyjXgYZDGQrhqY4Qt4HRuTRQ9Y6GSZUX2MFqvlvp1CjOdq7agYDdyMR0mNl64IlGEJAFgvV6H3yNEBkMe1tw1wt+lafoEPjkJAsyyBJFCnMBUKTioFQhL8H5x/Rf3rhbeU5HCb9YaO8LcG6XMFnwlHThv29y3lrKlXq/Xnx13ruOYSyS2W2IGS4wuanJOlASRNxsu5bYSHrakPWyt0eUSl7oPngZSzEUp9YEQV/KIEANhoTmA4qpYN6KkdZDTdRCrNXxpye7gaRMEokRcxkEIdBtU6vTyXOqCvrLkFXQvWuUzuAwkGXxlMPNUO2jIcmRik8uLixH89cWrJS8eJXPSjnjGhima/jG/On+TXrzQku12m5a6TY0tJ4OZm4iyUYxOK18rHjgvvToaRh6oxWGgokixmMWJrIXUbMZiWAs9ukdYPnTQZnw2y1EeWK/+918Bg755+uonjRoSDrXtBvX/hKKR/L1gS5b7LCzz8QpYJcgSzMiu2whHt1b1PR8H1vDSSfBRWCk2XH1eE9Lxc4HZvVCO/qN6pzf7KYeXXxrfvftwKDTr+aNQLf/DBB9oF79E+lU/WnTz68VHTJA1cfQpcpD/zX6bdt933HUR8ZHL2feHOLG8/arv+38AiSCESQ==
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Invite a member"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/orgs/{id}/invitations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Sends an email invitation to join the organization. Requires owner or admin role. Respects tier member limits. Sends an invitation email with a unique token
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-create-invitation.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-create-invitation.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-create-invitation.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
