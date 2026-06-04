@@ -85,6 +85,16 @@ async fn inner_create_invitation(
         return Err(AppError::BadRequest("Invalid email address".to_string()));
     }
 
+    // Optional role for the invitee — defaults to 'member'. 'owner' is never allowed.
+    let invite_role = match body["role"].as_str().unwrap_or("member") {
+        r @ ("member" | "admin") => r.to_string(),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invite role must be 'member' or 'admin'".to_string(),
+            ));
+        }
+    };
+
     let user_repo = UserRepository::new();
     if let Some(existing_user) = user_repo.get_by_email(&db, &email).await?
         && repo
@@ -110,7 +120,7 @@ async fn inner_create_invitation(
         .unwrap_or(&inviter.email)
         .to_string();
     let invitation = repo
-        .create_invitation(&db, &org_id, &user_ctx.user_id, &email, "member")
+        .create_invitation(&db, &org_id, &user_ctx.user_id, &email, &invite_role)
         .await?;
 
     let frontend_url = get_frontend_url(&ctx.env);

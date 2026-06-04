@@ -248,6 +248,71 @@ impl OrgService {
         Ok(())
     }
 
+    /// Update a member's role within an org, enforcing role-based permission rules.
+    ///
+    /// Rules:
+    /// - The `new_role` must be 'member' or 'admin' — 'owner' cannot be assigned via this endpoint.
+    /// - Requester must be an owner or admin of the org.
+    /// - A requester cannot change their own role.
+    /// - Admins can only change the role of regular members (not owners or other admins).
+    /// - Owners can change the role of any non-owner member (admin ↔ member).
+    pub async fn update_member_role(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        requester_id: &str,
+        target_user_id: &str,
+        new_role: &str,
+    ) -> Result<(), AppError> {
+        if new_role != "member" && new_role != "admin" {
+            return Err(AppError::BadRequest(
+                "Role must be 'member' or 'admin'. Ownership transfer is not supported via this endpoint.".to_string(),
+            ));
+        }
+
+        if requester_id == target_user_id {
+            return Err(AppError::Forbidden(
+                "Cannot change your own role".to_string(),
+            ));
+        }
+
+        let repo = OrgRepository::new();
+
+        let requester = repo
+            .get_member(db, org_id, requester_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        if requester.role != "owner" && requester.role != "admin" {
+            return Err(AppError::Forbidden(
+                "Only org owners and admins can change member roles".to_string(),
+            ));
+        }
+
+        let target = repo
+            .get_member(db, org_id, target_user_id)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound("Member not found in this organization".to_string())
+            })?;
+
+        if target.role == "owner" {
+            return Err(AppError::Forbidden(
+                "Cannot change an owner's role. Transfer ownership is not supported via this endpoint.".to_string(),
+            ));
+        }
+
+        if requester.role == "admin" && target.role == "admin" {
+            return Err(AppError::Forbidden(
+                "Admins cannot change the role of other admins".to_string(),
+            ));
+        }
+
+        repo.update_member_role(db, org_id, target_user_id, new_role)
+            .await?;
+        Ok(())
+    }
+
     // ─── Org Settings ─────────────────────────────────────────────────────────
 
     /// Get org settings (forward_query_params) with membership check.
