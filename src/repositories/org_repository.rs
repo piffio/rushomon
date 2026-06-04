@@ -307,6 +307,22 @@ impl OrgRepository {
         Ok(())
     }
 
+    /// Update the role of an existing org member
+    pub async fn update_member_role(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        user_id: &str,
+        new_role: &str,
+    ) -> Result<()> {
+        let stmt =
+            db.prepare("UPDATE org_members SET role = ?3 WHERE org_id = ?1 AND user_id = ?2");
+        stmt.bind(&[org_id.into(), user_id.into(), new_role.into()])?
+            .run()
+            .await?;
+        Ok(())
+    }
+
     /// Count owners of an org (to prevent removing the last owner)
     pub async fn count_owners(&self, db: &D1Database, org_id: &str) -> Result<i64> {
         let stmt = db.prepare(

@@ -344,6 +344,10 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             "/api/orgs/:id/members/:user_id",
             crate::api::orgs::handle_remove_member,
         )
+        .put_async(
+            "/api/orgs/:id/members/:user_id/role",
+            crate::api::orgs::handle_update_member_role,
+        )
         .post_async(
             "/api/orgs/:id/invitations",
             crate::api::orgs::handle_create_invitation,

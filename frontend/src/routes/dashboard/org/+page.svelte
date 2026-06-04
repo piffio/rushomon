@@ -36,6 +36,7 @@
 
   // Invite member
   let inviteEmail = $state("");
+  let inviteRole = $state<"member" | "admin">("member");
   let inviting = $state(false);
   let inviteError = $state("");
   let inviteSuccess = $state("");
@@ -166,9 +167,10 @@
     inviteError = "";
     inviteSuccess = "";
     try {
-      await orgsApi.inviteMember(orgDetails.org.id, email);
-      inviteSuccess = `Invitation sent to ${email}.`;
+      await orgsApi.inviteMember(orgDetails.org.id, email, inviteRole);
+      inviteSuccess = `Invitation sent to ${email} as ${inviteRole}.`;
       inviteEmail = "";
+      inviteRole = "member";
       await loadOrg();
     } catch (e: unknown) {
       if (e instanceof Error) {
@@ -249,6 +251,30 @@
     confirmingRemoveMember = null;
   }
 
+  async function handleUpdateMemberRole(
+    member: OrgMember,
+    newRole: "member" | "admin"
+  ) {
+    if (!orgDetails || newRole === member.role) return;
+    updatingRoleMemberId = member.user_id;
+    actionError = "";
+    actionSuccess = "";
+    try {
+      await orgsApi.updateMemberRole(
+        orgDetails.org.id,
+        member.user_id,
+        newRole
+      );
+      actionSuccess = `${member.name ?? member.email}'s role updated to ${newRole}.`;
+      await loadOrg();
+      setTimeout(() => (actionSuccess = ""), 3000);
+    } catch (e: unknown) {
+      actionError = e instanceof Error ? e.message : "Failed to update role.";
+    } finally {
+      updatingRoleMemberId = null;
+    }
+  }
+
   function formatDate(ts: number): string {
     return new Date(ts * 1000).toLocaleDateString(undefined, {
       year: "numeric",
@@ -258,6 +284,8 @@
   }
 
   const isOwner = $derived(orgDetails?.org.role === "owner");
+  const isAdmin = $derived(orgDetails?.org.role === "admin");
+  const canManageMembers = $derived(isOwner || isAdmin);
   const isPro = $derived(
     ["pro", "business", "unlimited"].includes(orgDetails?.org.tier ?? "")
   );
@@ -525,6 +553,7 @@
   let deleting = $state(false);
   let deleteError = $state("");
   let confirmingRemoveMember = $state<OrgMember | null>(null);
+  let updatingRoleMemberId = $state<string | null>(null);
   let linkCount = $state(0);
   let userOrgs = $state<OrgWithRole[]>([]);
   let canDelete = $state(false);
@@ -982,15 +1011,38 @@
                 </div>
               </div>
               <div class="flex items-center gap-3">
-                <span
-                  class="text-xs font-medium capitalize px-2 py-0.5 rounded-full {member.role ===
-                  'owner'
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'bg-gray-100 text-gray-600'}"
-                >
-                  {member.role}
-                </span>
-                {#if isOwner && member.user_id !== data.user?.id}
+                <!-- Role badge / selector -->
+                {#if canManageMembers && member.role !== "owner" && member.user_id !== data.user?.id && !(isAdmin && member.role === "admin")}
+                  <select
+                    value={member.role}
+                    disabled={updatingRoleMemberId === member.user_id}
+                    onchange={(e) =>
+                      handleUpdateMemberRole(
+                        member,
+                        (e.currentTarget as HTMLSelectElement).value as
+                          | "member"
+                          | "admin"
+                      )}
+                    class="text-xs font-medium px-2 py-0.5 rounded-full border border-gray-200 bg-white text-gray-700 cursor-pointer disabled:opacity-50"
+                    aria-label="Change role"
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                {:else}
+                  <span
+                    class="text-xs font-medium capitalize px-2 py-0.5 rounded-full {member.role ===
+                    'owner'
+                      ? 'bg-orange-100 text-orange-700'
+                      : member.role === 'admin'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-600'}"
+                  >
+                    {member.role}
+                  </span>
+                {/if}
+                <!-- Remove button: owner can remove any non-self; admin can remove members (not owners/admins) -->
+                {#if member.user_id !== data.user?.id && (isOwner || (isAdmin && member.role === "member"))}
                   <button
                     onclick={() => handleRemoveMember(member)}
                     class="text-xs text-red-500 hover:text-red-700 transition-colors"
@@ -1005,8 +1057,8 @@
         </ul>
       </div>
 
-      <!-- Invite Card (owner only) -->
-      {#if isOwner}
+      <!-- Invite Card (owner or admin) -->
+      {#if canManageMembers}
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 class="text-lg font-semibold text-gray-900 mb-1">
             Invite Members
@@ -1044,6 +1096,14 @@
                   </p>
                 {/if}
               </div>
+              <select
+                bind:value={inviteRole}
+                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
+                aria-label="Role for invitee"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
               <LoadingButton
                 onclick={handleInvite}
                 loading={inviting}
@@ -1065,6 +1125,12 @@
                       <div>
                         <p class="text-sm text-gray-900">
                           {inv.email}
+                          <span
+                            class="ml-1 text-xs font-medium capitalize px-1.5 py-0.5 rounded-full {inv.role ===
+                            'admin'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-100 text-gray-600'}">{inv.role}</span
+                          >
                         </p>
                         <p class="text-xs text-gray-500">
                           Expires {formatDate(inv.expires_at)}

@@ -1,13 +1,13 @@
-import { apiClient } from "./client";
 import type {
+  InviteInfo,
   ListOrgsResponse,
   OrgDetails,
-  OrgWithRole,
   OrgInvitation,
-  InviteInfo,
-  UsageResponse,
-  OrgSettings
+  OrgSettings,
+  OrgWithRole,
+  UsageResponse
 } from "$lib/types/api";
+import { apiClient } from "./client";
 
 export const orgsApi = {
   async listMyOrgs(): Promise<ListOrgsResponse> {
@@ -36,13 +36,12 @@ export const orgsApi = {
 
   async inviteMember(
     org_id: string,
-    email: string
+    email: string,
+    role: "member" | "admin" = "member"
   ): Promise<{ invitation: OrgInvitation }> {
     return apiClient.post<{ invitation: OrgInvitation }>(
       `/api/orgs/${org_id}/invitations`,
-      {
-        email
-      }
+      { email, role }
     );
   },
 
@@ -61,6 +60,17 @@ export const orgsApi = {
 
   async removeMember(org_id: string, user_id: string): Promise<void> {
     return apiClient.delete<void>(`/api/orgs/${org_id}/members/${user_id}`);
+  },
+
+  async updateMemberRole(
+    org_id: string,
+    user_id: string,
+    role: "member" | "admin"
+  ): Promise<{ role: string }> {
+    return apiClient.put<{ role: string }>(
+      `/api/orgs/${org_id}/members/${user_id}/role`,
+      { role }
+    );
   },
 
   async leaveOrg(org_id: string, user_id: string): Promise<void> {

@@ -22,5 +22,5 @@ pub use invitations::{
 };
 pub use list::{handle_list_user_orgs, handle_switch_org};
 pub use logo::{handle_delete_org_logo, handle_get_org_logo, handle_upload_org_logo};
-pub use members::handle_remove_member;
+pub use members::{handle_remove_member, handle_update_member_role};
 pub use settings::{handle_get_org_settings, handle_update_org_settings};

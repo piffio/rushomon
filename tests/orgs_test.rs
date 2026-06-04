@@ -827,3 +827,227 @@ async fn test_remove_last_owner_is_rejected() {
 }
 
 // ─── Delete Org ───────────────────────────────────────────────────────────────
+
+// ─── Update Member Role ───────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_update_member_role_requires_auth() {
+    let client = test_client();
+    let response = client
+        .put(format!(
+            "{}/api/orgs/some-org/members/some-user/role",
+            BASE_URL
+        ))
+        .json(&json!({"role": "admin"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_update_member_role_cannot_set_owner() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let me: Value = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let user_id = me["id"].as_str().unwrap().to_string();
+
+    // Trying to set own role to 'owner' is rejected (would be a self-change anyway, but
+    // if the endpoint hits 'owner' validation first, we should get 400)
+    let response = client
+        .put(format!(
+            "{}/api/orgs/{}/members/{}/role",
+            BASE_URL, org_id, user_id
+        ))
+        .json(&json!({"role": "owner"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_update_member_role_cannot_change_own_role() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let me: Value = client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let user_id = me["id"].as_str().unwrap().to_string();
+
+    let response = client
+        .put(format!(
+            "{}/api/orgs/{}/members/{}/role",
+            BASE_URL, org_id, user_id
+        ))
+        .json(&json!({"role": "admin"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_update_member_role_member_not_found() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let response = client
+        .put(format!(
+            "{}/api/orgs/{}/members/00000000-0000-0000-0000-000000000000/role",
+            BASE_URL, org_id
+        ))
+        .json(&json!({"role": "admin"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_update_member_role_missing_role_field_returns_400() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let response = client
+        .put(format!(
+            "{}/api/orgs/{}/members/some-user/role",
+            BASE_URL, org_id
+        ))
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+// ─── Invite with Role ─────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_invite_with_admin_role_creates_admin_invitation() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let email = format!("admin-invite-{}@example.com", unique_short_code("ai"));
+    let response = client
+        .post(format!("{}/api/orgs/{}/invitations", BASE_URL, org_id))
+        .json(&json!({"email": email, "role": "admin"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(
+        body["invitation"]["role"].as_str().unwrap(),
+        "admin",
+        "Invitation role should be 'admin'"
+    );
+
+    // Clean up
+    let invitation_id = body["invitation"]["id"].as_str().unwrap().to_string();
+    client
+        .delete(format!(
+            "{}/api/orgs/{}/invitations/{}",
+            BASE_URL, org_id, invitation_id
+        ))
+        .send()
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_invite_with_member_role_creates_member_invitation() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let email = format!("member-invite-{}@example.com", unique_short_code("mi"));
+    let response = client
+        .post(format!("{}/api/orgs/{}/invitations", BASE_URL, org_id))
+        .json(&json!({"email": email, "role": "member"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(
+        body["invitation"]["role"].as_str().unwrap(),
+        "member",
+        "Invitation role should be 'member'"
+    );
+
+    // Clean up
+    let invitation_id = body["invitation"]["id"].as_str().unwrap().to_string();
+    client
+        .delete(format!(
+            "{}/api/orgs/{}/invitations/{}",
+            BASE_URL, org_id, invitation_id
+        ))
+        .send()
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_invite_with_owner_role_is_rejected() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let email = format!("owner-invite-{}@example.com", unique_short_code("oi"));
+    let response = client
+        .post(format!("{}/api/orgs/{}/invitations", BASE_URL, org_id))
+        .json(&json!({"email": email, "role": "owner"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_invite_defaults_to_member_role() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let email = format!("default-role-{}@example.com", unique_short_code("dr"));
+    // Send invite without a 'role' field — should default to 'member'
+    let response = client
+        .post(format!("{}/api/orgs/{}/invitations", BASE_URL, org_id))
+        .json(&json!({"email": email}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(
+        body["invitation"]["role"].as_str().unwrap(),
+        "member",
+        "Invitation should default to 'member' role when role is omitted"
+    );
+
+    // Clean up
+    let invitation_id = body["invitation"]["id"].as_str().unwrap().to_string();
+    client
+        .delete(format!(
+            "{}/api/orgs/{}/invitations/{}",
+            BASE_URL, org_id, invitation_id
+        ))
+        .send()
+        .await
+        .unwrap();
+}

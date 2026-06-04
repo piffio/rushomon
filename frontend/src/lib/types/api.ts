@@ -302,7 +302,7 @@ export interface OrgWithRole {
   id: string;
   name: string;
   tier: string;
-  role: "owner" | "member";
+  role: "owner" | "admin" | "member";
   joined_at: number;
 }
 
@@ -311,7 +311,7 @@ export interface OrgMember {
   email: string;
   name: string | null;
   avatar_url: string | null;
-  role: "owner" | "member";
+  role: "owner" | "admin" | "member";
   joined_at: number;
 }
 
@@ -332,7 +332,7 @@ export interface OrgDetails {
     name: string;
     tier: string;
     created_at: number;
-    role: "owner" | "member";
+    role: "owner" | "admin" | "member";
     logo_url: string | null;
     link_count: number;
   };
