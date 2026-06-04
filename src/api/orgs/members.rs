@@ -2,7 +2,7 @@
 ///
 /// DELETE /api/orgs/{id}/members/{user_id} - Remove a member
 use crate::auth;
-use crate::services::OrgService;
+use crate::services::{ApiKeyService, OrgService};
 use crate::utils::AppError;
 use worker::d1::D1Database;
 use worker::*;
@@ -49,6 +49,23 @@ async fn inner_remove_member(req: Request, ctx: RouteContext<()>) -> Result<Resp
     OrgService::new()
         .remove_member(&db, &org_id, &user_ctx.user_id, &target_user_id)
         .await?;
+
+    // Auto-revoke API keys scoped exclusively to this org for the removed user.
+    if let Err(e) = ApiKeyService::new()
+        .handle_user_removed_from_org(&db, &target_user_id, &org_id)
+        .await
+    {
+        worker::console_log!(
+            "{}",
+            serde_json::json!({
+                "event": "api_key_auto_revoke_failed",
+                "user_id": target_user_id,
+                "org_id": org_id,
+                "error": e.to_string(),
+                "level": "warn"
+            })
+        );
+    }
 
     Ok(Response::ok("Member removed")?)
 }

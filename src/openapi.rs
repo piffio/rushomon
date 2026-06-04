@@ -50,6 +50,7 @@ use utoipa::{Modify, OpenApi};
             // API Keys models
             crate::api::keys::CreateApiKeyRequest,
             crate::api::keys::CreateApiKeyResponse,
+            crate::api::keys::UpdateApiKeyOrgsRequest,
 
             // Version response
             crate::api::version::VersionResponse,
@@ -110,6 +111,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::keys::handle_create_api_key,
         crate::api::keys::handle_list_api_keys,
         crate::api::keys::handle_revoke_api_key,
+        crate::api::keys::handle_update_api_key_orgs,
 
         // Billing
         crate::api::billing::handle_get_status,
@@ -212,6 +214,21 @@ Most endpoints require authentication using either:
    ```
    Authorization: Bearer ro_pat_...
    ```
+
+### Multi-Organization API Keys
+
+API keys can be scoped to specific organizations. When using a multi-org key, you must specify the target organization using the `X-Org-Id` header:
+
+```
+Authorization: Bearer ro_pat_...
+X-Org-Id: org-uuid-here
+```
+
+- **Single-org keys**: The `X-Org-Id` header is optional. If omitted, the key acts on its single authorized organization.
+- **Multi-org keys**: The `X-Org-Id` header is required. The header value must match one of the org IDs in the key's scope.
+- **Legacy keys (no scope)**: These keys act on the organization they were created on. The `X-Org-Id` header is not supported.
+
+If you attempt to use a multi-org key without the `X-Org-Id` header, or with an org ID outside the key's scope, you will receive a 400 or 403 error.
 ## Response Format
 
 All responses are JSON formatted. Error responses follow this structure:

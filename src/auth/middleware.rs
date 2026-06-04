@@ -179,7 +179,43 @@ pub async fn authenticate_request(
             return Err(AuthError::Forbidden("Account suspended".to_string()));
         }
 
-        // 7. Update the 'last_used_at' timestamp
+        // 7. Resolve the active org from the key's scope + optional X-Org-Id header.
+        let allowed_orgs = match api_key_repo.get_key_orgs(&db, &api_key_with_tier.id).await {
+            Ok(orgs) => orgs,
+            Err(e) => {
+                console_log!("Failed to fetch API key org scope: {:?}", e);
+                return Err(AuthError::InternalError(
+                    "Failed to validate API key scope".to_string(),
+                ));
+            }
+        };
+
+        let x_org_header: Option<String> = req.headers().get("X-Org-Id").ok().flatten();
+
+        let resolved_org_id = if allowed_orgs.is_empty() {
+            // Legacy key: no rows in api_key_orgs → use the org_id stored on the key itself.
+            api_key_with_tier.org_id.clone()
+        } else if let Some(header_org) = x_org_header {
+            // Caller specified a target org — validate it's in the allowed list.
+            if !allowed_orgs.contains(&header_org) {
+                return Err(AuthError::Forbidden(format!(
+                    "This API key is not authorized to act on behalf of organization '{}'",
+                    header_org
+                )));
+            }
+            header_org
+        } else if allowed_orgs.len() == 1 {
+            // Exactly one allowed org and no header → use it implicitly.
+            allowed_orgs[0].clone()
+        } else {
+            // Multiple allowed orgs but no X-Org-Id header → ambiguous.
+            return Err(AuthError::Unauthorized(
+                "X-Org-Id header is required when an API key is scoped to multiple organizations"
+                    .to_string(),
+            ));
+        };
+
+        // 8. Update the 'last_used_at' timestamp
         if let Err(e) = api_key_repo
             .update_last_used(&db, &api_key_with_tier.id, now_timestamp())
             .await
@@ -187,10 +223,10 @@ pub async fn authenticate_request(
             console_log!("Failed to update API key last_used_at: {:?}", e);
         }
 
-        // 6. Successfully authenticate!
+        // 9. Successfully authenticate!
         return Ok(UserContext {
             user_id: user.id,
-            org_id: api_key_with_tier.org_id,
+            org_id: resolved_org_id,
             session_id: format!("pat_{}", api_key_with_tier.user_id),
             role: user.role,
         });
