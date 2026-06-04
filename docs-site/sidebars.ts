@@ -12,6 +12,11 @@ const sidebars: SidebarsConfig = {
       label: 'Getting Started',
     },
     {
+      type: 'doc',
+      id: 'permissions',
+      label: 'Permissions & Tiers',
+    },
+    {
       type: 'category',
       label: 'API',
       link: {
