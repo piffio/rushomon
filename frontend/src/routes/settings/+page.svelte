@@ -34,10 +34,17 @@
   let isDeletingKey = $state(false);
   let newKeyName = $state("");
   let newKeyExpires = $state<number | null>(30); // Default 30 days
+  let newKeySelectedOrgIds = $state<string[]>([]); // populated when modal opens
   let newlyGeneratedToken = $state<string | null>(null);
   let isCreatingKey = $state(false);
   let createError = $state<string | null>(null);
   let copySuccess = $state(false);
+
+  // Edit-scope modal state
+  let editScopeKey = $state<ApiKey | null>(null);
+  let editScopeOrgIds = $state<string[]>([]);
+  let isSavingScope = $state(false);
+  let editScopeError = $state<string | null>(null);
 
   // Email notification feature flag (from public settings)
   let emailNotificationsEnabled = $state(false);
@@ -131,12 +138,35 @@
     return billingStatus.tier !== "free";
   });
 
+  function openCreateModal() {
+    // Pre-select all orgs by default
+    newKeySelectedOrgIds = userOrgs.map((o) => o.id);
+    newKeyName = "";
+    newKeyExpires = 30;
+    newlyGeneratedToken = null;
+    createError = null;
+    copySuccess = false;
+    isCreateModalOpen = true;
+  }
+
+  function toggleCreateOrgSelection(orgId: string) {
+    if (newKeySelectedOrgIds.includes(orgId)) {
+      newKeySelectedOrgIds = newKeySelectedOrgIds.filter((id) => id !== orgId);
+    } else {
+      newKeySelectedOrgIds = [...newKeySelectedOrgIds, orgId];
+    }
+  }
+
   async function handleCreateKey() {
     if (!newKeyName.trim()) return;
     isCreatingKey = true;
     createError = null;
     try {
-      const res = await apiKeysApi.create(newKeyName, newKeyExpires);
+      const res = await apiKeysApi.create(
+        newKeyName,
+        newKeyExpires,
+        newKeySelectedOrgIds
+      );
       newlyGeneratedToken = res.raw_token;
       // Refresh the list immediately
       apiKeys = await apiKeysApi.list();
@@ -156,8 +186,42 @@
     }
   }
 
-  async function handleRevokeKey(id: string) {
+  function handleRevokeKey(id: string) {
     keyToDelete = id;
+  }
+
+  function openEditScope(key: ApiKey) {
+    editScopeKey = key;
+    // Pre-populate with current org IDs; fall back to all user orgs if empty (legacy key)
+    editScopeOrgIds =
+      key.org_ids.length > 0 ? [...key.org_ids] : userOrgs.map((o) => o.id);
+    editScopeError = null;
+  }
+
+  function toggleEditScopeOrg(orgId: string) {
+    if (editScopeOrgIds.includes(orgId)) {
+      editScopeOrgIds = editScopeOrgIds.filter((id) => id !== orgId);
+    } else {
+      editScopeOrgIds = [...editScopeOrgIds, orgId];
+    }
+  }
+
+  async function handleSaveScope() {
+    if (!editScopeKey || editScopeOrgIds.length === 0) return;
+    isSavingScope = true;
+    editScopeError = null;
+    try {
+      await apiKeysApi.updateOrgs(editScopeKey.id, editScopeOrgIds);
+      // Update the local state immediately
+      apiKeys = apiKeys.map((k) =>
+        k.id === editScopeKey!.id ? { ...k, org_ids: editScopeOrgIds } : k
+      );
+      editScopeKey = null;
+    } catch {
+      editScopeError = "Failed to update scope. Please try again.";
+    } finally {
+      isSavingScope = false;
+    }
   }
 
   async function confirmRevokeKey() {
@@ -323,13 +387,7 @@
             </div>
             {#if canCreateApiKeys()}
               <button
-                onclick={() => {
-                  isCreateModalOpen = true;
-                  newlyGeneratedToken = null;
-                  newKeyName = "";
-                  createError = null;
-                  copySuccess = false;
-                }}
+                onclick={openCreateModal}
                 class="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm"
               >
                 Generate New Key
@@ -377,28 +435,52 @@
           {:else}
             <ul class="divide-y divide-gray-100 border-t border-gray-100">
               {#each apiKeys as key (key.id)}
-                <li
-                  class="flex items-center justify-between py-4 first:pt-4 last:pb-0"
-                >
-                  <div>
-                    <p class="text-sm font-medium text-gray-900">
-                      {key.name}
-                    </p>
-                    <p class="text-xs text-gray-500 font-mono mt-1">
-                      {key.hint}
-                    </p>
-                    <p class="text-xs text-gray-400 mt-1.5">
-                      Created {formatDate(key.created_at)}
-                      {#if key.last_used_at}
-                        • Last used {formatDate(key.last_used_at)}{/if}
-                    </p>
+                <li class="py-4 first:pt-4 last:pb-0">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium text-gray-900">
+                        {key.name}
+                      </p>
+                      <p class="text-xs text-gray-500 font-mono mt-1">
+                        {key.hint}
+                      </p>
+                      {#if userOrgs.length > 1}
+                        <p class="text-xs text-gray-400 mt-1">
+                          {#if key.org_ids.length === 0}
+                            All organizations
+                          {:else}
+                            {key.org_ids
+                              .map(
+                                (id) =>
+                                  userOrgs.find((o) => o.id === id)?.name ?? id
+                              )
+                              .join(", ")}
+                          {/if}
+                        </p>
+                      {/if}
+                      <p class="text-xs text-gray-400 mt-1">
+                        Created {formatDate(key.created_at)}
+                        {#if key.last_used_at}
+                          • Last used {formatDate(key.last_used_at)}{/if}
+                      </p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      {#if userOrgs.length > 1}
+                        <button
+                          onclick={() => openEditScope(key)}
+                          class="text-xs text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          Edit scope
+                        </button>
+                      {/if}
+                      <button
+                        onclick={() => handleRevokeKey(key.id)}
+                        class="text-xs text-red-600 hover:text-red-800 font-medium px-3 py-1.5 rounded-md bg-red-50 hover:bg-red-100 transition-colors"
+                      >
+                        Revoke
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onclick={() => handleRevokeKey(key.id)}
-                    class="text-xs text-red-600 hover:text-red-800 font-medium px-3 py-1.5 rounded-md bg-red-50 hover:bg-red-100 transition-colors"
-                  >
-                    Revoke
-                  </button>
                 </li>
               {/each}
             </ul>
@@ -655,6 +737,44 @@
               <option value={null}>Never expire</option>
             </select>
           </div>
+          {#if userOrgs.length > 1}
+            <div>
+              <p class="block text-sm font-medium text-gray-700 mb-2">
+                Organization scope
+              </p>
+              <p class="text-xs text-gray-500 mb-3">
+                Choose which organizations this key can act on behalf of.
+              </p>
+              <ul class="space-y-2">
+                {#each userOrgs as org (org.id)}
+                  <li>
+                    <label class="flex items-center gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={newKeySelectedOrgIds.includes(org.id)}
+                        onchange={() => toggleCreateOrgSelection(org.id)}
+                        class="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                      />
+                      <span
+                        class="text-sm text-gray-800 group-hover:text-gray-900"
+                        >{org.name}</span
+                      >
+                      <span
+                        class="text-xs px-1.5 py-0.5 rounded-full capitalize font-medium ml-auto {tierColors[
+                          org.tier
+                        ] ?? 'bg-gray-100 text-gray-600'}">{org.tier}</span
+                      >
+                    </label>
+                  </li>
+                {/each}
+              </ul>
+              {#if newKeySelectedOrgIds.length === 0}
+                <p class="text-xs text-red-600 mt-2">
+                  Select at least one organization.
+                </p>
+              {/if}
+            </div>
+          {/if}
         </div>
         <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
           <button
@@ -665,7 +785,9 @@
           </button>
           <button
             onclick={handleCreateKey}
-            disabled={!newKeyName.trim() || isCreatingKey}
+            disabled={!newKeyName.trim() ||
+              isCreatingKey ||
+              newKeySelectedOrgIds.length === 0}
             class="px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-sm font-medium rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm flex items-center justify-center min-w-[120px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {#if isCreatingKey}
@@ -786,6 +908,130 @@
             Revoking...
           {:else}
             Revoke Key
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Edit Scope Modal -->
+{#if editScopeKey}
+  <div
+    class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    role="button"
+    tabindex="0"
+    onclick={() => (editScopeKey = null)}
+    onkeydown={(e) => e.key === "Escape" && (editScopeKey = null)}
+  >
+    <div
+      class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      tabindex="0"
+      onkeydown={(e) => e.key === "Escape" && (editScopeKey = null)}
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Edit Key Scope</h3>
+        <button
+          onclick={() => (editScopeKey = null)}
+          class="text-gray-400 hover:text-gray-600 transition-colors"
+          aria-label="Close dialog"
+        >
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+      </div>
+
+      <p class="text-sm text-gray-500 mb-4">
+        Choose which organizations <span class="font-medium text-gray-800"
+          >{editScopeKey.name}</span
+        > is allowed to act on behalf of.
+      </p>
+
+      {#if editScopeError}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+          <p class="text-sm text-red-700">{editScopeError}</p>
+        </div>
+      {/if}
+
+      <ul class="space-y-2 mb-6">
+        {#each userOrgs as org (org.id)}
+          <li>
+            <label class="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={editScopeOrgIds.includes(org.id)}
+                onchange={() => toggleEditScopeOrg(org.id)}
+                class="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+              />
+              <span class="text-sm text-gray-800 group-hover:text-gray-900"
+                >{org.name}</span
+              >
+              <span
+                class="text-xs px-1.5 py-0.5 rounded-full capitalize font-medium ml-auto {tierColors[
+                  org.tier
+                ] ?? 'bg-gray-100 text-gray-600'}">{org.tier}</span
+              >
+            </label>
+          </li>
+        {/each}
+      </ul>
+
+      {#if editScopeOrgIds.length === 0}
+        <p class="text-xs text-red-600 mb-4">
+          Select at least one organization.
+        </p>
+      {/if}
+
+      <div class="flex gap-3">
+        <button
+          onclick={() => (editScopeKey = null)}
+          disabled={isSavingScope}
+          class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-900 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={handleSaveScope}
+          disabled={editScopeOrgIds.length === 0 || isSavingScope}
+          class="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-medium rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+        >
+          {#if isSavingScope}
+            <svg
+              class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Saving...
+          {:else}
+            Save Scope
           {/if}
         </button>
       </div>

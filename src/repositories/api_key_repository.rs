@@ -17,6 +17,17 @@ pub struct ApiKeyRecord {
     pub created_at: i64,
     pub last_used_at: Option<i64>,
     pub expires_at: Option<i64>,
+    /// The org IDs this key is authorized to act on behalf of.
+    /// Empty means the key is legacy and falls back to the org_id on the api_keys row.
+    #[serde(default)]
+    pub org_ids: Vec<String>,
+}
+
+/// Lightweight row used only to gather org IDs in a batch query.
+#[derive(Debug, Deserialize)]
+struct ApiKeyOrgRow {
+    pub api_key_id: String,
+    pub org_id: String,
 }
 
 /// API key record with tier information (for authentication).
@@ -290,8 +301,22 @@ impl ApiKeyRepository {
     }
 
     /// List active API keys for a specific user (no raw token returned).
+    ///
+    /// Fetches keys then batch-fetches their org scopes in a second query,
+    /// merging the results in Rust to avoid GROUP_CONCAT portability issues.
     pub async fn list_for_user(&self, db: &D1Database, user_id: &str) -> Result<Vec<ApiKeyRecord>> {
-        let results = db
+        // Temporary struct that deserialises the raw DB row (no org_ids yet).
+        #[derive(serde::Deserialize)]
+        struct KeyRow {
+            id: String,
+            name: String,
+            hint: String,
+            created_at: i64,
+            last_used_at: Option<i64>,
+            expires_at: Option<i64>,
+        }
+
+        let rows = db
             .prepare(
                 "SELECT id, name, hint, created_at, last_used_at, expires_at
                  FROM api_keys
@@ -300,8 +325,199 @@ impl ApiKeyRepository {
             )
             .bind(&[user_id.into()])?
             .all()
+            .await?
+            .results::<KeyRow>()?;
+
+        if rows.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Build the IN-list for the batch org-scope query.
+        let key_ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
+        let placeholders: String = key_ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 1))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let org_sql = format!(
+            "SELECT api_key_id, org_id FROM api_key_orgs WHERE api_key_id IN ({})",
+            placeholders
+        );
+        let bind_vals: Vec<worker::wasm_bindgen::JsValue> =
+            key_ids.iter().map(|id| id.as_str().into()).collect();
+
+        let org_rows = db
+            .prepare(&org_sql)
+            .bind(&bind_vals)?
+            .all()
+            .await?
+            .results::<ApiKeyOrgRow>()?;
+
+        // Build a map key_id → Vec<org_id>.
+        let mut org_map: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for row in org_rows {
+            org_map.entry(row.api_key_id).or_default().push(row.org_id);
+        }
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let org_ids = org_map.remove(&r.id).unwrap_or_default();
+                ApiKeyRecord {
+                    id: r.id,
+                    name: r.name,
+                    hint: r.hint,
+                    created_at: r.created_at,
+                    last_used_at: r.last_used_at,
+                    expires_at: r.expires_at,
+                    org_ids,
+                }
+            })
+            .collect())
+    }
+
+    /// Return the list of allowed org IDs for a single key.
+    pub async fn get_key_orgs(&self, db: &D1Database, key_id: &str) -> Result<Vec<String>> {
+        let rows = db
+            .prepare("SELECT api_key_id, org_id FROM api_key_orgs WHERE api_key_id = ?1")
+            .bind(&[key_id.into()])?
+            .all()
+            .await?
+            .results::<ApiKeyOrgRow>()?;
+        Ok(rows.into_iter().map(|r| r.org_id).collect())
+    }
+
+    /// Replace all org-scope entries for a key (atomic delete + insert).
+    ///
+    /// Passing an empty slice clears all scopes (making the key legacy-fallback).
+    pub async fn set_key_orgs(
+        &self,
+        db: &D1Database,
+        key_id: &str,
+        org_ids: &[&str],
+    ) -> Result<()> {
+        // Delete existing rows.
+        db.prepare("DELETE FROM api_key_orgs WHERE api_key_id = ?1")
+            .bind(&[key_id.into()])?
+            .run()
             .await?;
-        results.results::<ApiKeyRecord>()
+
+        // Insert new rows individually (D1 does not support multi-row INSERT VALUES).
+        for org_id in org_ids {
+            db.prepare("INSERT INTO api_key_orgs (api_key_id, org_id) VALUES (?1, ?2)")
+                .bind(&[key_id.into(), (*org_id).into()])?
+                .run()
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Remove a specific org from all of a user's key scopes.
+    ///
+    /// Called when a user leaves / is removed from an org.
+    /// Returns the IDs of keys that now have zero allowed orgs (candidates for revocation).
+    pub async fn remove_org_from_user_keys(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+        org_id: &str,
+    ) -> Result<Vec<String>> {
+        // Collect keys belonging to this user that are scoped to the given org.
+        #[derive(serde::Deserialize)]
+        struct IdRow {
+            id: String,
+        }
+
+        let affected_keys = db
+            .prepare(
+                "SELECT ak.id
+                 FROM api_keys ak
+                 JOIN api_key_orgs ako ON ako.api_key_id = ak.id
+                 WHERE ak.user_id = ?1 AND ako.org_id = ?2 AND ak.status = 'active'",
+            )
+            .bind(&[user_id.into(), org_id.into()])?
+            .all()
+            .await?
+            .results::<IdRow>()?;
+
+        if affected_keys.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Remove the org from those keys.
+        db.prepare(
+            "DELETE FROM api_key_orgs
+             WHERE org_id = ?1
+               AND api_key_id IN (
+                   SELECT ak.id FROM api_keys ak
+                   WHERE ak.user_id = ?2
+               )",
+        )
+        .bind(&[org_id.into(), user_id.into()])?
+        .run()
+        .await?;
+
+        // Find keys that now have zero org scopes (must be revoked).
+        let key_id_list: Vec<String> = affected_keys.iter().map(|r| r.id.clone()).collect();
+        let placeholders: String = key_id_list
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 1))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let empty_scope_sql = format!(
+            "SELECT ak.id
+             FROM api_keys ak
+             WHERE ak.id IN ({})
+               AND NOT EXISTS (
+                   SELECT 1 FROM api_key_orgs ako WHERE ako.api_key_id = ak.id
+               )",
+            placeholders
+        );
+        let bind_vals: Vec<worker::wasm_bindgen::JsValue> =
+            key_id_list.iter().map(|id| id.as_str().into()).collect();
+
+        let orphans = db
+            .prepare(&empty_scope_sql)
+            .bind(&bind_vals)?
+            .all()
+            .await?
+            .results::<IdRow>()?;
+
+        Ok(orphans.into_iter().map(|r| r.id).collect())
+    }
+
+    /// Revoke a list of keys via a system action (e.g. auto-revoke on org removal).
+    ///
+    /// Uses the sentinel `updated_by = 'system'` since there is no acting user.
+    pub async fn revoke_keys_system(&self, db: &D1Database, key_ids: &[String]) -> Result<()> {
+        let now = now_timestamp();
+        for key_id in key_ids {
+            db.prepare(
+                "UPDATE api_keys SET status = 'revoked', updated_at = ?1, updated_by = 'system'
+                 WHERE id = ?2 AND status = 'active'",
+            )
+            .bind(&[(now as f64).into(), key_id.as_str().into()])?
+            .run()
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Verify that a key is owned by the given user and return its current status.
+    pub async fn get_owner(&self, db: &D1Database, key_id: &str) -> Result<Option<String>> {
+        #[derive(serde::Deserialize)]
+        struct OwnerRow {
+            user_id: String,
+        }
+        Ok(db
+            .prepare("SELECT user_id FROM api_keys WHERE id = ?1")
+            .bind(&[key_id.into()])?
+            .first::<OwnerRow>(None)
+            .await?
+            .map(|r| r.user_id))
     }
 
     /// Soft-delete a key owned by the given user (status: active → deleted).

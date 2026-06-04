@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Rushomon URL Shortener API",
-    "description": "API documentation for the Rushomon URL shortener service.\n\n## Authentication\n\nMost endpoints require authentication using either:\n- **Session cookies** (for web application users)\n- **Bearer tokens** (for API keys)\n\n### Using API Keys\n\n1. Create an API key in the dashboard (Pro tier or higher required)\n2. Include the key in the Authorization header:\n   ```\n   Authorization: Bearer ro_pat_...\n   ```\n## Response Format\n\nAll responses are JSON formatted. Error responses follow this structure:\n```json\n{\n  \"error\": \"Error message describing what went wrong\"\n}\n```\n\n## Pagination\n\nList endpoints support pagination with `page` and `limit` query parameters:\n- `page`: Page number (1-indexed, default: 1)\n- `limit`: Items per page (1-100, default: 20)\n",
+    "description": "API documentation for the Rushomon URL shortener service.\n\n## Authentication\n\nMost endpoints require authentication using either:\n- **Session cookies** (for web application users)\n- **Bearer tokens** (for API keys)\n\n### Using API Keys\n\n1. Create an API key in the dashboard (Pro tier or higher required)\n2. Include the key in the Authorization header:\n   ```\n   Authorization: Bearer ro_pat_...\n   ```\n\n### Multi-Organization API Keys\n\nAPI keys can be scoped to specific organizations. When using a multi-org key, you must specify the target organization using the `X-Org-Id` header:\n\n```\nAuthorization: Bearer ro_pat_...\nX-Org-Id: org-uuid-here\n```\n\n- **Single-org keys**: The `X-Org-Id` header is optional. If omitted, the key acts on its single authorized organization.\n- **Multi-org keys**: The `X-Org-Id` header is required. The header value must match one of the org IDs in the key's scope.\n- **Legacy keys (no scope)**: These keys act on the organization they were created on. The `X-Org-Id` header is not supported.\n\nIf you attempt to use a multi-org key without the `X-Org-Id` header, or with an org ID outside the key's scope, you will receive a 400 or 403 error.\n## Response Format\n\nAll responses are JSON formatted. Error responses follow this structure:\n```json\n{\n  \"error\": \"Error message describing what went wrong\"\n}\n```\n\n## Pagination\n\nList endpoints support pagination with `page` and `limit` query parameters:\n- `page`: Page number (1-indexed, default: 1)\n- `limit`: Items per page (1-100, default: 20)\n",
     "contact": {
       "name": "Rushomon Support",
       "email": "support@rushomon.cc"
@@ -1939,123 +1939,6 @@
         ]
       }
     },
-    "/api/keys": {
-      "get": {
-        "tags": [
-          "API Keys"
-        ],
-        "summary": "List API keys",
-        "description": "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars)",
-        "operationId": "handle_list_api_keys",
-        "responses": {
-          "200": {
-            "description": "Array of active API keys"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          },
-          {
-            "session_cookie": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "API Keys"
-        ],
-        "summary": "Create an API key",
-        "description": "Generates a new personal access token (PAT) for programmatic API access. The raw token is returned only once — copy it immediately. Requires Pro tier or higher",
-        "operationId": "handle_create_api_key",
-        "requestBody": {
-          "description": "API key creation payload",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApiKeyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "API key created with raw token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateApiKeyResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Empty name"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Plan does not support API keys"
-          },
-          "404": {
-            "description": "Organization not found"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          },
-          {
-            "session_cookie": []
-          }
-        ]
-      }
-    },
-    "/api/keys/{id}": {
-      "delete": {
-        "tags": [
-          "API Keys"
-        ],
-        "summary": "Revoke an API key",
-        "description": "Soft-deletes an API key owned by the authenticated user. Returns 204 on success",
-        "operationId": "handle_revoke_api_key",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "API key ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Key revoked"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Key not found or not owned by user"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          },
-          {
-            "session_cookie": []
-          }
-        ]
-      }
-    },
     "/api/links": {
       "get": {
         "tags": [
@@ -3121,6 +3004,177 @@
         }
       }
     },
+    "/api/settings/api-keys": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "List API keys",
+        "description": "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars). Includes `org_ids` showing which organizations each key is scoped to.",
+        "operationId": "handle_list_api_keys",
+        "responses": {
+          "200": {
+            "description": "Array of active API keys"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create an API key",
+        "description": "Generates a new personal access token (PAT) for programmatic API access. The raw token is returned only once — copy it immediately. Requires Pro tier or higher. Supply `org_ids` to restrict the key to specific organizations; omit to allow all orgs.",
+        "operationId": "handle_create_api_key",
+        "requestBody": {
+          "description": "API key creation payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "API key created with raw token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty name or invalid org IDs"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Plan does not support API keys"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/settings/api-keys/{id}": {
+      "delete": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Revoke an API key",
+        "description": "Soft-deletes an API key owned by the authenticated user. Returns 204 on success",
+        "operationId": "handle_revoke_api_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "API key ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Key revoked"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Key not found or not owned by user"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/settings/api-keys/{id}/orgs": {
+      "put": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Update an API key's org scope",
+        "description": "Replaces the list of organizations an API key is authorized to act on behalf of. The user must own the key and be a member of all supplied orgs. Requires at least one org.",
+        "operationId": "handle_update_api_key_orgs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "API key ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New org scope",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApiKeyOrgsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Org scope updated"
+          },
+          "400": {
+            "description": "Empty org list or org not in membership"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Key not found or not owned by user"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/settings/public": {
       "get": {
         "tags": [
@@ -3369,6 +3423,13 @@
             ],
             "format": "int64",
             "example": 30
+          },
+          "org_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of org IDs this key is allowed to act on behalf of.\nDefaults to all orgs the user belongs to when omitted or empty."
           }
         }
       },
@@ -3379,7 +3440,8 @@
           "name",
           "hint",
           "raw_token",
-          "created_at"
+          "created_at",
+          "org_ids"
         ],
         "properties": {
           "id": {
@@ -3411,6 +3473,13 @@
             ],
             "format": "int64",
             "example": 1612137600
+          },
+          "org_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The org IDs this key is authorized to act on behalf of."
           }
         }
       },
@@ -4167,6 +4236,21 @@
             ],
             "description": "Custom domain this link belongs to, if any.",
             "example": "go.mybrand.com"
+          }
+        }
+      },
+      "UpdateApiKeyOrgsRequest": {
+        "type": "object",
+        "required": [
+          "org_ids"
+        ],
+        "properties": {
+          "org_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-empty list of org IDs this key should be scoped to."
           }
         }
       },

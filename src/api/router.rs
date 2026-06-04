@@ -305,6 +305,10 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             "/api/settings/api-keys/:id",
             crate::api::keys::handle_revoke_api_key,
         )
+        .put_async(
+            "/api/settings/api-keys/:id/orgs",
+            crate::api::keys::handle_update_api_key_orgs,
+        )
         // Custom domain routes (Pro+ feature)
         .get_async(
             "/api/orgs/:id/domains",
