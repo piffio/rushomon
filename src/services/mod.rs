@@ -24,6 +24,7 @@ pub mod email_notification_service;
 pub mod link_service;
 pub mod oauth_service;
 pub mod org_service;
+pub mod ownership_transfer_service;
 pub mod product_service;
 pub mod report_service;
 pub mod settings_service;
@@ -38,6 +39,8 @@ pub use domain_service::DomainService;
 pub use link_service::LinkService;
 pub use oauth_service::OAuthService;
 pub use org_service::OrgService;
+#[allow(unused_imports)]
+pub use ownership_transfer_service::OwnershipTransferService;
 pub use product_service::ProductService;
 pub use report_service::ReportService;
 pub use settings_service::SettingsService;

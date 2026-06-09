@@ -55,7 +55,7 @@ impl BillingService {
 
     /// Get billing status for a user.
     ///
-    /// Returns the billing account tier, active subscription details,
+    /// Returns the highest-tier billing account the user owns, its subscription details,
     /// and whether the caller is the billing owner.
     /// Auto-creates a billing account for new users if one does not exist.
     pub async fn get_billing_status(
@@ -66,7 +66,7 @@ impl BillingService {
         let repo = BillingRepository::new();
         let org_repo = OrgRepository::new();
 
-        let billing_account = match repo.get_for_user(db, user_id).await? {
+        let billing_account = match repo.get_owned_by_user(db, user_id).await? {
             Some(ba) => ba,
             None => {
                 // Create default org and billing account for new user
@@ -196,8 +196,8 @@ impl BillingService {
         // Initialize Polar client
         let polar = self.create_polar_client(env)?;
 
-        // Get or create billing account
-        let billing_account = match billing_repo.get_for_user(db, user_id).await? {
+        // Get or create billing account — use the highest-tier owned BA.
+        let billing_account = match billing_repo.get_owned_by_user(db, user_id).await? {
             Some(ba) => ba,
             None => {
                 let org = org_repo.create_default(db, user_id, "Personal").await?;
@@ -286,7 +286,11 @@ impl BillingService {
     ) -> Result<PortalSession, worker::Error> {
         let polar = self.create_polar_client(env)?;
 
-        let billing_account = match BillingRepository::new().get_for_user(db, user_id).await? {
+        // Use the highest-tier owned BA so portal opens for the correct subscription.
+        let billing_account = match BillingRepository::new()
+            .get_owned_by_user(db, user_id)
+            .await?
+        {
             Some(ba) => ba,
             None => {
                 return Err(worker::Error::RustError(

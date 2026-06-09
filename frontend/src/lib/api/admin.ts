@@ -692,5 +692,21 @@ export const adminApi = {
    */
   async pollDomains(): Promise<PollDomainsResponse> {
     return apiClient.post<PollDomainsResponse>("/api/admin/domains/poll", {});
+  },
+
+  /**
+   * Force-transfer billing account ownership to a different user (admin only).
+   * Bypasses email confirmation — takes effect immediately.
+   * @param billingAccountId - Billing account to transfer
+   * @param toUserId - User ID of the new owner (must be a member of one of the BA's orgs)
+   */
+  async forceTransferBillingAccount(
+    billingAccountId: string,
+    toUserId: string
+  ): Promise<{ success: boolean; message: string }> {
+    return apiClient.post<{ success: boolean; message: string }>(
+      `/api/admin/billing-accounts/${billingAccountId}/transfer`,
+      { to_user_id: toUserId }
+    );
   }
 };

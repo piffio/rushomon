@@ -419,3 +419,23 @@ export interface ListBillingAccountsResponse {
     timestamp: number;
   };
 }
+
+// ─── Ownership Transfer Types ─────────────────────────────────────────────────
+
+export interface InitiateTransferResponse {
+  success: boolean;
+  message: string;
+  token: string;
+  expires_at: number;
+  to_email: string;
+}
+
+export interface TransferInfo {
+  token: string;
+  billing_account_id: string;
+  billing_account_tier: string;
+  from_user_name: string | null;
+  from_user_email: string;
+  to_email: string;
+  expires_at: number;
+}

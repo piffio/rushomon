@@ -47,7 +47,14 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard" | "auth" | "settings" | "admin" | "login" | "billing" | "pricing"
+                    "dashboard"
+                        | "auth"
+                        | "settings"
+                        | "admin"
+                        | "login"
+                        | "billing"
+                        | "billing-transfer"
+                        | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -74,7 +81,14 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             if is_frontend_domain
                 && matches!(
                     code.as_str(),
-                    "dashboard" | "auth" | "settings" | "admin" | "login" | "billing" | "pricing"
+                    "dashboard"
+                        | "auth"
+                        | "settings"
+                        | "admin"
+                        | "login"
+                        | "billing"
+                        | "billing-transfer"
+                        | "pricing"
                 )
             {
                 return Response::error("Not found", 404);
@@ -381,8 +395,28 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         )
         // Billing routes
         .get_async(
+            "/api/billing/accounts",
+            crate::api::billing::handle_list_accounts,
+        )
+        .get_async(
             "/api/billing/status",
             crate::api::billing::handle_get_status,
+        )
+        .post_async(
+            "/api/billing/transfer",
+            crate::api::billing::handle_initiate_transfer,
+        )
+        .delete_async(
+            "/api/billing/transfer",
+            crate::api::billing::handle_cancel_transfer,
+        )
+        .get_async(
+            "/api/billing-transfer/:token",
+            crate::api::billing::handle_get_transfer_info,
+        )
+        .post_async(
+            "/api/billing-transfer/:token/accept",
+            crate::api::billing::handle_accept_transfer,
         )
         .get_async(
             "/api/billing/pricing",
@@ -405,6 +439,10 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         .post_async(
             "/api/admin/billing-accounts/:id/reset",
             crate::api::billing::handle_admin_reset_billing_account,
+        )
+        .post_async(
+            "/api/admin/billing-accounts/:id/transfer",
+            crate::api::billing::handle_admin_force_transfer,
         )
         // Org analytics route
         .get_async(

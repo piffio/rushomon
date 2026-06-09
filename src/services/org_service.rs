@@ -20,12 +20,15 @@ impl OrgService {
 
     /// Check whether the user's billing account has capacity to create another organization.
     ///
+    /// Uses the highest-tier BA the user owns (not the `users.org_id` pivot) so that a
+    /// user who received a BA transfer sees the correct limits immediately.
+    ///
     /// Returns Err(AppError::Forbidden) if the org limit for their tier has been reached.
     /// Returns Err(AppError::Internal) if no billing account is found.
     pub async fn check_org_limit(&self, db: &D1Database, user_id: &str) -> Result<(), AppError> {
         let billing_repo = BillingRepository::new();
         let billing_account = billing_repo
-            .get_for_user(db, user_id)
+            .get_owned_by_user(db, user_id)
             .await?
             .ok_or_else(|| AppError::Internal("No billing account found".to_string()))?;
 
@@ -434,7 +437,10 @@ impl OrgService {
 
     // ─── Org CRUD ─────────────────────────────────────────────────────────────
 
-    /// Create a new organization linked to the user's billing account and add them as owner.
+    /// Create a new organization linked to the user's highest-tier billing account.
+    ///
+    /// Uses `get_owned_by_user` (not the `users.org_id` pivot) so that a user who
+    /// received a BA transfer automatically gets new orgs placed under their best BA.
     pub async fn create_org_with_billing(
         &self,
         db: &D1Database,
@@ -443,7 +449,7 @@ impl OrgService {
     ) -> Result<Organization, AppError> {
         let billing_repo = BillingRepository::new();
         let billing_account = billing_repo
-            .get_for_user(db, user_id)
+            .get_owned_by_user(db, user_id)
             .await?
             .ok_or_else(|| AppError::Internal("No billing account found".to_string()))?;
 

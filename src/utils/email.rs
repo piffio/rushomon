@@ -441,6 +441,220 @@ fn build_top_links_text(links: &[TopLinkSummary]) -> String {
     out
 }
 
+/// Send an ownership transfer request email to the prospective new owner.
+pub async fn send_ownership_transfer_request(
+    env: &Env,
+    to_email: &str,
+    initiator_name: &str,
+    billing_tier: &str,
+    accept_url: &str,
+) -> Result<()> {
+    let api_key = env
+        .var("MAILGUN_API_KEY")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let base_url = env
+        .var("MAILGUN_BASE_URL")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let domain = env
+        .var("MAILGUN_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let from = env
+        .var("MAILGUN_FROM")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| format!("noreply@{domain}"));
+
+    if api_key.is_empty() || domain.is_empty() {
+        return Err(worker::Error::RustError(
+            "Mailgun not configured: MAILGUN_API_KEY and MAILGUN_DOMAIN are required".to_string(),
+        ));
+    }
+
+    let tier_display = match billing_tier {
+        "pro" => "Pro",
+        "business" => "Business",
+        "unlimited" => "Unlimited",
+        _ => "Free",
+    };
+
+    let subject = format!(
+        "{} wants to transfer their Rushomon billing account to you",
+        initiator_name
+    );
+
+    let html_body = format!(
+        r#"<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+  <h2 style="color: #ea580c;">Billing Account Ownership Transfer</h2>
+  <p><strong>{initiator_name}</strong> has offered to transfer ownership of their
+     <strong>{tier_display}</strong> Rushomon billing account to you.</p>
+  <p>If you accept, you will become the new billing account owner. {initiator_name} will remain
+     as an Admin in the associated organization(s).</p>
+  <p>This offer expires in <strong>7 days</strong>.</p>
+  <p style="margin: 32px 0;">
+    <a href="{accept_url}"
+       style="background: linear-gradient(to right, #f97316, #ea580c); color: white; padding: 12px 24px;
+              text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+      Accept Ownership Transfer →
+    </a>
+  </p>
+  <p style="color: #6b7280; font-size: 14px;">
+    Or copy this link into your browser:<br>
+    <a href="{accept_url}" style="color: #ea580c;">{accept_url}</a>
+  </p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+  <p style="color: #9ca3af; font-size: 12px;">
+    If you did not expect this offer, you can safely ignore this email. No action will be taken.
+  </p>
+</body>
+</html>"#,
+        initiator_name = initiator_name,
+        tier_display = tier_display,
+        accept_url = accept_url,
+    );
+
+    let text_body = format!(
+        "{} has offered to transfer ownership of their {} Rushomon billing account to you.\n\n\
+         If you accept, you will become the new billing account owner. {} will remain as an Admin.\n\n\
+         Accept the transfer here: {}\n\n\
+         This offer expires in 7 days.\n\n\
+         If you did not expect this offer, you can safely ignore this email.",
+        initiator_name, tier_display, initiator_name, accept_url
+    );
+
+    send_via_mailgun(
+        env, &api_key, &base_url, &domain, &from, to_email, &subject, &html_body, &text_body,
+    )
+    .await
+}
+
+/// Send a confirmation email after an ownership transfer completes.
+///
+/// `is_new_owner` controls the message framing:
+/// - `true`  → sent to the new owner: "you now own this billing account"
+/// - `false` → sent to the former owner: "ownership has been transferred, you are now Admin"
+pub async fn send_ownership_transfer_confirmation(
+    env: &Env,
+    to_email: &str,
+    recipient_name: Option<&str>,
+    billing_tier: &str,
+    is_new_owner: bool,
+    dashboard_url: &str,
+) -> Result<()> {
+    let api_key = env
+        .var("MAILGUN_API_KEY")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let base_url = env
+        .var("MAILGUN_BASE_URL")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let domain = env
+        .var("MAILGUN_DOMAIN")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let from = env
+        .var("MAILGUN_FROM")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| format!("noreply@{domain}"));
+
+    if api_key.is_empty() || domain.is_empty() {
+        return Err(worker::Error::RustError(
+            "Mailgun not configured: MAILGUN_API_KEY and MAILGUN_DOMAIN are required".to_string(),
+        ));
+    }
+
+    let tier_display = match billing_tier {
+        "pro" => "Pro",
+        "business" => "Business",
+        "unlimited" => "Unlimited",
+        _ => "Free",
+    };
+
+    let greeting = recipient_name.unwrap_or("there");
+
+    let (subject, html_body, text_body) = if is_new_owner {
+        let subject = "You are now the Rushomon billing account owner".to_string();
+        let html = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+  <h2 style="color: #ea580c;">Billing Account Ownership Transferred</h2>
+  <p>Hi {greeting},</p>
+  <p>The ownership of a <strong>{tier_display}</strong> Rushomon billing account has been
+     successfully transferred to you.</p>
+  <p>You are now responsible for the subscription and billing for all organizations in this
+     billing account.</p>
+  <p style="margin: 32px 0;">
+    <a href="{dashboard_url}"
+       style="background: linear-gradient(to right, #f97316, #ea580c); color: white; padding: 12px 24px;
+              text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+      Go to Dashboard →
+    </a>
+  </p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+  <p style="color: #9ca3af; font-size: 12px;">If you have questions, contact support.</p>
+</body>
+</html>"#,
+            greeting = greeting,
+            tier_display = tier_display,
+            dashboard_url = dashboard_url,
+        );
+        let text = format!(
+            "Hi {},\n\nThe ownership of a {} Rushomon billing account has been transferred to you.\n\n\
+             You are now responsible for the subscription and billing.\n\n\
+             Visit your dashboard: {}",
+            greeting, tier_display, dashboard_url
+        );
+        (subject, html, text)
+    } else {
+        let subject = "Rushomon billing account ownership transferred".to_string();
+        let html = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+  <h2 style="color: #ea580c;">Ownership Transfer Complete</h2>
+  <p>Hi {greeting},</p>
+  <p>The ownership of your <strong>{tier_display}</strong> Rushomon billing account has been
+     successfully transferred to the new owner.</p>
+  <p>You remain as an <strong>Admin</strong> in the associated organization(s) and can still
+     manage settings and invite members.</p>
+  <p style="margin: 32px 0;">
+    <a href="{dashboard_url}"
+       style="background: linear-gradient(to right, #f97316, #ea580c); color: white; padding: 12px 24px;
+              text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+      Go to Dashboard →
+    </a>
+  </p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+  <p style="color: #9ca3af; font-size: 12px;">If you have questions, contact support.</p>
+</body>
+</html>"#,
+            greeting = greeting,
+            tier_display = tier_display,
+            dashboard_url = dashboard_url,
+        );
+        let text = format!(
+            "Hi {},\n\nThe ownership of your {} Rushomon billing account has been transferred.\n\n\
+             You remain as an Admin in the associated organization(s).\n\n\
+             Visit your dashboard: {}",
+            greeting, tier_display, dashboard_url
+        );
+        (subject, html, text)
+    };
+
+    send_via_mailgun(
+        env, &api_key, &base_url, &domain, &from, to_email, &subject, &html_body, &text_body,
+    )
+    .await
+}
+
 /// Send a message via the Mailgun REST API.
 #[allow(clippy::too_many_arguments)]
 async fn send_via_mailgun(

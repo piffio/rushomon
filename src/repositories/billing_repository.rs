@@ -155,6 +155,12 @@ impl BillingRepository {
     }
 
     /// Get the billing account of the user's primary organization.
+    ///
+    /// NOTE: This traverses `users.org_id → org → BA` and is only correct for the
+    /// initial signup case (one user, one org, one BA). After an ownership transfer
+    /// the user may own a different BA than the one linked via `users.org_id`.
+    /// Prefer `get_owned_by_user` for billing-ownership semantics.
+    #[allow(dead_code)]
     pub async fn get_for_user(
         &self,
         db: &D1Database,
@@ -170,6 +176,60 @@ impl BillingRepository {
         .bind(&[user_id.into()])?
         .first::<BillingAccount>(None)
         .await
+    }
+
+    /// Get the highest-tier billing account owned by the user.
+    ///
+    /// This is the correct query to use for all billing-ownership semantics:
+    /// billing page, checkout, portal, org creation, org limits.
+    ///
+    /// Tier priority: business > pro > free. Returns None only if the user
+    /// owns no billing accounts at all (should not happen in normal usage).
+    pub async fn get_owned_by_user(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+    ) -> Result<Option<BillingAccount>> {
+        db.prepare(
+            "SELECT id, owner_user_id, tier, provider_customer_id, created_at
+             FROM billing_accounts
+             WHERE owner_user_id = ?1
+             ORDER BY CASE tier
+               WHEN 'business' THEN 0
+               WHEN 'pro'      THEN 1
+               ELSE                 2
+             END
+             LIMIT 1",
+        )
+        .bind(&[user_id.into()])?
+        .first::<BillingAccount>(None)
+        .await
+    }
+
+    /// Get all billing accounts owned by the user, ordered highest-tier first.
+    ///
+    /// Used by `GET /api/billing/accounts` to populate the multi-BA billing page.
+    pub async fn get_all_owned_by_user(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+    ) -> Result<Vec<BillingAccount>> {
+        let rows = db
+            .prepare(
+                "SELECT id, owner_user_id, tier, provider_customer_id, created_at
+                 FROM billing_accounts
+                 WHERE owner_user_id = ?1
+                 ORDER BY CASE tier
+                   WHEN 'business' THEN 0
+                   WHEN 'pro'      THEN 1
+                   ELSE                 2
+                 END",
+            )
+            .bind(&[user_id.into()])?
+            .all()
+            .await?
+            .results::<BillingAccount>()?;
+        Ok(rows)
     }
 
     /// Get billing account for an organization.

@@ -30,6 +30,14 @@
   } | null>(null);
   let subscriptionLoading = $state(false);
 
+  // ── Force-transfer state ──────────────────────────────────────────────────
+  let confirmingForceTransfer = $state<{
+    accountId: string;
+    currentOwnerId: string;
+  } | null>(null);
+  let forceTransferUserId = $state("");
+  let forceTransferLoading = $state(false);
+
   onMount(async () => {
     await loadAccounts();
 
@@ -225,6 +233,45 @@
 
   function cancelSubscriptionUpdate() {
     confirmingSubscriptionUpdate = null;
+  }
+
+  function handleForceTransfer(accountId: string, currentOwnerId: string) {
+    forceTransferUserId = "";
+    confirmingForceTransfer = { accountId, currentOwnerId };
+  }
+
+  async function confirmForceTransfer() {
+    if (!confirmingForceTransfer) return;
+    const toUserId = forceTransferUserId.trim();
+    if (!toUserId) return;
+
+    try {
+      forceTransferLoading = true;
+      await adminApi.forceTransferBillingAccount(
+        confirmingForceTransfer.accountId,
+        toUserId
+      );
+      // Reload account details to reflect new owner.
+      const details = await adminApi.getBillingAccount(
+        confirmingForceTransfer.accountId
+      );
+      accountDetails[confirmingForceTransfer.accountId] = details;
+      await loadAccounts();
+    } catch (err) {
+      error =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message: unknown }).message)
+          : "Failed to transfer ownership";
+      console.error(err);
+    } finally {
+      forceTransferLoading = false;
+      confirmingForceTransfer = null;
+    }
+  }
+
+  function cancelForceTransfer() {
+    confirmingForceTransfer = null;
+    forceTransferUserId = "";
   }
 
   async function handlePageChange(page: number) {
@@ -600,6 +647,15 @@
                   >
                     Reset Counter (Current Month)
                   </button>
+                  <button
+                    class="btn-warning"
+                    onclick={() =>
+                      handleForceTransfer(account.id, details.owner.id)}
+                    disabled={loading}
+                    style="margin-top: 0.5rem;"
+                  >
+                    Force Transfer Ownership…
+                  </button>
                 </div>
               {/if}
             </div>
@@ -621,6 +677,57 @@
     {/if}
   {/if}
 </div>
+
+<!-- Force Transfer Modal -->
+{#if confirmingForceTransfer}
+  <div
+    class="modal-backdrop"
+    role="button"
+    tabindex="0"
+    onclick={cancelForceTransfer}
+    onkeydown={(e) => e.key === "Enter" && cancelForceTransfer()}
+  >
+    <div
+      class="modal"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      tabindex="0"
+      onkeydown={(e) => e.key === "Escape" && cancelForceTransfer()}
+    >
+      <h3>Force Transfer Ownership</h3>
+      <p class="modal-warning">
+        ⚠️ This will <strong>immediately</strong> reassign the billing account to
+        the specified user with no email confirmation. Any pending transfer will be
+        cancelled.
+      </p>
+      <p class="modal-description">
+        The target user must already be a member of one of the organizations in
+        this billing account. The current owner will be downgraded to Admin.
+      </p>
+      <label for="force-transfer-user-id" class="modal-label">
+        New owner user ID
+      </label>
+      <input
+        id="force-transfer-user-id"
+        type="text"
+        bind:value={forceTransferUserId}
+        placeholder="user-uuid"
+        class="modal-input"
+      />
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick={cancelForceTransfer}>Cancel</button>
+        <button
+          class="btn-danger"
+          onclick={confirmForceTransfer}
+          disabled={forceTransferLoading || !forceTransferUserId.trim()}
+        >
+          {forceTransferLoading ? "Transferring…" : "Confirm Transfer"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Tier Change Modal -->
 {#if confirmingTierChange}
