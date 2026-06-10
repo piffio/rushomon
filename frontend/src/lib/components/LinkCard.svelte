@@ -3,7 +3,7 @@
     PUBLIC_VITE_API_BASE_URL,
     PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
-  import type { Link } from "$lib/types/api";
+  import type { Link, TagWithCount } from "$lib/types/api";
   import { fade } from "svelte/transition";
   import LoadingButton from "./LoadingButton.svelte";
 
@@ -14,7 +14,8 @@
     onTagClick,
     onShowQR,
     deletingLinkId = null as string | null,
-    isHighlighted = false
+    isHighlighted = false,
+    availableTags = []
   }: {
     link: Link;
     onDelete: (id: string) => void;
@@ -23,20 +24,27 @@
     onShowQR?: (link: Link) => void;
     deletingLinkId?: string | null;
     isHighlighted?: boolean;
+    availableTags?: TagWithCount[];
   } = $props();
 
+  // 8 visually distinct colors across the spectrum
   const TAG_COLORS = [
-    "bg-blue-100 text-blue-800",
-    "bg-green-100 text-green-800",
-    "bg-purple-100 text-purple-800",
-    "bg-yellow-100 text-yellow-800",
-    "bg-pink-100 text-pink-800",
-    "bg-indigo-100 text-indigo-800",
+    "bg-red-100 text-red-800",
     "bg-orange-100 text-orange-800",
-    "bg-teal-100 text-teal-800"
+    "bg-yellow-100 text-yellow-800",
+    "bg-green-100 text-green-800",
+    "bg-cyan-100 text-cyan-800",
+    "bg-blue-100 text-blue-800",
+    "bg-violet-100 text-violet-800",
+    "bg-pink-100 text-pink-800"
   ];
 
   function tagColor(tag: string): string {
+    // Look up color from availableTags, fall back to hash-based
+    const tagInfo = availableTags.find((t) => t.name === tag);
+    if (tagInfo && tagInfo.color_index !== null) {
+      return TAG_COLORS[tagInfo.color_index % TAG_COLORS.length];
+    }
     let hash = 0;
     for (let i = 0; i < tag.length; i++) {
       hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffffff;

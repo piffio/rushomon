@@ -112,18 +112,29 @@
   }
 
   // Deterministic color from tag name
+  // 8 visually distinct colors across the spectrum
   const TAG_COLORS = [
-    "bg-blue-100 text-blue-800",
-    "bg-green-100 text-green-800",
-    "bg-purple-100 text-purple-800",
-    "bg-yellow-100 text-yellow-800",
-    "bg-pink-100 text-pink-800",
-    "bg-indigo-100 text-indigo-800",
+    "bg-red-100 text-red-800",
     "bg-orange-100 text-orange-800",
-    "bg-teal-100 text-teal-800"
+    "bg-yellow-100 text-yellow-800",
+    "bg-green-100 text-green-800",
+    "bg-cyan-100 text-cyan-800",
+    "bg-blue-100 text-blue-800",
+    "bg-violet-100 text-violet-800",
+    "bg-pink-100 text-pink-800"
   ];
 
-  function tagColor(tag: string): string {
+  function tagColor(tag: string, colorIndex?: number | null): string {
+    // Use provided color index if available
+    if (colorIndex !== undefined && colorIndex !== null) {
+      return TAG_COLORS[colorIndex % TAG_COLORS.length];
+    }
+    // Look up color from availableTags
+    const tagInfo = availableTags.find((t) => t.name === tag);
+    if (tagInfo && tagInfo.color_index !== null) {
+      return TAG_COLORS[tagInfo.color_index % TAG_COLORS.length];
+    }
+    // Fall back to hash-based
     let hash = 0;
     for (let i = 0; i < tag.length; i++) {
       hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffffff;
@@ -216,7 +227,8 @@
           <span class="flex items-center gap-2">
             <span
               class="inline-block w-2 h-2 rounded-full {tagColor(
-                suggestion.name
+                suggestion.name,
+                suggestion.color_index
               ).split(' ')[0]}"
             ></span>
             {suggestion.name}

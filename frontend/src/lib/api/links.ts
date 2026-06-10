@@ -1,12 +1,15 @@
-import { apiClient } from "./client";
 import type {
-  Link,
   CreateLinkRequest,
-  UpdateLinkRequest,
-  PaginatedResponse,
+  Link,
   LinkAnalyticsResponse,
-  TagWithCount
+  MergeTagsRequest,
+  MergeTagsResult,
+  PaginatedResponse,
+  TagAnalytics,
+  TagWithCount,
+  UpdateLinkRequest
 } from "$lib/types/api";
+import { apiClient } from "./client";
 
 export interface ImportLinkRow {
   destination_url: string;
@@ -151,18 +154,16 @@ export const tagsApi = {
   },
 
   /**
-   * Rename a tag in the authenticated org
-   * @param oldName Current tag name
-   * @param newName New tag name
+   * Create a new tag manually (without associating to a link)
+   * @param name Tag name
+   * @param colorIndex Optional color index for the tag
    * @returns Updated list of tags
    */
-  async rename(oldName: string, newName: string): Promise<TagWithCount[]> {
-    return apiClient.patch<TagWithCount[]>(
-      `/api/tags/${encodeURIComponent(oldName)}`,
-      {
-        new_name: newName
-      }
-    );
+  async create(name: string, colorIndex?: number): Promise<TagWithCount[]> {
+    return apiClient.post<TagWithCount[]>("/api/tags", {
+      name,
+      color_index: colorIndex
+    });
   },
 
   /**
@@ -171,5 +172,38 @@ export const tagsApi = {
    */
   async remove(name: string): Promise<void> {
     return apiClient.delete<void>(`/api/tags/${encodeURIComponent(name)}`);
+  },
+
+  /**
+   * Merge multiple source tags into a destination tag
+   * @param request Merge request with source_tags and destination_tag
+   * @returns Merge result with affected link count
+   */
+  async merge(request: MergeTagsRequest): Promise<MergeTagsResult> {
+    return apiClient.post<MergeTagsResult>("/api/tags/merge", request);
+  },
+
+  /**
+   * Get comprehensive tag analytics
+   * @returns Tag analytics including stats, unused tags, and similar tag suggestions
+   */
+  async getAnalytics(): Promise<TagAnalytics> {
+    return apiClient.get<TagAnalytics>("/api/tags/analytics");
+  },
+
+  /**
+   * Update a tag (rename and/or change color)
+   * @param name Current tag name
+   * @param updateData Object with optional new_name and color_index
+   * @returns Updated list of tags
+   */
+  async update(
+    name: string,
+    updateData: { new_name?: string; color_index?: number }
+  ): Promise<TagWithCount[]> {
+    return apiClient.patch<TagWithCount[]>(
+      `/api/tags/${encodeURIComponent(name)}`,
+      updateData
+    );
   }
 };
