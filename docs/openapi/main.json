@@ -4458,6 +4458,13 @@
               "string",
               "null"
             ]
+          },
+          "last_login_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         }
       },
