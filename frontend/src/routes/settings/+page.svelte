@@ -362,7 +362,7 @@
                     >
                       {org.tier}
                     </span>
-                    {#if billingStatus?.is_billing_owner && org.role === "owner"}
+                    {#if billingStatus?.billing_account_id && org.billing_account_id && billingStatus.billing_account_id === org.billing_account_id}
                       <a
                         href="/billing"
                         class="text-xs text-orange-600 hover:text-orange-700 font-medium transition-colors"

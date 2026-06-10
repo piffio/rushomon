@@ -304,6 +304,7 @@ export interface OrgWithRole {
   tier: string;
   role: "owner" | "admin" | "member";
   joined_at: number;
+  billing_account_id: string | null;
 }
 
 export interface OrgMember {
@@ -335,6 +336,7 @@ export interface OrgDetails {
     role: "owner" | "admin" | "member";
     logo_url: string | null;
     link_count: number;
+    billing_account_id: string | null;
   };
   members: OrgMember[];
   pending_invitations: OrgInvitation[];

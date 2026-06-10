@@ -115,8 +115,11 @@ impl OrgService {
 
         let mut result = Vec::with_capacity(orgs.len());
         for org in orgs {
-            let tier = if let Ok(Some(org_details)) = repo.get_by_id(db, &org.id).await {
-                if let Some(ref billing_account_id) = org_details.billing_account_id {
+            let (tier, billing_account_id) = if let Ok(Some(org_details)) =
+                repo.get_by_id(db, &org.id).await
+            {
+                let ba_id = org_details.billing_account_id.clone();
+                let tier = if let Some(ref billing_account_id) = org_details.billing_account_id {
                     if let Ok(Some(ba)) = billing_repo.get_by_id(db, billing_account_id).await {
                         ba.tier
                     } else {
@@ -124,9 +127,10 @@ impl OrgService {
                     }
                 } else {
                     "free".to_string()
-                }
+                };
+                (tier, ba_id)
             } else {
-                "free".to_string()
+                ("free".to_string(), None)
             };
 
             result.push(serde_json::json!({
@@ -135,6 +139,7 @@ impl OrgService {
                 "tier": tier,
                 "role": org.role,
                 "joined_at": org.joined_at,
+                "billing_account_id": billing_account_id,
             }));
         }
         Ok(result)
