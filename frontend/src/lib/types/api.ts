@@ -11,6 +11,7 @@ export interface User {
   suspended_at: number | null;
   suspension_reason: string | null;
   suspended_by: string | null;
+  last_login_at: number | null;
   billing_account_id?: string | null;
   billing_account_tier?: string | null;
 }

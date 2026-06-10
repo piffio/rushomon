@@ -316,6 +316,9 @@ async fn create_or_get_user(
             .create_or_update(db, create_data, &user.org_id)
             .await?;
 
+        // Update last login timestamp
+        user_repo.update_last_login(db, &updated_user.id).await?;
+
         let org_repo = OrgRepository::new();
         let org = org_repo
             .get_by_id(db, &user.org_id)
@@ -370,6 +373,9 @@ async fn create_or_get_user(
         let updated_user = user_repo
             .create_or_update(db, create_data, &user.org_id)
             .await?;
+
+        // Update last login timestamp
+        user_repo.update_last_login(db, &updated_user.id).await?;
 
         let org_repo = OrgRepository::new();
         let org = org_repo
@@ -426,6 +432,9 @@ async fn create_or_get_user(
     };
     let user = user_repo.create_or_update(db, create_data, &org.id).await?;
 
+    // Update last login timestamp
+    user_repo.update_last_login(db, &user.id).await?;
+
     // Add the user as an organization member with owner role
     org_repo.add_member(db, &org.id, &user.id, "owner").await?;
 
@@ -458,6 +467,7 @@ mod tests {
             suspended_at: None,
             suspension_reason: None,
             suspended_by: None,
+            last_login_at: None,
         }
     }
 

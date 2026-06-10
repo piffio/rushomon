@@ -294,6 +294,16 @@
                 <span class="label">Joined:</span>
                 <span>{formatDate(user.created_at)}</span>
               </div>
+              <div class="card-row">
+                <span class="label">Last Login:</span>
+                <span>
+                  {#if user.last_login_at}
+                    {formatDate(user.last_login_at)}
+                  {:else}
+                    <span class="no-login">Never</span>
+                  {/if}
+                </span>
+              </div>
             </div>
             <div class="card-actions">
               <button
@@ -323,6 +333,18 @@
         {/each}
       </div>
 
+      <!-- Mobile Pagination -->
+      {#if totalPages > 1}
+        <div class="mobile-pagination">
+          <Pagination
+            {currentPage}
+            {totalPages}
+            onPageChange={handlePageChange}
+            {loading}
+          />
+        </div>
+      {/if}
+
       <!-- Desktop Table View -->
       <div class="users-table">
         <table>
@@ -336,6 +358,7 @@
               <th>Billing Account</th>
               <th>Tier</th>
               <th>Joined</th>
+              <th>Last Login</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -407,6 +430,13 @@
                   {/if}
                 </td>
                 <td class="date">{formatDate(user.created_at)}</td>
+                <td class="date">
+                  {#if user.last_login_at}
+                    {formatDate(user.last_login_at)}
+                  {:else}
+                    <span class="no-login">Never</span>
+                  {/if}
+                </td>
                 <td>
                   {#if currentUser && user.id === currentUser.id}
                     <span class="no-actions">Cannot edit self</span>
@@ -1044,6 +1074,12 @@
     font-size: 0.875rem;
   }
 
+  .no-login {
+    color: #9ca3af;
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+
   .no-actions {
     color: #9ca3af;
     font-size: 0.875rem;
@@ -1258,6 +1294,14 @@
     cursor: not-allowed;
   }
 
+  /* Mobile Pagination */
+  .mobile-pagination {
+    display: none;
+    padding: 1rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .mobile-cards {
@@ -1266,6 +1310,10 @@
 
     .users-table {
       display: none;
+    }
+
+    .mobile-pagination {
+      display: block;
     }
 
     .users-container {
