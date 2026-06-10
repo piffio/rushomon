@@ -23,6 +23,7 @@ pub struct UserWithBillingInfo {
     pub suspended_at: Option<i64>,
     pub suspension_reason: Option<String>,
     pub suspended_by: Option<String>,
+    pub last_login_at: Option<i64>,
     pub billing_account_id: Option<String>,
     pub billing_account_tier: Option<String>,
 }
@@ -49,7 +50,7 @@ impl UserRepository {
         // Try to find existing user by OAuth provider and ID
         let stmt = db.prepare(
             "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
-                    suspended_at, suspension_reason, suspended_by
+                    suspended_at, suspension_reason, suspended_by, last_login_at
              FROM users
              WHERE oauth_provider = ?1 AND oauth_id = ?2",
         );
@@ -93,6 +94,7 @@ impl UserRepository {
                 suspended_at: user.suspended_at,
                 suspension_reason: user.suspension_reason,
                 suspended_by: user.suspended_by,
+                last_login_at: user.last_login_at,
             })
         } else {
             // Determine role: first user on the instance gets admin, all others get member
@@ -133,6 +135,7 @@ impl UserRepository {
                 suspended_at: None,
                 suspension_reason: None,
                 suspended_by: None,
+                last_login_at: None,
             })
         }
     }
@@ -141,7 +144,7 @@ impl UserRepository {
     pub async fn get_user_by_id(&self, db: &D1Database, user_id: &str) -> Result<Option<User>> {
         let stmt = db.prepare(
             "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
-                    suspended_at, suspension_reason, suspended_by
+                    suspended_at, suspension_reason, suspended_by, last_login_at
              FROM users
              WHERE id = ?1",
         );
@@ -152,7 +155,7 @@ impl UserRepository {
     pub async fn get_by_email(&self, db: &D1Database, email: &str) -> Result<Option<User>> {
         let stmt = db.prepare(
             "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
-                    suspended_at, suspension_reason, suspended_by
+                    suspended_at, suspension_reason, suspended_by, last_login_at
              FROM users
              WHERE email = ?1",
         );
@@ -169,12 +172,12 @@ impl UserRepository {
         let rows = db
             .prepare(
                 "SELECT u.id, u.email, u.name, u.avatar_url, u.oauth_provider, u.oauth_id,
-                        u.org_id, u.role, u.created_at, u.suspended_at, u.suspension_reason, u.suspended_by,
+                        u.org_id, u.role, u.created_at, u.suspended_at, u.suspension_reason, u.suspended_by, u.last_login_at,
                         o.billing_account_id, ba.tier as billing_account_tier
                  FROM users u
                  LEFT JOIN organizations o ON u.org_id = o.id
                  LEFT JOIN billing_accounts ba ON o.billing_account_id = ba.id
-                 ORDER BY u.created_at ASC
+                 ORDER BY u.created_at DESC
                  LIMIT ?1 OFFSET ?2",
             )
             .bind(&[(limit as f64).into(), (offset as f64).into()])?
@@ -198,6 +201,7 @@ impl UserRepository {
                     suspended_at: row["suspended_at"].as_f64().map(|v| v as i64),
                     suspension_reason: row["suspension_reason"].as_str().map(|s| s.to_string()),
                     suspended_by: row["suspended_by"].as_str().map(|s| s.to_string()),
+                    last_login_at: row["last_login_at"].as_f64().map(|v| v as i64),
                     billing_account_id: row["billing_account_id"].as_str().map(|s| s.to_string()),
                     billing_account_tier: row["billing_account_tier"]
                         .as_str()
@@ -399,6 +403,16 @@ impl UserRepository {
             .and_then(|m| m.changes)
             .map(|c| c as i64)
             .unwrap_or(0))
+    }
+
+    /// Update the last login timestamp for a user.
+    pub async fn update_last_login(&self, db: &D1Database, user_id: &str) -> Result<()> {
+        let now = now_timestamp();
+        let stmt = db.prepare("UPDATE users SET last_login_at = ?1 WHERE id = ?2");
+        stmt.bind(&[(now as f64).into(), user_id.into()])?
+            .run()
+            .await?;
+        Ok(())
     }
 }
 
