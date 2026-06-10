@@ -447,6 +447,7 @@ async fn remove_billing_user_from_primary_org(org_id: &str) {
 
 /// Helper: delete an organization via the org delete endpoint.
 /// Used to clean up safety-net orgs (and their BAs) created during transfer tests.
+#[allow(dead_code)]
 async fn delete_org(org_id: &str) {
     let admin_client = authenticated_client();
     let _ = admin_client
@@ -1008,4 +1009,332 @@ async fn test_cancel_transfer_success() {
         .json(&json!({ "org_id": org_id }))
         .send()
         .await;
+}
+
+// ─── Priority 2: State-machine edge cases ────────────────────────────────────
+
+/// The wrong user (not the intended recipient) trying to accept a transfer gets 403.
+#[tokio::test]
+async fn test_accept_transfer_wrong_email_rejected() {
+    let (org_id, _) = invite_billing_user_into_primary_org().await;
+
+    let admin_client = authenticated_client();
+    let billing_client = billing_test_client();
+
+    // Get billing user's email to use as the transfer target.
+    let billing_me: Value = billing_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let billing_email = billing_me["email"].as_str().unwrap().to_string();
+
+    // Admin initiates a transfer to the billing user.
+    let initiate_body: Value = admin_client
+        .post(format!("{}/api/billing/transfer", BASE_URL))
+        .json(&json!({ "to_email": billing_email }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let token = initiate_body["token"].as_str().unwrap().to_string();
+
+    // The ADMIN user (not the billing user) tries to accept the token.
+    // They should get 403 because the token is addressed to billing_email, not admin's email.
+    let wrong_accept = admin_client
+        .post(format!(
+            "{}/api/billing-transfer/{}/accept",
+            BASE_URL, token
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        wrong_accept.status(),
+        StatusCode::FORBIDDEN,
+        "Accepting a transfer token with the wrong user account should return 403"
+    );
+
+    // Verify the token is still valid (not consumed by the failed attempt).
+    let info_resp = test_client()
+        .get(format!("{}/api/billing-transfer/{}", BASE_URL, token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        info_resp.status(),
+        StatusCode::OK,
+        "Token should still be valid after a rejected accept attempt"
+    );
+
+    // Clean up.
+    admin_client
+        .delete(format!("{}/api/billing/transfer", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    remove_billing_user_from_primary_org(&org_id).await;
+}
+
+/// An expired token returns 410 on both GET info and POST accept.
+///
+/// We use `wrangler d1 execute` to directly insert a pending_action row with
+/// `expires_at` in the past — this is the only way to test expiry without
+/// waiting 7 days.
+#[tokio::test]
+async fn test_accept_transfer_expired_token() {
+    let admin_client = authenticated_client();
+    let billing_client = billing_test_client();
+
+    // Collect IDs needed for the fake row.
+    let admin_me: Value = admin_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let admin_user_id = admin_me["id"].as_str().unwrap().to_string();
+
+    let billing_me: Value = billing_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let billing_email = billing_me["email"].as_str().unwrap().to_string();
+
+    let ba_status: Value = admin_client
+        .get(format!("{}/api/billing/status", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let ba_id = ba_status["billing_account_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Use a fixed UUID so we can reference it after the INSERT.
+    let expired_token = "00000000-dead-beef-0000-000000000001";
+    let payload = serde_json::to_string(&serde_json::json!({
+        "billing_account_id": ba_id,
+        "from_user_id": admin_user_id,
+    }))
+    .unwrap();
+
+    // Insert a pending_action row with expires_at=1 (deep in the past) via wrangler d1 execute.
+    let sql = format!(
+        "INSERT OR REPLACE INTO pending_actions \
+         (id, action_type, subject_id, initiated_by, to_email, payload, created_at, expires_at) \
+         VALUES ('{}', 'billing_account_transfer', '{}', '{}', '{}', '{}', 0, 1)",
+        expired_token,
+        ba_id,
+        admin_user_id,
+        billing_email,
+        payload.replace('\'', "''"), // escape single quotes in JSON
+    );
+
+    let insert_ok = std::process::Command::new("wrangler")
+        .args(["d1", "execute", "rushomon", "--local", "--command", &sql])
+        .current_dir("/Users/sergiovisinoni/src/rushomon")
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+
+    if !insert_ok {
+        // wrangler may not be available in all CI environments — skip gracefully.
+        println!("SKIP: wrangler d1 execute unavailable — skipping expired-token test");
+        return;
+    }
+
+    // GET /api/billing-transfer/:token should return 410 for an expired token.
+    let get_resp = test_client()
+        .get(format!(
+            "{}/api/billing-transfer/{}",
+            BASE_URL, expired_token
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        get_resp.status(),
+        StatusCode::GONE,
+        "GET on expired token should return 410 Gone"
+    );
+
+    // POST accept should also return 410.
+    let accept_resp = billing_client
+        .post(format!(
+            "{}/api/billing-transfer/{}/accept",
+            BASE_URL, expired_token
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        accept_resp.status(),
+        StatusCode::GONE,
+        "Accepting an expired token should return 410 Gone"
+    );
+
+    // Clean up the injected row.
+    let _ = std::process::Command::new("wrangler")
+        .args([
+            "d1",
+            "execute",
+            "rushomon",
+            "--local",
+            "--command",
+            &format!("DELETE FROM pending_actions WHERE id = '{}'", expired_token),
+        ])
+        .current_dir("/Users/sergiovisinoni/src/rushomon")
+        .status();
+}
+
+/// Re-initiating a transfer cancels the first token and issues a new one.
+///
+/// After the second initiation the first token must return 410 (cancelled) and
+/// the second token must still return 200.
+#[tokio::test]
+async fn test_initiate_transfer_replaces_existing_pending() {
+    let (org_id, _) = invite_billing_user_into_primary_org().await;
+
+    let admin_client = authenticated_client();
+    let billing_client = billing_test_client();
+
+    let billing_me: Value = billing_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let billing_email = billing_me["email"].as_str().unwrap().to_string();
+
+    // First initiation.
+    let first_body: Value = admin_client
+        .post(format!("{}/api/billing/transfer", BASE_URL))
+        .json(&json!({ "to_email": billing_email }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let first_token = first_body["token"].as_str().unwrap().to_string();
+
+    // Second initiation to the same recipient — supersedes the first.
+    let second_resp = admin_client
+        .post(format!("{}/api/billing/transfer", BASE_URL))
+        .json(&json!({ "to_email": billing_email }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        second_resp.status(),
+        StatusCode::OK,
+        "Second initiation should succeed"
+    );
+    let second_body: Value = second_resp.json().await.unwrap();
+    let second_token = second_body["token"].as_str().unwrap().to_string();
+
+    assert_ne!(
+        first_token, second_token,
+        "Each initiation must produce a distinct token"
+    );
+
+    // The first token should now be 410 (cancelled).
+    let first_info = test_client()
+        .get(format!("{}/api/billing-transfer/{}", BASE_URL, first_token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        first_info.status(),
+        StatusCode::GONE,
+        "First token should return 410 after being superseded"
+    );
+
+    // The second token should still be 200.
+    let second_info = test_client()
+        .get(format!(
+            "{}/api/billing-transfer/{}",
+            BASE_URL, second_token
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        second_info.status(),
+        StatusCode::OK,
+        "Second (current) token should still be valid"
+    );
+
+    // Clean up.
+    admin_client
+        .delete(format!("{}/api/billing/transfer", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    remove_billing_user_from_primary_org(&org_id).await;
+}
+
+/// A recipient who is a valid Rushomon user but is NOT a member of any org under
+/// the billing account cannot be targeted for a transfer (400).
+#[tokio::test]
+async fn test_initiate_transfer_recipient_not_org_member() {
+    // Explicitly ensure the billing user is NOT in the primary org for this test.
+    let org_id = get_primary_test_org_id().await;
+    remove_billing_user_from_primary_org(&org_id).await;
+
+    let admin_client = authenticated_client();
+    let billing_client = billing_test_client();
+
+    let billing_me: Value = billing_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let billing_email = billing_me["email"].as_str().unwrap().to_string();
+
+    let response = admin_client
+        .post(format!("{}/api/billing/transfer", BASE_URL))
+        .json(&json!({ "to_email": billing_email }))
+        .send()
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body_text = response.text().await.unwrap_or_default();
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "Transfer to a non-org-member should return 400, body: {}",
+        body_text
+    );
+
+    // Verify the error message is informative.
+    let body: Value = serde_json::from_str(&body_text).unwrap_or(Value::Null);
+    let message = body["message"].as_str().unwrap_or(&body_text);
+    assert!(
+        message.contains("member") || message.contains("organization"),
+        "Error message should mention membership requirement, got: {}",
+        message
+    );
 }
