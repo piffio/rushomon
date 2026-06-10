@@ -1338,3 +1338,194 @@ async fn test_initiate_transfer_recipient_not_org_member() {
         message
     );
 }
+
+// ─── Priority 3: New endpoints added in this feature ─────────────────────────
+
+/// GET /api/billing/accounts returns the caller's owned billing accounts.
+/// The primary account must match the billing_account_id from /api/billing/status.
+#[tokio::test]
+async fn test_get_billing_accounts_list() {
+    let client = authenticated_client();
+
+    // Fetch the accounts list.
+    let resp = client
+        .get(format!("{}/api/billing/accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "GET /api/billing/accounts should return 200"
+    );
+    let body: Value = resp.json().await.unwrap();
+
+    // Response must contain an "accounts" array.
+    let accounts = body["accounts"]
+        .as_array()
+        .expect("accounts should be an array");
+    assert!(
+        !accounts.is_empty(),
+        "Authenticated user should own at least one billing account"
+    );
+
+    // Cross-check: the primary account from /api/billing/status must appear in the list.
+    let status_resp: Value = client
+        .get(format!("{}/api/billing/status", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let primary_ba_id = status_resp["billing_account_id"]
+        .as_str()
+        .expect("billing_status should include billing_account_id");
+
+    let found = accounts
+        .iter()
+        .any(|a| a["id"].as_str() == Some(primary_ba_id));
+    assert!(
+        found,
+        "Primary billing_account_id ({}) should appear in /api/billing/accounts",
+        primary_ba_id
+    );
+
+    // Each account entry must have the expected fields.
+    for account in accounts {
+        assert!(account["id"].is_string(), "Each account should have an id");
+        assert!(
+            account["tier"].is_string(),
+            "Each account should have a tier"
+        );
+        assert!(
+            account["is_billing_owner"].as_bool() == Some(true),
+            "Caller should be billing owner of all returned accounts"
+        );
+        assert!(
+            account["organizations"].is_array(),
+            "Each account should include an organizations array"
+        );
+    }
+}
+
+/// GET /api/billing/accounts requires authentication.
+#[tokio::test]
+async fn test_get_billing_accounts_requires_auth() {
+    let resp = test_client()
+        .get(format!("{}/api/billing/accounts", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// GET /api/admin/billing-accounts/:id/members returns org members excluding the owner.
+#[tokio::test]
+async fn test_admin_list_billing_account_members() {
+    let (org_id, _) = invite_billing_user_into_primary_org().await;
+
+    let admin_client = authenticated_client();
+    let billing_client = billing_test_client();
+
+    // Get the primary user's billing account ID.
+    let status: Value = admin_client
+        .get(format!("{}/api/billing/status", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let ba_id = status["billing_account_id"].as_str().unwrap().to_string();
+
+    // Get the IDs we'll use for assertions.
+    let admin_me: Value = admin_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let owner_id = admin_me["id"].as_str().unwrap().to_string();
+
+    let billing_me: Value = billing_client
+        .get(format!("{}/api/auth/me", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let billing_user_id = billing_me["id"].as_str().unwrap().to_string();
+
+    // Fetch members via admin endpoint.
+    let resp = admin_client
+        .get(format!(
+            "{}/api/admin/billing-accounts/{}/members",
+            BASE_URL, ba_id
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "GET /api/admin/billing-accounts/:id/members should return 200"
+    );
+    let body: Value = resp.json().await.unwrap();
+    let members = body["members"]
+        .as_array()
+        .expect("members should be an array");
+
+    // The billing user (org member) should appear in the list.
+    // The endpoint uses BillingAccountMember { id, name, email } — field is "id", not "user_id".
+    let billing_user_found = members
+        .iter()
+        .any(|m| m["id"].as_str() == Some(&billing_user_id));
+    assert!(
+        billing_user_found,
+        "Billing user (org member) should appear in the members list"
+    );
+
+    // The owner themselves must NOT appear (they're excluded by the endpoint).
+    let owner_found = members.iter().any(|m| m["id"].as_str() == Some(&owner_id));
+    assert!(
+        !owner_found,
+        "Billing account owner should be excluded from the members list"
+    );
+
+    // Each member entry should have basic user fields.
+    for member in members {
+        assert!(member["id"].is_string(), "Each member should have id");
+        assert!(member["email"].is_string(), "Each member should have email");
+    }
+
+    // Clean up.
+    remove_billing_user_from_primary_org(&org_id).await;
+}
+
+/// Non-admin users cannot call GET /api/admin/billing-accounts/:id/members.
+#[tokio::test]
+async fn test_admin_list_billing_account_members_requires_admin() {
+    let billing_client = billing_test_client();
+
+    // Use the billing user's own BA id — even for their own BA, non-admin is rejected.
+    let ba_id = get_billing_test_account_id().await;
+
+    let resp = billing_client
+        .get(format!(
+            "{}/api/admin/billing-accounts/{}/members",
+            BASE_URL, ba_id
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "Non-admin should get 403 on the admin members endpoint"
+    );
+}
