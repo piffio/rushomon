@@ -2,6 +2,7 @@ import type {
   AdminLinksResponse,
   AdminReportsResponse,
   BillingAccountDetails,
+  BillingAccountMember,
   BlacklistEntry,
   BlockDestinationResponse,
   LinkReport,
@@ -518,6 +519,19 @@ export const adminApi = {
   },
 
   /**
+   * List eligible transfer recipients for a billing account (admin only).
+   * Returns all members of orgs under this BA, excluding the current owner.
+   * @param id - Billing account ID
+   */
+  async getBillingAccountMembers(
+    id: string
+  ): Promise<{ members: BillingAccountMember[] }> {
+    return apiClient.get<{ members: BillingAccountMember[] }>(
+      `/api/admin/billing-accounts/${id}/members`
+    );
+  },
+
+  /**
    * Update billing account tier (admin only)
    * @param id - Billing account ID
    * @param tier - New tier ('free', 'pro', 'business', or 'unlimited')
@@ -692,5 +706,21 @@ export const adminApi = {
    */
   async pollDomains(): Promise<PollDomainsResponse> {
     return apiClient.post<PollDomainsResponse>("/api/admin/domains/poll", {});
+  },
+
+  /**
+   * Force-transfer billing account ownership to a different user (admin only).
+   * Bypasses email confirmation — takes effect immediately.
+   * @param billingAccountId - Billing account to transfer
+   * @param toUserId - User ID of the new owner (must be a member of one of the BA's orgs)
+   */
+  async forceTransferBillingAccount(
+    billingAccountId: string,
+    toUserId: string
+  ): Promise<{ success: boolean; message: string }> {
+    return apiClient.post<{ success: boolean; message: string }>(
+      `/api/admin/billing-accounts/${billingAccountId}/transfer`,
+      { to_user_id: toUserId }
+    );
   }
 };

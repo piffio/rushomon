@@ -304,6 +304,7 @@ export interface OrgWithRole {
   tier: string;
   role: "owner" | "admin" | "member";
   joined_at: number;
+  billing_account_id: string | null;
 }
 
 export interface OrgMember {
@@ -335,6 +336,7 @@ export interface OrgDetails {
     role: "owner" | "admin" | "member";
     logo_url: string | null;
     link_count: number;
+    billing_account_id: string | null;
   };
   members: OrgMember[];
   pending_invitations: OrgInvitation[];
@@ -383,6 +385,12 @@ export interface UsageStats {
   year_month: string;
 }
 
+export interface BillingAccountMember {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
 export interface BillingAccountDetails {
   account: {
     id: string;
@@ -418,4 +426,24 @@ export interface ListBillingAccountsResponse {
     utc: string;
     timestamp: number;
   };
+}
+
+// ─── Ownership Transfer Types ─────────────────────────────────────────────────
+
+export interface InitiateTransferResponse {
+  success: boolean;
+  message: string;
+  token: string;
+  expires_at: number;
+  to_email: string;
+}
+
+export interface TransferInfo {
+  token: string;
+  billing_account_id: string;
+  billing_account_tier: string;
+  from_user_name: string | null;
+  from_user_email: string;
+  to_email: string;
+  expires_at: number;
 }

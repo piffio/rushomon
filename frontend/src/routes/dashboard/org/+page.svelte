@@ -1169,7 +1169,7 @@
             >{orgDetails.org.tier}</span
           >
         </p>
-        {#if billingStatus?.is_billing_owner}
+        {#if billingStatus?.billing_account_id && orgDetails?.org.billing_account_id && billingStatus.billing_account_id === orgDetails.org.billing_account_id}
           <p class="text-sm text-gray-600 mb-3">
             You own the billing account for this organization.
           </p>

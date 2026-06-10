@@ -73,7 +73,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
 
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -85,6 +85,35 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         })
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
+
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        // Use the org's BA if it exists (more reliable than user-owned BA list)
+        billing_account_id = org_ba_id;
+    }
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
 
     // Set billing account to free tier
     let tier_response = client
@@ -102,6 +131,48 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         200,
         "Failed to set billing account to free tier"
     );
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    // Reset may fail if the endpoint doesn't exist for this BA type, ignore it
+    let _ = reset_response;
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    // Reset may fail if the endpoint doesn't exist for this BA type, ignore it
+    let _ = reset_response;
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
 
     // Try to create links until we hit the limit or succeed
     let mut created_links = Vec::new();
@@ -182,7 +253,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         .unwrap();
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -194,7 +265,35 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
 
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        billing_account_id = org_ba_id;
+    }
+
     // Use admin API to upgrade billing account tier
+    // Reset the monthly counter to ensure clean state after the free tier test
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
+
     let upgrade_response = client
         .put(format!(
             "{}/api/admin/billing-accounts/{}/tier",
@@ -295,7 +394,7 @@ async fn test_free_tier_cannot_create_custom_short_code() {
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
 
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -307,6 +406,35 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         })
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
+
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        // Use the org's BA if it exists (more reliable than user-owned BA list)
+        billing_account_id = org_ba_id;
+    }
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
 
     // Set billing account to free tier
     let tier_response = client
@@ -451,7 +579,7 @@ async fn test_usage_api_includes_custom_code_flag() {
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
 
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -463,6 +591,25 @@ async fn test_usage_api_includes_custom_code_flag() {
         })
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
+
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        // Use the org's BA if it exists (more reliable than user-owned BA list)
+        billing_account_id = org_ba_id;
+    }
 
     // Test on free tier
     let tier_response = client
@@ -561,7 +708,7 @@ async fn test_free_tier_tag_limits() {
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
 
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -573,6 +720,35 @@ async fn test_free_tier_tag_limits() {
         })
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
+
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        // Use the org's BA if it exists (more reliable than user-owned BA list)
+        billing_account_id = org_ba_id;
+    }
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
 
     // Set billing account to free tier
     let tier_response = client
@@ -614,6 +790,16 @@ async fn test_free_tier_tag_limits() {
             .expect("Org response should have org.id field")
             .to_string()
     };
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
 
     // Try to create links with unique tags until we hit the tag limit
     let mut created_links = Vec::new();
@@ -808,7 +994,7 @@ async fn test_free_tier_cannot_create_307_redirect() {
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
 
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -820,6 +1006,35 @@ async fn test_free_tier_cannot_create_307_redirect() {
         })
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
+
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        // Use the org's BA if it exists (more reliable than user-owned BA list)
+        billing_account_id = org_ba_id;
+    }
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await;
+    let _ = reset_response;
 
     // Set billing account to free tier
     let tier_response = client
@@ -895,7 +1110,7 @@ async fn test_pro_tier_can_create_307_redirect() {
 
     let billing_accounts: serde_json::Value = billing_accounts_response.json().await.unwrap();
 
-    let billing_account_id = billing_accounts["accounts"]
+    let mut billing_account_id = billing_accounts["accounts"]
         .as_array()
         .expect("Billing accounts should be an array")
         .iter()
@@ -907,6 +1122,25 @@ async fn test_pro_tier_can_create_307_redirect() {
         })
         .and_then(|account| account["id"].as_str())
         .expect("Failed to find billing account for user");
+
+    // If the user has multiple BAs (e.g., from transfer tests), use the one
+    // associated with their primary org instead of picking arbitrarily.
+    let orgs_response = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    let orgs: serde_json::Value = orgs_response.json().await.unwrap();
+    let primary_org = orgs["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["role"].as_str() == Some("owner"))
+        .expect("User should have at least one owned org");
+    if let Some(org_ba_id) = primary_org["billing_account_id"].as_str() {
+        // Use the org's BA if it exists (more reliable than user-owned BA list)
+        billing_account_id = org_ba_id;
+    }
 
     // Set billing account to pro tier
     let tier_response = client

@@ -21,6 +21,14 @@ pub struct BillingAccountWithStats {
     pub created_at: i64,
 }
 
+/// A user who is a member of an org under a billing account (for transfer dropdown)
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct BillingAccountMember {
+    pub id: String,
+    pub name: Option<String>,
+    pub email: String,
+}
+
 /// Response type for org within a billing account
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct OrgWithMembersCount {
@@ -155,6 +163,12 @@ impl BillingRepository {
     }
 
     /// Get the billing account of the user's primary organization.
+    ///
+    /// NOTE: This traverses `users.org_id → org → BA` and is only correct for the
+    /// initial signup case (one user, one org, one BA). After an ownership transfer
+    /// the user may own a different BA than the one linked via `users.org_id`.
+    /// Prefer `get_owned_by_user` for billing-ownership semantics.
+    #[allow(dead_code)]
     pub async fn get_for_user(
         &self,
         db: &D1Database,
@@ -170,6 +184,60 @@ impl BillingRepository {
         .bind(&[user_id.into()])?
         .first::<BillingAccount>(None)
         .await
+    }
+
+    /// Get the highest-tier billing account owned by the user.
+    ///
+    /// This is the correct query to use for all billing-ownership semantics:
+    /// billing page, checkout, portal, org creation, org limits.
+    ///
+    /// Tier priority: business > pro > free. Returns None only if the user
+    /// owns no billing accounts at all (should not happen in normal usage).
+    pub async fn get_owned_by_user(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+    ) -> Result<Option<BillingAccount>> {
+        db.prepare(
+            "SELECT id, owner_user_id, tier, provider_customer_id, created_at
+             FROM billing_accounts
+             WHERE owner_user_id = ?1
+             ORDER BY CASE tier
+               WHEN 'business' THEN 0
+               WHEN 'pro'      THEN 1
+               ELSE                 2
+             END
+             LIMIT 1",
+        )
+        .bind(&[user_id.into()])?
+        .first::<BillingAccount>(None)
+        .await
+    }
+
+    /// Get all billing accounts owned by the user, ordered highest-tier first.
+    ///
+    /// Used by `GET /api/billing/accounts` to populate the multi-BA billing page.
+    pub async fn get_all_owned_by_user(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+    ) -> Result<Vec<BillingAccount>> {
+        let rows = db
+            .prepare(
+                "SELECT id, owner_user_id, tier, provider_customer_id, created_at
+                 FROM billing_accounts
+                 WHERE owner_user_id = ?1
+                 ORDER BY CASE tier
+                   WHEN 'business' THEN 0
+                   WHEN 'pro'      THEN 1
+                   ELSE                 2
+                 END",
+            )
+            .bind(&[user_id.into()])?
+            .all()
+            .await?
+            .results::<BillingAccount>()?;
+        Ok(rows)
     }
 
     /// Get billing account for an organization.
@@ -782,6 +850,43 @@ impl BillingRepository {
             usage,
             subscription,
         }))
+    }
+
+    /// Returns all users who are members of any org under this billing account,
+    /// excluding the current owner (ineligible for ownership transfer to themselves).
+    pub async fn get_members(
+        &self,
+        db: &D1Database,
+        billing_account_id: &str,
+        exclude_user_id: &str,
+    ) -> Result<Vec<BillingAccountMember>> {
+        let rows = db
+            .prepare(
+                "SELECT DISTINCT u.id, u.name, u.email
+                 FROM users u
+                 JOIN org_members om ON om.user_id = u.id
+                 JOIN organizations o ON o.id = om.org_id
+                 WHERE o.billing_account_id = ?1
+                   AND u.id != ?2
+                 ORDER BY u.email ASC",
+            )
+            .bind(&[billing_account_id.into(), exclude_user_id.into()])?
+            .all()
+            .await?
+            .results::<serde_json::Value>()?;
+
+        let members = rows
+            .iter()
+            .filter_map(|row| {
+                Some(BillingAccountMember {
+                    id: row["id"].as_str()?.to_string(),
+                    name: row["name"].as_str().map(|s| s.to_string()),
+                    email: row["email"].as_str()?.to_string(),
+                })
+            })
+            .collect();
+
+        Ok(members)
     }
 }
 

@@ -1,3 +1,4 @@
+import type { InitiateTransferResponse, TransferInfo } from "$lib/types/api";
 import { apiClient } from "./client";
 
 export interface BillingStatus {
@@ -14,6 +15,31 @@ export interface BillingStatus {
   subscription_plan: string | null;
   current_period_end: number | null;
   cancel_at_period_end: boolean;
+}
+
+/** One entry from GET /api/billing/accounts */
+export interface BillingAccountSummary {
+  id: string;
+  tier: string;
+  is_billing_owner: true;
+  subscription_status: string | null;
+  current_period_end: number | null;
+  cancel_at_period_end: boolean;
+  amount_cents: number | null;
+  currency: string | null;
+  interval: string | null;
+  organizations: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    member_count: number;
+    link_count: number;
+    created_at: number;
+  }>;
+}
+
+export interface BillingAccountsResponse {
+  accounts: BillingAccountSummary[];
 }
 
 export interface CheckoutRequest {
@@ -44,6 +70,11 @@ export interface PricingResponse {
 }
 
 export const billingApi = {
+  /** All billing accounts owned by the current user, highest-tier first. */
+  getAccounts(): Promise<BillingAccountsResponse> {
+    return apiClient.get<BillingAccountsResponse>("/api/billing/accounts");
+  },
+
   getStatus(): Promise<BillingStatus> {
     return apiClient.get<BillingStatus>("/api/billing/status");
   },
@@ -77,5 +108,55 @@ export const billingApi = {
     }
 
     return { url: res.url };
+  },
+
+  // ─── Ownership Transfer ───────────────────────────────────────────────────
+
+  /**
+   * Initiate a billing account ownership transfer.
+   * Only the billing account owner can call this.
+   * @param toEmail - Email of the intended recipient (must be a member of one of the BA's orgs)
+   * @param billingAccountId - Optional: explicit BA ID (defaults to caller's own BA)
+   */
+  initiateTransfer(
+    toEmail: string,
+    billingAccountId?: string
+  ): Promise<InitiateTransferResponse> {
+    return apiClient.post<InitiateTransferResponse>("/api/billing/transfer", {
+      to_email: toEmail,
+      billing_account_id: billingAccountId
+    });
+  },
+
+  /**
+   * Cancel the outstanding ownership transfer for the caller's billing account.
+   */
+  cancelTransfer(): Promise<{ success: boolean; message: string }> {
+    return apiClient.request<{ success: boolean; message: string }>(
+      "/api/billing/transfer",
+      { method: "DELETE" }
+    );
+  },
+
+  /**
+   * Fetch public information about a pending transfer (no auth required).
+   * @param token - Transfer token from the email link
+   */
+  getTransferInfo(token: string): Promise<TransferInfo> {
+    return apiClient.get<TransferInfo>(`/api/billing-transfer/${token}`);
+  },
+
+  /**
+   * Accept a pending ownership transfer.
+   * The caller must be logged in and their email must match the transfer's to_email.
+   * @param token - Transfer token from the email link
+   */
+  acceptTransfer(
+    token: string
+  ): Promise<{ success: boolean; message: string }> {
+    return apiClient.post<{ success: boolean; message: string }>(
+      `/api/billing-transfer/${token}/accept`,
+      {}
+    );
   }
 };
