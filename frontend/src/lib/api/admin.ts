@@ -2,6 +2,7 @@ import type {
   AdminLinksResponse,
   AdminReportsResponse,
   BillingAccountDetails,
+  BillingAccountMember,
   BlacklistEntry,
   BlockDestinationResponse,
   LinkReport,
@@ -514,6 +515,19 @@ export const adminApi = {
   async getBillingAccount(id: string): Promise<BillingAccountDetails> {
     return apiClient.get<BillingAccountDetails>(
       `/api/admin/billing-accounts/${id}`
+    );
+  },
+
+  /**
+   * List eligible transfer recipients for a billing account (admin only).
+   * Returns all members of orgs under this BA, excluding the current owner.
+   * @param id - Billing account ID
+   */
+  async getBillingAccountMembers(
+    id: string
+  ): Promise<{ members: BillingAccountMember[] }> {
+    return apiClient.get<{ members: BillingAccountMember[] }>(
+      `/api/admin/billing-accounts/${id}/members`
     );
   },
 

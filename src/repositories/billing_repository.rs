@@ -21,6 +21,14 @@ pub struct BillingAccountWithStats {
     pub created_at: i64,
 }
 
+/// A user who is a member of an org under a billing account (for transfer dropdown)
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct BillingAccountMember {
+    pub id: String,
+    pub name: Option<String>,
+    pub email: String,
+}
+
 /// Response type for org within a billing account
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct OrgWithMembersCount {
@@ -842,6 +850,43 @@ impl BillingRepository {
             usage,
             subscription,
         }))
+    }
+
+    /// Returns all users who are members of any org under this billing account,
+    /// excluding the current owner (ineligible for ownership transfer to themselves).
+    pub async fn get_members(
+        &self,
+        db: &D1Database,
+        billing_account_id: &str,
+        exclude_user_id: &str,
+    ) -> Result<Vec<BillingAccountMember>> {
+        let rows = db
+            .prepare(
+                "SELECT DISTINCT u.id, u.name, u.email
+                 FROM users u
+                 JOIN org_members om ON om.user_id = u.id
+                 JOIN organizations o ON o.id = om.org_id
+                 WHERE o.billing_account_id = ?1
+                   AND u.id != ?2
+                 ORDER BY u.email ASC",
+            )
+            .bind(&[billing_account_id.into(), exclude_user_id.into()])?
+            .all()
+            .await?
+            .results::<serde_json::Value>()?;
+
+        let members = rows
+            .iter()
+            .filter_map(|row| {
+                Some(BillingAccountMember {
+                    id: row["id"].as_str()?.to_string(),
+                    name: row["name"].as_str().map(|s| s.to_string()),
+                    email: row["email"].as_str()?.to_string(),
+                })
+            })
+            .collect();
+
+        Ok(members)
     }
 }
 

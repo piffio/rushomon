@@ -385,6 +385,12 @@ export interface UsageStats {
   year_month: string;
 }
 
+export interface BillingAccountMember {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
 export interface BillingAccountDetails {
   account: {
     id: string;

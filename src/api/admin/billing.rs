@@ -1,4 +1,5 @@
 use crate::auth;
+use crate::repositories::BillingRepository;
 use crate::services::{AdminService, BillingService};
 use worker::d1::D1Database;
 use worker::*;
@@ -314,6 +315,66 @@ pub async fn handle_admin_update_subscription_status(
                     500
                 },
             )
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/billing-accounts/{id}/members",
+    tag = "Admin",
+    summary = "List eligible transfer recipients for a billing account",
+    params(("id" = String, Path, description = "Billing account ID")),
+    responses(
+        (status = 200, description = "List of eligible members"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
+pub async fn handle_admin_list_billing_account_members(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(ctx) => ctx,
+        Err(e) => return Ok(e.into_response()),
+    };
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let billing_account_id = ctx
+        .param("id")
+        .ok_or_else(|| Error::RustError("Missing billing account ID".to_string()))?;
+    let db = ctx.env.get_binding::<D1Database>("rushomon")?;
+
+    // Resolve current owner so we can exclude them from the list.
+    let account = match BillingRepository::new()
+        .get_by_id(&db, billing_account_id)
+        .await?
+    {
+        Some(a) => a,
+        None => return Response::error("Billing account not found", 404),
+    };
+
+    match BillingRepository::new()
+        .get_members(&db, billing_account_id, &account.owner_user_id)
+        .await
+    {
+        Ok(members) => Response::from_json(&serde_json::json!({ "members": members })),
+        Err(e) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "list_billing_account_members_failed",
+                    "billing_account_id": billing_account_id,
+                    "error": e.to_string(),
+                    "level": "error"
+                })
+            );
+            Response::error("Failed to list billing account members", 500)
         }
     }
 }

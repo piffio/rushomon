@@ -216,6 +216,10 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             "/api/admin/billing-accounts/:id",
             crate::api::admin::billing::handle_admin_get_billing_account,
         )
+        .get_async(
+            "/api/admin/billing-accounts/:id/members",
+            crate::api::admin::billing::handle_admin_list_billing_account_members,
+        )
         .put_async(
             "/api/admin/billing-accounts/:id/tier",
             crate::api::admin::billing::handle_admin_update_billing_account_tier,

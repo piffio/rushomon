@@ -3,6 +3,7 @@
   import Pagination from "$lib/components/Pagination.svelte";
   import type {
     BillingAccountDetails,
+    BillingAccountMember,
     BillingAccountWithStats
   } from "$lib/types/api";
   import { onMount } from "svelte";
@@ -37,6 +38,8 @@
   } | null>(null);
   let forceTransferUserId = $state("");
   let forceTransferLoading = $state(false);
+  let forceTransferMembers = $state<BillingAccountMember[]>([]);
+  let forceTransferMembersLoading = $state(false);
 
   onMount(async () => {
     await loadAccounts();
@@ -235,9 +238,28 @@
     confirmingSubscriptionUpdate = null;
   }
 
-  function handleForceTransfer(accountId: string, currentOwnerId: string) {
+  async function handleForceTransfer(
+    accountId: string,
+    currentOwnerId: string
+  ) {
     forceTransferUserId = "";
+    forceTransferMembers = [];
     confirmingForceTransfer = { accountId, currentOwnerId };
+
+    // Fetch eligible transfer recipients in the background.
+    try {
+      forceTransferMembersLoading = true;
+      const result = await adminApi.getBillingAccountMembers(accountId);
+      forceTransferMembers = result.members;
+      // Pre-select the first option so the button is enabled immediately.
+      if (forceTransferMembers.length > 0) {
+        forceTransferUserId = forceTransferMembers[0].id;
+      }
+    } catch (err) {
+      console.error("Failed to load billing account members", err);
+    } finally {
+      forceTransferMembersLoading = false;
+    }
   }
 
   async function confirmForceTransfer() {
@@ -272,6 +294,7 @@
   function cancelForceTransfer() {
     confirmingForceTransfer = null;
     forceTransferUserId = "";
+    forceTransferMembers = [];
   }
 
   async function handlePageChange(page: number) {
@@ -695,32 +718,62 @@
       tabindex="0"
       onkeydown={(e) => e.key === "Escape" && cancelForceTransfer()}
     >
-      <h3>Force Transfer Ownership</h3>
-      <p class="modal-warning">
-        ⚠️ This will <strong>immediately</strong> reassign the billing account to
-        the specified user with no email confirmation. Any pending transfer will be
-        cancelled.
-      </p>
-      <p class="modal-description">
-        The target user must already be a member of one of the organizations in
-        this billing account. The current owner will be downgraded to Admin.
-      </p>
-      <label for="force-transfer-user-id" class="modal-label">
-        New owner user ID
-      </label>
-      <input
-        id="force-transfer-user-id"
-        type="text"
-        bind:value={forceTransferUserId}
-        placeholder="user-uuid"
-        class="modal-input"
-      />
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick={cancelForceTransfer}>Cancel</button>
+      <div class="modal-header">
+        <h3>Force Transfer Ownership</h3>
+        <button class="modal-close" onclick={cancelForceTransfer}
+          >&times;</button
+        >
+      </div>
+      <div class="modal-body">
+        <p class="modal-warning">
+          ⚠️ This will <strong>immediately</strong> reassign the billing account to
+          the specified user with no email confirmation. Any pending transfer will
+          be cancelled.
+        </p>
+        <p>
+          The new owner must already be a member of one of the organizations in
+          this billing account. The current owner will be downgraded to Admin.
+        </p>
+        <label for="force-transfer-user-select" class="modal-label">
+          New owner
+        </label>
+        {#if forceTransferMembersLoading}
+          <p class="modal-loading">Loading members…</p>
+        {:else if forceTransferMembers.length === 0}
+          <p class="modal-empty">
+            No eligible members found. The billing account must have at least
+            one other member before it can be transferred.
+          </p>
+        {:else}
+          <select
+            id="force-transfer-user-select"
+            bind:value={forceTransferUserId}
+            class="modal-input"
+          >
+            {#each forceTransferMembers as member (member.id)}
+              <option value={member.id}>
+                {member.name
+                  ? `${member.name} (${member.email})`
+                  : member.email}
+              </option>
+            {/each}
+          </select>
+        {/if}
+      </div>
+      <div class="modal-footer">
         <button
-          class="btn-danger"
+          class="btn btn-secondary"
+          onclick={cancelForceTransfer}
+          disabled={forceTransferLoading}
+        >
+          Cancel
+        </button>
+        <button
+          class="btn btn-danger"
           onclick={confirmForceTransfer}
-          disabled={forceTransferLoading || !forceTransferUserId.trim()}
+          disabled={forceTransferLoading ||
+            !forceTransferUserId ||
+            forceTransferMembers.length === 0}
         >
           {forceTransferLoading ? "Transferring…" : "Confirm Transfer"}
         </button>
@@ -1392,6 +1445,53 @@
     text-transform: none;
     margin-top: 0.25rem;
     opacity: 0.7;
+  }
+
+  .modal-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: #1e293b;
+    background: #fff;
+    box-sizing: border-box;
+  }
+
+  .modal-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  }
+
+  .modal-warning {
+    background: #fef9c3;
+    border: 1px solid #fde047;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    color: #713f12;
+    margin-bottom: 1rem;
+  }
+
+  .modal-loading {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-style: italic;
+    margin: 0.5rem 0 0;
+  }
+
+  .modal-empty {
+    font-size: 0.875rem;
+    color: #dc2626;
+    margin: 0.5rem 0 0;
   }
 
   .modal-footer {
