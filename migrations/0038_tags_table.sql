@@ -20,7 +20,11 @@ SELECT DISTINCT org_id, tag_name, strftime('%s', 'now')
 FROM link_tags;
 
 -- Step 3: Add created_at to link_tags for analytics tracking
-ALTER TABLE link_tags ADD COLUMN created_at INTEGER DEFAULT (strftime('%s', 'now'));
+-- Note: ALTER TABLE ADD COLUMN requires a constant default when table has existing data
+ALTER TABLE link_tags ADD COLUMN created_at INTEGER DEFAULT 0;
+
+-- Update existing rows with current timestamp
+UPDATE link_tags SET created_at = strftime('%s', 'now') WHERE created_at = 0;
 
 -- Index for time-based analytics queries
 CREATE INDEX idx_link_tags_created_at ON link_tags(org_id, created_at);
