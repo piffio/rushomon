@@ -105,17 +105,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
         billing_account_id = org_ba_id;
     }
 
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    let _ = reset_response;
-
-    // Set billing account to free tier
+    // Set billing account to free tier FIRST
     let tier_response = client
         .put(format!(
             "{}/api/admin/billing-accounts/{}/tier",
@@ -135,44 +125,18 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     // Reset the monthly counter to ensure clean state for limit testing
     let reset_response = client
         .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
+            "{}/api/admin/billing-accounts/{}/reset-counter",
             BASE_URL, billing_account_id
         ))
         .send()
-        .await;
-    // Reset may fail if the endpoint doesn't exist for this BA type, ignore it
-    let _ = reset_response;
+        .await
+        .unwrap();
 
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    // Reset may fail if the endpoint doesn't exist for this BA type, ignore it
-    let _ = reset_response;
-
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    let _ = reset_response;
-
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    let _ = reset_response;
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset monthly counter"
+    );
 
     // Try to create links until we hit the limit or succeed
     let mut created_links = Vec::new();
@@ -287,7 +251,7 @@ async fn test_free_tier_and_unlimited_tier_limits() {
     // Reset the monthly counter to ensure clean state after the free tier test
     let reset_response = client
         .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
+            "{}/api/admin/billing-accounts/{}/reset-counter",
             BASE_URL, billing_account_id
         ))
         .send()
@@ -426,16 +390,6 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         billing_account_id = org_ba_id;
     }
 
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    let _ = reset_response;
-
     // Set billing account to free tier
     let tier_response = client
         .put(format!(
@@ -451,6 +405,22 @@ async fn test_free_tier_cannot_create_custom_short_code() {
         tier_response.status(),
         200,
         "Failed to set billing account to free tier"
+    );
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset-counter",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset monthly counter"
     );
 
     // Try to create a link with a custom short code (should fail with 403)
@@ -740,16 +710,6 @@ async fn test_free_tier_tag_limits() {
         billing_account_id = org_ba_id;
     }
 
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    let _ = reset_response;
-
     // Set billing account to free tier
     let tier_response = client
         .put(format!(
@@ -794,12 +754,18 @@ async fn test_free_tier_tag_limits() {
     // Reset the monthly counter to ensure clean state for limit testing
     let reset_response = client
         .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
+            "{}/api/admin/billing-accounts/{}/reset-counter",
             BASE_URL, billing_account_id
         ))
         .send()
-        .await;
-    let _ = reset_response;
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset monthly counter"
+    );
 
     // Try to create links with unique tags until we hit the tag limit
     let mut created_links = Vec::new();
@@ -1026,17 +992,7 @@ async fn test_free_tier_cannot_create_307_redirect() {
         billing_account_id = org_ba_id;
     }
 
-    // Reset the monthly counter to ensure clean state for limit testing
-    let reset_response = client
-        .post(format!(
-            "{}/api/admin/billing-accounts/{}/reset",
-            BASE_URL, billing_account_id
-        ))
-        .send()
-        .await;
-    let _ = reset_response;
-
-    // Set billing account to free tier
+    // Set billing account to free tier FIRST
     let tier_response = client
         .put(format!(
             "{}/api/admin/billing-accounts/{}/tier",
@@ -1047,6 +1003,22 @@ async fn test_free_tier_cannot_create_307_redirect() {
         .await
         .unwrap();
     assert_eq!(tier_response.status(), 200);
+
+    // Reset the monthly counter to ensure clean state for limit testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset-counter",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset monthly counter"
+    );
 
     // Try to create a link with 307 redirect
     let response = client
@@ -1062,12 +1034,9 @@ async fn test_free_tier_cannot_create_307_redirect() {
 
     // Should be rejected with 403
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
-    // Should be rejected with 403
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     // Handle error response - it might not be valid JSON
     let response_text = response.text().await.unwrap();
-    println!("DEBUG: Response text: {}", response_text);
     assert!(response_text.contains("Pro plan") || response_text.contains("307"));
 
     // Reset billing account back to unlimited tier for subsequent tests
@@ -1153,6 +1122,22 @@ async fn test_pro_tier_can_create_307_redirect() {
         .await
         .unwrap();
     assert_eq!(tier_response.status(), 200);
+
+    // Reset the monthly counter to ensure clean state for testing
+    let reset_response = client
+        .post(format!(
+            "{}/api/admin/billing-accounts/{}/reset-counter",
+            BASE_URL, billing_account_id
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        reset_response.status(),
+        200,
+        "Failed to reset monthly counter"
+    );
 
     // Create a link with 307 redirect
     let response = client

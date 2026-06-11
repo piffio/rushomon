@@ -261,7 +261,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         Vec::new()
     };
 
-    if let Some(ref tier_limits) = limits
+    // Only check tag limits if we're actually adding tags
+    if !normalized_tags.is_empty()
+        && let Some(ref tier_limits) = limits
         && let Some(max_tags) = tier_limits.max_tags
         && let Err(e) = link_service
             .check_tag_limit(
