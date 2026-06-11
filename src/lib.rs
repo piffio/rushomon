@@ -12,7 +12,7 @@ mod scheduled;
 mod services;
 pub mod utils;
 
-use middleware::{add_cors_headers, add_security_headers};
+use middleware::{add_cors_headers, add_security_headers, rebuild_asset_response};
 
 #[event(fetch)]
 async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
@@ -58,7 +58,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         let asset_url = url.to_string();
         match assets.fetch(asset_url, None).await {
             Ok(asset_response) if asset_response.status_code() < 400 => {
-                let response_with_headers = add_security_headers(asset_response, is_https);
+                let rebuilt = rebuild_asset_response(asset_response, path).await?;
+                let response_with_headers = add_security_headers(rebuilt, is_https);
                 return Ok(add_cors_headers(response_with_headers, origin, &env));
             }
             _ => {
@@ -94,7 +95,8 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         if let Ok(fallback_response) = assets.fetch(fallback_url, None).await
             && fallback_response.status_code() < 400
         {
-            let response_with_headers = add_security_headers(fallback_response, is_https);
+            let rebuilt = rebuild_asset_response(fallback_response, path).await?;
+            let response_with_headers = add_security_headers(rebuilt, is_https);
             return Ok(add_cors_headers(response_with_headers, origin, &env));
         }
     }
