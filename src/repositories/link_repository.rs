@@ -613,6 +613,16 @@ impl LinkRepository {
         delete_stmt.bind(&[link_id.into()])?.run().await?;
 
         for tag in tags {
+            // Ensure tag exists in tags table (for tag management features)
+            let ensure_tag_stmt = db.prepare(
+                "INSERT OR IGNORE INTO tags (org_id, tag_name, created_at) VALUES (?1, ?2, strftime('%s', 'now'))"
+            );
+            ensure_tag_stmt
+                .bind(&[org_id.into(), tag.as_str().into()])?
+                .run()
+                .await?;
+
+            // Create the link-tag association
             let insert_stmt =
                 db.prepare("INSERT INTO link_tags (link_id, tag_name, org_id) VALUES (?1, ?2, ?3)");
             insert_stmt

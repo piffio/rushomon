@@ -52,6 +52,38 @@ export interface Link {
 export interface TagWithCount {
   name: string;
   count: number;
+  created_at: number;
+  last_used_at: number | null;
+  color_index: number | null;
+}
+
+// Tag merge request
+export interface MergeTagsRequest {
+  source_tags: string[];
+  destination_tag: string;
+}
+
+// Tag merge result
+export interface MergeTagsResult {
+  affected_links: number;
+  merged_tags: string[];
+  destination_tag: string;
+}
+
+// Similar tag group for analytics
+export interface SimilarTagGroup {
+  tags: string[];
+  suggestion: string;
+}
+
+// Comprehensive tag analytics
+export interface TagAnalytics {
+  total_tags: number;
+  used_tags: number;
+  unused_tags: number;
+  top_tags: TagWithCount[];
+  unused_tag_names: string[];
+  similar_tag_groups: SimilarTagGroup[];
 }
 
 export interface CreateLinkRequest {

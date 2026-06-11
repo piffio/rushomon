@@ -3214,6 +3214,111 @@
             "session_cookie": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Create a new tag",
+        "description": "Creates a new tag manually without associating it with a link. Returns the updated tag list.",
+        "operationId": "handle_create_tag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tag already exists, returns current tag list"
+          },
+          "201": {
+            "description": "Tag created successfully, returns updated tag list"
+          },
+          "400": {
+            "description": "Invalid tag name"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/tags/analytics": {
+      "get": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Get tag analytics",
+        "description": "Returns comprehensive analytics for tags including total counts, top tags, unused tags, and similar tag suggestions for potential merges.",
+        "operationId": "handle_get_tag_analytics",
+        "responses": {
+          "200": {
+            "description": "Tag analytics data"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/tags/merge": {
+      "post": {
+        "tags": [
+          "Tags"
+        ],
+        "summary": "Merge tags",
+        "description": "Merges multiple source tags into a destination tag. All links using source tags are updated to use the destination tag. Returns the number of affected links.",
+        "operationId": "handle_merge_tags",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeTagsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tags merged successfully, returns merge result with affected link count"
+          },
+          "400": {
+            "description": "Invalid request - missing source tags or invalid tag names"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
       }
     },
     "/api/tags/{name}": {
@@ -3265,8 +3370,8 @@
         "tags": [
           "Tags"
         ],
-        "summary": "Rename a tag",
-        "description": "Renames a tag across all links in the authenticated organization. Returns the updated tag list",
+        "summary": "Update a tag",
+        "description": "Updates a tag's name and/or color in the authenticated organization. Returns the updated tag list",
         "operationId": "handle_rename_org_tag",
         "parameters": [
           {
@@ -3279,12 +3384,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTagRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Updated tag list"
           },
           "400": {
-            "description": "Missing or invalid new tag name"
+            "description": "Missing or invalid fields"
           },
           "401": {
             "description": "Unauthorized"
@@ -3584,6 +3699,24 @@
         },
         "additionalProperties": false
       },
+      "CreateTagRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "color_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "DailyClicks": {
         "type": "object",
         "required": [
@@ -3806,6 +3939,25 @@
           "disabled",
           "blocked"
         ]
+      },
+      "MergeTagsRequest": {
+        "type": "object",
+        "description": "Request to merge multiple tags",
+        "required": [
+          "source_tags",
+          "destination_tag"
+        ],
+        "properties": {
+          "source_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "destination_tag": {
+            "type": "string"
+          }
+        }
       },
       "OrgAnalyticsResponse": {
         "type": "object",
@@ -4382,6 +4534,24 @@
             ],
             "description": "Set to true to clear the Desktop URL",
             "example": false
+          }
+        }
+      },
+      "UpdateTagRequest": {
+        "type": "object",
+        "properties": {
+          "new_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },

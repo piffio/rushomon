@@ -304,8 +304,14 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         )
         // Tags routes
         .get_async("/api/tags", crate::api::tags::handle_get_org_tags)
+        .post_async("/api/tags", crate::api::tags::handle_create_tag)
         .delete_async("/api/tags/:name", crate::api::tags::handle_delete_org_tag)
         .patch_async("/api/tags/:name", crate::api::tags::handle_rename_org_tag)
+        .post_async("/api/tags/merge", crate::api::tags::handle_merge_tags)
+        .get_async(
+            "/api/tags/analytics",
+            crate::api::tags::handle_get_tag_analytics,
+        )
         // Public settings route
         .get_async(
             "/api/settings",

@@ -686,6 +686,7 @@
           onEdit={handleEdit}
           onTagClick={handleTagClick}
           onShowQR={handleShowQR}
+          {availableTags}
         />
       </div>
 

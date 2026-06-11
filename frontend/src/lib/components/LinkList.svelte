@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Link } from "$lib/types/api";
+  import type { Link, TagWithCount } from "$lib/types/api";
   import LinkCard from "./LinkCard.svelte";
 
   const {
@@ -11,7 +11,8 @@
     onDelete,
     onEdit,
     onTagClick,
-    onShowQR
+    onShowQR,
+    availableTags = []
   }: {
     links: Link[];
     loading?: boolean;
@@ -22,6 +23,7 @@
     onEdit: (link: Link) => void;
     onTagClick?: (tag: string) => void;
     onShowQR?: (link: Link) => void;
+    availableTags?: TagWithCount[];
   } = $props();
 </script>
 
@@ -76,6 +78,7 @@
           {onTagClick}
           {onShowQR}
           {deletingLinkId}
+          {availableTags}
           isHighlighted={recentlySavedLinkId === link.id}
         />
       {/each}

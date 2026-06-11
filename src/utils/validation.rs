@@ -335,4 +335,82 @@ mod tests {
         assert!(validate_short_code("authenticate/2024").is_ok());
         assert!(validate_short_code("dashboarding/abc").is_ok());
     }
+
+    // Tag Normalization Tests
+    #[test]
+    fn test_normalize_tag_trims_whitespace() {
+        assert_eq!(normalize_tag("  hello  "), Some("hello".to_string()));
+        assert_eq!(normalize_tag("hello"), Some("hello".to_string()));
+        assert_eq!(
+            normalize_tag("  hello world  "),
+            Some("hello world".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_tag_collapses_internal_spaces() {
+        assert_eq!(
+            normalize_tag("hello   world"),
+            Some("hello world".to_string())
+        );
+        assert_eq!(normalize_tag("a    b    c"), Some("a b c".to_string()));
+        assert_eq!(
+            normalize_tag("  hello   world  "),
+            Some("hello world".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_tag_max_length_50() {
+        let exactly_50 = "a".repeat(50);
+        assert_eq!(normalize_tag(&exactly_50), Some(exactly_50));
+
+        let too_long = "a".repeat(51);
+        assert_eq!(normalize_tag(&too_long), None);
+    }
+
+    #[test]
+    fn test_normalize_tag_rejects_empty() {
+        assert_eq!(normalize_tag(""), None);
+    }
+
+    #[test]
+    fn test_normalize_tag_rejects_only_whitespace() {
+        assert_eq!(normalize_tag("   "), None);
+        assert_eq!(normalize_tag("  \t\n  "), None);
+        assert_eq!(normalize_tag("     "), None);
+    }
+
+    #[test]
+    fn test_normalize_tag_preserves_single_spaces() {
+        assert_eq!(
+            normalize_tag("hello world"),
+            Some("hello world".to_string())
+        );
+        assert_eq!(
+            normalize_tag("one two three"),
+            Some("one two three".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_tag_handles_unicode() {
+        // Unicode characters should be preserved
+        assert_eq!(normalize_tag("café"), Some("café".to_string()));
+        assert_eq!(normalize_tag("日本語"), Some("日本語".to_string()));
+        assert_eq!(normalize_tag("emoji 🎉"), Some("emoji 🎉".to_string()));
+    }
+
+    #[test]
+    fn test_normalize_tag_handles_mixed_whitespace() {
+        // Mixed whitespace types should be normalized to single space
+        assert_eq!(
+            normalize_tag("hello\t\t\tworld"),
+            Some("hello world".to_string())
+        );
+        assert_eq!(
+            normalize_tag("hello\n\nworld"),
+            Some("hello world".to_string())
+        );
+    }
 }

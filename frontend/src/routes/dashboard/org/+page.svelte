@@ -15,6 +15,7 @@
     OrgMember,
     OrgSettings,
     OrgWithRole,
+    TagAnalytics,
     TagWithCount,
     UsageResponse
   } from "$lib/types/api";
@@ -80,11 +81,33 @@
   let tags = $state<TagWithCount[]>([]);
   let tagsLoading = $state(false);
   let tagsError = $state("");
-  let editingTag = $state<string | null>(null);
-  let newTagName = $state("");
-  let savingTag = $state(false);
-  let tagError = $state("");
   let deletingTag = $state<string | null>(null);
+
+  // Enhanced tag management
+  let selectedTags = $state(new Set<string>());
+  let tagSearchQuery = $state("");
+  let tagSortField = $state<"name" | "count" | "created_at" | "last_used_at">(
+    "count"
+  );
+  let tagSortDirection = $state<"asc" | "desc">("desc");
+  let isMergeModalOpen = $state(false);
+  let mergeDestinationTag = $state("");
+  let mergingTags = $state(false);
+  let mergeError = $state("");
+  let isCreateTagModalOpen = $state(false);
+  let newTagNameInput = $state("");
+  let selectedColorIndex = $state<number | null>(null);
+  let creatingTag = $state(false);
+  let createTagError = $state("");
+  let isEditTagModalOpen = $state(false);
+  let editingTagName = $state("");
+  let editTagNewName = $state("");
+  let editTagColorIndex = $state<number | null>(null);
+  let savingEditTag = $state(false);
+  let editTagError = $state("");
+  let showAnalytics = $state(false);
+  let tagAnalytics = $state<TagAnalytics | null>(null);
+  let analyticsLoading = $state(false);
 
   async function loadOrg() {
     loading = true;
@@ -617,52 +640,6 @@
   }
 
   // Tag management functions
-  function startEditTag(tagName: string) {
-    editingTag = tagName;
-    newTagName = tagName;
-    tagError = "";
-  }
-
-  function cancelEditTag() {
-    editingTag = null;
-    newTagName = "";
-    tagError = "";
-  }
-
-  async function saveTagRename(oldName: string) {
-    if (!orgDetails) return;
-    const trimmed = newTagName.trim();
-    if (!trimmed) {
-      tagError = "Tag name cannot be empty.";
-      return;
-    }
-    if (trimmed === oldName) {
-      cancelEditTag();
-      return;
-    }
-    if (trimmed.length > 50) {
-      tagError = "Tag name must be 50 characters or less.";
-      return;
-    }
-
-    savingTag = true;
-    tagError = "";
-    try {
-      tags = await tagsApi.rename(oldName, trimmed);
-      actionSuccess = `Tag renamed from "${oldName}" to "${trimmed}".`;
-      setTimeout(() => (actionSuccess = ""), 3000);
-      cancelEditTag();
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        tagError = e.message;
-      } else {
-        tagError = "Failed to rename tag.";
-      }
-    } finally {
-      savingTag = false;
-    }
-  }
-
   function startDeleteTag(tagName: string) {
     deletingTag = tagName;
   }
@@ -676,6 +653,7 @@
     try {
       await tagsApi.remove(tagName);
       tags = tags.filter((t) => t.name !== tagName);
+      selectedTags.delete(tagName);
       actionSuccess = `Tag "${tagName}" deleted successfully.`;
       setTimeout(() => (actionSuccess = ""), 3000);
       cancelDeleteTag();
@@ -689,19 +667,303 @@
     }
   }
 
+  // Enhanced tag management functions
+  function toggleTagSelection(tagName: string) {
+    if (selectedTags.has(tagName)) {
+      selectedTags.delete(tagName);
+    } else {
+      selectedTags.add(tagName);
+    }
+  }
+
+  function selectAllTags() {
+    filteredTags().forEach((t) => selectedTags.add(t.name));
+  }
+
+  function deselectAllTags() {
+    filteredTags().forEach((t) => selectedTags.delete(t.name));
+  }
+
+  function setTagSort(field: "name" | "count" | "created_at" | "last_used_at") {
+    if (tagSortField === field) {
+      tagSortDirection = tagSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      tagSortField = field;
+      tagSortDirection = "desc";
+    }
+  }
+
+  // Derived state for filtered and sorted tags
+  const filteredTags = $derived(() => {
+    let result = tags;
+
+    // Filter by search query
+    if (tagSearchQuery.trim()) {
+      const query = tagSearchQuery.toLowerCase();
+      result = result.filter((t) => t.name.toLowerCase().includes(query));
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      switch (tagSortField) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "count":
+          comparison = a.count - b.count;
+          break;
+        case "created_at":
+          comparison = a.created_at - b.created_at;
+          break;
+        case "last_used_at": {
+          const aLastUsed = a.last_used_at ?? 0;
+          const bLastUsed = b.last_used_at ?? 0;
+          comparison = aLastUsed - bLastUsed;
+          break;
+        }
+      }
+      return tagSortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return result;
+  });
+
+  // Bulk delete unused selected tags
+  async function bulkDeleteUnusedTags() {
+    const unusedSelected = Array.from(selectedTags).filter((name) => {
+      const tag = tags.find((t) => t.name === name);
+      return tag && tag.count === 0;
+    }) as string[];
+
+    if (unusedSelected.length === 0) return;
+
+    try {
+      for (const tagName of unusedSelected) {
+        await tagsApi.remove(tagName);
+      }
+      tags = tags.filter((t) => !unusedSelected.includes(t.name));
+      unusedSelected.forEach((name) => selectedTags.delete(name));
+      actionSuccess = `${unusedSelected.length} unused tag${unusedSelected.length === 1 ? "" : "s"} deleted.`;
+      setTimeout(() => (actionSuccess = ""), 3000);
+    } catch (e: unknown) {
+      actionError = e instanceof Error ? e.message : "Failed to delete tags.";
+      setTimeout(() => (actionError = ""), 3000);
+    }
+  }
+
+  // Merge functions
+  function openMergeModal() {
+    if (selectedTags.size < 2) {
+      actionError = "Select at least 2 tags to merge.";
+      setTimeout(() => (actionError = ""), 3000);
+      return;
+    }
+    mergeDestinationTag = "";
+    mergeError = "";
+    isMergeModalOpen = true;
+  }
+
+  function closeMergeModal() {
+    isMergeModalOpen = false;
+    mergeDestinationTag = "";
+    mergeError = "";
+  }
+
+  async function confirmMergeTags() {
+    if (!mergeDestinationTag.trim()) {
+      mergeError = "Please select a destination tag.";
+      return;
+    }
+
+    const sourceTags = Array.from(selectedTags).filter(
+      (t) => t !== mergeDestinationTag
+    ) as string[];
+    if (sourceTags.length === 0) {
+      mergeError = "Source tags cannot include the destination tag.";
+      return;
+    }
+
+    mergingTags = true;
+    mergeError = "";
+    try {
+      const result = await tagsApi.merge({
+        source_tags: sourceTags,
+        destination_tag: mergeDestinationTag
+      });
+      tags = await tagsApi.list();
+      selectedTags.clear();
+      closeMergeModal();
+      actionSuccess = `Merged ${result.merged_tags.length} tags into "${result.destination_tag}" (${result.affected_links} links affected).`;
+      setTimeout(() => (actionSuccess = ""), 5000);
+    } catch (e: unknown) {
+      mergeError = e instanceof Error ? e.message : "Failed to merge tags.";
+    } finally {
+      mergingTags = false;
+    }
+  }
+
+  // Create tag functions
+  function openCreateTagModal() {
+    newTagNameInput = "";
+    selectedColorIndex = null;
+    createTagError = "";
+    isCreateTagModalOpen = true;
+  }
+
+  function closeCreateTagModal() {
+    isCreateTagModalOpen = false;
+    newTagNameInput = "";
+    selectedColorIndex = null;
+    createTagError = "";
+  }
+
+  // Edit tag functions
+  function openEditTagModal(tag: TagWithCount) {
+    editingTagName = tag.name;
+    editTagNewName = tag.name;
+    editTagColorIndex = tag.color_index;
+    editTagError = "";
+    isEditTagModalOpen = true;
+  }
+
+  function closeEditTagModal() {
+    isEditTagModalOpen = false;
+    editingTagName = "";
+    editTagNewName = "";
+    editTagColorIndex = null;
+    editTagError = "";
+  }
+
+  async function confirmEditTag() {
+    const trimmed = editTagNewName.trim();
+    if (!trimmed) {
+      editTagError = "Tag name cannot be empty.";
+      return;
+    }
+    if (trimmed.length > 50) {
+      editTagError = "Tag name must be 50 characters or less.";
+      return;
+    }
+
+    savingEditTag = true;
+    editTagError = "";
+    try {
+      const updateData: { new_name?: string; color_index?: number } = {};
+
+      // Only include new_name if it changed
+      if (trimmed !== editingTagName) {
+        updateData.new_name = trimmed;
+      }
+
+      // Only include color_index if it changed
+      const currentTag = tags.find((t) => t.name === editingTagName);
+      if (editTagColorIndex !== currentTag?.color_index) {
+        updateData.color_index = editTagColorIndex ?? 0;
+      }
+
+      // Check if anything changed
+      if (Object.keys(updateData).length === 0) {
+        closeEditTagModal();
+        return;
+      }
+
+      tags = await tagsApi.update(editingTagName, updateData);
+      closeEditTagModal();
+      actionSuccess = `Tag "${editingTagName}" updated successfully.`;
+      setTimeout(() => (actionSuccess = ""), 3000);
+    } catch (e: unknown) {
+      editTagError = e instanceof Error ? e.message : "Failed to update tag.";
+    } finally {
+      savingEditTag = false;
+    }
+  }
+
+  async function confirmCreateTag() {
+    const trimmed = newTagNameInput.trim();
+    if (!trimmed) {
+      createTagError = "Tag name cannot be empty.";
+      return;
+    }
+    if (trimmed.length > 50) {
+      createTagError = "Tag name must be 50 characters or less.";
+      return;
+    }
+    if (tags.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())) {
+      createTagError = "A tag with this name already exists.";
+      return;
+    }
+
+    creatingTag = true;
+    createTagError = "";
+    try {
+      tags = await tagsApi.create(trimmed, selectedColorIndex ?? undefined);
+      closeCreateTagModal();
+      actionSuccess = `Tag "${trimmed}" created successfully.`;
+      setTimeout(() => (actionSuccess = ""), 3000);
+    } catch (e: unknown) {
+      createTagError = e instanceof Error ? e.message : "Failed to create tag.";
+    } finally {
+      creatingTag = false;
+    }
+  }
+
+  // Analytics functions
+  async function loadTagAnalytics() {
+    analyticsLoading = true;
+    try {
+      tagAnalytics = await tagsApi.getAnalytics();
+    } catch (e: unknown) {
+      console.error("Failed to load analytics:", e);
+    } finally {
+      analyticsLoading = false;
+    }
+  }
+
+  function toggleAnalytics() {
+    showAnalytics = !showAnalytics;
+    if (showAnalytics && !tagAnalytics) {
+      loadTagAnalytics();
+    }
+  }
+
+  // Quick merge from analytics suggestion
+  async function quickMergeTags(sourceTags: string[], destinationTag: string) {
+    try {
+      const result = await tagsApi.merge({
+        source_tags: sourceTags.filter((t) => t !== destinationTag),
+        destination_tag: destinationTag
+      });
+      tags = await tagsApi.list();
+      if (tagAnalytics) {
+        await loadTagAnalytics();
+      }
+      actionSuccess = `Merged ${result.merged_tags.length} tags into "${result.destination_tag}".`;
+      setTimeout(() => (actionSuccess = ""), 3000);
+    } catch (e: unknown) {
+      actionError = e instanceof Error ? e.message : "Failed to merge tags.";
+      setTimeout(() => (actionError = ""), 3000);
+    }
+  }
+
   // Helper function for tag colors (same as SearchFilterBar)
+  // 8 visually distinct colors across the spectrum
   const TAG_COLORS = [
-    "bg-blue-100 text-blue-800",
-    "bg-green-100 text-green-800",
-    "bg-purple-100 text-purple-800",
-    "bg-yellow-100 text-yellow-800",
-    "bg-pink-100 text-pink-800",
-    "bg-indigo-100 text-indigo-800",
+    "bg-red-100 text-red-800",
     "bg-orange-100 text-orange-800",
-    "bg-teal-100 text-teal-800"
+    "bg-yellow-100 text-yellow-800",
+    "bg-green-100 text-green-800",
+    "bg-cyan-100 text-cyan-800",
+    "bg-blue-100 text-blue-800",
+    "bg-violet-100 text-violet-800",
+    "bg-pink-100 text-pink-800"
   ];
 
-  function tagColor(tag: string): string {
+  function tagColor(tag: string, colorIndex?: number | null): string {
+    // Use stored color index if available, otherwise fall back to hash-based
+    if (colorIndex !== undefined && colorIndex !== null) {
+      return TAG_COLORS[colorIndex % TAG_COLORS.length];
+    }
     let hash = 0;
     for (let i = 0; i < tag.length; i++) {
       hash = (hash * 31 + tag.charCodeAt(i)) & 0xffffffff;
@@ -1481,7 +1743,126 @@
 
       <!-- Tags Management -->
       <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Tags</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Tags</h2>
+          <div class="flex items-center gap-2">
+            <button
+              onclick={toggleAnalytics}
+              class="text-sm px-3 py-1.5 text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg transition-colors"
+            >
+              {showAnalytics ? "Hide" : "Show"} Analytics
+            </button>
+            <button
+              onclick={openCreateTagModal}
+              class="text-sm px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              + Create Tag
+            </button>
+          </div>
+        </div>
+
+        <!-- Analytics Panel -->
+        {#if showAnalytics}
+          <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">
+              Tag Analytics
+            </h3>
+            {#if analyticsLoading}
+              <div class="flex items-center gap-2 text-sm text-gray-500">
+                <div
+                  class="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"
+                ></div>
+                Loading analytics...
+              </div>
+            {:else if tagAnalytics}
+              <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="text-center p-3 bg-white rounded-lg">
+                  <div class="text-2xl font-bold text-gray-900">
+                    {tagAnalytics.total_tags}
+                  </div>
+                  <div class="text-xs text-gray-500">Total Tags</div>
+                </div>
+                <div class="text-center p-3 bg-white rounded-lg">
+                  <div class="text-2xl font-bold text-green-600">
+                    {tagAnalytics.used_tags}
+                  </div>
+                  <div class="text-xs text-gray-500">In Use</div>
+                </div>
+                <div class="text-center p-3 bg-white rounded-lg">
+                  <div class="text-2xl font-bold text-amber-600">
+                    {tagAnalytics.unused_tags}
+                  </div>
+                  <div class="text-xs text-gray-500">Unused</div>
+                </div>
+              </div>
+
+              <!-- Similar Tags Suggestions -->
+              {#if tagAnalytics.similar_tag_groups.length > 0}
+                <div class="mb-4">
+                  <h4 class="text-xs font-semibold text-gray-700 mb-2">
+                    Similar Tags (Potential Merges)
+                  </h4>
+                  <div class="space-y-2">
+                    {#each tagAnalytics.similar_tag_groups as group (group.suggestion)}
+                      <div
+                        class="flex items-center justify-between p-2 bg-white rounded border border-gray-200"
+                      >
+                        <div class="flex items-center gap-2 flex-wrap">
+                          {#each group.tags as tag (tag)}
+                            <span class="px-2 py-1 text-xs bg-gray-100 rounded"
+                              >{tag}</span
+                            >
+                          {/each}
+                          <span class="text-xs text-gray-500"
+                            >→ Suggest: <strong>{group.suggestion}</strong
+                            ></span
+                          >
+                        </div>
+                        <button
+                          onclick={() =>
+                            quickMergeTags(group.tags, group.suggestion)}
+                          class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Merge
+                        </button>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Unused Tags Quick Cleanup -->
+              {#if tagAnalytics.unused_tag_names.length > 0}
+                <div>
+                  <h4 class="text-xs font-semibold text-gray-700 mb-2">
+                    Unused Tags (Safe to Delete)
+                  </h4>
+                  <div class="flex flex-wrap gap-2">
+                    {#each tagAnalytics.unused_tag_names as tagName (tagName)}
+                      <span
+                        class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 rounded"
+                      >
+                        {tagName}
+                        <button
+                          onclick={() => {
+                            deletingTag = tagName;
+                            confirmDeleteTag(tagName);
+                          }}
+                          class="text-gray-400 hover:text-red-600"
+                          title="Delete"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            {:else}
+              <div class="text-sm text-gray-500">Failed to load analytics.</div>
+            {/if}
+          </div>
+        {/if}
 
         {#if tagsLoading}
           <div class="flex items-center gap-2 text-sm text-gray-500">
@@ -1497,105 +1878,432 @@
         {:else if tags.length === 0}
           <p class="text-sm text-gray-500">
             No tags created yet. Tags are automatically created when you add
-            them to links.
+            them to links, or you can create them manually above.
           </p>
         {:else}
-          <div class="space-y-2">
-            {#each tags as tag (tag.name)}
-              <div
-                class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-              >
-                <div class="flex items-center gap-3">
-                  <span
-                    class="inline-block w-3 h-3 rounded-full {tagColor(
-                      tag.name
-                    ).split(' ')[0]}"
-                  ></span>
-                  {#if editingTag === tag.name}
-                    <input
-                      type="text"
-                      bind:value={newTagName}
-                      onkeydown={(e) => {
-                        if (e.key === "Enter") saveTagRename(tag.name);
-                        if (e.key === "Escape") cancelEditTag();
-                      }}
-                      class="px-2 py-1 text-sm border border-gray-300 rounded focus:border-orange-500 focus:outline-none"
-                      maxlength="50"
-                    />
-                  {:else}
-                    <span class="font-medium text-gray-900">{tag.name}</span>
-                  {/if}
-                  <span class="text-sm text-gray-500">({tag.count} links)</span>
-                </div>
-
-                <div class="flex items-center gap-2">
-                  {#if editingTag === tag.name}
-                    <button
-                      onclick={() => saveTagRename(tag.name)}
-                      disabled={savingTag}
-                      class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {savingTag ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      onclick={cancelEditTag}
-                      disabled={savingTag}
-                      class="text-xs px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Cancel
-                    </button>
-                  {:else}
-                    <button
-                      onclick={() => startEditTag(tag.name)}
-                      class="text-xs px-2 py-1 text-blue-600 hover:text-blue-700"
-                    >
-                      Rename
-                    </button>
-                    <button
-                      onclick={() => startDeleteTag(tag.name)}
-                      class="text-xs px-2 py-1 text-red-600 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  {/if}
-                </div>
-              </div>
-
-              {#if editingTag === tag.name && tagError}
-                <div class="ml-3 text-xs text-red-600">
-                  {tagError}
-                </div>
-              {/if}
-
-              {#if deletingTag === tag.name}
-                <div
-                  class="ml-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+          <!-- Search and Bulk Actions -->
+          <div class="flex flex-col sm:flex-row gap-3 mb-4">
+            <div class="flex-1">
+              <input
+                type="text"
+                bind:value={tagSearchQuery}
+                placeholder="Search tags..."
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+              />
+            </div>
+            {#if selectedTags.size > 0}
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-600"
+                  >{selectedTags.size} selected</span
                 >
-                  <p class="text-sm text-red-800 mb-3">
-                    Are you sure you want to delete the tag "{tag.name}"? This
-                    will remove it from {tag.count}
-                    link{tag.count === 1 ? "" : "s"}.
-                  </p>
-                  <div class="flex gap-2">
-                    <button
-                      onclick={() => confirmDeleteTag(tag.name)}
-                      class="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onclick={cancelDeleteTag}
-                      class="text-xs px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            {/each}
+                <button
+                  onclick={openMergeModal}
+                  disabled={selectedTags.size < 2}
+                  class="text-xs px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Merge
+                </button>
+                <button
+                  onclick={bulkDeleteUnusedTags}
+                  class="text-xs px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!Array.from(selectedTags).some(
+                    (name) => tags.find((t) => t.name === name)?.count === 0
+                  )}
+                >
+                  Delete Unused
+                </button>
+                <button
+                  onclick={deselectAllTags}
+                  class="text-xs px-3 py-2 text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg"
+                >
+                  Clear
+                </button>
+              </div>
+            {/if}
           </div>
+
+          <!-- Tags Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-gray-200">
+                  <th class="py-2 px-2 text-left w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedTags.size === filteredTags().length &&
+                        filteredTags().length > 0}
+                      onclick={() =>
+                        selectedTags.size === filteredTags().length
+                          ? deselectAllTags()
+                          : selectAllTags()}
+                      class="rounded border-gray-300"
+                    />
+                  </th>
+                  <th
+                    class="py-2 px-2 text-left font-medium text-gray-700 cursor-pointer hover:text-gray-900"
+                    onclick={() => setTagSort("name")}
+                  >
+                    Tag Name {tagSortField === "name"
+                      ? tagSortDirection === "asc"
+                        ? "↑"
+                        : "↓"
+                      : ""}
+                  </th>
+                  <th
+                    class="py-2 px-2 text-left font-medium text-gray-700 cursor-pointer hover:text-gray-900 w-24"
+                    onclick={() => setTagSort("count")}
+                  >
+                    Links {tagSortField === "count"
+                      ? tagSortDirection === "asc"
+                        ? "↑"
+                        : "↓"
+                      : ""}
+                  </th>
+                  <th
+                    class="py-2 px-2 text-left font-medium text-gray-700 cursor-pointer hover:text-gray-900 w-32 hidden sm:table-cell"
+                    onclick={() => setTagSort("created_at")}
+                  >
+                    Created {tagSortField === "created_at"
+                      ? tagSortDirection === "asc"
+                        ? "↑"
+                        : "↓"
+                      : ""}
+                  </th>
+                  <th
+                    class="py-2 px-2 text-left font-medium text-gray-700 cursor-pointer hover:text-gray-900 w-32 hidden md:table-cell"
+                    onclick={() => setTagSort("last_used_at")}
+                  >
+                    Last Used {tagSortField === "last_used_at"
+                      ? tagSortDirection === "asc"
+                        ? "↑"
+                        : "↓"
+                      : ""}
+                  </th>
+                  <th
+                    class="py-2 px-2 text-right font-medium text-gray-700 w-32"
+                    >Actions</th
+                  >
+                </tr>
+              </thead>
+              <tbody>
+                {#each filteredTags() as tag (tag.name)}
+                  <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-2 px-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedTags.has(tag.name)}
+                        onclick={() => toggleTagSelection(tag.name)}
+                        class="rounded border-gray-300"
+                      />
+                    </td>
+                    <td class="py-2 px-2">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="inline-block w-2.5 h-2.5 rounded-full {tagColor(
+                            tag.name,
+                            tag.color_index
+                          ).split(' ')[0]}"
+                        ></span>
+                        <span class="font-medium text-gray-900">{tag.name}</span
+                        >
+                      </div>
+                    </td>
+                    <td class="py-2 px-2 text-gray-600">{tag.count}</td>
+                    <td
+                      class="py-2 px-2 text-gray-500 text-xs hidden sm:table-cell"
+                    >
+                      {new Date(tag.created_at * 1000).toLocaleDateString()}
+                    </td>
+                    <td
+                      class="py-2 px-2 text-gray-500 text-xs hidden md:table-cell"
+                    >
+                      {tag.last_used_at
+                        ? new Date(tag.last_used_at * 1000).toLocaleDateString()
+                        : "Never"}
+                    </td>
+                    <td class="py-2 px-2 text-right">
+                      <div class="flex items-center justify-end gap-1">
+                        <button
+                          onclick={() => openEditTagModal(tag)}
+                          class="px-2 py-1 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onclick={() => startDeleteTag(tag.name)}
+                          class="px-2 py-1 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {#if deletingTag === tag.name}
+                    <tr>
+                      <td colspan="6" class="py-2 px-4">
+                        <div
+                          class="p-3 bg-red-50 border border-red-200 rounded-lg"
+                        >
+                          <p class="text-sm text-red-800 mb-2">
+                            Delete tag "{tag.name}"?
+                            {#if tag.count > 0}
+                              This will remove the tag from {tag.count} link{tag.count ===
+                              1
+                                ? ""
+                                : "s"}.
+                            {/if}
+                            This cannot be undone.
+                          </p>
+                          <div class="flex gap-2">
+                            <button
+                              onclick={() => confirmDeleteTag(tag.name)}
+                              class="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onclick={cancelDeleteTag}
+                              class="text-xs px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  {/if}
+                {/each}
+              </tbody>
+            </table>
+          </div>
+
+          {#if filteredTags().length === 0 && tagSearchQuery}
+            <div class="text-center py-8 text-gray-500">
+              No tags match your search.
+            </div>
+          {/if}
         {/if}
       </div>
+
+      <!-- Create Tag Modal -->
+      {#if isCreateTagModalOpen}
+        <div
+          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        >
+          <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Create New Tag</h3>
+
+            <div class="mb-4">
+              <label
+                for="newTagName"
+                class="block text-sm font-medium text-gray-700 mb-1"
+                >Tag Name</label
+              >
+              <input
+                id="newTagName"
+                type="text"
+                bind:value={newTagNameInput}
+                placeholder="Enter tag name..."
+                maxlength="50"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+              />
+              <p class="text-xs text-gray-500 mt-1">Max 50 characters</p>
+            </div>
+
+            <div class="mb-4">
+              <span class="block text-sm font-medium text-gray-700 mb-2"
+                >Color (optional)</span
+              >
+              <div class="flex gap-2 flex-wrap">
+                {#each TAG_COLORS as color, index (index)}
+                  <button
+                    onclick={() =>
+                      (selectedColorIndex =
+                        selectedColorIndex === index ? null : index)}
+                    class="w-8 h-8 rounded-full {color.split(
+                      ' '
+                    )[0]} {selectedColorIndex === index
+                      ? 'ring-2 ring-offset-2 ring-gray-400'
+                      : ''}"
+                    title="Select color"
+                  ></button>
+                {/each}
+              </div>
+            </div>
+
+            {#if createTagError}
+              <div class="mb-4 text-sm text-red-600">{createTagError}</div>
+            {/if}
+
+            <div class="flex gap-3">
+              <button
+                onclick={closeCreateTagModal}
+                class="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onclick={confirmCreateTag}
+                disabled={creatingTag || !newTagNameInput.trim()}
+                class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              >
+                {creatingTag ? "Creating..." : "Create Tag"}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Edit Tag Modal -->
+      {#if isEditTagModalOpen}
+        <div
+          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        >
+          <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">Edit Tag</h3>
+
+            <div class="mb-4">
+              <label
+                for="editTagName"
+                class="block text-sm font-medium text-gray-700 mb-1"
+                >Tag Name</label
+              >
+              <input
+                id="editTagName"
+                type="text"
+                bind:value={editTagNewName}
+                placeholder="Enter tag name..."
+                maxlength="50"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+              />
+              <p class="text-xs text-gray-500 mt-1">Max 50 characters</p>
+            </div>
+
+            <div class="mb-4">
+              <span class="block text-sm font-medium text-gray-700 mb-2"
+                >Color</span
+              >
+              <div class="flex gap-2 flex-wrap">
+                {#each TAG_COLORS as color, index (index)}
+                  <button
+                    onclick={() =>
+                      (editTagColorIndex =
+                        editTagColorIndex === index ? null : index)}
+                    class="w-8 h-8 rounded-full {color.split(
+                      ' '
+                    )[0]} {editTagColorIndex === index
+                      ? 'ring-2 ring-offset-2 ring-gray-400'
+                      : ''}"
+                    title="Select color"
+                  ></button>
+                {/each}
+              </div>
+              {#if editTagColorIndex === null}
+                <p class="text-xs text-gray-500 mt-2">
+                  No color selected. Will use auto-generated color based on tag
+                  name.
+                </p>
+              {/if}
+            </div>
+
+            {#if editTagError}
+              <div class="mb-4 text-sm text-red-600">{editTagError}</div>
+            {/if}
+
+            <div class="flex gap-3">
+              <button
+                onclick={closeEditTagModal}
+                class="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onclick={confirmEditTag}
+                disabled={savingEditTag || !editTagNewName.trim()}
+                class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              >
+                {savingEditTag ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Merge Tags Modal -->
+      {#if isMergeModalOpen}
+        <div
+          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        >
+          <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Merge Tags</h3>
+            <p class="text-sm text-gray-600 mb-4">
+              Merge {selectedTags.size} selected tags into one destination tag. All
+              links using the source tags will be updated.
+            </p>
+
+            <div class="mb-4">
+              <label
+                for="mergeDestination"
+                class="block text-sm font-medium text-gray-700 mb-2"
+                >Destination Tag</label
+              >
+              <select
+                id="mergeDestination"
+                bind:value={mergeDestinationTag}
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+              >
+                <option value="">Select destination...</option>
+                {#each Array.from(selectedTags) as tagName (tagName)}
+                  <option value={tagName}>{tagName}</option>
+                {/each}
+                <option value="__new__">-- Create new tag --</option>
+              </select>
+              {#if mergeDestinationTag === "__new__"}
+                <input
+                  type="text"
+                  bind:value={mergeDestinationTag}
+                  placeholder="Enter new tag name..."
+                  class="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                  onfocus={() => {
+                    if (mergeDestinationTag === "__new__")
+                      mergeDestinationTag = "";
+                  }}
+                />
+              {/if}
+            </div>
+
+            <div class="mb-4 p-3 bg-blue-50 rounded-lg">
+              <p class="text-sm text-blue-800">
+                <strong>Source tags to merge:</strong>
+                {#each Array.from(selectedTags).filter((t) => t !== mergeDestinationTag) as tag, i (tag)}
+                  {i > 0 ? ", " : ""}"{tag}"
+                {/each}
+              </p>
+            </div>
+
+            {#if mergeError}
+              <div class="mb-4 text-sm text-red-600">{mergeError}</div>
+            {/if}
+
+            <div class="flex gap-3">
+              <button
+                onclick={closeMergeModal}
+                class="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onclick={confirmMergeTags}
+                disabled={mergingTags}
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {mergingTags ? "Merging..." : "Merge Tags"}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <!-- Danger Zone (owner only, multiple orgs) -->
       {#if isOwner}
