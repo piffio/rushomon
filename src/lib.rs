@@ -59,7 +59,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         match assets.fetch(asset_url, None).await {
             Ok(asset_response) if asset_response.status_code() < 400 => {
                 let rebuilt = rebuild_asset_response(asset_response, path).await?;
-                let response_with_headers = add_security_headers(rebuilt, is_https);
+                let response_with_headers = add_security_headers(rebuilt, is_https, &env);
                 return Ok(add_cors_headers(response_with_headers, origin, &env));
             }
             _ => {
@@ -96,12 +96,12 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
             && fallback_response.status_code() < 400
         {
             let rebuilt = rebuild_asset_response(fallback_response, path).await?;
-            let response_with_headers = add_security_headers(rebuilt, is_https);
+            let response_with_headers = add_security_headers(rebuilt, is_https, &env);
             return Ok(add_cors_headers(response_with_headers, origin, &env));
         }
     }
 
     // Add security headers and CORS headers to all responses
-    let response = add_security_headers(response, is_https);
+    let response = add_security_headers(response, is_https, &env);
     Ok(add_cors_headers(response, origin, &env))
 }
