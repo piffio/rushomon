@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Org analytics response with clicks, top links, referrers, countries, and user agents"},"401":{"description":"Unauthorized"},"404":{"description":"Organization not found"}}}

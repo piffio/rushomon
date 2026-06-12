@@ -1,0 +1,69 @@
+---
+id: handle-get-org-logo
+title: "Get org logo"
+description: "Serves the organization logo from R2 storage. Public endpoint - no authentication required"
+sidebar_label: "Get org logo"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1Vt9v2zYQ/lcOzMOSQJadNkALPa1bu8Jd2gZJiw6og5imzhIXidTIY1zP0P8+HCk7dpN1T3uSQN7x7vvu50aU6JXTHWlrRCGu0d2jB6oRrKuk0X9LvoHGVhaWzrZw9Qw8WScrzOEyLBqtAE3ZWW0IRmAsyEA1GtIqaTr8K2iHpciE7dDFw2kpClFLUzZ4WyHdWlfdsgWRiU462SKh86L4uvnOu4/7Lk1fi0xoPu4k1SITRrYoCqHZ1M5qQS5gJryqsZWi2AhadyzlyWlTib6/YWHfWePR8/2zyYQ/h4YvGL5uZYWiz8T55PyxyAc7kGSDKWFpHVCtPbMo+j4TJCtGdADBi5tMtEi1ZT4qpIifalGIsez02LrKjze67McDOZ6j8yQzl86WQUVeXl1ORSaCa5hjos4XY34td8HXtrUmV0r02WOESjZQ4j02tmvR0MEbxXjcsEBtPRUvX7x8IZg3jyo4TetrJjex9wtKh47/FvHvN+taSaIQ7758AuvYOfgd12KICEciCYpsGxm2FynTZmn5JWUNSUX8i63U7JMPXWcd/byPaZcAV8MhXCcpDtkhWPaitCowzpRMKV4IO93PVxfga+sIDTpg4rXCfGZm5ugIXh2kOB++t552deC3Sf99LQSvTQWoqUZXzMwITk+v0Xu+UtbeafSnp3DMvqxwAbLrmgdNdP4kqSSOgewdmp0CQ7rDNcuwi0fwOdoa+PZ8epbDrw4lIUizlQdtIu5S+nphpSvh+NJZII2Ow1Xrqka3q+GTmXmWw9SoJpQY9faeYFKs21ZnjbKMIAFgPp/H74FEAQMOZ287Sbd5nj8IJwjvQ0N6dFD0+3i2kEFJAwsEr2yHJZAF36HSS60OepjP4UuN2yBIaOPr1lX8SAZrG6ANngbldcRE0lVIh60w6fPt/A92bjQt5w9wZyYC+G+oW92CXx+FoMtRjQ4H/SE5tKka3ProT08L+PSUXeBGE5NbNjlMl2BbTYRltouRVOTBGtDkwcdXY26yi1ge4MuT6ff77PzY8jY78igynN/LJmAitJWkarAGwS63kwWmr/02ce5w/ZNP0RuMX2Al1ToF99jYdHcyOOExXUhFjOjRqKIa17BCh6BitpdgTf7v3htLMLQTLGOBT5cxGSQRth1xPgWP3ycMrDTVNtDTiZBx8bAEl1qCCzaQ1w9ls4WcMm+lmwYcKtT3bOp8MuEXzifPAZ2zLo9t52qYU5C6aqyBqDaML5AO4d31xw/czlr2v8zhDevvySxt09hVGk6eXFAUHBYx7f703Mw2XIYzEe3ORAEzkZ5o0XtZIaRWuuAiWNWSYIWGYOWsqWZiZvpdAh8dwaWstNn1yAt90CMH0qHbCSXG5p2scA7SlDBvdKtpDn8FdGt4WA1i70xyBRtBMKFdoIPjs5E2JX7j1C9xKUNDBZzFvjm8VcCUsPXQoWPLyCpnk8me+LPJycyITDRaofHIY2cYLK/eXl6MnueTR+N1tVrllQm5ddV4UPNjWXUNS+c1tQ3PINLUHMwnnjHXuxmT5jbP9zSkWqkNq3XWUyvNnh9vU0uCYSs4mG1pXPL8/p+XuWFaE36jcdcMvkZaNsMS81XITvPa5yovMlHExSz6fJMJ3iRYZLNZSI+fXdP3fBwjLYqvN5m4l07LBTPG2472/F+KYikbjz8AfXy1HVbweF180unhUBpeS2LfEoUQmbjDdVon+5t+b097++aT6Pt/AF8M5Zw=
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get org logo"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/orgs/{id}/logo"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Serves the organization logo from R2 storage. Public endpoint - no authentication required
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-get-org-logo.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-org-logo.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-org-logo.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

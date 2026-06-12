@@ -1,0 +1,61 @@
+---
+id: handle-import-links
+title: "Import links from CSV"
+description: "Bulk-imports links from a CSV payload. Accepts a JSON array of rows parsed from CSV. Each row must have at least a destination_url. Returns counts of created, skipped (duplicate short codes), and failed rows"
+sidebar_label: "Import links from CSV"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVt9v2zYQ/lcOzMOSQJadrkALPS3NusFdugZx0g6Ig5iWzhZnilTJY1zP8P8+HCkldttt73uyTN6v7+54321Fhb50qiVljSjEm6BXA9W01pEHrczKw8LZBiRcTD5CKzfayiqH87LEljxIeDf58DtI5+QG7AKcXXtopfNYJb2Lyccc3sqy5itogieo5SOCJNAoPYGECj0pIzmAh+B0DtdIwRkPpQ2GPJstHUrCKgO/Um2LFRxXodWqlITga+sISluhP8lAmgoWUmmsYiwiE7ZFF42PK1GIWppK40NC+BABikw49K01Hr0otuLFaMQ/h3kZRwVw6IMmWCuq+6CGXUzDzm2KWuwy8fK7hsyj1KoCh58DeoK5rTZJ+Oxb4VsjA9XWqb+wErtdJjyWwSnaiOJuK96gdOhEcXe/y7bCo/ecwtLalcJ4ep8JkksvijtxGZHeZ6JBqi1norWeRCZaSbUoxFC2ahjTMUy5EezMPaLz0ddhXFfOVqHkP3B+NRaZCE5zcolaXwzZVu6Cr21jTV6WgsM7NHBpS6mhwkfUtm3Q0IGNYjjULFBbT8XrV69fCYbSY5+UNTapVH0GtmIev36xrpEkCvHu0w1Yx8HBb7hhLFFJFJ2gyARtWuz8xdQqs7BsqbSGZEn8iY1UHJMPLafkp31MmTAyGrzuDmGSpLiYh2A5isqWgXHGToSFdUA1wpPu7fVlamQ06IATr0rMp2Zqjo7gPFCNhrjdlTV8+N56AjRVaxW/EO4l5RDkgSAEr8wSUFGNrpiaAZyeTlKTQGoSf3oKxxzLGucg2/SikiY6f5JUUo6B7ArNkwJDWuGGZTjEI7iNvrp8ez49y+EivhCQppcHZSLuSvp6bqWr4PjKWSCFjstVq2WNrodTnUzNixzGptShwqi3Z+K8exgp4BplFUECwGw2i78HEgV0OJx9aCU95Hn+LJwgvA+a1OCDW0rTm93H00OGUhqYI/jS8iQiC77FUi1UCXZP1+fwqca+CBKaaN26JRvJYGNDmoZJeRMxkXRLpAMznT7fzv7g4AbjavYMd2oigP+G2usWbH0QgqoGNTrs9LvmUGapsY/Rn54WcPM9v6A82NjcUucwXoBtFMXx3NdIljy3DSjy4KNVeB5kB/jy5Pr9fnb+3XPfHXkU6c4fpQ6YEtpIKmuwBpk4OCC2Ov7Z942zws0PPlWvc36JS1luUnGPjU13J10QHtOFLIkRdQaf60M1bmCNDns+AGvyf47eWIJunGAVH/h4EZtBEmHTEvdT8Ph1w0TGsYG+3wgZP57ISdJ0cMEG8ur52fSQU+etldbgsETFVAwvRyO28HL0I6Bz1uVx7Fx3pAhpqsY3ENU6rgTpMNH/IgowIHjL+nsyC6u1XQPVyoMnF0oKDovYdn96HmZbfoZTEf1ORQFTkUw06L1cIqRROudHsK4lwRoNwdpZs5yKqdk9NfDREVzJZbdH8MGlOpiRXdKhfRJKGZu1comzuDfMtGoUzeBzQLfhLUY2SOh8nJ1JrmAnCCY0c3RwfDZQpsIv3PoVLmTQVMBZnJudrQLGhI2HFh17RlY5G432xF+MTqZGZEKrEo1Hpp2OWM5/vboc/JiPvqHX9XqdL03IrVsOOzU/lMtWs3ReU6OZg0iRPuAn5pjJE8ck3mZ+TyTVSGVYjdeCRpq9OLrVZ28ZvJh8FF+RXOJNJvL/4w7Z7QqEX2jY6i5TsSjbboG6E7JVsYxpo+yWqPtM8BLD99vtXHq8dXq34+PYZLylZeJROiXnOu1sexva1YfJjcgET0521AXxtMDM+/Xv6UoaXnXiLBQFO4wSN8zcu53IxAo3jIL/i939brf7G194LkY=
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Import links from CSV"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/links/import"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Bulk-imports links from a CSV payload. Accepts a JSON array of rows parsed from CSV. Each row must have at least a destination_url. Returns counts of created, skipped (duplicate short codes), and failed rows
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-import-links.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-import-links.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Invitation created and email sent"},"400":{"description":"Invalid email or missing fields"},"401":{"description":"Unauthorized"},"403":{"description":"Owner or admin required, or member limit reached"},"409":{"description":"Already a member or invitation pending"}}}
