@@ -43,6 +43,43 @@ jobs:
           fi
           echo "Testing against: $TEST_TARGET"
 
+      - name: Disable Bot Fight Mode (Production Only)
+        if: ${{ inputs.test_target == 'production' || inputs.test_target == '' }}
+        env:
+          PRODUCTION_CF_TOKEN: ${{ secrets.PRODUCTION_CF_TOKEN }}
+          PRODUCTION_ZONE_ID: ${{ secrets.PRODUCTION_ZONE_ID }}
+        run: |
+          echo "🛡️  Temporarily disabling Bot Fight Mode for diagnostic tests..."
+
+          # Store original state for restoration
+          ORIGINAL_STATE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/zones/$PRODUCTION_ZONE_ID/bot_management" \
+            -H "Authorization: Bearer $PRODUCTION_CF_TOKEN" \
+            -H "Content-Type: application/json" | jq -r '.result.fight_mode // "unknown"')
+
+          echo "Original Bot Fight Mode state: $ORIGINAL_STATE"
+          echo "original_bot_fight_mode=$ORIGINAL_STATE" >> $GITHUB_ENV
+
+          # Disable Bot Fight Mode
+          RESPONSE=$(curl -s -X PUT \
+            "https://api.cloudflare.com/client/v4/zones/$PRODUCTION_ZONE_ID/bot_management" \
+            -H "Authorization: Bearer $PRODUCTION_CF_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"fight_mode":false}')
+
+          SUCCESS=$(echo "$RESPONSE" | jq -r '.success')
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Bot Fight Mode disabled successfully"
+            # Wait for propagation
+            echo "⏳ Waiting 5 seconds for change to propagate..."
+            sleep 5
+          else
+            echo "❌ Failed to disable Bot Fight Mode via API"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
+
       - name: Test 1 - Basic Request (Current Headers)
         run: |
           echo "=========================================="
@@ -225,3 +262,36 @@ jobs:
           echo "- Missing cookies/challenge completion"
           echo ""
           echo "Check Cloudflare Dashboard > Security > Events for blocked requests."
+
+      - name: Restore Bot Fight Mode (Production Only)
+        if: ${{ (inputs.test_target == 'production' || inputs.test_target == '') && always() }}
+        env:
+          PRODUCTION_CF_TOKEN: ${{ secrets.PRODUCTION_CF_TOKEN }}
+          PRODUCTION_ZONE_ID: ${{ secrets.PRODUCTION_ZONE_ID }}
+          ORIGINAL_STATE: ${{ env.original_bot_fight_mode }}
+        run: |
+          echo "🛡️  Restoring Bot Fight Mode to original state..."
+
+          if [ -z "$ORIGINAL_STATE" ] || [ "$ORIGINAL_STATE" = "unknown" ]; then
+            echo "⚠️  Original state unknown, defaulting to enabled (fight_mode: true)"
+            ORIGINAL_STATE="true"
+          fi
+
+          echo "Restoring to: fight_mode=$ORIGINAL_STATE"
+
+          RESPONSE=$(curl -s -X PUT \
+            "https://api.cloudflare.com/client/v4/zones/$PRODUCTION_ZONE_ID/bot_management" \
+            -H "Authorization: Bearer $PRODUCTION_CF_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"fight_mode\":$ORIGINAL_STATE}")
+
+          SUCCESS=$(echo "$RESPONSE" | jq -r '.success')
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Bot Fight Mode restored successfully (fight_mode: $ORIGINAL_STATE)"
+          else
+            echo "❌ Failed to restore Bot Fight Mode"
+            echo "Response: $RESPONSE"
+            echo "⚠️  Manual action required: Check Bot Fight Mode in Cloudflare Dashboard"
+            exit 1
+          fi
