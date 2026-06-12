@@ -429,7 +429,7 @@ jobs:
     steps:
       - name: Temporarily Disable Bot Fight Mode
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_BOT_HANDLING_TOKEN: ${{ secrets.CF_BOT_HANDLING_TOKEN }}
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: |
           echo "🛡️  Temporarily disabling Bot Fight Mode for smoke tests..."
@@ -437,7 +437,7 @@ jobs:
           # Store original state for restoration
           ORIGINAL_STATE=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/bot_management" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Authorization: Bearer $CF_BOT_HANDLING_TOKEN" \
             -H "Content-Type: application/json" | jq -r '.result.fight_mode // "unknown"')
 
           echo "Original Bot Fight Mode state: $ORIGINAL_STATE"
@@ -446,7 +446,7 @@ jobs:
           # Disable Bot Fight Mode
           RESPONSE=$(curl -s -X PUT \
             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/bot_management" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Authorization: Bearer $CF_BOT_HANDLING_TOKEN" \
             -H "Content-Type: application/json" \
             -d '{"fight_mode":false}')
 
@@ -625,7 +625,7 @@ jobs:
       - name: Restore Bot Fight Mode
         if: always()
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_BOT_HANDLING_TOKEN: ${{ secrets.CF_BOT_HANDLING_TOKEN }}
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
           ORIGINAL_STATE: ${{ env.original_bot_fight_mode }}
         run: |
@@ -640,7 +640,7 @@ jobs:
 
           RESPONSE=$(curl -s -X PUT \
             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/bot_management" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Authorization: Bearer $CF_BOT_HANDLING_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"fight_mode\":$ORIGINAL_STATE}")
 
