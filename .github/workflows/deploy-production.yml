@@ -314,6 +314,9 @@ jobs:
 
   deploy-docs:
     name: Deploy Docs to Production
+    # Only deploy docs on tagged releases, not on manual workflow_dispatch triggers
+    # Manual deployments use branch names (e.g., "main") which fail version validation
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: deploy
@@ -422,7 +425,7 @@ jobs:
     name: Production Smoke Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [deploy, deploy-docs]
+    needs: deploy
     environment:
       name: production
 
