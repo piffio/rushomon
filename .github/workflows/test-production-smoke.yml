@@ -1,0 +1,222 @@
+name: Test Production Smoke (Diagnostic)
+
+on:
+  workflow_dispatch:
+    inputs:
+      detailed_diagnostics:
+        description: 'Run detailed diagnostics with verbose output'
+        required: false
+        default: true
+        type: boolean
+      test_target:
+        description: 'Which environment to test'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  diagnostic-test:
+    name: Diagnostic Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Set environment variables
+        run: |
+          if [ "${{ inputs.test_target }}" = "production" ]; then
+            # Hardcoded production domains for diagnostic testing
+            echo "TEST_URL=https://rushomon.cc" >> $GITHUB_ENV
+            echo "REDIRECT_URL=https://rshmn.cc" >> $GITHUB_ENV
+            echo "DOCS_URL=https://docs.rushomon.cc" >> $GITHUB_ENV
+          else
+            echo "TEST_URL=https://${{ secrets.STAGING_WEB_DOMAIN }}" >> $GITHUB_ENV
+            echo "REDIRECT_URL=https://${{ secrets.STAGING_REDIRECT_DOMAIN }}" >> $GITHUB_ENV
+            echo "DOCS_URL=https://${{ secrets.STAGING_DOCS_DOMAIN }}" >> $GITHUB_ENV
+          fi
+          echo "Testing against: ${{ inputs.test_target }}"
+
+      - name: Test 1 - Basic Request (Current Headers)
+        run: |
+          echo "=========================================="
+          echo "Test 1: Basic Request (Current Headers)"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}\nSIZE:%{size_download}\nTIME:%{time_total}\nCONTENT_TYPE:%{content_type}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9" \
+            -H "Connection: keep-alive" \
+            "$TEST_URL/" 2>&1 || echo "CONNECTION_FAILED")
+
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          echo ""
+          echo "Result: HTTP $HTTP_CODE"
+
+      - name: Test 2 - Enhanced Human-Like Headers
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 2: Enhanced Human-Like Headers"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8" \
+            -H "Accept-Language: en-US,en;q=0.9,fr;q=0.8" \
+            -H "Accept-Encoding: gzip, deflate, br" \
+            -H "Connection: keep-alive" \
+            -H "Upgrade-Insecure-Requests: 1" \
+            -H "Sec-Fetch-Dest: document" \
+            -H "Sec-Fetch-Mode: navigate" \
+            -H "Sec-Fetch-Site: none" \
+            -H "Cache-Control: max-age=0" \
+            -H "DNT: 1" \
+            "$TEST_URL/" 2>&1 || echo "CONNECTION_FAILED")
+
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          echo ""
+          echo "Result: HTTP $HTTP_CODE"
+
+      - name: Test 3 - No User-Agent
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 3: No User-Agent Header"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+            -H "Accept: text/html" \
+            "$TEST_URL/" 2>&1 || echo "CONNECTION_FAILED")
+
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          echo ""
+          echo "Result: HTTP $HTTP_CODE"
+
+      - name: Test 4 - Simple curl (Minimal Headers)
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 4: Minimal Headers (curl default)"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+            "$TEST_URL/" 2>&1 || echo "CONNECTION_FAILED")
+
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          echo ""
+          echo "Result: HTTP $HTTP_CODE"
+
+      - name: Test 5 - API Endpoint (Authentication Test)
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 5: API Endpoint - /api/links"
+          echo "URL: $TEST_URL/api/links"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: application/json" \
+            "$TEST_URL/api/links" 2>&1 || echo "CONNECTION_FAILED")
+
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          echo ""
+          echo "Result: HTTP $HTTP_CODE (Expected: 401 for auth failure, 403 for bot block)"
+
+      - name: Test 6 - With Referer Header
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 6: With Referer Header"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          RESPONSE=$(curl -s -L -w "\nHTTP_CODE:%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html" \
+            -H "Referer: https://www.google.com/" \
+            "$TEST_URL/" 2>&1 || echo "CONNECTION_FAILED")
+
+          echo "$RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          echo ""
+          echo "Result: HTTP $HTTP_CODE"
+
+      - name: Test 7 - Verbose Output (if enabled)
+        if: inputs.detailed_diagnostics
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 7: Verbose Output (Headers)"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          echo "Request headers being sent:"
+          echo "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+          echo "Accept: text/html,application/xhtml+xml"
+          echo ""
+          echo "Response headers:"
+          curl -s -I -L \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9" \
+            "$TEST_URL/" 2>&1 | head -30 || echo "CONNECTION_FAILED"
+
+      - name: Test 8 - Check Response Body (if not 403)
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Test 8: Response Body Sample"
+          echo "URL: $TEST_URL/"
+          echo "=========================================="
+
+          HTTP_CODE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+            -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -H "Accept: text/html" \
+            "$TEST_URL/" 2>&1)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Got 200, showing first 500 chars of body:"
+            curl -s -L \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              -H "Accept: text/html" \
+              "$TEST_URL/" 2>&1 | head -c 500
+          elif [ "$HTTP_CODE" = "403" ]; then
+            echo "❌ Got 403, showing response body (likely Cloudflare challenge/blocked page):"
+            curl -s -L \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              -H "Accept: text/html" \
+              "$TEST_URL/" 2>&1 | head -c 1000
+          else
+            echo "Got HTTP $HTTP_CODE"
+          fi
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "DIAGNOSTIC TEST SUMMARY"
+          echo "Target: ${{ inputs.test_target }}"
+          echo "=========================================="
+          echo ""
+          echo "Compare results above to identify what's triggering 403."
+          echo ""
+          echo "Common causes of 403 from Cloudflare:"
+          echo "- Bot Fight Mode (free plan - cannot be bypassed)"
+          echo "- Security Level set to High or 'I'm Under Attack'"
+          echo "- Firewall rules blocking GitHub Actions IPs"
+          echo "- Browser Integrity Check failing"
+          echo "- Missing cookies/challenge completion"
+          echo ""
+          echo "Check Cloudflare Dashboard > Security > Events for blocked requests."
