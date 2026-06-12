@@ -53,8 +53,16 @@ pub fn is_allowed_origin(origin: &str, env: &Env) -> bool {
 /// - Strict-Transport-Security: Forces HTTPS (production only)
 /// - Referrer-Policy: Controls referrer information leakage
 /// - Permissions-Policy: Restricts access to browser features
-pub fn add_security_headers(mut response: Response, is_https: bool) -> Response {
+pub fn add_security_headers(mut response: Response, is_https: bool, env: &Env) -> Response {
     let headers = response.headers_mut();
+
+    // Get API domain for connect-src - needed when frontend and API are on different domains
+    let api_domain = env.var("DOMAIN").map(|d| d.to_string()).unwrap_or_default();
+    let connect_src = if api_domain.is_empty() {
+        "connect-src 'self';".to_string()
+    } else {
+        format!("connect-src 'self' https://{};", api_domain)
+    };
 
     // Content Security Policy - Defense in depth against XSS
     // - default-src 'self': Only load resources from same origin by default
@@ -62,33 +70,39 @@ pub fn add_security_headers(mut response: Response, is_https: bool) -> Response 
     // - style-src 'self' 'unsafe-inline': Allow same-origin styles + inline (needed for SvelteKit)
     // - img-src 'self' data: https:: Allow images from same origin, data URIs, and HTTPS
     // - font-src 'self': Only load fonts from same origin
-    // - connect-src 'self': Only allow API calls to same origin
+    // - connect-src 'self' [api_domain]: Allow API calls to same origin and configured API domain
     // - frame-ancestors 'none': Prevent embedding in iframes (redundant with X-Frame-Options)
     // - base-uri 'self': Prevent base tag injection
     // - form-action 'self': Restrict form submissions to same origin
     // - upgrade-insecure-requests: Automatically upgrade HTTP to HTTPS
     let csp = if is_https {
-        "default-src 'self'; \
+        &format!(
+            "default-src 'self'; \
          script-src 'self' 'unsafe-inline'; \
          style-src 'self' 'unsafe-inline'; \
          img-src 'self' data: https:; \
          font-src 'self' data:; \
-         connect-src 'self'; \
+         {} \
          frame-ancestors 'none'; \
          base-uri 'self'; \
          form-action 'self'; \
-         upgrade-insecure-requests"
+         upgrade-insecure-requests",
+            connect_src
+        )
     } else {
         // Development mode (no upgrade-insecure-requests for localhost)
-        "default-src 'self'; \
+        &format!(
+            "default-src 'self'; \
          script-src 'self' 'unsafe-inline'; \
          style-src 'self' 'unsafe-inline'; \
          img-src 'self' data: https:; \
          font-src 'self' data:; \
-         connect-src 'self'; \
+         {} \
          frame-ancestors 'none'; \
          base-uri 'self'; \
-         form-action 'self'"
+         form-action 'self'",
+            connect_src
+        )
     };
     let _ = headers.set("Content-Security-Policy", csp);
 
