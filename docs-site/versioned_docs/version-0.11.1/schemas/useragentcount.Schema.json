@@ -1,0 +1,1 @@
+{"schema":{"properties":{"count":{"example":10,"format":"int64","type":"integer"},"user_agent":{"example":"Mozilla/5.0...","type":"string"}},"required":["user_agent","count"],"type":"object","title":"UserAgentCount"},"schemaType":"response"}

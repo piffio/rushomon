@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Tier updated"},"400":{"description":"Invalid tier"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}

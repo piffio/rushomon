@@ -1,0 +1,1 @@
+{"schema":{"properties":{"color_index":{"format":"int32","type":["integer","null"]},"new_name":{"type":["string","null"]}},"type":"object","title":"UpdateTagRequest"},"schemaType":"response"}

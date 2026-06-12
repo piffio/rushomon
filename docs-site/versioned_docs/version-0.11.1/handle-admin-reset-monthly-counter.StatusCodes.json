@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Counter reset"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}

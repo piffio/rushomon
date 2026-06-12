@@ -1,0 +1,1 @@
+{"parameters":[{"description":"Authorization code from the OAuth provider","in":"query","name":"code","required":true,"schema":{"type":"string"}},{"description":"OAuth state parameter for CSRF protection","in":"query","name":"state","required":true,"schema":{"type":"string"}}]}

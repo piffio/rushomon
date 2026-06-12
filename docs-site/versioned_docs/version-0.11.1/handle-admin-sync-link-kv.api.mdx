@@ -1,0 +1,69 @@
+---
+id: handle-admin-sync-link-kv
+title: "Re-sync link KV entry"
+description: "Re-sync link KV entry"
+sidebar_label: "Re-sync link KV entry"
+hide_title: true
+hide_table_of_contents: true
+api: eJyFVm1v20YM/isE82FpIMtOG6CFPi1bt8FdugZ5WQfUQXyWaOlm6U69o+J6hv77wJPk2Em6fZJ0evjykDySW7Q1OcXammmGCRbKZCXdq6zS5t5vTHpfarO6Xz1ghLVyqiIm5zH5ssWMfOp0LaKY4IU2K5i+xwi1fNaKC4zQqIowQZ1hhI6+NtpRhgm7hiL0aUGVwmSLvKkF5dlpk2Pb3gnY19Z48vL/9WQij0ODv/8JZNhtQLykDNsIzyanz3G3RjVcWKf/GUBvnoPOhS/sPAyws+ewQNJYhqVtTIZtG6GntHGaNyEkP5Fy5DD5ctdGW/TkvbbmPrV2pSmc3kXIKpf4dSbxLnpi4opGQggk7DBwxAgr4sJKhmrrOSSDC0xwrGo9Dtkai4Qfb3XWjkXDKOTMk3t4OWGXzmZNKh9wfjnFCBtXSgEw1z4Zi97YNb6wlTVxmqIQehIMm6oSMnqg0tYVGT7QkYzHpQAK6zl59/bdWxTyQ7SuJfddcoeYbXER3n61rlKMCX74fAPWiXPwO0kIQsFIoXRAjIbCEXshGdosrWhKrWGVsrxSpbT45Ju6to5/3Oe0q8+r/hCuO5QUwJMCuZxCZtNGeIbbAkvrgAuCnezt1QX4wjomQw4k8DqleGZm5ugIzhsuyLBOg7AcfrSegUxWW23YD7UH6gAIjdcmB9JckEtmZgQnJ9ddWUFXVv7kBI7FlzUtQNV1+ShJzr/qRLoYA9sVmZ2AUFrRRjDi4hHcBlt9vL2cnsbwsyPFBMoMeNAm8M6ULxZWuQyOL50F1uQkXYXOC3K7q/RqZl7HMDVp2WQU5PZUnPcXs3O4IJUFkgAwn8/D8wCRQM/D2fta8X0cx4/gjsLHpmQ9+uRyZQa1+3wGypAqAwsCn9qaMmALvqZUL3UKdk/Wx/C5oCEJCqqg3bpclESwsQ1UjedeeBM4sXI58YGaXl7+zv8S50bTbP5Id2YCgf+nOsgmon3UNDobFeSol++LQ5u8pMFHf3KSwM1LdkF7sKG4VRnDdAm20syURbscqZQ9WAOaPfigFR4b6QG/uDP9cT86/215qI44QPrzB1U21AW0UpwWYA2BXQaHROv0vR8KZ0WbH3yXvd74BeUq3XTJPTa2+/eqd8JT90OlLIx6hY/54YI2sCZHkIZqz8Ca+PveywDo2wll4YJPl6EYFDNVNUs9NZ6eFgysNRe24ZcLIZLLIwi5ah1dsA17/XhtBspd5a11WYKjlPSDmDqbTETD2eQNkHPWxaHtXPVjFLquGu5AEOunKyhH8OH60x/SzirxP4vhF5HfwyxtWdo1cKE9eHZNyo2jJJTd316a2Vau4QyD3RkmMMNORUXeq5yga6ULuQTrQjGsyTCsnTX5DGem3RXw0RFcqlybXY+80Ac9sg861DtQF7F5rXKagzIZzEtdaZ7D14bcBh43ltA7O1wiRghMUy3IwfHpSJuMvknpZ7RUTckJnIa+2etKYMpUeajJiWUSkdPJZA/+evJqZjDCUqdkPMnY6QfL+W+XF6M38eTZeF2v13Fumti6fNyL+bHK61LQccFVKTOINZcH80lmzPVuxnRzW+Z7N6QqpY2IyYpQKbPnx/e2ioMht1vEmL7xuC57bcHxbb9wfEFVa4wwrByBsll5jDAJK96wd9xFKHNf4NvtQnm6dWXbynHIi6xCET4op9VC+Mluor28Z5gsVenpmWcy0WXFSPD4ahgt8Lhzvuh4f6iMMA3dBRPECFe06XbS9q7dW6wuP13fCLNGeO5isds1FsNut31Z8XbbIW5kyLbtzk4YumKqbf8FSyvx6w==
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Re-sync link KV entry"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/admin/links/{id}/sync-kv"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Re-sync link KV entry
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-admin-sync-link-kv.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-admin-sync-link-kv.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-admin-sync-link-kv.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
