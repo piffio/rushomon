@@ -1,6 +1,8 @@
 name: Test Production Smoke (Diagnostic)
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       detailed_diagnostics:
@@ -26,7 +28,10 @@ jobs:
     steps:
       - name: Set environment variables
         run: |
-          if [ "${{ inputs.test_target }}" = "production" ]; then
+          # Default to production when triggered by PR (no inputs available)
+          TEST_TARGET="${{ inputs.test_target || 'production' }}"
+
+          if [ "$TEST_TARGET" = "production" ]; then
             # Hardcoded production domains for diagnostic testing
             echo "TEST_URL=https://rushomon.cc" >> $GITHUB_ENV
             echo "REDIRECT_URL=https://rshmn.cc" >> $GITHUB_ENV
@@ -36,7 +41,7 @@ jobs:
             echo "REDIRECT_URL=https://${{ secrets.STAGING_REDIRECT_DOMAIN }}" >> $GITHUB_ENV
             echo "DOCS_URL=https://${{ secrets.STAGING_DOCS_DOMAIN }}" >> $GITHUB_ENV
           fi
-          echo "Testing against: ${{ inputs.test_target }}"
+          echo "Testing against: $TEST_TARGET"
 
       - name: Test 1 - Basic Request (Current Headers)
         run: |
