@@ -381,24 +381,28 @@ jobs:
       - name: Delete GitHub Environment
         if: always() && steps.check_deployment.outputs.should_cleanup == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.pr_number.outputs.pr_number }}"
           ENVIRONMENT="ephemeral-pr-$PR_NUMBER"
 
           echo "Deleting GitHub environment: $ENVIRONMENT"
 
-          # Delete the environment
-          DELETE_RESPONSE=$(gh api \
-            --method DELETE \
-            repos/${{ github.repository }}/environments/$ENVIRONMENT 2>&1)
-          DELETE_EXIT_CODE=$?
+          # Delete the environment using a PAT with Administration:write permission
+          # (GITHUB_TOKEN cannot delete environments - requires repo-level admin access)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_ADMIN_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/environments/$ENVIRONMENT")
 
-          if [ $DELETE_EXIT_CODE -eq 0 ]; then
+          if [ "$HTTP_CODE" = "204" ]; then
             echo "✅ Successfully deleted GitHub environment: $ENVIRONMENT"
+          elif [ "$HTTP_CODE" = "404" ]; then
+            echo "⚠️  GitHub environment not found: $ENVIRONMENT (may have already been deleted)"
           else
-            echo "⚠️  Failed to delete GitHub environment: $ENVIRONMENT"
-            echo "Response: $DELETE_RESPONSE"
+            echo "⚠️  Failed to delete GitHub environment: $ENVIRONMENT (HTTP $HTTP_CODE)"
             # Continue anyway - environment may not exist or may have been deleted already
           fi
 
