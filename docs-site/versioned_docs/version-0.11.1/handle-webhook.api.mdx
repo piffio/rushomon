@@ -1,0 +1,61 @@
+---
+id: handle-webhook
+title: "Polar webhook receiver"
+description: "Receives and processes Polar webhook events (subscription created/updated/cancelled, order created). Verifies the webhook signature before processing. Returns 200 for success or known-skip, 400 for malformed payloads, 503 for transient failures"
+sidebar_label: "Polar webhook receiver"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVlFv2zYQ/isH5mFJIMtO2qKFnpZu3eAtXY0kXQfEQU1LZ4kLRbLkMa4X+L8PR0mO3XbbD9iTBPK+u/uOx/v4KCoMpVeOlDWiEFdYonrAANJU4LwtMQQMMLNaeljjsrH2HvABDQU4DnG5w0LpURJW4+iq9C2lKVFrrDKwvkI/GJzk8Dt6tVIYgBrcOQ2qNpKiR1jiynocoitT53CFFL0JcD6ZwMp6CLHkPbAe7o1dm1G4Vy6D5/12K/XK+hYrcHKjraxCBi8mz9IeeWmCQkOwkkpHj0Fkwjr0kmlMK1GIRppK48c+M5EJj8FZEzCI4lGcTyb8OazbGy7JrmAVJ6YMoeFtqfUGOEGHldhm4vm3HEzNg9QqAZ+yH2rTs2Dwi8mzr8E3O07KrLwM5GOZStlTFNttJkjWQRS34rXSWpla3GWiRWosM3Y2kMiEk9SIQoylU+NlZzZ+qkJA/4CefXwZf+ZtFcvUBhezqchE9JrrSORCMWZ3uY+hsa01eVmKbfalg0tbSg0VPqC2rkVDBz6K8VizQWMDFa9evnoptnecThm9os112WDbHc1rlB49/y3T30/Wt5JEIX75cMOVvZhN4VfcMJcEEkVvKDJBG4d9vFQuZVaWPZXWkCyJf7GVinMK0Tnr6ft9TpkwMjm86hfhurPiQzsky1lUtozMMzVd15cNwg77/uoSQmM9oUEPXHhVYj43c3N0BBeRGu6sMoF58a0NBGgqZxVfTI+fovII8sAQIt8lQEUN+mJuRnB6es0XjC+vtfcKw+kpHHMua1yCdE4/IdGHkw7S1RjI3qPZAZjSPW7YhlM8gvcpVl/vwKtnOfyQJgBIM9iDMol3JUOztNJXcDzzFkih5+NqVN2gH+hUJ3NznsPUlDpWmHB7Lrgo1qu/uoQblFUiCQCLxSJ9DywK6Hl4+9FJ+pjn+ZNxR+Ft1KRG73wtzeB2n89AGUppYIkQSuuwArIQHJZqpUqwe9iQw4cGh0OQ0Cbv1tfsJIONjdDGQD14kziR9DXSgZsez7uLPzi50bRaPNGdm0Tgv6kO2IK9j2JU1ahBjz2+bw5lao1DjuH0tICbb8UFFcC6btLlMF2BbRURD/7hjGRJAawBRQFC8pp6k1NMs/KJX96FfrtfnX+PPHRHnkz69QepI3YFbSWVDViDYFcpIfY6/TEMjXOPm+9Cd3p98EusZbnpDvfY2G7vpE8iYLchS2JGvcOn86EGN7BGj4PegTX5P2dvLEE/TrBKF3y6Ss0gibB1xP0UA37ZMLBW1NhI324EVtxkwVetows2UlBP12ag3HXeWmkNvpN+kElGrYfnk2eA3lufp7Fz1YsgdFM13YEE67URpEf45frdbzzOWs6/yuEN4/dsVlZruwZqVICdTBWp7f4MPMwe+RrORYo7FwXMReeixRBkjdCN0iVfgnUjCdasemtvTT0Xc7PdNfDREcxkrcxuRl6qgxnZFx3czqir2MLJGhfp+bPQqlW0gE8R/Qac9LJFQh/S7OzsCg6CYGK7RA/HZyNlKvzMrV/hSkZNBZyludn7KmBK2AZw6DkyMuRsMtkzP5+czI3IhFYlmoAsO72wXPw8uxw9yydfyet6vc5rE3Pr63EPC2NZO83WeUOtZg0iRfpAn1hjrnca0+k263snUq1UhmH8Mmil2cvj8C3Ydw0r6IHKdcLJSv6/fVT2LwrCzzR2uq9nOrrH/qV1K6RTIhP9W0tkYnht3WWCXzts8vi4lAHfe73d8nLqRlHc3mXiQXoll3yqt3fbvdfc7N31jdhu/wY50SlD
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Polar webhook receiver"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/billing/webhook"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Receives and processes Polar webhook events (subscription created/updated/cancelled, order created). Verifies the webhook signature before processing. Returns 200 for success or known-skip, 400 for malformed payloads, 503 for transient failures
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-webhook.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-webhook.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

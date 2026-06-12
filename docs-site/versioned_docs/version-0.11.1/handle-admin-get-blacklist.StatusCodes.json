@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Array of blacklist entries"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}

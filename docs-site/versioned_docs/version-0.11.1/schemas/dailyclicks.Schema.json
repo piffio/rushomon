@@ -1,0 +1,1 @@
+{"schema":{"properties":{"count":{"example":42,"format":"int64","type":"integer"},"date":{"example":"2024-01-15","type":"string"}},"required":["date","count"],"type":"object","title":"DailyClicks"},"schemaType":"response"}

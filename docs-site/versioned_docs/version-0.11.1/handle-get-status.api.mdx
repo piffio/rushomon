@@ -1,0 +1,61 @@
+---
+id: handle-get-status
+title: "Get billing status"
+description: "Returns the billing account tier, active subscription details (status, period end, cancel-at-period-end), and whether the caller is the billing owner. Auto-creates a billing account for new users if one does not exist"
+sidebar_label: "Get billing status"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVltv2zYU/isHzMOSQJadtkALPS3dusJduga5oAPiIKapY4mNRGrkYVTP8H8fDik79tpt73uyTJ7bd/idy1qU6JXTHWlrRCGukIIzHqhGWOim0aYCqZQNhoA0ugykIv2E4MNipwclktSNh2NPkoLPoEOnbQloygyUNAqbkaRROh2hKU8ykKaEvkaq0UVvSjYNOtCHvm1v0OVwHsiOlENJ6EF+E9nSOjDYQ/DoPOglWINQWvRgLAF+1Z5EJmyHTnK801IUopambPChQnpIUYtMOPSdNR69KNbixWTCP4f5eTt4TipgF19Qkdhk4tXk7FvpWyMD1dbpP7EUm00mPKrgNK1EcbcWb1E6dKK4u99ka+HRe23Ng7L2UWM8vc8EycqL4m7rV9xnokWqLSOokFF1kmpRiLHs9HjIy3gHyKN7Queju8PQLp0tg4qvd345FZkIruGsEHW+GLO13AVf29aaXCnBER4auLBKNlDiEza2a9HQgY1iPG5YoLaeijev37wWjGYL/1rV2KYsb5OwFov49Yt1rSRRiA+fb8A6Dg5+xRVjiUqiGARFJmjV4eAvZlebpWVLyhqSivgTW6k5Jh+6zjr6cR9TJoyMBq+GQ7hOUvyeh2A5itKqwDgjhSLlmKg73durC/C1dYQGHXDitcJ8Zmbm6Ij5W6MhraIyH360nrg+OqsNeXD4R9AOQR4IQvBMNtRcJcXMjOD09DrxBBJP/OkpHHMsPS5Adl3zrInOnySVlGMg+4hmp8CQHnHFMhziEdxGX0O+PZ+e5fBTrDmQZisP2kTcpfT1wkpXwvGls7E38HPVuuKCHuCUJzPzIoepUU0oMertmTgfaiMFXKMsI0gAmM/n8fdAooABh7MPnaSHPM+fhROEj6EhPfrkKmm2ZvfxbCFzS4IFgle2wxLIgu9Q6aVWYPd0fQ6fa9w+goQ2WreuYiMZrGyANngalFcRE0lXIR2YGfT5dv47BzealvNnuDMTAfw31K1uwdZHIehyVKPDQX8ghzZVg9sY/elpATff88tt1kZyyyaH6RJsq4mwzHZvJBV5sAY0efDRKjz3sgN8eXL9cT87/+55y448igznT7IJmBLaSlJ17OF2GQNiq9Of/ZY4j7j6wafXG5xfYCXVKj3usbHp7mQIwmO6kIoY0WDw+X2oxhX06BDShCnBmvyfo+eRMrQTLGOBT5eRDJII246YT8Hj3wkDvabaBvo+ETIuHpbgUktwwQby+rlstpAT83rdNOBQIQ9jCa8mE7bwavIS0Dnr8th2roZ5BqmrxhqIasOYA+kQPlx/+o3bWcvxlzm8Y/09maVtGtsD1dqDJxcUBYdFpN0Xz81szWU4E9HvTBQwE8lEi97LCiG10gUXQV9Lgh4NQe+sqWZiZjY7Ah8dwaWstNn1yAt90COHpEO3E0oZm3eywnlcKOaNbjXN4Y+AbgWddLJFQudj70xyBTtBMKFdoIPjs5E2JX5l6pe4lKGhAs5i3xxsFTAlbD2vNOwZWeVsMtkTfzE5mRmRiUYrNB557AyD5fz95cXoZT75Zrz2fZ9XJuTWVeNBzY9l1TUsndfUNjyDSFNzMJ94xlzvZkya2zzf05BqpTas1llPrTR7cbxH2u1Mu93gYMKloclT/P+9Aw4rA+FXGnfNkLD4Nuthk7oTstMiE4N9XjxSxu4zwdsMS6zXC+nx1jWbDR9HtvHGlokn6bRcNGl/29vV3r+7EZngDsqehih2i8xiuwnurqThlSf2RFGwvyhxwxN8sxGZeMQVw+D/YnO/2Wz+AjkkHuQ=
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get billing status"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/billing/status"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns the billing account tier, active subscription details (status, period end, cancel-at-period-end), and whether the caller is the billing owner. Auto-creates a billing account for new users if one does not exist
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-status.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-status.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

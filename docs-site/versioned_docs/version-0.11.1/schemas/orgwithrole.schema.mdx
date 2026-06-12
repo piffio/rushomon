@@ -1,0 +1,32 @@
+---
+id: orgwithrole
+title: "OrgWithRole"
+description: "An organization with the current user's membership role attached"
+sidebar_label: "OrgWithRole"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"id":"org-123","joined_at":1609459200,"name":"My Organization","role":"owner"}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"OrgWithRole"}
+>
+</Heading>
+
+
+
+An organization with the current user's membership role attached
+
+<Schema
+  {...require("./orgwithrole.Schema.json")}
+>
+  
+</Schema>
+            

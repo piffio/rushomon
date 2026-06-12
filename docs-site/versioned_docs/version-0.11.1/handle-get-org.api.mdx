@@ -1,0 +1,69 @@
+---
+id: handle-get-org
+title: "Get organization"
+description: "Returns org details including the member list with roles and pending invitations. The caller must be a member of the org"
+sidebar_label: "Get organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFVttu20YQ/ZXB+qGOQVNyYiABn+o2aaDUSQxfkAKRYa24I3JrcpfdHVpRBP57MbukLrabPPZJwnJuZ25n1kKhz51uSFsjMnGJ1DrjwboCFJLUlQdt8qpV2hRAJUKN9RwdVNoTLDWV4GyFHqRR0KAJYto8aJJs0adwXSLksqrQQd16gjmCHIzYRTBpXSESYRt0QWmiRCZKaVSFdwXSXfzcSCdrJHReZF/Xj8L+7App9PegDpO3IhGanxtJpUiEkTWKTGglEuHwn1Y7VCIj12IifF5iLUW2FrRqWMqT06YQXXfLwr6xxqPn7y/HY/75geOQjggtJmQnEaJLxOn45KmFGyNbKq3T31FFoVdPhT5ZepQ1HWoUFU5/EpexBAvbGiW6LhEe89ZpWoU0/obSoRPZ19suWQuP3mtr7nJr7zWG19tEkCw453s2vbhNRI1UWi5WgRQqRKXIxEg2emRd4UdrrTrBDt3D82W7cFa1eYjx7GIiEtG6imtP1PhsxIZS1/rS1takeS44xH0D5zaXFSh8wMo2NRras5GNRhULlNZT9ub1m9eC4Qz4r7jysbRDFtZiHv79YV0tSWTiw5drsI6Dgz9xJfp24TaJgiIZ2ob9hfRqs7BsKbeGZE78F2upOSbfNo119Osupk13XvaPcBWluLT7YDkKZfOWccbCLqwLA7TRvbk8B19aR2jQASde55hOzdQcHMBZSyUa0nlQ5seP1hOgUY3Vhjz0swFyTxBaz0ONmkp02dQcw9HRVWwUiI3ij47gkGNZ4hxk01RbTXT+RVSJOQay92g2CgzpHlcswyEewE3w1efb8+tJCr87lIQgzSAP2gTcSvpybqVTcHjhLJDm6XBQ6qJEN8BRL6bmZQqTsMUw6O2YOOuHLwZcolQBJADMZrPwuyeRQY/D2btG0l2aplvhCOFjW5E+3hvAXTwDZMil4WXoc9ugArLgG8z1Quc82NtBS+FLiUMRJNTBOq/ne1wlsLJtXKtReRUwkXQF0p6ZXp+/zv7i4I4naraFOzUBwM+hDroZWz9uW62OS3TY6/fNoU1R4RCjPzrKAgk88Qu8w0JzyyqFyQJsrYlQJZsayZw8WAOaPPhgFbbLcg9fGl1/3M3Ojz0P3REZqn9/kFWLMaG1pLwEa3CHpWDy1g+Nc4+rX3ysXu/8HAuZr2JxD42N3170QXiMH2ROjKg3uK0PlbiCJTqEPHS7AmvS/46eV3q/TlCFAZ8sQjNIIqwb4n5qPT5umEBRtqXnGyHh4QkkJk0PF2xLXm/HZoAcO2+pqwoc5qgf2NXpeMwWTsevAJ2zLg1r57InUYhbNcxAUOu5FaRD+HD1+ROvs5rjVym8Y/0dmYWtKruMvOfJtTm1DrPQdn97XmZrHsOpCH6nIoOpiCZq9F4WCHGVznkIlqUkWKIhWDpriqmYmm7TwAcHcCELbTY78lzv7cg+6dBshGLGZo0scBZYf1bpWtMM/mnRrWB7t4TdGeUydoJg2kDohyfH2ij8xq2vcCHbijI4CXuzt5XBhLD20KBjz8gqJ+PxjvjL8YupEYmodI7GI9NOTyxn7y/Oj1+l4yf0ulwu08K0qXXFqFfzI1k0FUunJdUVcxBpqvb4iTnmasMxkbeZ3yNJ1VIbVmusp1qanTjeP1pJ4hG/RcpkDv9fz9Cezwm/0aipejQhcev+wvkqZKP5YHWFF4nItOJjiI8M/rZez6XHG1d1HT+HJuBLKhEP0mk552TyIaQ9/1ciW8jK4w9ycXg58Bg8PXOfjbZ/lIYvlrDSRCZEIu5xFc/g7rbbud7ev7sWieDFunMGb+6b+XAhrp+3u15HiWsm9q7buAlEz5667l9txk9c
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/orgs/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns org details including the member list with roles and pending invitations. The caller must be a member of the org
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-get-org.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-get-org.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-get-org.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

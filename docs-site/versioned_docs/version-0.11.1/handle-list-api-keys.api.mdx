@@ -1,0 +1,61 @@
+---
+id: handle-list-api-keys
+title: "List API keys"
+description: "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars). Includes `org_ids` showing which organizations each key is scoped to."
+sidebar_label: "List API keys"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVttu3DYQ/ZUB/VDb0GrXiYEEeqrbpsGmTmP4ghTIGl4uNSuxpkiVHHmzWSzQj+gX9kuKIbU3p5f3Pkmi5naGM2dmJUoMyuuWtLOiENdInbcBpDEgFeknhIurMTziMsDceaAaQXZUoyWtJGEJXUCfw22N4OUCyD2iBR3A4hN68NEcllCjR/jz9z/AWbOMVmptCY6NDATnoGrpw0kOY6tMV2KAqfPVgy7DFELtFtpWsKi1qsH5Slr9RXK4AVCqmmNjh0G5Fksgl4tMuBZ9lBmXohC1tKXBB6MDPchWPzAakQmPoXU2YBDFSrwYjfhxmI0L7+US3Px5KsQ6E+ejs68V7iwnx3n9BUuxXmcioOq8pqUoPq3Edyg9elF8ul9nKxEwBO3sg3LuUWM8vc8EySqI4pNgVz+xq/tMNEi1YyAVkshEK6kWhRjKVg8DEmlbBf4Y9LgC+if0Ibo8DO/Ku7JT/MFQRCY6bzg/RG0ohmwj912oXeNsrpTgKA8NXDolDZT4hMa1DVo6sFEMh4YFaheoeP3q9SvBiDYpuFE1NinZm0SsxCy+/eh8I0kU4t3HW3AeevCMJSqJohcUmaBli72/mGFt544tKWdJKuJXbKTmmELXts7Tt/uYMmFlNHjdH8JNkuI7fXb7V2MoneoYZyymbQdsde+uL7lAPaFFD5x4rTCf2Ik9OoKLXZ9oZ/nwvQsEaMvWaUsBPP7WaX/QUOylC1zvqKlGX0zsAE5Pb1KtQKqVcHoKxxzLAmcg29bsNNGHk6SScpwacquwKeCTFOIR3EVfm2Lj07McvvcoCUHajTxoG3GXMtQzJ30Jx1feAWn0fF21rurY7BFOeTKxL7atHPX2TFz0/ZECrlGWESQATKfT+DyQKKDH4d1DK+khz/OdcILwvjOkBx/2iOEAz5a+lLQwwx1PQGhR6blWh6SSw8caN5cgoYnWna/YSAZL10HTBeqVE5WR9BXSgZlen/9Of+HgBuNyuoM7sRHAf0Pd6BZsfdB1uhwwlfb6fXFoWxncxBhOT4tIx1/5ZZZ0sbilyWE8B9doIiyz7R1JRQGcBU0BQrQKOz47wJcn1+/3s/PvnjfVkWZFf/4kTYcpoY0k5neLzLccEFsd/xA2hfOIy296lu+dX2Il1TJd7rF16d9JH0TA9EMqYkS9wd39UI1LWPBUUrHaS3A2/+forSPo6QTL2ODjeSwGSYRNS1xPXcDnBQMLTbXr6O8LIePmYQlutQQXXEdB79pmAzlV3kIbAx4V8jCScD4asYXz0UtA753PI+1c92MNEqvGHohq/bQD6RHe3Xz4mems4fjLHN6w/p7M3BnjFkA1T1bynaLOYxHL7tfAZLbiNpyI6HciCpiIZKLBEGSFkKh0lia3JFigJVh4Z6uJmNj1toCPjuBKVtpuOfJSH3Bkn3Rot0IpY9NWVjgFaUuYGt1omsJvHfoltNLLBgl9iNyZ5Ap2gmC7ZoYejs8G2pb4mUu/xLnsDBVwFnmzt1XAmLAJ0KJnz8gqZ6PRnviL0cnEikwYrdAG5LHTD5aLt1eXg5f56Kvxulgs8sp2ufPVsFcLQ1m1hqXzmhrDM4g0mYP5xDPmZjtj0tzm+Z6GVCO1ZbXWBWqk3YsjJnK7sTwbbmle8gD/3+x8/WJA+JmGrenTEm9g1a9Mn4RsdVyQ0tIkMrFdm+4zwWsLC61WMxnwzpv1mo9jWfF6lokn6bWcmbSs7e1lb9/csq2Onaw2gWw3ltlm7dv+kpZ3m0h+omB/UeKW87hei0w84pKR8LdY36/X678Ao7oQ5w==
+sidebar_class_name: "get api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List API keys"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/api/settings/api-keys"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars). Includes `org_ids` showing which organizations each key is scoped to.
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-list-api-keys.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-list-api-keys.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
