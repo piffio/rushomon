@@ -402,6 +402,28 @@ impl OrgRepository {
         results.results::<OrgInvitation>()
     }
 
+    /// List all pending (non-expired, unaccepted) invitations for an email
+    /// address across all organizations. Used during sign-in to auto-accept
+    /// invitations as part of JIT provisioning.
+    pub async fn get_pending_invitations_by_email(
+        &self,
+        db: &D1Database,
+        email: &str,
+    ) -> Result<Vec<OrgInvitation>> {
+        let now = now_timestamp();
+        let stmt = db.prepare(
+            "SELECT id, org_id, invited_by, email, role, created_at, expires_at, accepted_at
+             FROM org_invitations
+             WHERE email = ?1 AND accepted_at IS NULL AND expires_at > ?2
+             ORDER BY created_at ASC",
+        );
+        let results = stmt
+            .bind(&[email.into(), (now as f64).into()])?
+            .all()
+            .await?;
+        results.results::<OrgInvitation>()
+    }
+
     /// Mark an invitation as accepted
     pub async fn accept_invitation(&self, db: &D1Database, token: &str) -> Result<()> {
         let now = now_timestamp();

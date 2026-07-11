@@ -2,6 +2,7 @@ import type {
   InviteInfo,
   ListOrgsResponse,
   OrgDetails,
+  OrgDomain,
   OrgInvitation,
   OrgSettings,
   OrgWithRole,
@@ -131,5 +132,42 @@ export const orgsApi = {
 
   async deleteOrgLogo(org_id: string): Promise<void> {
     return apiClient.delete<void>(`/api/orgs/${org_id}/logo`);
+  },
+
+  async getOrgDomains(org_id: string): Promise<{ domains: OrgDomain[] }> {
+    return apiClient.get<{ domains: OrgDomain[] }>(
+      `/api/orgs/${org_id}/org-domains`
+    );
+  },
+
+  async addOrgDomain(
+    org_id: string,
+    domain: string
+  ): Promise<{
+    domain: OrgDomain;
+    instructions: string;
+    token: string;
+    verification_record: string;
+  }> {
+    return apiClient.post<{
+      domain: OrgDomain;
+      instructions: string;
+      token: string;
+      verification_record: string;
+    }>(`/api/orgs/${org_id}/org-domains`, { domain });
+  },
+
+  async verifyOrgDomain(
+    org_id: string,
+    domain: string
+  ): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>(
+      `/api/orgs/${org_id}/verify-org-domain`,
+      { domain }
+    );
+  },
+
+  async deleteOrgDomain(org_id: string, domain: string): Promise<void> {
+    return apiClient.delete<void>(`/api/orgs/${org_id}/org-domains/${domain}`);
   }
 };

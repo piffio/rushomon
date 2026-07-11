@@ -109,6 +109,10 @@ use utoipa::{Modify, OpenApi};
         crate::api::orgs::logo::handle_upload_org_logo,
         crate::api::orgs::logo::handle_get_org_logo,
         crate::api::orgs::logo::handle_delete_org_logo,
+        crate::api::orgs::org_domains::handle_add_org_domain,
+        crate::api::orgs::org_domains::handle_list_org_domains,
+        crate::api::orgs::org_domains::handle_verify_org_domain,
+        crate::api::orgs::org_domains::handle_delete_org_domain,
 
         // API Keys
         crate::api::keys::handle_create_api_key,
