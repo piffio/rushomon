@@ -89,10 +89,7 @@ fn extract_title(html: &str) -> Option<String> {
 
     if let Some(start) = html_lower.find("<title") {
         // Find the end of the opening title tag
-        let tag_end = match html[start..].find('>') {
-            Some(pos) => start + pos + 1,
-            None => return None,
-        };
+        let tag_end = start + html[start..].find('>')? + 1;
 
         // Find the closing title tag
         if let Some(end) = html_lower[tag_end..].find("</title>") {
