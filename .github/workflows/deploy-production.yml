@@ -72,9 +72,14 @@ jobs:
           # Format: array of cron expressions (Cloudflare doesn't support named triggers)
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
-          # - "*/15 * * * *" = every 15 min (custom domain status polling)
+          # - "*/15 * * * *" = every 15 min (custom domain status polling) — only
+          #   registered when Cloudflare-for-SaaS is configured (CF_SAAS_API_TOKEN)
+          # - "0 8 2 * *" = monthly stats emails — only registered when Mailgun is
+          #   configured (MAILGUN_DOMAIN)
+          # Conditional registration keeps unconfigured features from consuming the
+          # free plan's cron quota (5 triggers per account) with no-op jobs.
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *", "0 8 2 * *"]
+          crons = ${{ format('["0 0 * * *", "0 4 * * *"{0}{1}]', secrets.CF_SAAS_API_TOKEN != '' && ', "*/15 * * * *"' || '', secrets.MAILGUN_DOMAIN != '' && ', "0 8 2 * *"' || '') }}
 
           [[d1_databases]]
           binding = "rushomon"
@@ -230,9 +235,14 @@ jobs:
           # Format: array of cron expressions (Cloudflare doesn't support named triggers)
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
-          # - "*/15 * * * *" = every 15 min (custom domain status polling)
+          # - "*/15 * * * *" = every 15 min (custom domain status polling) — only
+          #   registered when Cloudflare-for-SaaS is configured (CF_SAAS_API_TOKEN)
+          # - "0 8 2 * *" = monthly stats emails — only registered when Mailgun is
+          #   configured (MAILGUN_DOMAIN)
+          # Conditional registration keeps unconfigured features from consuming the
+          # free plan's cron quota (5 triggers per account) with no-op jobs.
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *", "*/15 * * * *", "0 8 2 * *"]
+          crons = ${{ format('["0 0 * * *", "0 4 * * *"{0}{1}]', secrets.CF_SAAS_API_TOKEN != '' && ', "*/15 * * * *"' || '', secrets.MAILGUN_DOMAIN != '' && ', "0 8 2 * *"' || '') }}
 
           [[d1_databases]]
           binding = "rushomon"

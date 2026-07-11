@@ -75,7 +75,8 @@ jobs:
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *", "0 8 2 * *"]
+          # The monthly stats cron is only registered when Mailgun is configured
+          crons = ${{ format('["0 0 * * *", "0 4 * * *"{0}]', secrets.MAILGUN_DOMAIN != '' && ', "0 8 2 * *"' || '') }}
 
           [[d1_databases]]
           binding = "rushomon"
@@ -177,7 +178,8 @@ jobs:
           # - "0 0 * * *" = midnight UTC daily (subscription downgrade)
           # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
           [triggers]
-          crons = ["0 0 * * *", "0 4 * * *", "0 8 2 * *"]
+          # The monthly stats cron is only registered when Mailgun is configured
+          crons = ${{ format('["0 0 * * *", "0 4 * * *"{0}]', secrets.MAILGUN_DOMAIN != '' && ', "0 8 2 * *"' || '') }}
 
           [[d1_databases]]
           binding = "rushomon"

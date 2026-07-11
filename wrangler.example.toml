@@ -21,6 +21,7 @@ head_sampling_rate = 0.1
 # - "0 4 * * *" = 4 AM UTC daily (webhook cleanup)
 # - "0 8 2 * *" = 8 AM UTC on day 2 of each month (monthly stats email)
 [triggers]
+# Note: the Workers free plan allows 5 cron triggers per account
 crons = ["0 0 * * *", "0 4 * * *", "0 8 2 * *"]
 
 # KV Namespace for URL mappings
