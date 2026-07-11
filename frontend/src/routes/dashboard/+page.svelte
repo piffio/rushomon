@@ -3,6 +3,7 @@
   import type { CustomDomain } from "$lib/api/domains";
   import { domainsApi } from "$lib/api/domains";
   import { linksApi, tagsApi } from "$lib/api/links";
+  import type { PublicSettings } from "$lib/api/settings";
   import LinkList from "$lib/components/LinkList.svelte";
   import LinkModal from "$lib/components/LinkModal.svelte";
   import Pagination from "$lib/components/Pagination.svelte";
@@ -16,6 +17,7 @@
     UsageResponse,
     User
   } from "$lib/types/api";
+  import { DEFAULT_MIN_CUSTOM_CODE_LENGTH } from "$lib/constants";
   import { onDestroy, onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
 
@@ -33,6 +35,7 @@
     usage: UsageResponse | null;
     orgLogoUrl: string | null;
     orgId: string;
+    publicSettings: PublicSettings | null;
     initialSearch: string;
     initialStatus: "all" | "active" | "disabled";
     initialSort: string;
@@ -63,6 +66,11 @@
   let deletingLinkId = $state<string | null>(null);
   let recentlySavedLinkId = $state<string | null>(null);
   let activeDomains = $state<CustomDomain[]>([]);
+
+  const effectiveMinLength = $derived(
+    data.publicSettings?.min_custom_code_length ||
+      DEFAULT_MIN_CUSTOM_CODE_LENGTH
+  );
 
   let highlightTimer: ReturnType<typeof setTimeout>;
 
@@ -708,6 +716,7 @@
         bind:isOpen={isModalOpen}
         {usage}
         {activeDomains}
+        minShortCodeLength={effectiveMinLength}
         on:saved={handleLinkSaved}
       />
 

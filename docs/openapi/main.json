@@ -3181,7 +3181,7 @@
           "Settings"
         ],
         "summary": "Get public settings",
-        "description": "Returns non-sensitive public settings needed by the frontend, including founder pricing status and active discount amounts for each plan tier",
+        "description": "Returns non-sensitive public settings needed by the frontend, including founder pricing status, active discount amounts for each plan tier, and minimum short code lengths",
         "operationId": "handle_get_public_settings",
         "responses": {
           "200": {

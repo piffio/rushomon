@@ -4,6 +4,8 @@ use serde_json::json;
 mod common;
 use common::*;
 
+use rushomon::utils::short_code::MAX_SHORT_CODE_LENGTH;
+
 #[tokio::test]
 async fn test_settings_requires_auth() {
     let client = test_client();
@@ -260,6 +262,9 @@ async fn test_public_settings_contains_required_fields() {
         "active_discount_amount_pro_annual",
         "active_discount_amount_business_monthly",
         "active_discount_amount_business_annual",
+        "min_random_code_length",
+        "min_custom_code_length",
+        "system_min_code_length",
     ];
 
     for field in required_fields {
@@ -320,4 +325,56 @@ async fn test_public_settings_founder_pricing_is_boolean() {
         "founder_pricing_active must be a boolean, got: {:?}",
         body["founder_pricing_active"]
     );
+}
+
+#[tokio::test]
+async fn test_update_min_random_code_length_validation() {
+    let client = authenticated_client();
+
+    // 1. Test valid value (lower bound) - Assuming 3 is a valid system minimum
+    let res = client
+        .put(format!("{}/api/admin/settings", BASE_URL))
+        .json(&json!({ "key": "min_random_code_length", "value": "3" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 2. Test valid value (upper bound: 100)
+    let res = client
+        .put(format!("{}/api/admin/settings", BASE_URL))
+        .json(
+            &json!({ "key": "min_random_code_length", "value": MAX_SHORT_CODE_LENGTH.to_string() }),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 3. Test invalid value (too short)
+    let res = client
+        .put(format!("{}/api/admin/settings", BASE_URL))
+        .json(&json!({ "key": "min_random_code_length", "value": "0" })) // Assuming 0 is below system_min
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // 4. Test invalid value (too long: 101)
+    let res = client
+        .put(format!("{}/api/admin/settings", BASE_URL))
+        .json(&json!({ "key": "min_random_code_length", "value": (MAX_SHORT_CODE_LENGTH + 1).to_string() }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    // Restore the default so other tests are unaffected
+    let res = client
+        .put(format!("{}/api/admin/settings", BASE_URL))
+        .json(&json!({ "key": "min_random_code_length", "value": "6" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 }

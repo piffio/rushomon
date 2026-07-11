@@ -1,7 +1,8 @@
 /// GET /api/settings (public)
 ///
 /// Returns non-sensitive public settings needed by the frontend,
-/// including founder pricing status and active discount amounts.
+/// including founder pricing status, active discount amounts, and
+/// minimum short code lengths.
 use crate::services::SettingsService;
 use worker::*;
 
@@ -10,7 +11,7 @@ use worker::*;
     path = "/api/settings/public",
     tag = "Settings",
     summary = "Get public settings",
-    description = "Returns non-sensitive public settings needed by the frontend, including founder pricing status and active discount amounts for each plan tier",
+    description = "Returns non-sensitive public settings needed by the frontend, including founder pricing status, active discount amounts for each plan tier, and minimum short code lengths",
     responses(
         (status = 200, description = "Public settings object"),
     )

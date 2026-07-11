@@ -3,9 +3,9 @@ use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
 use crate::repositories::CustomDomainRepository;
-use crate::services::LinkService;
+use crate::services::{LinkService, SettingsService};
 use crate::utils::validate_and_normalize_tags;
-use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
+use crate::utils::{now_timestamp, validate_short_code, validate_url};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -224,6 +224,8 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let kv = ctx.kv("URL_MAPPINGS")?;
 
+    let lengths = SettingsService::new().get_code_length_settings(&db).await?;
+
     let short_code = if let Some(custom_code) = body.short_code {
         match validate_short_code(&custom_code) {
             Ok(code) => code,
@@ -232,24 +234,31 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             }
         };
 
+        if custom_code.len() < lengths.effective_custom_min {
+            return Response::error(
+                format!(
+                    "Custom short code must be at least {} characters",
+                    lengths.effective_custom_min
+                ),
+                400,
+            );
+        }
+
         if kv::links::short_code_exists(&kv, &custom_code).await? {
             return Response::error("Short code already in use", 409);
         }
 
         custom_code
     } else {
-        let mut code = generate_short_code();
-        let mut attempts = 0;
-
-        while kv::links::short_code_exists(&kv, &code).await? {
-            code = generate_short_code();
-            attempts += 1;
-            if attempts > 10 {
-                return Response::error("Failed to generate unique short code", 500);
-            }
-        }
-
-        code
+        link_service
+            .generate_progressive_short_code(
+                &kv,
+                &db,
+                &ctx.env,
+                lengths.min_random_length,
+                lengths.system_min_length,
+            )
+            .await?
     };
 
     let normalized_tags = if let Some(tags) = body.tags {

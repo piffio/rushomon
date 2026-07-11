@@ -1,5 +1,6 @@
 import { linksApi } from "$lib/api/links";
 import { orgsApi } from "$lib/api/orgs";
+import { settingsApi } from "$lib/api/settings";
 import { usageApi } from "$lib/api/usage";
 import type { User } from "$lib/types/api";
 import type { PageLoad } from "./$types";
@@ -18,6 +19,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
       user: null,
       paginatedLinks: null,
       usage: null,
+      publicSettings: null,
       initialSearch: "",
       initialStatus: "all",
       initialSort: "created"
@@ -43,27 +45,29 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
-    // Fetch links, usage, and org details in parallel
-    const [paginatedLinks, usage, orgId, orgLogoUrl] = await Promise.all([
-      linksApi.list(
-        page,
-        10,
-        search || undefined,
-        status || undefined,
-        sort,
-        tags.length > 0 ? tags : undefined
-      ),
-      usageApi.getUsage().catch(() => null),
-      orgsApi
-        .listMyOrgs()
-        .then((r) => r.current_org_id)
-        .catch(() => ""),
-      orgsApi
-        .listMyOrgs()
-        .then((r) => orgsApi.getOrg(r.current_org_id))
-        .then((d) => d.org.logo_url)
-        .catch(() => null)
-    ]);
+    // Fetch links, usage, org details, and settings in parallel
+    const [paginatedLinks, usage, orgId, orgLogoUrl, publicSettings] =
+      await Promise.all([
+        linksApi.list(
+          page,
+          10,
+          search || undefined,
+          status || undefined,
+          sort,
+          tags.length > 0 ? tags : undefined
+        ),
+        usageApi.getUsage().catch(() => null),
+        orgsApi
+          .listMyOrgs()
+          .then((r) => r.current_org_id)
+          .catch(() => ""),
+        orgsApi
+          .listMyOrgs()
+          .then((r) => orgsApi.getOrg(r.current_org_id))
+          .then((d) => d.org.logo_url)
+          .catch(() => null),
+        settingsApi.getPublicSettings().catch(() => null)
+      ]);
 
     return {
       user,
@@ -71,6 +75,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
       usage,
       orgLogoUrl,
       orgId,
+      publicSettings,
       initialSearch: search,
       initialStatus: status || "all",
       initialSort: sort,
@@ -85,6 +90,7 @@ export const load: PageLoad = async ({ parent, url, depends }) => {
       usage: null,
       orgLogoUrl: null,
       orgId: "",
+      publicSettings: null,
       initialSearch: "",
       initialStatus: "all",
       initialSort: "created"
