@@ -172,7 +172,7 @@ jobs:
       - name: Install wrangler and worker-build
         run: |
           npm install -g wrangler
-          cargo install -q worker-build
+          cargo install -q worker-build --version 0.8.4
 
       - name: Build Worker
         run: worker-build --release
