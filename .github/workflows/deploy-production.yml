@@ -637,8 +637,9 @@ jobs:
           echo "🛡️  Restoring Bot Fight Mode to original state..."
 
           if [ -z "$ORIGINAL_STATE" ] || [ "$ORIGINAL_STATE" = "unknown" ]; then
-            echo "⚠️  Original state unknown, defaulting to enabled (fight_mode: true)"
-            ORIGINAL_STATE="true"
+            echo "⚠️  Original Bot Fight Mode state unknown — leaving zone settings untouched"
+            echo "   (The zone either has Bot Fight Mode unconfigured or the state could not be read.)"
+            exit 0
           fi
 
           echo "Restoring to: fight_mode=$ORIGINAL_STATE"
