@@ -108,6 +108,13 @@ PUBLIC_VITE_SHORT_LINK_BASE_URL = "https://${REDIRECT_DOMAIN}"
 ENABLE_KV_RATE_LIMITING = "${ENABLE_KV_RATE_LIMITING:-false}"
 EOF
 
+  # Add collision threshold if enabled
+  if [ -n "$COLLISION_THRESHOLD" ]; then
+    cat >> "$output_file" <<EOF
+COLLISION_THRESHOLD = "${COLLISION_THRESHOLD}"
+EOF
+  fi
+
   # Add Mailgun configuration if enabled
   if [ -n "$MAILGUN_DOMAIN" ]; then
     cat >> "$output_file" <<EOF

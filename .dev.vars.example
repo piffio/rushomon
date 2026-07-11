@@ -63,3 +63,9 @@ MAILGUN_BASE_URL=https://api.mailgun.net
 #
 # Leave all POLAR_* vars empty/unset to disable billing (self-hosted mode).
 # NOTE: POLAR_ACCESS_TOKEN is a worker secret (not var)
+
+# ─── Short code collision handling ───────────────────────────────────────────
+# The maximum retry attempts when generating a short code before increasing length.
+# Defaults to '3'. Higher will use more available namespace before increasing
+# code length, at the cost of performance when available namespace gets full.
+# COLLISION_THRESHOLD="3"

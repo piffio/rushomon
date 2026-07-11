@@ -94,3 +94,9 @@ not_found_handling = "none"
 # ─── Mailgun secrets (optional, required for email features) ─────────────────
 # Without these, invitation emails and monthly stats emails are disabled.
 # wrangler secret put MAILGUN_API_KEY           (from Mailgun Dashboard → API Keys)
+
+# ─── Short code collision handling ───────────────────────────────────────────
+# The maximum retry attempts when generating a short code before increasing length.
+# Defaults to '3'. Higher will use more available namespace before increasing
+# code length, at the cost of performance when available namespace gets full.
+# COLLISION_THRESHOLD = "3"
