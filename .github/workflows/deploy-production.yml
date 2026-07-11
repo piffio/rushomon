@@ -188,7 +188,8 @@ jobs:
           PUBLIC_VITE_API_BASE_URL: https://${{ secrets.API_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
           PUBLIC_VITE_SITE_URL: https://${{ secrets.WEB_DOMAIN }}
-          PUBLIC_VITE_DOCS_URL: https://${{ secrets.DOCS_DOMAIN }}
+          # Empty when DOCS_DOMAIN is unset so the frontend's built-in fallback is used
+          PUBLIC_VITE_DOCS_URL: ${{ secrets.DOCS_DOMAIN != '' && format('https://{0}', secrets.DOCS_DOMAIN) || '' }}
         run: |
           echo "🔨 Building frontend for unified Worker deployment"
           echo "   API Base URL: https://${{ secrets.API_DOMAIN }}"
@@ -607,6 +608,9 @@ jobs:
           echo ""
           echo "📚 Test 6: Docs Site Homepage"
           echo "-----------------------------"
+          if [ -z "${{ secrets.DOCS_DOMAIN }}" ]; then
+            echo "⚠️  DOCS_DOMAIN not configured — skipping docs site test"
+          else
           DOCS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
             -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
             -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
@@ -618,6 +622,7 @@ jobs:
             echo "   This is expected on the free Cloudflare plan with Bot Fight Mode enabled."
           else
             echo "⚠️  Docs homepage returned HTTP $DOCS_STATUS (custom domain may not be configured yet)"
+          fi
           fi
 
           echo ""

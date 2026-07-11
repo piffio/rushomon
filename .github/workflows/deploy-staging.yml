@@ -266,7 +266,8 @@ jobs:
           PUBLIC_VITE_API_BASE_URL: https://${{ secrets.WEB_DOMAIN }}
           PUBLIC_VITE_SHORT_LINK_BASE_URL: https://${{ secrets.REDIRECT_DOMAIN }}
           PUBLIC_VITE_SITE_URL: https://${{ secrets.WEB_DOMAIN }}
-          PUBLIC_VITE_DOCS_URL: https://${{ secrets.DOCS_DOMAIN }}
+          # Empty when DOCS_DOMAIN is unset so the frontend's built-in fallback is used
+          PUBLIC_VITE_DOCS_URL: ${{ secrets.DOCS_DOMAIN != '' && format('https://{0}', secrets.DOCS_DOMAIN) || '' }}
         run: npm run build
 
       - name: Apply database migrations
