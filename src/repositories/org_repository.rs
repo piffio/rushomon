@@ -187,8 +187,13 @@ impl OrgRepository {
         Ok(orgs)
     }
 
-    /// Get the membership record for a specific user in a specific org
-    /// Falls back to users.org_id ownership check and auto-inserts the row to self-heal
+    /// Get the membership record for a specific user in a specific org.
+    ///
+    /// The previous users.org_id self-healing fallback was removed: it could
+    /// silently re-add removed members with the 'owner' role. Pre-migration
+    /// users are covered by the 0011_org_members.sql backfill, and every
+    /// membership-creating path (signup, invite accept) inserts the row
+    /// explicitly.
     pub async fn get_member(
         &self,
         db: &D1Database,
@@ -200,48 +205,9 @@ impl OrgRepository {
              FROM org_members
              WHERE org_id = ?1 AND user_id = ?2",
         );
-        let existing = stmt
-            .bind(&[org_id.into(), user_id.into()])?
+        stmt.bind(&[org_id.into(), user_id.into()])?
             .first::<OrgMember>(None)
-            .await?;
-
-        if existing.is_some() {
-            return Ok(existing);
-        }
-
-        // Not in org_members — check if org_id matches users.org_id (pre-migration user)
-        let user_row = db
-            .prepare("SELECT org_id, created_at FROM users WHERE id = ?1")
-            .bind(&[user_id.into()])?
-            .first::<serde_json::Value>(None)
-            .await?;
-
-        let Some(user_row) = user_row else {
-            return Ok(None);
-        };
-
-        if user_row["org_id"].as_str() != Some(org_id) {
-            return Ok(None);
-        }
-
-        let joined_at = user_row["created_at"].as_f64().unwrap_or(0.0) as i64;
-
-        // Auto-heal: insert the missing membership row
-        db.prepare(
-            "INSERT INTO org_members (org_id, user_id, role, joined_at)
-             VALUES (?1, ?2, 'owner', ?3)
-             ON CONFLICT(org_id, user_id) DO NOTHING",
-        )
-        .bind(&[org_id.into(), user_id.into(), (joined_at as f64).into()])?
-        .run()
-        .await?;
-
-        Ok(Some(OrgMember {
-            org_id: org_id.to_string(),
-            user_id: user_id.to_string(),
-            role: "owner".to_string(),
-            joined_at,
-        }))
+            .await
     }
 
     /// Get all members of an org with user details
