@@ -104,11 +104,13 @@
 </script>
 
 <div
-  class="relative overflow-hidden border-2 border-gray-200 hover:border-orange-500 rounded-xl transition-all duration-300 hover:shadow-lg bg-white"
+  class="relative border-2 border-gray-200 hover:border-orange-500 rounded-xl transition-all duration-300 hover:shadow-lg bg-white {showDeleteConfirm
+    ? 'z-20'
+    : ''}"
 >
   {#if isHighlighted}
     <div
-      class="absolute inset-0 bg-orange-50 pointer-events-none"
+      class="absolute inset-0 bg-orange-50 pointer-events-none rounded-xl"
       out:fade={{ duration: 1000 }}
     ></div>
   {/if}
@@ -302,7 +304,7 @@
                   variant="danger"
                   size="sm"
                 >
-                  Deleting...
+                  Delete
                 </LoadingButton>
                 <button
                   onclick={() => (showDeleteConfirm = false)}
