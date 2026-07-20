@@ -1,0 +1,1 @@
+{"schema":{"description":"Request to merge multiple tags","properties":{"destination_tag":{"type":"string"},"source_tags":{"items":{"type":"string"},"type":"array"}},"required":["source_tags","destination_tag"],"type":"object","title":"MergeTagsRequest"},"schemaType":"response"}

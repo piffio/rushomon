@@ -1,0 +1,61 @@
+---
+id: handle-cron-trigger-downgrade
+title: "Trigger subscription downgrade job"
+description: "Manually triggers the expired-subscription downgrade cron job. Downgrades all billing accounts whose subscriptions have expired to the Free tier"
+sidebar_label: "Trigger subscription downgrade job"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVltv2zYU/isHzMOSQJadNkALPS1b18FdshpNgg6Ig5iWjiU2FKmSh3E9w/99ONQldi/b657iUN+5fOe+FQX63KmGlDUiE1fSBKn1BsipskTngSoE/NIoh8XIh+UAhsKuTelkgZA7a+CTXabwpn/zILWGpdJamRJknttgyMO6sh5hX42HSj4NFoBsNPjWIQIpdCIRtkEnGTotRCYqaQqND2zyofPxYfBEJMKhb6zx6EW2FS8mE/5zSHHwkV2G3NaNRsJC7BJxPjn7Fn9rZKDKOvV3D3r5LeiiqJUBh58D0xC7XSI85sEp2ojsbit+QenQiezufpdshUfvlTUPubWPCuPrfSJIll5kd60ucZ+IGqmyTLqxnkQiGkmVyMRYNmosGTTmMIz36Xt0T+h8tHno4czZIuQxcxezqUhEcJrjSdT4bMw6Uxd8ZWtr0jwX7OahgkubSw0FPqG2TY2GDnRk47FmQGU9Za9fvX4lmFIfg+u8wrrNSR+JrVjGX2+tqyWJTLz7eAPWsXPwB26YSxQSWQcUiaBNg529GGJlVpY15daQzIl/Yi0V++RD01hHP+9zSoSRUeGH7hGuWxSn9at8zqZQ2Dwwz1h8sLIuluYge/vhEnxlHaFBBxx4lWM6N3NzdAQXgSo0pPIozI9X1hOgKRqruBO6UgF5AITguV9QUYUum5sRnJ5et8UCbbH401M4Zl/WuATZNPpZEp0/aUXaGAPZRzSDAFN6xA1j2MUjuI22unh7fj1L4VeHkhCk6fGgTORdSF8trXQFHM+cjc3J6apUWaEbKv9kbl6kMDW5DgVGuT0VF10ftQ5XKItIEgAWi0X8e4DIoOPh7EMj6SFN02dwS+EqaFKj966Uple7z6enDLk0sETwuW3aIeMbzNVK5WD3ZH0KHyvskyChjtqtK1lJAhsboA6eOuFN5ETSlUgHajp5/rr4i50bTYvFM925iQT+m2ovm7H2UQiqGFXosJPvikOZUmPvoz89zeDme3ZBebCxuKVOYboCWysiLJIhRzInD9aAIg8+aoXnuXfAL21NX+1H598t99WRRkj3/iR1wDagtaS8AmsQ7Co6xFqnb3xfOI+4+cm32euMX2Ip802b3GNj228nnRMe2w8yJ2bUKXzOD1W4gTU63lxc7QVYk/7Ye2MJunGCRWzw6SoWgyTCuiGup+Dx64KBtaLKBvp+ISTcPIzgVmvpgg3k1XPb9JTbylsrrcFhjuqJTZ1PJqzhfPIS0Dnr0jh2PnTbD9qpGnsginVLEaRDeHf9/k8eZzX7X6TwG8vvYVZWa7sGqpQHTy7kFBxmsew+eR5mW27DuYh25yKDuWhV1Oi9LBHaUbrkJlhXkmCNhmDtrCnnYm52QwEfHcFMlsoMM/JSHczILujQDKA2YotGlrgAaQpYaFUrWsDngG4DjXSyRkLn4+xscRkbQTChXqKD47ORMgV+4dIvcCWDpgzO4tzsdGUwJaw9NOjYMrLI2WSyB38xOZkbkQitcjQeee10i+Xi99nl6GU6+Wa9rtfrtDQhta4cd2J+LMtGMzqtqNa8g0iRPthPvGOuhx3T7m3e7+2SqqUyLMbnQS3Nnh837WUEPzjYPtml+GrjtUuUt/r/8gjsNj/hFxo3uuMdQ7ztzqI7IRslEhEPI5EI9odJDsfRfSL4OGHkdruUHm+d3u34ORYPX2GJeJJOyaVub7K9C2z2/vqGlQc2te3dGQ6TZX/eDZ+k4RMmzjiRscGIuOGNvNuJRDzihvnw/2J3v9vt/gGxHwtl
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Trigger subscription downgrade job"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/admin/cron/downgrade"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Manually triggers the expired-subscription downgrade cron job. Downgrades all billing accounts whose subscriptions have expired to the Free tier
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-cron-trigger-downgrade.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-cron-trigger-downgrade.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

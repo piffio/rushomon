@@ -1,0 +1,61 @@
+---
+id: handle-switch-org
+title: "Switch active organization"
+description: "Switches the authenticated user's active organization context. Re-issues a new access token (and refresh token) scoped to the chosen org. The user must be a member of the target org"
+sidebar_label: "Switch active organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVttu20YQ/ZXB+iG2QVFyEiABn+peodRODF+QApZhrciRuDW5y+wMrSiC/r2YXdKSYjd97pPl5VzOmftaFUi5Nw0bZ1WmrpaG8xIJuETQLZdo2eSasYCW0L8i0DmbRwTnF9qab1r0IHeW8SuncIkDQ9QigQaLS9B5jkTA7gEtHGpbgMe5Ryrj0xFQ7hosgF1wmJeO0IrtFK5LDC6hbolhhqChxnqGHtw8CLP2C2QRVolyDfqAZVyoTJXaFhXeUyBzHyU8UuMsIalsrV6PRvLnRe5F8hw6IYMRnu7BIKlNot6+ZOHcEBm7AOfB2EddmULg3Zsiapw817ixEmTnzTfshN48F/ro+EfsN5tEEeatN7xS2e1a/Yzao1fZ7d0mWStCIuPsfQQfXu8SxXpBKrtVn3bySOouUTVy6SSIjSNWiWo0lypTQ92YoWAdxqgOYlQJ/SN6Cm73QV94V7R5KI/Ti7FKVOsrSQ1zQ9lQzKW+pdLVzqZ5rgTpvoEzl+sKCnzEyjU1Wt6zkQ2HlQiUjjh7/+79OyWs+jBc5SXWMdV9MNZqFn797nytWWXqw+drSdTpxRj+xJVwCUoq6wRVonjVYOcvRNnYuRNLUu86Z/mJtTaCidqmcZ5/2uWUKKuDwcvuEa6ilGR6n6ygKFzeCs/YU3PnQ6KfdG8uz4BK5xktepDAmxzTiZ3YgwM43baqcVYezx0xoC0aZywTePzSGr/X0+KlDfWKhkv02cQO4Pj4KtZLX+zHx3AoWJY4A9001VYTPR1FlRjj2CtPCkLpAVciIxAP4Cb46uJN8nqSwi8eNSNo28tLnwnvQlM5c9oXcHjhHbCR2vdQmkWJvqdTHE3s6xTGNq/aAoPejonTrrUi4BJ1EUgCwHQ6DX/3JDLoeHh332i+T9N0KxwpnLcVm8Fuz+zx6SlDrq2MrO10owZzMzf53tykFD6X2CdBQx2sO78QIwmsXBuHX1Refdf3WwhRX75O/xJwg3Ex3dKd2EDgv6n2uplYH7StKQYleuz0u+IwdlFhj5GOj7MwqJ/5BUPgQnHrKoXxHFxtmGW29jnSORM4C4YJKFiF7Sjc45dG1+e70fmx57464hbp3h911WIMaK05L8FZ7KepWB3/Sn3hPODqFcXsdc7PcKHzVUzuoXXx21EHgjB+0DkLo87gNj9c4gqW6BHyUO0FOJv+O3rrGLpxgkVo8PE8FINmxrphqaeW8PuCgaXh0rX8ciEk0jwiIa0W6YJrmcy2bXrKsfKWpqrAY46y7TW8HY3EwtvRG0DvnU/D2LnslirEqRp6IKh1uxa0R/hw9emjjLNa8Bcp/Cb6OzJzV1VuCVwaAmLf5tx6zELZ/U0yzNbShhMV/E5UBhMVTdRIpBcIcZTOpAmWpWZYomVYemcXEzWxm6cCPjiAC70w9mlGnpm9GdkFHZonoRixaaMXOAU5X6aVqQ1P4UuLfgWN9rpGRk9hdka5TJwg2Das68OTgbEFfpXSL3Cu24ozOAlzs7OVwZixJmjQi2cUlZPRaEf89ehoYlWiKpOjJZS10y2W0z8uzgZv0tGz9bpcLtOFbVPnF8NOjYZ60VQinZZcV7KD2HC1t59kx1w97Zi4t2W/xyVVa2NFTS6DWtsdHPF0euk2VN9turg8ZZv/f4/N7iwQFMOm6oIS4r/uzqVbpRujEiWk5LLYnkx3iZKTRUTW65kmvPHVZiPPoaTkPEvUo/ZGz6p4rO2cZBefrq57q9m6x/F0rsz6u+/pk7Zy2ITJpzJxGCSuJRybjUrUA66EiPyvNnebzeYfKto2BQ==
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Switch active organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/auth/switch-org"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Switches the authenticated user's active organization context. Re-issues a new access token (and refresh token) scoped to the chosen org. The user must be a member of the target org
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-switch-org.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-switch-org.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

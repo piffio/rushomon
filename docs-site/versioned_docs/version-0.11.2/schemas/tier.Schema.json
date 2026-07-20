@@ -1,0 +1,1 @@
+{"schema":{"enum":["free","pro","business","unlimited"],"type":"string","title":"Tier"},"schemaType":"response"}

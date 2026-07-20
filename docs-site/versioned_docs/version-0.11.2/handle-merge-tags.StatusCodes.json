@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Tags merged successfully, returns merge result with affected link count"},"400":{"description":"Invalid request - missing source tags or invalid tag names"},"401":{"description":"Unauthorized"}}}

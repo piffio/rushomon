@@ -1,0 +1,61 @@
+---
+id: handle-token-refresh
+title: "Refresh access token"
+description: "Validates the refresh token from the httpOnly cookie and issues a new short-lived access token. Rate limited to 30 requests per hour per session"
+sidebar_label: "Refresh access token"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVt9v4zYM/lcI9WFt4Thpr8Dd/LTuJ3Jr16C92w1oikaxGVurLflEOmlW5H8fKDlt0rttr3uKI5Gf+FGfSD6pAin3pmXjrMrU77o2hWYk4ArB48IjVcDuAS0svGvCcsXcXtl6DblzDwZB2wIMUYcEGiyugCrneVCbJRag8xyJIkQK15oRatMYxgLYwZsRePzcITFBix4q1/nwQUgkISXKtei1hDcuVKYqbYsa7wPcfR+fSpRHap0lJJU9qdPRSH72mZ3vxLElhkUS4u15ELLaJOpsdPKl+6UhMrZMwNil5CgB5wEfW+Ox2M9TgDj99kuIF+6AjzligYXabBJFmHfe8Fplt0+q530fQ1LZ7d3mLlGsS1LZrTrvuELLJg8JUXeJapArJ4lpHbFKVKu5Upka6tYMdcfV8CVHhH6JnsIx+5FNvCu6XP7A+WSsEtX5WnLN3FI2FKzUd1S5xtk0z9UmeQ1w4XJdQ4FLrF3boOU9jGw4rMWgcsTZu7fv3irhtKV9k1fYxIv7HrVHL1/z8PWz841mlan3nz5Ivs8nY/gV18IlOKmsN1SJ4nWL/Xkhq8YunCDlzrLOWT6x0UZioq5tnefvdjklyuoAeN0vwk20kut8paTJGAqXd8Iz3AMsnA8P49n34/VFfARog5b90uSYTu3UHhzA/iXK4qUjBrRF64xlCi/CeAS9ZwidCBDQcIU+m9oBHB/fRLX0AqbjYziUWFY4B9229YsnejqKLjHHUarPDkLpAddiIyEewMdwVp9vktWTFH7wKBLWdmsPxgbehaZq7rQv4HDiHbBBL9dVmbJCv6VTHE3taQpjm9ddgcFvB0KS4rz5KwZcoS4CSQCYzWbhd88ig56Hd/et5vs0TV+MI4XLrmYzuPKltlvYXT5bypBrC3MEyl0baxK1mJuFycHt+FIKnyrcXoKGJqA7XwpIAmvXQdMR987rwIm1L5H3YHp/2Z39IcENxsXshe7UBgL/TXXrmwn6oOtMMajQY+/fi8PYssZtjHR8nMGHr50LhsAFces6hfECXGOYpTZu70jnTOAsGCaggBq0KSFisccvjUdf7mbn30/eqiMNJv36UtcdxoQ2mvMKnEVwixCQoI5/pK1wHnD9DcXb6w+/wFLn63i5h9bFvaM+CMK4oXMWRj3gy/1whWtYoUfIg9oLcDb95+itY+jLCRbhgY8XQQyaGZuWRU8d4WvBwMpw5Tr+uhBCbxELeWqRLriOybw8my3lqLyVqWvwmKNZylFno5EgnI3eAHrvfBrKznXfIiFW1fAGglvfOUF7hPc3V79JOWsk/iKFn8R/x2bh6tqtgCtDQOy7nDuPWZDdnyTF7Eme4VSFc6cqg6mKEA0S6RIhltK5PIJVpRlWaBlW3tlyqqZ28yzggwOY6NLY5xp5YfZqZJ90aJ+NYsZmrS5xFkaSWei1M/jcoV9Dq71ukNFTqJ3RLpNDEGzXzNHD4cnA2AIfRfoFLnRXcwYnoW72WBmMGZs4qgiAuJyMRjvmp6OjqUwttcnREkrb6RvL+S+Ti8GbdPRFe12tVmlpu9T5cti70VCXbS3WacVNLT2IDdd7/Ul6zM1zj4l9W/p7bFKNNmESkbGg0XYnjut+WNkdzNSrHhfbpvTx/+VI2Pd6xkcetnXPNCT1qR+AbpVujUqUlKkwHsYh6C5RMoTI/tPTXBN+9PVmI8tBJDJuJWqpvdHzOg5fOxPW5Ormg9ps/gam0Op0
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Refresh access token"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/auth/refresh"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Validates the refresh token from the httpOnly cookie and issues a new short-lived access token. Rate limited to 30 requests per hour per session
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-token-refresh.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-token-refresh.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

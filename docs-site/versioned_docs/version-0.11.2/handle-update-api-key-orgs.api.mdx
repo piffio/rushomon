@@ -1,0 +1,69 @@
+---
+id: handle-update-api-key-orgs
+title: "Update an API key's org scope"
+description: "Replaces the list of organizations an API key is authorized to act on behalf of. The user must own the key and be a member of all supplied orgs. Requires at least one org."
+sidebar_label: "Update an API key's org scope"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVV21v2zYQ/isH5kPTQJadLsAGfVq6dYPbdA3ygg6Ig5iWzhIbidTIU1zN0H8fjpRsucm6z/tkmbp3Pnf3aCsydKlVNSmjRSKusC5lig6oQCiVIzBrMDaXWv0tWcaB1HB+OYdHbEE5kA0Vxqq/MQMyIFMCo2GFhSzXYNYx3BQIjUMLVcPGNtpbZmWpM1ghSKiwWqFlR7IswTV1XSrM2KuL4Qr/apRFB5KgRMk2NPK7WETC1Gh9VPNMJKKQOivxoakzSfgga/XwiO0DmxGRqKWVFRJaJ5K77TdZD/nMfxWRUHxSSypEJLSsUCRCZSISNkSSiYRsg5FwaYGVFMlWUFuzlCOrdC667j4Io6O3JmtZIjWaUBM/Sk4v9VFPvzh2vx2Zqi3nRAod/zM2f1CZfzwM+A+jJ1jV1I7vCOa/8r0p53NxhWlKX2GXmtpfD5dMEVbuhaCj4UBaK1vRdeOE73aR3O/kzOoLpiQiQYpKPrj1dT+v1QdsP9ncXYUSiI5tfRM+bnzAPrJnpfWuXW20C1V4M5s9r8CnQR3CfWecwtlLku98ndhdqJX1z9oQKN1jzxWqDvqnz/Vv9R7jQejsudAHbL3JtWk0Q9f/MRuNGaxa3wC+pA7TxipqPQbforRoRXJ330Vb4dA5ZfRDasyjQn/KxZY5A9Yj9AO2/gIqpMIw4OuGPLKpEImYylpNHRIpnTv+M3nE1k23KuumfQ84tE8vN8ClNVmT8h/ubRGJxpbcUUS1S6ZsLbaNK0xldJymguM9NHBhUllChk9YmrpiqI9tJNNpyQKFcZT89ONPPwrObSjGNaM/XPVQkq1Y+affjK0kiUS8/3zDVe3LIPruY9gFQbHDJfvztebmutq34buvsqoZqKO2uhvgf99x36/N0Ksy9b2KlVScA88kY+nncQ12w+GqP4TrICWewZ2jzkzacF1848PaWD8Hd7q3VxfcsZZQowW+KJVivNALfXQE5w0VqKmfGnz40TgC1FltlCYHff/4YbwXhMYpnQMqKtAmCz2Bk5PrgDIIKHMnJ3DMsWxwBaPB5AHrXgeVcCdA5hH1TqGfmCzDIR7Brfc1wJRPT2P4xaIkPNgYYf5n0hUrI20Gx5fWACme/xYKlRdoh3Sy1wv9Joa5Tssmw93e6E2c900ZAi5QZj5JAFgul/73QCKBPg9rHmpJD3Ec74VDCh+bktTk02jZHeQzpAyp1AdjFVyNqVqr9HBRxvC5wOESJFTeOo+eR2wjaE0TVmJQbn1OJG2OdGCm1+e3yz85uMk8W+7TXWifwH+nOugmbH3SNCqbFGix1+/BoXRe4hCjOzlJ/Pp+5pf3vvHglmUM8zWYShFhFu13e0qOiYAiB85bHROFcX5xcP1xXJ3vex7QEbhFf/4kywZDQStJaRFYwtoHNKxGteMer1y4vd75BeYybcPlHmsT3r3ug3AYXvTUpje4vx8qsIUNWoTUoz0Do+N/j573Qj9OMPMNPl97MEgi3uiMp8bht4CBjaLCNPQyECJuHpbgVgvpgmnIqX3bDCkH5G1UWYLFFNUTuzqbzdjC2ewHQGuNjf3YueqXMIQp7HvAq/W7GaRFeH/96Q8eZxXHn8XwjvVHMmtTlmYTaIkj26TUWEw87HhAL/SW23AhvN+FSGAhgokKnZM5QhilK26CTSEJNqgJNtbofCEWutsB+OgILmWu9G5GXqiDGdkXHeqdUKjYspY5Lj0bXZaqUrSEvxq0LewZo5+dQS5hJwi68ZT1+HSidIZfGfoZrmVTUgKnfm72thKYM+GCGi17RlY5nc1G4m9mrxdaRKJUKWrn91O/WM5/v7yY/BDPnq3jzWYT57qJjc2nvZqbyrwuWTouqCo9n+t52cGOud7tmLDnmQ+EJVVJpVmtNo4qqUdxBGI3muKv3AF7O1h2I677P/uY6PkD4Vea1mVfDV/4bc+x7oSsledRgWWJSAw8S0Qi8V8JnmrdR4KpDmtstyvp8NaWXcfHHlpM7iLxJK2SK74ipmPK8XMmkrUsHX6nqMdXw3aEg8+WF8MfOL1myuRnpEiEiMQjtuGzpmPmE4aIjyO8+CV4m9y0/oIHxWefLt2YjV7e3ohIrPovnspkrGLlhvm93AS/YWt4qufPtqKUOm9kzrLBJFM3xsHoG2VH8VYDY96+nNl2GyRumKt03S5Rz1041677B25vLYc=
+sidebar_class_name: "put api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update an API key's org scope"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/api/settings/api-keys/{id}/orgs"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Replaces the list of organizations an API key is authorized to act on behalf of. The user must own the key and be a member of all supplied orgs. Requires at least one org.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-update-api-key-orgs.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-update-api-key-orgs.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-update-api-key-orgs.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

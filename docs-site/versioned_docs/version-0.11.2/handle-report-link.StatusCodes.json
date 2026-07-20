@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Report submitted successfully"},"400":{"description":"Missing required fields"},"404":{"description":"Link not found or already removed"},"422":{"description":"Link is already disabled"},"429":{"description":"Duplicate report within 24 hours"}}}
