@@ -173,10 +173,10 @@ jobs:
       - name: Install wrangler and worker-build
         run: |
           npm install -g wrangler
-          cargo install -q worker-build --version 0.8.4
+          cargo install -q worker-build --version 0.8.5
 
       - name: Build Worker
-        run: worker-build --release
+        run: worker-build --release --panic-unwind
 
       - name: Install Frontend Dependencies
         working-directory: frontend

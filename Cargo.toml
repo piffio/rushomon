@@ -7,8 +7,8 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-worker = { version = "0.8.3", features = ["d1"] }
-wasm-bindgen = { version = "0.2.122", features = ["serde-serialize"] }
+worker = { version = "0.8.5", features = ["d1"] }
+wasm-bindgen = { version = "0.2.126", features = ["serde-serialize"] }
 web-sys = { version = "0.3", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -66,7 +66,7 @@ optional = true
 [profile.release]
 opt-level = "s"
 lto = true
-strip = true
+strip = "debuginfo"
 codegen-units = 1
 
 [workspace.lints.clippy]

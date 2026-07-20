@@ -251,10 +251,10 @@ jobs:
         run: npm install -g wrangler
 
       - name: Install worker-build
-        run: cargo install worker-build --version 0.8.4
+        run: cargo install worker-build --version 0.8.5
 
       - name: Build backend
-        run: worker-build --release
+        run: worker-build --release --panic-unwind
 
       - name: Install frontend dependencies
         working-directory: ./frontend
