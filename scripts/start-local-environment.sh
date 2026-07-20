@@ -148,7 +148,7 @@ fi
 
 # Build the worker first to avoid timeouts during startup
 echo "🔨 Building worker..."
-worker-build --release --quiet
+worker-build --release --panic-unwind --quiet
 
 # Note: R2 bucket is created automatically by wrangler dev --local
 # Remote bucket creation is skipped for local development

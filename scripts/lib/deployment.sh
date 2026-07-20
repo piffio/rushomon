@@ -207,7 +207,7 @@ check_build_prerequisites() {
   # Check worker-build
   if ! command -v worker-build &>/dev/null; then
     warning "worker-build not found, installing..."
-    cargo install worker-build || {
+    cargo install worker-build --version 0.8.5 || {
       error "Failed to install worker-build"
       return 1
     }
@@ -229,7 +229,7 @@ build_backend() {
   cd "$project_root" || return 1
 
   # Run worker-build in release mode
-  worker-build --release || {
+  worker-build --release --panic-unwind || {
     error "Backend build failed"
     return 1
   }
