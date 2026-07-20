@@ -5,9 +5,6 @@
   import Logo from "$lib/components/Logo.svelte";
   import SEO from "$lib/components/SEO.svelte";
   import { onMount } from "svelte";
-  import type { PageData } from "./$types";
-
-  const { data }: { data: PageData } = $props();
 
   let providers = $state<AuthProvider[]>([]);
   let loading = $state(true);
@@ -24,9 +21,14 @@
       page.url.searchParams.get("error") === "email_already_used";
 
     // Redirect to dashboard if user is already authenticated
-    if (data.user) {
-      await goto("/dashboard");
-      return;
+    try {
+      const user = await authApi.me();
+      if (user) {
+        await goto("/dashboard");
+        return;
+      }
+    } catch {
+      // Not authenticated — fall through and render sign-in.
     }
 
     try {
