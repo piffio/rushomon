@@ -91,7 +91,7 @@ async fn main(req: Request, env: Env, worker_ctx: Context) -> Result<Response> {
         && !path.starts_with("/api/")
         && let Ok(assets) = env.get_binding::<worker::Fetcher>("ASSETS")
     {
-        let fallback_url = format!("{}://{}/fallback.html", url.scheme(), &request_authority);
+        let fallback_url = format!("{}://{}/fallback.html", url.scheme(), request_authority);
         if let Ok(fallback_response) = assets.fetch(fallback_url, None).await
             && fallback_response.status_code() < 400
         {
