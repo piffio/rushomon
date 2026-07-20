@@ -1,6 +1,12 @@
 <script lang="ts">
   import { adminApi, type Discount, type Product } from "$lib/api/admin";
   import { billingApi, type ProductPrice } from "$lib/api/billing";
+  import {
+    DEFAULT_MIN_CUSTOM_CODE_LENGTH,
+    DEFAULT_MIN_RANDOM_CODE_LENGTH,
+    DEFAULT_SYSTEM_MIN_CODE_LENGTH,
+    MAX_SHORT_CODE_LENGTH
+  } from "$lib/constants";
   import { onMount } from "svelte";
 
   let settings = $state<Record<string, string>>({});
@@ -11,6 +17,11 @@
   let signupsEnabled = $state(true);
   let defaultUserTier = $state("free");
   let founderPricingEnabled = $state(false);
+
+  // Minimum code length
+  let minRandomCodeLength = $state(DEFAULT_MIN_RANDOM_CODE_LENGTH);
+  let minCustomCodeLength = $state(DEFAULT_MIN_CUSTOM_CODE_LENGTH);
+  let systemMinCodeLength = $state(DEFAULT_SYSTEM_MIN_CODE_LENGTH);
   let confirmingSignupToggle = $state(false);
   let confirmingFounderPricingToggle = $state(false);
 
@@ -119,6 +130,7 @@
       settings = await adminApi.getSettings();
       signupsEnabled = settings.signups_enabled !== "false";
       defaultUserTier = settings.default_user_tier || "free";
+      syncCodeLengthState(settings);
       founderPricingEnabled = settings.founder_pricing_active === "true";
       discountSlots.pro_monthly = settings.active_discount_pro_monthly || "";
       discountSlots.pro_annual = settings.active_discount_pro_annual || "";
@@ -373,6 +385,50 @@
     return `${d.name} — ${amount}${pricingInfo} (${used})`;
   }
 
+  // Reflect the code length settings in the UI, raised to the system minimum:
+  // the Admin UI must show the reality of the system even if a lower value
+  // was stored before the high-watermark increased.
+  function syncCodeLengthState(s: Record<string, string>) {
+    systemMinCodeLength = parseInt(
+      s.system_min_code_length || DEFAULT_SYSTEM_MIN_CODE_LENGTH.toString()
+    );
+    minRandomCodeLength = Math.max(
+      systemMinCodeLength,
+      parseInt(
+        s.min_random_code_length || DEFAULT_MIN_RANDOM_CODE_LENGTH.toString()
+      )
+    );
+    minCustomCodeLength = Math.max(
+      systemMinCodeLength,
+      parseInt(
+        s.min_custom_code_length || DEFAULT_MIN_CUSTOM_CODE_LENGTH.toString()
+      )
+    );
+  }
+
+  async function handleCodeLengthChange(
+    key: "min_random_code_length" | "min_custom_code_length",
+    value: number
+  ) {
+    saving = true;
+    try {
+      const updatedSettings = await adminApi.updateSetting(
+        key,
+        value.toString()
+      );
+      settings = updatedSettings;
+      syncCodeLengthState(updatedSettings);
+      showToastMessage("Short code length updated");
+    } catch (err) {
+      console.error("Failed to update setting:", err);
+      showToastMessage("Failed to update setting");
+      // Reset the inputs to the last known good values
+      syncCodeLengthState(settings);
+    } finally {
+      saving = false;
+    }
+  }
+
   async function handleSignupToggle() {
     confirmingSignupToggle = true;
   }
@@ -531,6 +587,64 @@
               <option value="free">Free</option>
               <option value="unlimited">Unlimited</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Short Code Length Setting -->
+      <div class="setting-card">
+        <div class="setting-content">
+          <div class="setting-info">
+            <h3>Short code length limits</h3>
+            <p class="setting-description">
+              Set the minimum allowed characters for custom and random short
+              codes.
+              <br />
+              <span class="setting-hint"
+                >System Minimum: {systemMinCodeLength} (Automatically increases when
+                shorter code combinations are exhausted).</span
+              >
+            </p>
+          </div>
+          <div class="setting-control code-length-controls">
+            <div class="code-length-field">
+              <label for="min-random-length" class="code-length-label"
+                >Random</label
+              >
+              <input
+                id="min-random-length"
+                type="number"
+                min={systemMinCodeLength}
+                max={MAX_SHORT_CODE_LENGTH}
+                bind:value={minRandomCodeLength}
+                onchange={() =>
+                  handleCodeLengthChange(
+                    "min_random_code_length",
+                    minRandomCodeLength
+                  )}
+                disabled={saving}
+                class="tier-select code-length-input"
+              />
+            </div>
+            <div class="code-length-field">
+              <label for="min-custom-length" class="code-length-label"
+                >Custom</label
+              >
+              <input
+                id="min-custom-length"
+                type="number"
+                min={systemMinCodeLength}
+                max={MAX_SHORT_CODE_LENGTH}
+                bind:value={minCustomCodeLength}
+                onchange={() =>
+                  handleCodeLengthChange(
+                    "min_custom_code_length",
+                    minCustomCodeLength
+                  )}
+                disabled={saving}
+                class="tier-select code-length-input"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1132,6 +1246,35 @@
 
   .toggle-switch.disabled .toggle-slider {
     transform: translateX(0);
+  }
+
+  .setting-hint {
+    font-size: 0.75rem;
+    color: #d97706;
+    font-weight: 500;
+  }
+
+  /* Code Length Inputs */
+  .code-length-controls {
+    gap: 1rem;
+  }
+
+  .code-length-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .code-length-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .code-length-input {
+    width: 80px;
+    text-align: center;
   }
 
   /* Select Input */

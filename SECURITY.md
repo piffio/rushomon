@@ -41,7 +41,7 @@ Rushomon implements multiple layers of security:
 
 ### Input Validation
 - **URL validation** - Only `http://` and `https://` schemes allowed (prevents XSS via `javascript:` URLs)
-- **Short code validation** - Alphanumeric, hyphens, and forward slashes, 3-100 characters (no leading/trailing hyphens or slashes, max 3 segments)
+- **Short code validation** - Alphanumeric, hyphens, and forward slashes, 1-100 characters (no leading/trailing hyphens or slashes, max 3 segments)
 - **Reserved codes** - System routes (`api`, `auth`, `admin`) cannot be used as short codes
 - **Pagination limits** - Maximum 100 items per page (DoS prevention)
 

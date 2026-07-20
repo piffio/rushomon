@@ -4,8 +4,11 @@ use crate::models::Tier;
 /// Handles quota enforcement, blacklist checks, and tag limit validation.
 /// Orchestrates BillingRepository, BlacklistRepository, and TagRepository.
 use crate::models::link::{Link, LinkStatus, UtmParams};
-use crate::repositories::{BillingRepository, BlacklistRepository, LinkRepository, TagRepository};
+use crate::repositories::{
+    BillingRepository, BlacklistRepository, LinkRepository, SettingsRepository, TagRepository,
+};
 use crate::utils::AppError;
+use crate::utils::short_code::{DEFAULT_COLLISION_THRESHOLD, generate_short_code_with_length};
 use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::kv::KvStore;
@@ -503,6 +506,67 @@ impl LinkService {
         crate::kv::delete_link_mapping(kv, &link.org_id, &link.short_code).await?;
 
         Ok(())
+    }
+
+    /// Generate a unique random short code starting at the configured minimum
+    /// length and scaling up if collisions are detected.
+    ///
+    /// When `COLLISION_THRESHOLD` consecutive collisions occur at a given
+    /// length, the namespace is considered effectively exhausted: the target
+    /// length is incremented and the `system_min_code_length` high-watermark is
+    /// persisted so the whole application self-heals to the longer length.
+    pub async fn generate_progressive_short_code(
+        &self,
+        kv: &KvStore,
+        db: &D1Database,
+        env: &worker::Env,
+        admin_min_length: usize,
+        system_min_length: usize,
+    ) -> worker::Result<String> {
+        let collision_threshold = env
+            .var("COLLISION_THRESHOLD")
+            .ok()
+            .and_then(|v| v.to_string().parse::<usize>().ok())
+            .unwrap_or(DEFAULT_COLLISION_THRESHOLD);
+
+        let mut current_length = admin_min_length.max(system_min_length);
+        let mut total_attempts = 0;
+        let mut current_length_attempts = 0;
+
+        loop {
+            let code = generate_short_code_with_length(current_length);
+
+            if !crate::kv::links::short_code_exists(kv, &code).await? {
+                return Ok(code);
+            }
+
+            total_attempts += 1;
+            current_length_attempts += 1;
+
+            // Exhaustion Trigger: Dynamic threshold based on env var
+            if current_length_attempts >= collision_threshold {
+                current_length += 1;
+                current_length_attempts = 0;
+
+                let settings_repo = SettingsRepository::new();
+                let _ = settings_repo
+                    .set_setting(db, "system_min_code_length", &current_length.to_string())
+                    .await;
+
+                if admin_min_length < current_length {
+                    let _ = settings_repo
+                        .set_setting(db, "min_random_code_length", &current_length.to_string())
+                        .await;
+                }
+            }
+
+            // Scale the ultimate fail-safe based on the threshold too
+            if total_attempts > (collision_threshold * 3).max(20) {
+                return Err(worker::Error::RustError(
+                    "Failed to generate unique short code".into(),
+                ));
+            }
+        }
     }
 
     /// Create a new link with all associated operations.

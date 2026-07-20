@@ -115,6 +115,7 @@ jobs:
           POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
           POLAR_SANDBOX = "false"
           CF_ZONE_ID = "${{ secrets.CF_ZONE_ID }}"
+          COLLISION_THRESHOLD = "${{ vars.COLLISION_THRESHOLD }}"
           EOF
 
           echo "✅ Generated wrangler.production.toml"
@@ -271,6 +272,7 @@ jobs:
           POLAR_ORG_SLUG = "${{ secrets.POLAR_ORG_SLUG }}"
           POLAR_SANDBOX = "false"
           CF_ZONE_ID = "${{ secrets.CF_ZONE_ID }}"
+          COLLISION_THRESHOLD = "${{ vars.COLLISION_THRESHOLD }}"
           EOF
 
           echo "✅ Generated wrangler.production.toml"

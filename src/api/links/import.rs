@@ -1,9 +1,9 @@
 use crate::auth;
 use crate::kv;
 use crate::models::link::{Link, LinkStatus};
-use crate::services::LinkService;
+use crate::services::{LinkService, SettingsService};
 use crate::utils::validate_and_normalize_tags;
-use crate::utils::{generate_short_code, now_timestamp, validate_short_code, validate_url};
+use crate::utils::{now_timestamp, validate_short_code, validate_url};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -94,6 +94,9 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
     let kv = ctx.kv("URL_MAPPINGS")?;
     let now = now_timestamp();
 
+    // Fetch all code length settings in a single query for performance
+    let lengths = SettingsService::new().get_code_length_settings(&db).await?;
+
     let mut created: usize = 0;
     let mut skipped: usize = 0;
     let mut failed: usize = 0;
@@ -156,6 +159,19 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                 continue;
             }
 
+            if provided_code.len() < lengths.effective_custom_min {
+                skipped += 1;
+                errors.push(ImportError {
+                    row: row_num,
+                    destination_url: destination_url.clone(),
+                    reason: format!(
+                        "Custom short code must be at least {} characters",
+                        lengths.effective_custom_min
+                    ),
+                });
+                continue;
+            }
+
             let mut resolved: Option<String> = None;
             for attempt in 0u32..=10 {
                 let candidate = if attempt == 0 {
@@ -172,16 +188,17 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             match resolved {
                 Some(c) => short_code = c,
                 None => {
-                    let mut fallback: Option<String> = None;
-                    for _ in 0..10u32 {
-                        let candidate = generate_short_code();
-                        if !kv::links::short_code_exists(&kv, &candidate).await? {
-                            fallback = Some(candidate);
-                            break;
-                        }
-                    }
-                    match fallback {
-                        Some(c) => {
+                    match link_service
+                        .generate_progressive_short_code(
+                            &kv,
+                            &db,
+                            &ctx.env,
+                            lengths.min_random_length,
+                            lengths.system_min_length,
+                        )
+                        .await
+                    {
+                        Ok(c) => {
                             warnings.push(ImportWarning {
                                 row: row_num,
                                 destination_url: destination_url.clone(),
@@ -192,7 +209,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                             });
                             short_code = c;
                         }
-                        None => {
+                        Err(_) => {
                             failed += 1;
                             errors.push(ImportError {
                                 row: row_num,
@@ -206,17 +223,18 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                 }
             }
         } else {
-            let mut resolved: Option<String> = None;
-            for _ in 0..10u32 {
-                let candidate = generate_short_code();
-                if !kv::links::short_code_exists(&kv, &candidate).await? {
-                    resolved = Some(candidate);
-                    break;
-                }
-            }
-            match resolved {
-                Some(c) => short_code = c,
-                None => {
+            match link_service
+                .generate_progressive_short_code(
+                    &kv,
+                    &db,
+                    &ctx.env,
+                    lengths.min_random_length,
+                    lengths.system_min_length,
+                )
+                .await
+            {
+                Ok(c) => short_code = c,
+                Err(_) => {
                     failed += 1;
                     errors.push(ImportError {
                         row: row_num,

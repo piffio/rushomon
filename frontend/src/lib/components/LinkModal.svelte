@@ -12,6 +12,10 @@
     UtmParams
   } from "$lib/types/api";
   import { debounce, fetchUrlTitle } from "$lib/utils/url-title";
+  import {
+    DEFAULT_MIN_CUSTOM_CODE_LENGTH,
+    MAX_SHORT_CODE_LENGTH
+  } from "$lib/constants";
   import { createEventDispatcher, onMount } from "svelte";
 
   interface Props {
@@ -19,13 +23,18 @@
     isOpen?: boolean;
     usage?: UsageResponse | null;
     activeDomains?: CustomDomain[];
+    minShortCodeLength?: number;
+    maxShortCodeLength?: number;
   }
 
   let {
     link = null,
     isOpen = $bindable(false),
     usage = null,
-    activeDomains = []
+    activeDomains = [],
+    // Provide default values if not passed down
+    minShortCodeLength = DEFAULT_MIN_CUSTOM_CODE_LENGTH,
+    maxShortCodeLength = MAX_SHORT_CODE_LENGTH
   }: Props = $props();
 
   const dispatch = createEventDispatcher<{ saved: Link }>();
@@ -540,6 +549,8 @@
             type="text"
             bind:value={shortCode}
             disabled={isEditMode || loading || !allowCustomShortCode}
+            minlength={minShortCodeLength}
+            maxlength={maxShortCodeLength}
             placeholder={isEditMode
               ? ""
               : allowCustomShortCode
@@ -557,8 +568,8 @@
                 >Upgrade to Pro</a
               > to use custom short codes
             {:else}
-              3-100 characters (letters, numbers, hyphens, forward slashes).
-              Leave empty for auto-generated code
+              {minShortCodeLength}-{maxShortCodeLength} characters (letters, numbers,
+              hyphens, forward slashes). Leave empty for auto-generated code
             {/if}
           </p>
         </div>
