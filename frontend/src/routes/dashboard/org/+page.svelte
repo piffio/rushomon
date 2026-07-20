@@ -134,6 +134,7 @@
 
   $effect(() => {
     loadOrg();
+    checkCanDelete();
     billingApi
       .getStatus()
       .then((s) => {
@@ -596,10 +597,7 @@
   }
 
   async function openDeleteModal() {
-    await checkCanDelete();
     if (!canDelete) {
-      actionError = "Cannot delete your only organization.";
-      setTimeout(() => (actionError = ""), 3000);
       return;
     }
 
@@ -2305,7 +2303,7 @@
         </div>
       {/if}
 
-      <!-- Danger Zone (owner only, multiple orgs) -->
+      <!-- Danger Zone (owner only) -->
       {#if isOwner}
         <div class="bg-white rounded-xl border border-red-200 p-6">
           <h2 class="text-lg font-semibold text-red-700 mb-2">Danger Zone</h2>
@@ -2314,10 +2312,20 @@
           </p>
           <button
             onclick={openDeleteModal}
-            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+            disabled={!canDelete}
+            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Delete Organization
           </button>
+          {#if !canDelete}
+            <p class="text-xs text-gray-500 mt-2">
+              You must own at least one other organization to delete this one.
+              To delete everything, use <a
+                href="/settings"
+                class="text-orange-600 hover:underline">account deletion</a
+              > in Settings.
+            </p>
+          {/if}
         </div>
       {/if}
     {/if}

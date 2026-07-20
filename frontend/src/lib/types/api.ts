@@ -480,3 +480,11 @@ export interface TransferInfo {
   to_email: string;
   expires_at: number;
 }
+
+// ─── Account Deletion Types ───────────────────────────────────────────────────
+
+export interface DeletionStatus {
+  pending: boolean;
+  scheduled_deletion_at: number | null;
+  days_remaining: number | null;
+}

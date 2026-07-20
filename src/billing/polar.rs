@@ -95,6 +95,37 @@ impl PolarClient {
         Ok(json)
     }
 
+    async fn delete_json(&self, path: &str) -> Result<()> {
+        let url = format!("{}{}", self.api_base(), path);
+        let auth = format!("Bearer {}", self.access_token);
+
+        let headers = Headers::new();
+        headers.set("Authorization", &auth)?;
+        headers.set("Accept", "application/json")?;
+
+        let mut init = RequestInit::new();
+        init.with_method(Method::Delete).with_headers(headers);
+
+        let req = Request::new_with_init(&url, &init)?;
+        let mut resp = Fetch::Request(req).send().await?;
+
+        let status = resp.status_code();
+        if status >= 400 {
+            let json: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+            let msg = json["detail"]
+                .as_str()
+                .or_else(|| json["error"].as_str())
+                .unwrap_or("Polar API error")
+                .to_string();
+            return Err(worker::Error::RustError(format!(
+                "Polar API error {}: {}",
+                status, msg
+            )));
+        }
+
+        Ok(())
+    }
+
     /// Fetches the first non-archived price ID for a given product ID.
     /// Each of our products has exactly one price; this returns its UUID.
     pub async fn list_discounts(&self) -> Result<serde_json::Value> {
@@ -124,6 +155,24 @@ impl PolarClient {
         })?;
 
         Ok(portal_url.to_string())
+    }
+
+    /// Delete a Polar customer by external_id (our billing_account_id).
+    /// Immediately cancels any active subscriptions and revokes benefits.
+    /// Set `anonymize` to true for GDPR compliance.
+    pub async fn delete_customer_by_external_id(
+        &self,
+        external_id: &str,
+        anonymize: bool,
+    ) -> Result<()> {
+        let encoded_id = urlencoding::encode(external_id);
+        let path = if anonymize {
+            format!("/v1/customers/external/{}?anonymize=true", encoded_id)
+        } else {
+            format!("/v1/customers/external/{}", encoded_id)
+        };
+        self.delete_json(&path).await?;
+        Ok(())
     }
 
     /// Finds a Polar customer by external_id (our billing_account_id).

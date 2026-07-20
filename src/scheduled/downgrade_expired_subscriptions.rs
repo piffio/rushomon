@@ -27,6 +27,21 @@ pub async fn scheduled(event: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
         "0 0 * * *" => {
             console_log!("[cron] Starting subscription downgrade job (midnight UTC)");
             service.downgrade_expired(&db).await;
+
+            console_log!("[cron] Starting account deletion processing job");
+            let kv = match env.kv("URL_MAPPINGS") {
+                Ok(kv) => kv,
+                Err(e) => {
+                    console_error!(
+                        "[cron] Failed to get KV binding for account deletion: {}",
+                        e
+                    );
+                    return;
+                }
+            };
+            let _ = crate::services::AccountDeletionService::new()
+                .process_expired_deletions(&db, &kv, &env)
+                .await;
         }
         "0 4 * * *" => {
             console_log!("[cron] Starting webhook cleanup job (4 AM UTC)");

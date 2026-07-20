@@ -179,7 +179,11 @@ pub async fn authenticate_request(
             return Err(AuthError::Forbidden("Account suspended".to_string()));
         }
 
-        // 7. Resolve the active org from the key's scope + optional X-Org-Id header.
+        if user.pending_deletion_at.is_some() {
+            return Err(AuthError::Forbidden(
+                "Account scheduled for deletion".to_string(),
+            ));
+        }
         let allowed_orgs = match api_key_repo.get_key_orgs(&db, &api_key_with_tier.id).await {
             Ok(orgs) => orgs,
             Err(e) => {
@@ -397,6 +401,34 @@ pub async fn authenticate_request(
             })
         );
         return Err(AuthError::Forbidden("Account suspended".to_string()));
+    }
+
+    // Check if user has a pending account deletion
+    // Only allow access to essential auth endpoints while deletion is pending
+    if user.pending_deletion_at.is_some() {
+        let path = req.path();
+        let is_allowed = path == "/api/auth/me"
+            || path == "/api/auth/refresh"
+            || path == "/api/auth/logout"
+            || path == "/api/auth/delete-account"
+            || path == "/api/auth/cancel-deletion"
+            || path == "/api/auth/deletion-status";
+
+        if !is_allowed {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_user_pending_deletion_blocked",
+                    "user_id": user.id,
+                    "path": path,
+                    "level": "warn"
+                })
+            );
+            return Err(AuthError::Forbidden(
+                "Account scheduled for deletion. Only account management actions are available."
+                    .to_string(),
+            ));
+        }
     }
 
     Ok(UserContext {

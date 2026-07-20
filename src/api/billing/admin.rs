@@ -1,5 +1,5 @@
 use crate::auth;
-use crate::services::BillingService;
+use crate::services::{AccountDeletionService, BillingService};
 use crate::utils::now_timestamp;
 use worker::d1::D1Database;
 use worker::*;
@@ -118,4 +118,64 @@ pub async fn handle_cron_trigger_downgrade(
         "success": success_count,
         "errors": error_count
     }))
+}
+
+// ─── POST /api/admin/cron/trigger-deletion-processing ───────────────────────
+/// Manually triggers the account deletion processing job.
+/// Processes all users whose pending_deletion_at has passed.
+#[utoipa::path(
+    post,
+    path = "/api/admin/cron/trigger-deletion-processing",
+    tag = "Admin",
+    summary = "Trigger account deletion processing job",
+    description = "Manually triggers the account deletion cron job. Permanently deletes all users whose grace period has expired",
+    responses(
+        (status = 200, description = "Deletion processing job completed"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Admin required"),
+    ),
+    security(("Bearer" = []), ("session_cookie" = []))
+)]
+pub async fn handle_cron_trigger_deletion_processing(
+    req: Request,
+    ctx: RouteContext<()>,
+) -> Result<Response> {
+    let user_ctx = match auth::authenticate_request(&req, &ctx).await {
+        Ok(c) => c,
+        Err(e) => return Ok(e.into_response()),
+    };
+
+    if let Err(e) = auth::require_admin(&user_ctx) {
+        return Ok(e.into_response());
+    }
+
+    let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("[cron-trigger] DB binding unavailable: {}", e);
+            return Response::error("Service temporarily unavailable", 503);
+        }
+    };
+
+    let kv = match ctx.kv("URL_MAPPINGS") {
+        Ok(kv) => kv,
+        Err(e) => {
+            console_error!("[cron-trigger] KV binding unavailable: {}", e);
+            return Response::error("Service temporarily unavailable", 503);
+        }
+    };
+
+    match AccountDeletionService::new()
+        .process_expired_deletions(&db, &kv, &ctx.env)
+        .await
+    {
+        Ok(()) => Response::from_json(&serde_json::json!({
+            "success": true,
+            "message": "Account deletion processing completed"
+        })),
+        Err(e) => {
+            console_error!("[cron-trigger] Failed to process expired deletions: {}", e);
+            Response::error("Service temporarily unavailable", 503)
+        }
+    }
 }

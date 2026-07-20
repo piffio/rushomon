@@ -289,7 +289,7 @@ async fn inner_delete_user(mut req: Request, ctx: RouteContext<()>) -> Result<Re
     }
 
     let (user_count, links_count, analytics_count) = AdminService::new()
-        .delete_user(&db, &target_user_id, &user_ctx.user_id)
+        .delete_user(&db, &kv, &ctx.env, &target_user_id, &user_ctx.user_id)
         .await?;
 
     Ok(Response::from_json(&serde_json::json!({

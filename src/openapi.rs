@@ -54,6 +54,11 @@ use utoipa::{Modify, OpenApi};
 
             // Version response
             crate::api::version::VersionResponse,
+
+            // Account deletion models
+            crate::api::auth::account::DeleteAccountRequest,
+            crate::api::auth::account::DeleteAccountResponse,
+            crate::api::auth::account::DeletionStatusResponse,
         ),
     ),
     paths(
@@ -65,6 +70,9 @@ use utoipa::{Modify, OpenApi};
         crate::api::auth::session::handle_get_current_user,
         crate::api::auth::session::handle_token_refresh,
         crate::api::auth::session::handle_logout,
+        crate::api::auth::account::handle_delete_account,
+        crate::api::auth::account::handle_cancel_deletion,
+        crate::api::auth::account::handle_deletion_status,
 
         // Usage
         crate::api::analytics::usage::handle_get_usage,
@@ -170,6 +178,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::admin::billing::handle_admin_update_subscription_status,
         crate::api::billing::handle_admin_reset_billing_account,
         crate::api::billing::handle_cron_trigger_downgrade,
+        crate::api::billing::handle_cron_trigger_deletion_processing,
 
         // Admin — Products & Discounts
         crate::api::billing::products::handle_admin_list_discounts,

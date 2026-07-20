@@ -129,6 +129,18 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             crate::api::auth::session::handle_token_refresh,
         )
         .post_async("/api/auth/logout", crate::api::auth::session::handle_logout)
+        .post_async(
+            "/api/auth/delete-account",
+            crate::api::auth::account::handle_delete_account,
+        )
+        .post_async(
+            "/api/auth/cancel-deletion",
+            crate::api::auth::account::handle_cancel_deletion,
+        )
+        .get_async(
+            "/api/auth/deletion-status",
+            crate::api::auth::account::handle_deletion_status,
+        )
         .get_async("/api/usage", crate::api::analytics::usage::handle_get_usage)
         .post_async("/api/links", crate::api::links::handle_create_link)
         .get_async("/api/links", crate::api::links::handle_list_links)
@@ -445,6 +457,10 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
         .post_async(
             "/api/admin/cron/trigger-monthly-stats",
             crate::api::notifications::handle_cron_trigger_monthly_stats,
+        )
+        .post_async(
+            "/api/admin/cron/trigger-deletion-processing",
+            crate::api::billing::handle_cron_trigger_deletion_processing,
         )
         .post_async(
             "/api/admin/billing-accounts/:id/reset",

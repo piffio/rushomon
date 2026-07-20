@@ -29,6 +29,10 @@ pub struct User {
     pub suspended_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_login_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_deletion_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending_deletion_scheduled_at: Option<i64>,
 }
 
 impl User {

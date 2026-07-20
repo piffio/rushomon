@@ -50,7 +50,8 @@ impl UserRepository {
         // Try to find existing user by OAuth provider and ID
         let stmt = db.prepare(
             "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
-                    suspended_at, suspension_reason, suspended_by, last_login_at
+                    suspended_at, suspension_reason, suspended_by, last_login_at,
+                    pending_deletion_at, pending_deletion_scheduled_at
              FROM users
              WHERE oauth_provider = ?1 AND oauth_id = ?2",
         );
@@ -95,6 +96,8 @@ impl UserRepository {
                 suspension_reason: user.suspension_reason,
                 suspended_by: user.suspended_by,
                 last_login_at: user.last_login_at,
+                pending_deletion_at: user.pending_deletion_at,
+                pending_deletion_scheduled_at: user.pending_deletion_scheduled_at,
             })
         } else {
             // Determine role: first user on the instance gets admin, all others get member
@@ -136,6 +139,8 @@ impl UserRepository {
                 suspension_reason: None,
                 suspended_by: None,
                 last_login_at: None,
+                pending_deletion_at: None,
+                pending_deletion_scheduled_at: None,
             })
         }
     }
@@ -144,7 +149,8 @@ impl UserRepository {
     pub async fn get_user_by_id(&self, db: &D1Database, user_id: &str) -> Result<Option<User>> {
         let stmt = db.prepare(
             "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
-                    suspended_at, suspension_reason, suspended_by, last_login_at
+                    suspended_at, suspension_reason, suspended_by, last_login_at,
+                    pending_deletion_at, pending_deletion_scheduled_at
              FROM users
              WHERE id = ?1",
         );
@@ -155,7 +161,8 @@ impl UserRepository {
     pub async fn get_by_email(&self, db: &D1Database, email: &str) -> Result<Option<User>> {
         let stmt = db.prepare(
             "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
-                    suspended_at, suspension_reason, suspended_by, last_login_at
+                    suspended_at, suspension_reason, suspended_by, last_login_at,
+                    pending_deletion_at, pending_deletion_scheduled_at
              FROM users
              WHERE email = ?1",
         );
@@ -300,6 +307,53 @@ impl UserRepository {
         .run()
         .await?;
         Ok(())
+    }
+
+    /// Schedule account deletion: set pending_deletion_at to the given timestamp.
+    pub async fn schedule_deletion(
+        &self,
+        db: &D1Database,
+        user_id: &str,
+        deletion_at: i64,
+    ) -> Result<()> {
+        let now = now_timestamp();
+        db.prepare(
+            "UPDATE users SET pending_deletion_at = ?1, pending_deletion_scheduled_at = ?2 WHERE id = ?3",
+        )
+        .bind(&[
+            (deletion_at as f64).into(),
+            (now as f64).into(),
+            user_id.into(),
+        ])?
+        .run()
+        .await?;
+        Ok(())
+    }
+
+    /// Cancel a pending account deletion: clear both deletion columns.
+    pub async fn cancel_deletion(&self, db: &D1Database, user_id: &str) -> Result<()> {
+        db.prepare(
+            "UPDATE users SET pending_deletion_at = NULL, pending_deletion_scheduled_at = NULL WHERE id = ?1",
+        )
+        .bind(&[user_id.into()])?
+        .run()
+        .await?;
+        Ok(())
+    }
+
+    /// Get all users whose pending_deletion_at has passed (due for permanent deletion).
+    pub async fn get_users_due_for_deletion(&self, db: &D1Database, now: i64) -> Result<Vec<User>> {
+        db.prepare(
+            "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at,
+                    suspended_at, suspension_reason, suspended_by, last_login_at,
+                    pending_deletion_at, pending_deletion_scheduled_at
+             FROM users
+             WHERE pending_deletion_at IS NOT NULL AND pending_deletion_at <= ?1",
+        )
+        .bind(&[(now as f64).into()])?
+        .all()
+        .await?
+        .results::<User>()
     }
 
     /// Delete a user and all their associated data.

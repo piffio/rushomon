@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { authApi } from "$lib/api/auth";
   import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { apiClient } from "$lib/api/client";
@@ -6,7 +7,11 @@
   import { orgsApi } from "$lib/api/orgs";
   import { apiKeysApi, type ApiKey } from "$lib/api/settings";
   import Header from "$lib/components/Header.svelte";
-  import type { NotificationPreferences, OrgWithRole } from "$lib/types/api";
+  import type {
+    DeletionStatus,
+    NotificationPreferences,
+    OrgWithRole
+  } from "$lib/types/api";
   import type { PageData } from "./$types";
 
   const { data }: { data: PageData } = $props();
@@ -55,6 +60,13 @@
   });
   let notifPrefsLoading = $state(true);
   let notifSaving = $state(false);
+
+  // Account deletion state
+  let deletionStatus = $state<DeletionStatus | null>(null);
+  let deletionLoading = $state(false);
+  let deletionError = $state<string | null>(null);
+  let deleteConfirmationText = $state("");
+  let showDeleteModal = $state(false);
 
   // Helper for version API URL
   const versionApiUrl = `${apiClient["baseUrl"]}/api/version`;
@@ -120,6 +132,13 @@
       .finally(() => {
         notifPrefsLoading = false;
       });
+
+    authApi
+      .getDeletionStatus()
+      .then((status) => {
+        deletionStatus = status;
+      })
+      .catch(() => {});
   });
 
   function formatDate(ts: number): string {
@@ -267,6 +286,64 @@
       notifSaving = false;
     }
   }
+
+  async function handleRequestDeletion() {
+    deletionLoading = true;
+    deletionError = null;
+    try {
+      await authApi.requestDeletion();
+      const status = await authApi.getDeletionStatus();
+      deletionStatus = status;
+      showDeleteModal = false;
+      deleteConfirmationText = "";
+    } catch (e: unknown) {
+      const errorStatus =
+        e && typeof e === "object" && "status" in e
+          ? (e as { status: number }).status
+          : undefined;
+      if (errorStatus === 400) {
+        const errorBody =
+          e && typeof e === "object" && "message" in e
+            ? (e as { message: string }).message
+            : "Cannot delete account. You may be the last owner of an organization.";
+        deletionError = errorBody;
+      } else {
+        deletionError =
+          "Failed to schedule account deletion. Please try again.";
+      }
+    } finally {
+      deletionLoading = false;
+    }
+  }
+
+  async function handleCancelDeletion() {
+    deletionLoading = true;
+    deletionError = null;
+    try {
+      await authApi.cancelDeletion();
+      deletionStatus = {
+        pending: false,
+        scheduled_deletion_at: null,
+        days_remaining: null
+      };
+    } catch {
+      deletionError = "Failed to cancel account deletion. Please try again.";
+    } finally {
+      deletionLoading = false;
+    }
+  }
+
+  function openDeleteModal() {
+    deleteConfirmationText = "";
+    deletionError = null;
+    showDeleteModal = true;
+  }
+
+  function closeDeleteModal() {
+    showDeleteModal = false;
+    deleteConfirmationText = "";
+    deletionError = null;
+  }
 </script>
 
 <svelte:head>
@@ -282,6 +359,46 @@
       <p class="text-gray-600 mb-8">
         Manage your personal account preferences and configuration.
       </p>
+
+      <!-- Account Deletion Pending Banner -->
+      {#if deletionStatus?.pending}
+        <div
+          class="mb-6 bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-4"
+        >
+          <svg
+            class="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            ></path>
+          </svg>
+          <div class="flex-1">
+            <p class="font-semibold text-red-900">
+              Account scheduled for deletion
+            </p>
+            <p class="text-sm text-red-700 mt-1">
+              Your account and all associated data will be permanently deleted
+              in {deletionStatus.days_remaining} day{deletionStatus.days_remaining ===
+              1
+                ? ""
+                : "s"}. You can cancel this action at any time before then.
+            </p>
+            <button
+              onclick={handleCancelDeletion}
+              disabled={deletionLoading}
+              class="mt-3 px-4 py-2 bg-white text-red-700 text-sm font-medium rounded-lg border-2 border-red-300 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deletionLoading ? "Cancelling..." : "Cancel Deletion"}
+            </button>
+          </div>
+        </div>
+      {/if}
 
       <!-- User Info Preview -->
       {#if data.user}
@@ -601,6 +718,42 @@
           </p>
         </div>
       </div>
+
+      <!-- Danger Zone: Account Deletion -->
+      {#if !deletionStatus?.pending}
+        <div class="mt-6 bg-white rounded-2xl border-2 border-red-200 p-6">
+          <h3 class="font-semibold text-red-900 mb-2">Delete Account</h3>
+          <p class="text-sm text-gray-600 mb-4">
+            Permanently delete your account and all associated data, including
+            links, analytics, and organization memberships. This action enters a
+            7-day grace period during which you can cancel. After that, all data
+            is permanently removed.
+          </p>
+          <div
+            class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-800"
+          >
+            <p class="font-semibold mb-1">Before deleting:</p>
+            <ul class="list-disc list-inside space-y-0.5">
+              <li>
+                If you are the last owner of an organization, you must transfer
+                ownership or delete it first.
+              </li>
+              <li>
+                All your links will stop redirecting after the grace period.
+              </li>
+              <li>
+                This action cannot be undone after the grace period expires.
+              </li>
+            </ul>
+          </div>
+          <button
+            onclick={openDeleteModal}
+            class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+          >
+            Delete My Account
+          </button>
+        </div>
+      {/if}
     </div>
   </main>
 </div>
@@ -1032,6 +1185,84 @@
             Saving...
           {:else}
             Save Scope
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Delete Account Confirmation Modal -->
+{#if showDeleteModal}
+  <div
+    class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+  >
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <h2 class="text-xl font-bold text-red-900 mb-4">Delete Account</h2>
+
+      <p class="text-sm text-gray-600 mb-4">
+        This will schedule your account for permanent deletion after a 7-day
+        grace period. During the grace period, your account will be locked and
+        you can only cancel the deletion or log out.
+      </p>
+
+      <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+        <p class="text-sm text-red-800 font-medium mb-2">
+          Type <span class="font-mono font-bold">DELETE</span> to confirm:
+        </p>
+        <input
+          type="text"
+          bind:value={deleteConfirmationText}
+          placeholder="DELETE"
+          class="w-full text-sm font-mono bg-white border-2 border-red-300 rounded-lg px-3 py-2 text-gray-900 outline-none focus:border-red-500"
+        />
+      </div>
+
+      {#if deletionError}
+        <div
+          class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700"
+        >
+          {deletionError}
+        </div>
+      {/if}
+
+      <div class="flex gap-3">
+        <button
+          onclick={closeDeleteModal}
+          disabled={deletionLoading}
+          class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-900 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={handleRequestDeletion}
+          disabled={deletionLoading || deleteConfirmationText !== "DELETE"}
+          class="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {#if deletionLoading}
+            <svg
+              class="animate-spin h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Scheduling...
+          {:else}
+            Schedule Deletion
           {/if}
         </button>
       </div>

@@ -372,6 +372,25 @@ impl BillingRepository {
         Ok(result.and_then(|v| v["count"].as_f64()).unwrap_or(0.0) as i64)
     }
 
+    /// Permanently delete a billing account and all related data.
+    /// Deletes subscriptions, monthly_counters, and the billing account row.
+    /// Polar-side cancellation must be handled by the caller BEFORE calling this.
+    pub async fn delete(&self, db: &D1Database, billing_account_id: &str) -> Result<()> {
+        db.prepare("DELETE FROM subscriptions WHERE billing_account_id = ?1")
+            .bind(&[billing_account_id.into()])?
+            .run()
+            .await?;
+        db.prepare("DELETE FROM monthly_counters WHERE billing_account_id = ?1")
+            .bind(&[billing_account_id.into()])?
+            .run()
+            .await?;
+        db.prepare("DELETE FROM billing_accounts WHERE id = ?1")
+            .bind(&[billing_account_id.into()])?
+            .run()
+            .await?;
+        Ok(())
+    }
+
     /// Reset a billing account to free tier: delete all subscriptions and clear provider_customer_id.
     pub async fn reset_to_free(&self, db: &D1Database, billing_account_id: &str) -> Result<()> {
         db.prepare("DELETE FROM subscriptions WHERE billing_account_id = ?1")

@@ -1,5 +1,5 @@
-import { apiClient, clearAccessToken } from "./client";
 import type { User } from "$lib/types/api";
+import { apiClient, clearAccessToken } from "./client";
 
 export interface AuthProvider {
   name: string;
@@ -58,5 +58,49 @@ export const authApi = {
    */
   getLoginUrl(): string {
     return this.getProviderLoginUrl("github");
+  },
+
+  /**
+   * Schedule account deletion (7-day grace period).
+   * Requires confirmation string "DELETE" in the request body.
+   * @returns Scheduled deletion timestamp and grace period info
+   */
+  async requestDeletion(): Promise<{
+    success: boolean;
+    message: string;
+    scheduled_deletion_at: number;
+    grace_period_seconds: number;
+  }> {
+    return apiClient.post<{
+      success: boolean;
+      message: string;
+      scheduled_deletion_at: number;
+      grace_period_seconds: number;
+    }>("/api/auth/delete-account", { confirmation: "DELETE" });
+  },
+
+  /**
+   * Cancel a pending account deletion.
+   */
+  async cancelDeletion(): Promise<{ success: boolean; message: string }> {
+    return apiClient.post<{ success: boolean; message: string }>(
+      "/api/auth/cancel-deletion"
+    );
+  },
+
+  /**
+   * Check if the current user has a pending account deletion.
+   * @returns Deletion status with pending flag, scheduled date, and days remaining
+   */
+  async getDeletionStatus(): Promise<{
+    pending: boolean;
+    scheduled_deletion_at: number | null;
+    days_remaining: number | null;
+  }> {
+    return apiClient.get<{
+      pending: boolean;
+      scheduled_deletion_at: number | null;
+      days_remaining: number | null;
+    }>("/api/auth/deletion-status");
   }
 };

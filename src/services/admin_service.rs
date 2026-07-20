@@ -2,9 +2,12 @@
 ///
 /// Handles admin-specific business rules and validation.
 /// Orchestrates UserRepository, ApiKeyRepository, BillingRepository.
-use crate::repositories::{ApiKeyRepository, BillingRepository, UserRepository};
+use crate::billing::polar::polar_client_from_env;
+use crate::models::Tier;
+use crate::repositories::{ApiKeyRepository, BillingRepository, OrgRepository, UserRepository};
 use crate::utils::AppError;
 use worker::d1::D1Database;
+use worker::{Env, KvStore, console_warn};
 
 /// Service for admin-related business logic
 pub struct AdminService;
@@ -142,10 +145,15 @@ impl AdminService {
 
     /// Delete a user and all associated data.
     ///
+    /// Performs full cleanup: revokes API keys, deletes solo orgs owned by the user,
+    /// cancels Polar subscriptions, and deletes billing accounts.
+    ///
     /// Returns Err(AppError::BadRequest) if trying to delete self or delete last admin in org.
     pub async fn delete_user(
         &self,
         db: &D1Database,
+        _kv: &KvStore,
+        env: &Env,
         target_user_id: &str,
         admin_user_id: &str,
     ) -> Result<(i64, i64, i64), AppError> {
@@ -156,6 +164,10 @@ impl AdminService {
         }
 
         let repo = UserRepository::new();
+        let org_repo = OrgRepository::new();
+        let billing_repo = BillingRepository::new();
+        let api_key_repo = ApiKeyRepository::new();
+
         let target_user = repo
             .get_user_by_id(db, target_user_id)
             .await?
@@ -172,6 +184,68 @@ impl AdminService {
         }
 
         let _user_links = repo.get_links_by_creator(db, target_user_id).await?;
+
+        if let Err(e) = api_key_repo.revoke_all_for_user(db, target_user_id).await {
+            console_warn!(
+                "[admin] Failed to revoke API keys for user {}: {}",
+                target_user_id,
+                e
+            );
+        }
+
+        let polar_client = polar_client_from_env(env).ok();
+
+        let orgs = org_repo.get_user_orgs(db, target_user_id).await?;
+        for org in &orgs {
+            if org.role != "owner" {
+                continue;
+            }
+
+            let member_count = org_repo.count_members(db, &org.id).await?;
+            if member_count > 1 {
+                continue;
+            }
+
+            let billing_account = billing_repo.get_for_org(db, &org.id).await.ok().flatten();
+
+            let is_solo_eligible = if let Some(ref ba) = billing_account {
+                let tier = Tier::from_str_value(&ba.tier).unwrap_or(Tier::Free);
+                let limits = tier.limits();
+                limits.max_members.unwrap_or(1) <= 1
+            } else {
+                true
+            };
+
+            if !is_solo_eligible {
+                continue;
+            }
+
+            if let Err(e) = org_repo.delete_all_links(db, &org.id).await {
+                console_warn!("[admin] Failed to delete links for org {}: {}", org.id, e);
+            }
+
+            if let Err(e) = org_repo.delete(db, &org.id).await {
+                console_warn!("[admin] Failed to delete org {}: {}", org.id, e);
+                continue;
+            }
+
+            if let Some(ref ba) = billing_account {
+                if let Some(ref polar) = polar_client
+                    && let Err(e) = polar.delete_customer_by_external_id(&ba.id, true).await
+                {
+                    console_warn!(
+                        "[admin] Failed to cancel Polar subscription for ba {}: {}",
+                        ba.id,
+                        e
+                    );
+                }
+
+                if let Err(e) = billing_repo.delete(db, &ba.id).await {
+                    console_warn!("[admin] Failed to delete billing account {}: {}", ba.id, e);
+                }
+            }
+        }
+
         let (user_count, links_count, analytics_count) = repo.delete(db, target_user_id).await?;
 
         if user_count == 0 {

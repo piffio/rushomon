@@ -629,6 +629,22 @@ export const adminApi = {
   },
 
   /**
+   * Trigger the account deletion processing cron job (admin only)
+   * @returns Object with success status and message
+   */
+  async triggerCronDeletionProcessing(): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return apiClient.request<{
+      success: boolean;
+      message: string;
+    }>("/api/admin/cron/trigger-deletion-processing", {
+      method: "POST"
+    });
+  },
+
+  /**
    * List all API keys instance-wide (admin only)
    */
   async listApiKeys(

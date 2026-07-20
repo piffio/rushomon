@@ -30,6 +30,13 @@
   } | null>(null);
   let showMonthlyStatsResult = $state(false);
 
+  let deletionLoading = $state(false);
+  let deletionResult = $state<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  let showDeletionResult = $state(false);
+
   let discounts = $state<Discount[]>([]);
   let discountsLoading = $state(false);
   let discountsError = $state("");
@@ -476,6 +483,20 @@
       monthlyStatsLoading = false;
     }
   }
+
+  async function triggerDeletionProcessing() {
+    try {
+      deletionLoading = true;
+      const result = await adminApi.triggerCronDeletionProcessing();
+      deletionResult = result;
+      showDeletionResult = true;
+    } catch (err) {
+      console.error("Failed to trigger deletion processing:", err);
+      showToastMessage("Failed to trigger deletion processing");
+    } finally {
+      deletionLoading = false;
+    }
+  }
 </script>
 
 <div class="settings-page">
@@ -803,6 +824,50 @@
                 All expired subscriptions were processed successfully.
               </p>
             {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- Account Deletion Processing -->
+      <div class="setting-card">
+        <div class="setting-content">
+          <div class="setting-info">
+            <h3>Process Account Deletions</h3>
+            <p class="setting-description">
+              Manually trigger the cron job that permanently deletes users whose
+              7-day grace period has expired. This also cleans up their
+              organizations, billing accounts, Polar subscriptions, and API
+              keys. This normally runs automatically at midnight UTC.
+            </p>
+          </div>
+          <div class="setting-control">
+            <button
+              class="btn btn-primary"
+              onclick={triggerDeletionProcessing}
+              disabled={deletionLoading}
+            >
+              {#if deletionLoading}
+                Processing...
+              {:else}
+                Process Now
+              {/if}
+            </button>
+          </div>
+        </div>
+        {#if showDeletionResult && deletionResult}
+          <div
+            class="cron-result {deletionResult.success
+              ? 'success'
+              : 'has-errors'}"
+          >
+            <h4>Operation Results</h4>
+            <p
+              class={deletionResult.success
+                ? "success-message"
+                : "error-message"}
+            >
+              {deletionResult.message}
+            </p>
           </div>
         {/if}
       </div>

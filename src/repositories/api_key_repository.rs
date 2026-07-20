@@ -544,6 +544,19 @@ impl ApiKeyRepository {
         Ok(())
     }
 
+    /// Soft-delete all active API keys for a user (used during account deletion).
+    pub async fn revoke_all_for_user(&self, db: &D1Database, user_id: &str) -> Result<()> {
+        let now = now_timestamp();
+        db.prepare(
+            "UPDATE api_keys SET status = 'deleted', updated_at = ?1, updated_by = ?2
+             WHERE user_id = ?3 AND status = 'active'",
+        )
+        .bind(&[(now as f64).into(), user_id.into(), user_id.into()])?
+        .run()
+        .await?;
+        Ok(())
+    }
+
     /// Get an API key by its hash, including tier information from the billing account.
     pub async fn get_by_hash_with_tier(
         &self,

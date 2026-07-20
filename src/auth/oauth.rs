@@ -468,6 +468,8 @@ mod tests {
             suspension_reason: None,
             suspended_by: None,
             last_login_at: None,
+            pending_deletion_at: None,
+            pending_deletion_scheduled_at: None,
         }
     }
 
