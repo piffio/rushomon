@@ -9,35 +9,35 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 worker = { version = "0.8.5", features = ["d1"] }
 wasm-bindgen = { version = "0.2.126", features = ["serde-serialize"] }
-web-sys = { version = "0.3", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-uuid = { version = "1.23.2", features = ["v4", "serde", "js"] }
-url = "2.5"
-console_error_panic_hook = "0.1"
-getrandom = { version = "0.4.2", features = ["wasm_js"] }
-rand = "0.10.1"
-wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3.103", features = ["Window", "Request", "RequestInit", "Response", "Headers", "RequestMode"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+uuid = { version = "1.24.0", features = ["v4", "serde", "js"] }
+url = "2.5.8"
+console_error_panic_hook = "0.1.7"
+getrandom = { version = "0.4.3", features = ["wasm_js"] }
+rand = "0.10.2"
+wasm-bindgen-futures = "0.4.76"
 jwt-compact = { version = "0.8.0", default-features = false, features = ["clock"] }
-hmac = "0.13"
-sha2 = "0.11"
-chrono = { version = "0.4", features = ["wasmbind"] }
-js-sys = "0.3"
-subtle = "2.6"
-regex = "1.11"
-urlencoding = "2.1"
-hex = "0.4"
-utoipa = { version = "5.3", features = ["preserve_order"] }
+hmac = "0.13.0"
+sha2 = "0.11.0"
+chrono = { version = "0.4.45", features = ["wasmbind"] }
+js-sys = "0.3.103"
+subtle = "2.6.1"
+regex = "1.13.1"
+urlencoding = "2.1.3"
+hex = "0.4.3"
+utoipa = { version = "5.5.0", features = ["preserve_order"] }
 
 [build-dependencies]
 toml = "1.0.7"
-serde_json = "1.0"
+serde_json = "1.0.151"
 
 [dev-dependencies]
-reqwest = { version = "0.13.1", features = ["json"] }
-tokio = { version = "1.50.0", features = ["full", "test-util"] }
-axum = "0.8"
-base64 = "0.22"
+reqwest = { version = "0.13.4", features = ["json"] }
+tokio = { version = "1.53.1", features = ["full", "test-util"] }
+axum = "0.8.9"
+base64 = "0.22.1"
 
 [[bin]]
 name = "generate_openapi"
@@ -55,11 +55,11 @@ test-utils = ["dep:axum", "dep:tokio"]
 openapi-gen = []
 
 [dependencies.axum]
-version = "0.8"
+version = "0.8.9"
 optional = true
 
 [dependencies.tokio]
-version = "1.50.0"
+version = "1.53.1"
 features = ["full"]
 optional = true
 
