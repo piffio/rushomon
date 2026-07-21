@@ -2,7 +2,7 @@ use crate::auth;
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
-use crate::repositories::CustomDomainRepository;
+use crate::repositories::{CustomDomainRepository, OrgRepository};
 use crate::services::{LinkService, SettingsService};
 use crate::utils::validate_and_normalize_tags;
 use crate::utils::{now_timestamp, validate_short_code, validate_url};
@@ -250,6 +250,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
         custom_code
     } else {
+        let exclude_ambiguous = OrgRepository::new()
+            .get_exclude_ambiguous_chars(&db, org_id)
+            .await?;
         link_service
             .generate_progressive_short_code(
                 &kv,
@@ -257,6 +260,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
                 &ctx.env,
                 lengths.min_random_length,
                 lengths.system_min_length,
+                exclude_ambiguous,
             )
             .await?
     };

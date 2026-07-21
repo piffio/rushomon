@@ -339,7 +339,7 @@
     return null;
   });
 
-  // Org settings: forward_query_params
+  // Org settings: forward_query_params, exclude_ambiguous_chars
   let orgSettings = $state<OrgSettings | null>(null);
   let settingsError = $state("");
   let settingsSaving = $state(false);
@@ -482,14 +482,12 @@
     }
   }
 
-  async function toggleForwardQueryParams(value: boolean) {
+  async function updateOrgSettings(patch: Partial<OrgSettings>) {
     if (!orgDetails) return;
     settingsSaving = true;
     settingsError = "";
     try {
-      orgSettings = await orgsApi.updateOrgSettings(orgDetails.org.id, {
-        forward_query_params: value
-      });
+      orgSettings = await orgsApi.updateOrgSettings(orgDetails.org.id, patch);
       actionSuccess = "Organization settings updated.";
       setTimeout(() => (actionSuccess = ""), 3000);
     } catch (e: unknown) {
@@ -501,6 +499,14 @@
     } finally {
       settingsSaving = false;
     }
+  }
+
+  async function toggleForwardQueryParams(value: boolean) {
+    await updateOrgSettings({ forward_query_params: value });
+  }
+
+  async function toggleExcludeAmbiguousChars(value: boolean) {
+    await updateOrgSettings({ exclude_ambiguous_chars: value });
   }
 
   // Logo management
@@ -1075,17 +1081,15 @@
         {/if}
       </div>
 
-      <!-- Pro Features / org settings card -->
-      {#if isPro}
-        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 class="text-lg font-semibold text-gray-900 mb-1">
-            Link Defaults
-          </h2>
-          <p class="text-sm text-gray-500 mb-4">
-            Default settings applied to new and edited links. Changes here do
-            not retroactively update existing links.
-          </p>
+      <!-- Link Defaults / org settings card -->
+      <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">Link Defaults</h2>
+        <p class="text-sm text-gray-500 mb-4">
+          Default settings applied to new and edited links. Changes here do not
+          retroactively update existing links.
+        </p>
 
+        {#if isPro}
           <div class="flex items-start gap-4 py-3 border-t border-gray-100">
             <div class="flex-1">
               <label
@@ -1134,12 +1138,62 @@
               />
             </div>
           </div>
+        {/if}
 
-          {#if settingsError}
-            <p class="mt-2 text-sm text-red-600">{settingsError}</p>
-          {/if}
+        <div class="flex items-start gap-4 py-3 border-t border-gray-100">
+          <div class="flex-1">
+            <label
+              for="org-exclude-ambiguous-chars"
+              class="block text-sm font-medium text-gray-900"
+            >
+              Exclude ambiguous characters from generated codes
+            </label>
+            <p class="text-xs text-gray-500 mt-0.5">
+              When enabled, randomly generated short codes omit easily confused
+              characters (0, O, I, l), making links easier to read and type.
+              Custom codes are unaffected.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            {#if settingsSaving}
+              <svg
+                class="animate-spin w-4 h-4 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+            {/if}
+            <input
+              type="checkbox"
+              id="org-exclude-ambiguous-chars"
+              checked={orgSettings?.exclude_ambiguous_chars ?? false}
+              disabled={settingsSaving || !isOwner}
+              onchange={(e) =>
+                toggleExcludeAmbiguousChars(
+                  (e.target as HTMLInputElement).checked
+                )}
+              class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+            />
+          </div>
         </div>
-      {/if}
+
+        {#if settingsError}
+          <p class="mt-2 text-sm text-red-600">{settingsError}</p>
+        {/if}
+      </div>
 
       <!-- Org Logo Card (Pro+) -->
       <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">

@@ -1051,3 +1051,168 @@ async fn test_invite_defaults_to_member_role() {
         .await
         .unwrap();
 }
+
+// ─── Org Settings ────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_get_org_settings_requires_auth() {
+    let client = test_client();
+    let response = client
+        .get(format!("{}/api/orgs/some-id/settings", BASE_URL))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_get_org_settings_returns_all_fields() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let response = client
+        .get(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: Value = response.json().await.unwrap();
+    assert!(
+        body["forward_query_params"].is_boolean(),
+        "forward_query_params should be a boolean"
+    );
+    assert!(
+        body["exclude_ambiguous_chars"].is_boolean(),
+        "exclude_ambiguous_chars should be a boolean"
+    );
+}
+
+#[tokio::test]
+async fn test_update_exclude_ambiguous_chars_partial_update() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    // Record the current settings so the partial-update assertion is exact
+    let before: Value = client
+        .get(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let forward_before = before["forward_query_params"].as_bool().unwrap();
+
+    let response = client
+        .patch(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+        .json(&json!({"exclude_ambiguous_chars": true}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: Value = response.json().await.unwrap();
+    assert!(body["exclude_ambiguous_chars"].as_bool().unwrap());
+    assert_eq!(
+        body["forward_query_params"].as_bool().unwrap(),
+        forward_before,
+        "Omitted fields should be unchanged"
+    );
+
+    // Restore
+    let response = client
+        .patch(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+        .json(&json!({"exclude_ambiguous_chars": false}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = response.json().await.unwrap();
+    assert!(!body["exclude_ambiguous_chars"].as_bool().unwrap());
+}
+
+#[tokio::test]
+async fn test_update_org_settings_requires_at_least_one_field() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let response = client
+        .patch(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_update_org_settings_rejects_non_boolean() {
+    let client = authenticated_client();
+    let org_id = get_primary_test_org_id().await;
+
+    let response = client
+        .patch(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+        .json(&json!({"exclude_ambiguous_chars": "yes"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_exclude_ambiguous_chars_affects_generated_codes() {
+    let client = authenticated_client();
+
+    // Link creation uses the session's current org, which other concurrently
+    // running tests can switch. Enable the setting on every org the user owns
+    // so the generated codes are Base58 regardless of the active org.
+    let orgs_body: Value = client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let owned_org_ids: Vec<String> = orgs_body["orgs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["role"].as_str() == Some("owner"))
+        .filter_map(|o| o["id"].as_str().map(|s| s.to_string()))
+        .collect();
+    assert!(!owned_org_ids.is_empty());
+
+    for org_id in &owned_org_ids {
+        let response = client
+            .patch(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+            .json(&json!({"exclude_ambiguous_chars": true}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    // Generated codes must not contain ambiguous characters (0, O, I, l)
+    for i in 0..5 {
+        let code =
+            create_link_and_get_code(&format!("https://example.com/ambiguous-test-{}", i)).await;
+        assert!(
+            !code.contains(['0', 'O', 'I', 'l']),
+            "Generated code '{}' contains an ambiguous character",
+            code
+        );
+    }
+
+    // Restore
+    for org_id in &owned_org_ids {
+        let response = client
+            .patch(format!("{}/api/orgs/{}/settings", BASE_URL, org_id))
+            .json(&json!({"exclude_ambiguous_chars": false}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+}

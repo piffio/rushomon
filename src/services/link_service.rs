@@ -8,7 +8,7 @@ use crate::repositories::{
     BillingRepository, BlacklistRepository, LinkRepository, SettingsRepository, TagRepository,
 };
 use crate::utils::AppError;
-use crate::utils::short_code::{DEFAULT_COLLISION_THRESHOLD, generate_short_code_with_length};
+use crate::utils::short_code::{DEFAULT_COLLISION_THRESHOLD, generate_short_code_with_charset};
 use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::kv::KvStore;
@@ -522,6 +522,7 @@ impl LinkService {
         env: &worker::Env,
         admin_min_length: usize,
         system_min_length: usize,
+        exclude_ambiguous: bool,
     ) -> worker::Result<String> {
         let collision_threshold = env
             .var("COLLISION_THRESHOLD")
@@ -534,7 +535,7 @@ impl LinkService {
         let mut current_length_attempts = 0;
 
         loop {
-            let code = generate_short_code_with_length(current_length);
+            let code = generate_short_code_with_charset(current_length, exclude_ambiguous);
 
             if !crate::kv::links::short_code_exists(kv, &code).await? {
                 return Ok(code);
