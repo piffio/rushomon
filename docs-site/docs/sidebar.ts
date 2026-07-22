@@ -276,6 +276,12 @@ const sidebar: SidebarsConfig = {
           label: "Revoke an API key",
           className: "api-method delete",
         },
+        {
+          type: "doc",
+          id: "handle-update-api-key-orgs",
+          label: "Update an API key's org scope",
+          className: "api-method put",
+        },
       ],
     },
     {
@@ -360,6 +366,24 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "handle-create-tag",
+          label: "Create a new tag",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "handle-get-tag-analytics",
+          label: "Get tag analytics",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "handle-merge-tags",
+          label: "Merge tags",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "handle-delete-org-tag",
           label: "Delete a tag",
           className: "api-method delete",
@@ -367,7 +391,7 @@ const sidebar: SidebarsConfig = {
         {
           type: "doc",
           id: "handle-rename-org-tag",
-          label: "Rename a tag",
+          label: "Update a tag",
           className: "api-method patch",
         },
       ],
@@ -660,6 +684,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "schemas/createtagrequest",
+          label: "CreateTagRequest",
+          className: "schema",
+        },
+        {
+          type: "doc",
           id: "schemas/dailyclicks",
           label: "DailyClicks",
           className: "schema",
@@ -680,6 +710,12 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "schemas/linkstatus",
           label: "LinkStatus",
+          className: "schema",
+        },
+        {
+          type: "doc",
+          id: "schemas/mergetagsrequest",
+          label: "MergeTagsRequest",
           className: "schema",
         },
         {
@@ -750,8 +786,20 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "schemas/updateapikeyorgsrequest",
+          label: "UpdateApiKeyOrgsRequest",
+          className: "schema",
+        },
+        {
+          type: "doc",
           id: "schemas/updatelinkrequest",
           label: "UpdateLinkRequest",
+          className: "schema",
+        },
+        {
+          type: "doc",
+          id: "schemas/updatetagrequest",
+          label: "UpdateTagRequest",
           className: "schema",
         },
         {

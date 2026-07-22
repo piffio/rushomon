@@ -1,1 +1,1 @@
-{"responses":{"200":{"description":"Updated tag list"},"400":{"description":"Missing or invalid new tag name"},"401":{"description":"Unauthorized"}}}
+{"responses":{"200":{"description":"Updated tag list"},"400":{"description":"Missing or invalid fields"},"401":{"description":"Unauthorized"}}}

@@ -1,1 +1,1 @@
-{"title":"Body"}
+{"title":"Body","body":{"content":{"application/json":{"schema":{"type":"object","properties":{"new_name":{"type":["string","null"]},"color_index":{"type":["integer","null"],"format":"int32"}},"title":"UpdateTagRequest"}}},"required":true}}

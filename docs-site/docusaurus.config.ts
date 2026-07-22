@@ -1,9 +1,9 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import type { Config } from '@docusaurus/types';
 import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
-import {existsSync, readFileSync} from 'fs';
-import {resolve} from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
+import { themes as prismThemes } from 'prism-react-renderer';
 
 const DOCS_SITE_URL = process.env.DOCS_SITE_URL || 'https://doc.rushomon.cc';
 
@@ -72,7 +72,6 @@ const config: Config = {
   ],
 
   plugins: [
-    require.resolve('./plugins/webpack-node-fallback'),
     [
       'docusaurus-plugin-openapi-docs',
       {

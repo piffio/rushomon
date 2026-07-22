@@ -16,7 +16,7 @@ import Export from "@theme/ApiExplorer/Export";
 
 <span
   className={"theme-doc-version-badge badge badge--secondary"}
-  children={"Version: 0.8.0"}
+  children={"Version: 0.11.2"}
 >
 </span>
 
@@ -44,6 +44,21 @@ Most endpoints require authentication using either:
    ```
    Authorization: Bearer ro_pat_...
    ```
+
+### Multi-Organization API Keys
+
+API keys can be scoped to specific organizations. When using a multi-org key, you must specify the target organization using the `X-Org-Id` header:
+
+```
+Authorization: Bearer ro_pat_...
+X-Org-Id: org-uuid-here
+```
+
+- **Single-org keys**: The `X-Org-Id` header is optional. If omitted, the key acts on its single authorized organization.
+- **Multi-org keys**: The `X-Org-Id` header is required. The header value must match one of the org IDs in the key's scope.
+- **Legacy keys (no scope)**: These keys act on the organization they were created on. The `X-Org-Id` header is not supported.
+
+If you attempt to use a multi-org key without the `X-Org-Id` header, or with an org ID outside the key's scope, you will receive a 400 or 403 error.
 ## Response Format
 
 All responses are JSON formatted. Error responses follow this structure:
