@@ -121,6 +121,7 @@ export interface UpdateLinkRequest {
 
 export interface OrgSettings {
   forward_query_params: boolean;
+  exclude_ambiguous_chars: boolean;
 }
 
 export interface ApiError {

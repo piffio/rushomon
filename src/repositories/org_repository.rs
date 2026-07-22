@@ -521,6 +521,39 @@ impl OrgRepository {
         Ok(())
     }
 
+    /// Get the org-level exclude_ambiguous_chars setting
+    pub async fn get_exclude_ambiguous_chars(&self, db: &D1Database, org_id: &str) -> Result<bool> {
+        let stmt = db.prepare(
+            "SELECT COALESCE(exclude_ambiguous_chars, 0) as exclude_ambiguous_chars
+             FROM organizations
+             WHERE id = ?1",
+        );
+        let result = stmt
+            .bind(&[org_id.into()])?
+            .first::<serde_json::Value>(None)
+            .await?;
+        Ok(result
+            .and_then(|r| r["exclude_ambiguous_chars"].as_f64())
+            .map(|v| v != 0.0)
+            .unwrap_or(false))
+    }
+
+    /// Update the org-level exclude_ambiguous_chars setting
+    pub async fn set_exclude_ambiguous_chars(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        exclude: bool,
+    ) -> Result<()> {
+        let stmt =
+            db.prepare("UPDATE organizations SET exclude_ambiguous_chars = ?1 WHERE id = ?2");
+        let value: i64 = if exclude { 1 } else { 0 };
+        stmt.bind(&[(value as f64).into(), org_id.into()])?
+            .run()
+            .await?;
+        Ok(())
+    }
+
     /// Get the org logo_url (nullable)
     pub async fn get_logo_url(&self, db: &D1Database, org_id: &str) -> Result<Option<String>> {
         let stmt = db.prepare("SELECT logo_url FROM organizations WHERE id = ?1");

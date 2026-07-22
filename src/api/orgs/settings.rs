@@ -13,7 +13,7 @@ use worker::*;
     path = "/api/orgs/{id}/settings",
     tag = "Organizations",
     summary = "Get org settings",
-    description = "Returns organization-level settings. The forward_query_params setting is only available on Pro+ tiers",
+    description = "Returns organization-level settings (forward_query_params, exclude_ambiguous_chars). The forward_query_params setting is only available on Pro+ tiers",
     params(
         ("id" = String, Path, description = "Organization ID"),
     ),
@@ -39,13 +39,11 @@ async fn inner_get_org_settings(req: Request, ctx: RouteContext<()>) -> Result<R
         .to_string();
 
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-    let forward_query_params = OrgService::new()
+    let settings = OrgService::new()
         .get_org_settings(&db, &org_id, &user_ctx.user_id)
         .await?;
 
-    Ok(Response::from_json(&serde_json::json!({
-        "forward_query_params": forward_query_params
-    }))?)
+    Ok(Response::from_json(&settings)?)
 }
 
 #[utoipa::path(
@@ -53,7 +51,7 @@ async fn inner_get_org_settings(req: Request, ctx: RouteContext<()>) -> Result<R
     path = "/api/orgs/{id}/settings",
     tag = "Organizations",
     summary = "Update org settings",
-    description = "Updates organization-level settings. forward_query_params requires Pro+ tier. Caller must be owner or admin",
+    description = "Updates organization-level settings. Omitted fields are unchanged. Enabling forward_query_params requires Pro+ tier. Caller must be owner or admin",
     params(
         ("id" = String, Path, description = "Organization ID"),
     ),
@@ -89,15 +87,29 @@ async fn inner_update_org_settings(
         .await
         .map_err(|_| AppError::BadRequest("Invalid JSON body".to_string()))?;
 
-    let forward = body["forward_query_params"].as_bool().ok_or_else(|| {
-        AppError::BadRequest("forward_query_params (boolean) is required".to_string())
-    })?;
+    let forward = match body.get("forward_query_params") {
+        None => None,
+        Some(v) => Some(v.as_bool().ok_or_else(|| {
+            AppError::BadRequest("forward_query_params must be a boolean".to_string())
+        })?),
+    };
+    let exclude_ambiguous = match body.get("exclude_ambiguous_chars") {
+        None => None,
+        Some(v) => Some(v.as_bool().ok_or_else(|| {
+            AppError::BadRequest("exclude_ambiguous_chars must be a boolean".to_string())
+        })?),
+    };
 
-    let updated_forward = OrgService::new()
-        .update_org_settings(&db, &org_id, &user_ctx.user_id, forward)
+    if forward.is_none() && exclude_ambiguous.is_none() {
+        return Err(AppError::BadRequest(
+            "At least one setting (forward_query_params, exclude_ambiguous_chars) is required"
+                .to_string(),
+        ));
+    }
+
+    let updated = OrgService::new()
+        .update_org_settings(&db, &org_id, &user_ctx.user_id, forward, exclude_ambiguous)
         .await?;
 
-    Ok(Response::from_json(&serde_json::json!({
-        "forward_query_params": updated_forward
-    }))?)
+    Ok(Response::from_json(&updated)?)
 }

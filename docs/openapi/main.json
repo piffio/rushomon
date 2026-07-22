@@ -2902,7 +2902,7 @@
           "Organizations"
         ],
         "summary": "Get org settings",
-        "description": "Returns organization-level settings. The forward_query_params setting is only available on Pro+ tiers",
+        "description": "Returns organization-level settings (forward_query_params, exclude_ambiguous_chars). The forward_query_params setting is only available on Pro+ tiers",
         "operationId": "handle_get_org_settings",
         "parameters": [
           {
@@ -2940,7 +2940,7 @@
           "Organizations"
         ],
         "summary": "Update org settings",
-        "description": "Updates organization-level settings. forward_query_params requires Pro+ tier. Caller must be owner or admin",
+        "description": "Updates organization-level settings. Omitted fields are unchanged. Enabling forward_query_params requires Pro+ tier. Caller must be owner or admin",
         "operationId": "handle_update_org_settings",
         "parameters": [
           {

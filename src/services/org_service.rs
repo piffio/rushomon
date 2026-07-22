@@ -9,6 +9,13 @@ use chrono::Datelike;
 use worker::d1::D1Database;
 use worker::kv::KvStore;
 
+/// Org-level settings (defaults applied to new links)
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct OrgSettings {
+    pub forward_query_params: bool,
+    pub exclude_ambiguous_chars: bool,
+}
+
 /// Service for organization-related business logic
 #[derive(Default)]
 pub struct OrgService;
@@ -323,29 +330,33 @@ impl OrgService {
 
     // ─── Org Settings ─────────────────────────────────────────────────────────
 
-    /// Get org settings (forward_query_params) with membership check.
+    /// Get org settings with membership check.
     pub async fn get_org_settings(
         &self,
         db: &D1Database,
         org_id: &str,
         user_id: &str,
-    ) -> Result<bool, AppError> {
+    ) -> Result<OrgSettings, AppError> {
         let repo = OrgRepository::new();
         if repo.get_member(db, org_id, user_id).await?.is_none() {
             return Err(AppError::NotFound("Organization not found".to_string()));
         }
-        let forward_query_params = repo.get_forward_query_params(db, org_id).await?;
-        Ok(forward_query_params)
+        Ok(OrgSettings {
+            forward_query_params: repo.get_forward_query_params(db, org_id).await?,
+            exclude_ambiguous_chars: repo.get_exclude_ambiguous_chars(db, org_id).await?,
+        })
     }
 
-    /// Update org settings (forward_query_params) with owner/admin and tier checks.
+    /// Update org settings with owner/admin checks. Fields left as None are
+    /// unchanged. Enabling forward_query_params additionally requires Pro+.
     pub async fn update_org_settings(
         &self,
         db: &D1Database,
         org_id: &str,
         user_id: &str,
-        forward_query_params: bool,
-    ) -> Result<bool, AppError> {
+        forward_query_params: Option<bool>,
+        exclude_ambiguous_chars: Option<bool>,
+    ) -> Result<OrgSettings, AppError> {
         let repo = OrgRepository::new();
 
         self.require_owner_or_admin(
@@ -356,24 +367,33 @@ impl OrgService {
         )
         .await?;
 
-        let org = repo
-            .get_by_id(db, org_id)
-            .await?
-            .ok_or_else(|| AppError::Internal("Organization not found".to_string()))?;
+        if let Some(forward) = forward_query_params {
+            let org = repo
+                .get_by_id(db, org_id)
+                .await?
+                .ok_or_else(|| AppError::Internal("Organization not found".to_string()))?;
 
-        let tier = self.get_org_tier(db, &org).await;
-        let is_pro_or_above = matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited);
+            let tier = self.get_org_tier(db, &org).await;
+            let is_pro_or_above = matches!(tier, Tier::Pro | Tier::Business | Tier::Unlimited);
 
-        if forward_query_params && !is_pro_or_above {
-            return Err(AppError::Forbidden(
-                "Query parameter forwarding requires a Pro plan or above.".to_string(),
-            ));
+            if forward && !is_pro_or_above {
+                return Err(AppError::Forbidden(
+                    "Query parameter forwarding requires a Pro plan or above.".to_string(),
+                ));
+            }
+
+            repo.set_forward_query_params(db, org_id, forward).await?;
         }
 
-        repo.set_forward_query_params(db, org_id, forward_query_params)
-            .await?;
-        let updated = repo.get_forward_query_params(db, org_id).await?;
-        Ok(updated)
+        if let Some(exclude) = exclude_ambiguous_chars {
+            repo.set_exclude_ambiguous_chars(db, org_id, exclude)
+                .await?;
+        }
+
+        Ok(OrgSettings {
+            forward_query_params: repo.get_forward_query_params(db, org_id).await?,
+            exclude_ambiguous_chars: repo.get_exclude_ambiguous_chars(db, org_id).await?,
+        })
     }
 
     // ─── Org Logo ─────────────────────────────────────────────────────────────

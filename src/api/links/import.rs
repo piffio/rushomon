@@ -1,6 +1,7 @@
 use crate::auth;
 use crate::kv;
 use crate::models::link::{Link, LinkStatus};
+use crate::repositories::OrgRepository;
 use crate::services::{LinkService, SettingsService};
 use crate::utils::validate_and_normalize_tags;
 use crate::utils::{now_timestamp, validate_short_code, validate_url};
@@ -96,6 +97,10 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
     // Fetch all code length settings in a single query for performance
     let lengths = SettingsService::new().get_code_length_settings(&db).await?;
+    // Org-level default: whether generated codes exclude ambiguous characters
+    let exclude_ambiguous = OrgRepository::new()
+        .get_exclude_ambiguous_chars(&db, org_id)
+        .await?;
 
     let mut created: usize = 0;
     let mut skipped: usize = 0;
@@ -195,6 +200,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                             &ctx.env,
                             lengths.min_random_length,
                             lengths.system_min_length,
+                            exclude_ambiguous,
                         )
                         .await
                     {
@@ -230,6 +236,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
                     &ctx.env,
                     lengths.min_random_length,
                     lengths.system_min_length,
+                    exclude_ambiguous,
                 )
                 .await
             {
