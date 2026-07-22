@@ -4,6 +4,7 @@ use crate::models::{AnalyticsEvent, link::LinkStatus};
 use crate::repositories::{CustomDomainRepository, LinkRepository};
 use crate::utils::device::{DeviceType, detect_device};
 use crate::utils::{get_client_ip, get_frontend_url, hash_ip, now_timestamp};
+use chrono::TimeZone;
 use std::future::Future;
 use std::pin::Pin;
 use worker::d1::D1Database;
@@ -257,7 +258,27 @@ pub async fn handle_redirect(
             city,
         };
 
-        if let Err(e) = repo.log_analytics_event(&db, &event).await {
+        let year_month = chrono::Utc
+            .timestamp_opt(now, 0)
+            .single()
+            .map(|dt| dt.format("%Y-%m").to_string())
+            .unwrap_or_default();
+        if !year_month.is_empty() {
+            if let Err(e) = repo
+                .log_analytics_event_and_increment(&db, &event, &year_month)
+                .await
+            {
+                console_log!(
+                    "{}",
+                    serde_json::json!({
+                        "event": "analytics_event_failed",
+                        "link_id": link_id,
+                        "error": e.to_string(),
+                        "level": "error"
+                    })
+                );
+            }
+        } else if let Err(e) = repo.log_analytics_event(&db, &event).await {
             console_log!(
                 "{}",
                 serde_json::json!({

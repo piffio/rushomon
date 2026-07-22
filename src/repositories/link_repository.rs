@@ -552,6 +552,64 @@ impl LinkRepository {
         Ok(())
     }
 
+    /// Log an analytics event and atomically increment the per-link monthly click counter.
+    /// D1's `batch` API executes the statements sequentially in a single implicit transaction,
+    /// so if either insert fails the whole batch is rolled back.
+    pub async fn log_analytics_event_and_increment(
+        &self,
+        db: &D1Database,
+        event: &AnalyticsEvent,
+        year_month: &str,
+    ) -> Result<()> {
+        let insert_event = db.prepare(
+            "INSERT INTO analytics_events (link_id, org_id, timestamp, referrer, user_agent, country, city)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+        );
+        let insert_counter = db.prepare(
+            "INSERT INTO link_monthly_clicks (link_id, org_id, year_month, clicks, updated_at)
+             VALUES (?1, ?2, ?3, 1, ?4)
+             ON CONFLICT(link_id, year_month) DO UPDATE SET
+               clicks = clicks + 1,
+               updated_at = excluded.updated_at",
+        );
+
+        let insert_event = insert_event.bind(&[
+            event.link_id.clone().into(),
+            event.org_id.clone().into(),
+            (event.timestamp as f64).into(),
+            event
+                .referrer
+                .clone()
+                .map(|t| t.into())
+                .unwrap_or(JsValue::NULL),
+            event
+                .user_agent
+                .clone()
+                .map(|t| t.into())
+                .unwrap_or(JsValue::NULL),
+            event
+                .country
+                .clone()
+                .map(|t| t.into())
+                .unwrap_or(JsValue::NULL),
+            event
+                .city
+                .clone()
+                .map(|t| t.into())
+                .unwrap_or(JsValue::NULL),
+        ])?;
+
+        let insert_counter = insert_counter.bind(&[
+            event.link_id.clone().into(),
+            event.org_id.clone().into(),
+            year_month.into(),
+            (event.timestamp as f64).into(),
+        ])?;
+
+        let _ = db.batch(vec![insert_event, insert_counter]).await?;
+        Ok(())
+    }
+
     // ─── Tags ─────────────────────────────────────────────────────────────────
 
     /// Get all tags for a single link, sorted alphabetically

@@ -9,46 +9,13 @@ use crate::repositories::notification_preferences_repository::NotificationPrefer
 use crate::repositories::{AnalyticsRepository, LinkRepository, OrgRepository};
 use crate::utils::email::{OrgMonthlySummary, TopLinkSummary, send_monthly_stats_email};
 use crate::utils::{get_frontend_url, is_mailgun_configured};
-use chrono::{Datelike, TimeZone, Utc};
+use chrono::{Datelike, Utc};
 use worker::d1::D1Database;
 use worker::{Env, console_error, console_log, console_warn};
 
-/// Compute the [start, end) Unix timestamps (inclusive) for the previous full
-/// calendar month, and the month before that, relative to `now_utc`.
-///
-/// Returns `(prev_start, prev_end, prev_prev_start, prev_prev_end)`.
-fn previous_month_ranges(now_utc: chrono::DateTime<Utc>) -> (i64, i64, i64, i64) {
-    let this_year = now_utc.year();
-    let this_month = now_utc.month();
-
-    // Previous month
-    let (prev_year, prev_month) = if this_month == 1 {
-        (this_year - 1, 12u32)
-    } else {
-        (this_year, this_month - 1)
-    };
-
-    // Month before that
-    let (prev_prev_year, prev_prev_month) = if prev_month == 1 {
-        (prev_year - 1, 12u32)
-    } else {
-        (prev_year, prev_month - 1)
-    };
-
-    // Build timestamp for first day of a month (midnight UTC)
-    let month_start_ts = |y: i32, m: u32| -> i64 {
-        Utc.with_ymd_and_hms(y, m, 1, 0, 0, 0)
-            .single()
-            .map(|dt| dt.timestamp())
-            .unwrap_or(0)
-    };
-
-    let prev_start = month_start_ts(prev_year, prev_month);
-    let prev_end = month_start_ts(this_year, this_month) - 1;
-    let prev_prev_start = month_start_ts(prev_prev_year, prev_prev_month);
-    let prev_prev_end = prev_start - 1;
-
-    (prev_start, prev_end, prev_prev_start, prev_prev_end)
+/// Format a year/month pair as a "YYYY-MM" string for the counter table.
+fn year_month_label(year: i32, month: u32) -> String {
+    format!("{:04}-{:02}", year, month)
 }
 
 /// Format a year/month pair as a human-readable label, e.g. "May 2026".
@@ -87,8 +54,14 @@ pub async fn send_monthly_stats_to_all_users(db: &D1Database, env: &Env) -> (usi
     } else {
         (now.year(), now.month() - 1)
     };
+    let (prev_prev_year, prev_prev_month) = if prev_month == 1 {
+        (prev_year - 1, 12u32)
+    } else {
+        (prev_year, prev_month - 1)
+    };
     let label = month_label(prev_year, prev_month);
-    let (prev_start, prev_end, prev_prev_start, prev_prev_end) = previous_month_ranges(now);
+    let prev_year_month = year_month_label(prev_year, prev_month);
+    let prev_prev_year_month = year_month_label(prev_prev_year, prev_prev_month);
     let frontend_url = get_frontend_url(env);
 
     let prefs_repo = NotificationPreferencesRepository::new();
@@ -154,9 +127,9 @@ pub async fn send_monthly_stats_to_all_users(db: &D1Database, env: &Env) -> (usi
                 }
             };
 
-            // Total clicks in the previous month
+            // Total clicks in the previous month (from pre-aggregated counter)
             let total_clicks = match analytics_repo
-                .get_org_total_clicks_in_range(db, &org.id, prev_start, prev_end)
+                .get_org_monthly_clicks(db, &org.id, &prev_year_month)
                 .await
             {
                 Ok(c) => c,
@@ -172,7 +145,7 @@ pub async fn send_monthly_stats_to_all_users(db: &D1Database, env: &Env) -> (usi
 
             // Comparison: clicks in the month before the previous one
             let prev_month_clicks = match analytics_repo
-                .get_org_total_clicks_in_range(db, &org.id, prev_prev_start, prev_prev_end)
+                .get_org_monthly_clicks(db, &org.id, &prev_prev_year_month)
                 .await
             {
                 Ok(c) => c,
@@ -189,7 +162,7 @@ pub async fn send_monthly_stats_to_all_users(db: &D1Database, env: &Env) -> (usi
             // Top links — only fetched when there were clicks
             let top_links = if total_clicks > 0 {
                 match analytics_repo
-                    .get_org_top_links(db, &org.id, prev_start, prev_end, 5)
+                    .get_org_monthly_top_links(db, &org.id, &prev_year_month, 5)
                     .await
                 {
                     Ok(links) => links
@@ -264,63 +237,20 @@ pub async fn send_monthly_stats_to_all_users(db: &D1Database, env: &Env) -> (usi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
-
-    #[test]
-    fn test_previous_month_ranges_mid_year() {
-        // June 3rd 2026 → previous month is May 2026, prev-prev is April 2026
-        let now = Utc.with_ymd_and_hms(2026, 6, 3, 8, 0, 0).unwrap();
-        let (prev_start, prev_end, pp_start, pp_end) = previous_month_ranges(now);
-
-        let may1 = Utc
-            .with_ymd_and_hms(2026, 5, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let jun1 = Utc
-            .with_ymd_and_hms(2026, 6, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let apr1 = Utc
-            .with_ymd_and_hms(2026, 4, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-
-        assert_eq!(prev_start, may1);
-        assert_eq!(prev_end, jun1 - 1);
-        assert_eq!(pp_start, apr1);
-        assert_eq!(pp_end, may1 - 1);
-    }
-
-    #[test]
-    fn test_previous_month_ranges_january() {
-        // January 2nd 2026 → previous month is December 2025, prev-prev is November 2025
-        let now = Utc.with_ymd_and_hms(2026, 1, 2, 8, 0, 0).unwrap();
-        let (prev_start, prev_end, pp_start, pp_end) = previous_month_ranges(now);
-
-        let dec1_2025 = Utc
-            .with_ymd_and_hms(2025, 12, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let jan1_2026 = Utc
-            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let nov1_2025 = Utc
-            .with_ymd_and_hms(2025, 11, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-
-        assert_eq!(prev_start, dec1_2025);
-        assert_eq!(prev_end, jan1_2026 - 1);
-        assert_eq!(pp_start, nov1_2025);
-        assert_eq!(pp_end, dec1_2025 - 1);
-    }
 
     #[test]
     fn test_month_label() {
         assert_eq!(month_label(2026, 5), "May 2026");
         assert_eq!(month_label(2025, 12), "December 2025");
         assert_eq!(month_label(2026, 1), "January 2026");
+    }
+
+    #[test]
+    fn test_year_month_label() {
+        assert_eq!(year_month_label(2026, 5), "2026-05");
+        assert_eq!(year_month_label(2025, 12), "2025-12");
+        assert_eq!(year_month_label(2026, 1), "2026-01");
+        assert_eq!(year_month_label(2024, 2), "2024-02");
     }
 
     #[test]
@@ -353,84 +283,5 @@ mod tests {
         // Month 0 and 13 hit the _ => "Unknown" arm — must not panic
         assert_eq!(month_label(2026, 0), "Unknown 2026");
         assert_eq!(month_label(2026, 13), "Unknown 2026");
-    }
-
-    #[test]
-    fn test_previous_month_ranges_february() {
-        // February 2026 → previous month is January 2026, prev-prev is December 2025
-        // This is the case where prev-prev wraps back across a year boundary.
-        let now = Utc.with_ymd_and_hms(2026, 2, 2, 8, 0, 0).unwrap();
-        let (prev_start, prev_end, pp_start, pp_end) = previous_month_ranges(now);
-
-        let jan1_2026 = Utc
-            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let feb1_2026 = Utc
-            .with_ymd_and_hms(2026, 2, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let dec1_2025 = Utc
-            .with_ymd_and_hms(2025, 12, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-
-        assert_eq!(prev_start, jan1_2026, "prev month should start Jan 1 2026");
-        assert_eq!(
-            prev_end,
-            feb1_2026 - 1,
-            "prev month should end at end of Jan 2026"
-        );
-        assert_eq!(
-            pp_start, dec1_2025,
-            "prev-prev month should start Dec 1 2025"
-        );
-        assert_eq!(
-            pp_end,
-            jan1_2026 - 1,
-            "prev-prev month should end at end of Dec 2025"
-        );
-    }
-
-    #[test]
-    fn test_previous_month_ranges_march() {
-        // March 2026 → previous is February, prev-prev is January (no year wrap)
-        let now = Utc.with_ymd_and_hms(2026, 3, 15, 8, 0, 0).unwrap();
-        let (prev_start, prev_end, pp_start, pp_end) = previous_month_ranges(now);
-
-        let feb1 = Utc
-            .with_ymd_and_hms(2026, 2, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let mar1 = Utc
-            .with_ymd_and_hms(2026, 3, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        let jan1 = Utc
-            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-
-        assert_eq!(prev_start, feb1);
-        assert_eq!(prev_end, mar1 - 1);
-        assert_eq!(pp_start, jan1);
-        assert_eq!(pp_end, feb1 - 1);
-    }
-
-    #[test]
-    fn test_previous_month_ranges_prev_end_is_one_second_before_current_month() {
-        // Verify the half-open interval: prev_end = first second of current month - 1
-        let now = Utc.with_ymd_and_hms(2026, 6, 3, 8, 0, 0).unwrap();
-        let (_, prev_end, _, _) = previous_month_ranges(now);
-
-        let jun1 = Utc
-            .with_ymd_and_hms(2026, 6, 1, 0, 0, 0)
-            .unwrap()
-            .timestamp();
-        assert_eq!(
-            prev_end,
-            jun1 - 1,
-            "prev_end must be exactly 1 second before the current month start"
-        );
     }
 }
