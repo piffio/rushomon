@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi } from "$lib/api/admin";
   import Pagination from "$lib/components/Pagination.svelte";
   import type { AdminLink, ApiError } from "$lib/types/api";
@@ -559,13 +560,7 @@
 
 <!-- Delete Confirmation Modal -->
 {#if confirmingAction === "delete"}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={closeConfirm}
-    onkeydown={(e) => e.key === "Enter" && closeConfirm()}
-  >
+  <div class="modal-backdrop" use:backdropClose={closeConfirm}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -601,13 +596,7 @@
 
 <!-- Block Destination Modal -->
 {#if confirmingAction === "block"}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={closeConfirm}
-    onkeydown={(e) => e.key === "Enter" && closeConfirm()}
-  >
+  <div class="modal-backdrop" use:backdropClose={closeConfirm}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -680,13 +669,7 @@
 
 <!-- Click outside to close dropdown -->
 {#if activeDropdown}
-  <div
-    class="dropdown-overlay"
-    role="button"
-    tabindex="0"
-    onclick={closeDropdown}
-    onkeydown={(e) => e.key === "Enter" && closeDropdown()}
-  ></div>
+  <div class="dropdown-overlay" use:backdropClose={closeDropdown}></div>
 {/if}
 
 <style>

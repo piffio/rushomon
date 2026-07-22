@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto, invalidate } from "$app/navigation";
+  import { backdropClose } from "$lib/actions/backdropClose";
   import type { CustomDomain } from "$lib/api/domains";
   import { domainsApi } from "$lib/api/domains";
   import { linksApi, tagsApi } from "$lib/api/links";
@@ -9,6 +10,7 @@
   import Pagination from "$lib/components/Pagination.svelte";
   import QRCodeModal from "$lib/components/QRCodeModal.svelte";
   import SearchFilterBar from "$lib/components/SearchFilterBar.svelte";
+  import { DEFAULT_MIN_CUSTOM_CODE_LENGTH } from "$lib/constants";
   import type {
     ApiError,
     Link,
@@ -17,7 +19,6 @@
     UsageResponse,
     User
   } from "$lib/types/api";
-  import { DEFAULT_MIN_CUSTOM_CODE_LENGTH } from "$lib/constants";
   import { onDestroy, onMount } from "svelte";
   import { SvelteURLSearchParams } from "svelte/reactivity";
 
@@ -466,12 +467,11 @@
 
             {#if isActionsMenuOpen}
               <!-- Click-outside overlay -->
-              <button
+              <div
                 class="fixed inset-0 z-10 cursor-default bg-transparent border-0 p-0"
-                onclick={() => (isActionsMenuOpen = false)}
+                use:backdropClose={() => (isActionsMenuOpen = false)}
                 aria-label="Close menu"
-                tabindex="-1"
-              ></button>
+              ></div>
               <div
                 class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden"
               >

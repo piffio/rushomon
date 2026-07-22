@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { authApi } from "$lib/api/auth";
   import { apiClient } from "$lib/api/client";
   import LoadingButton from "$lib/components/LoadingButton.svelte";
@@ -277,13 +278,7 @@
 
 <!-- Report Dialog -->
 {#if showReportDialog}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={closeDialog}
-    onkeydown={(e) => e.key === "Enter" && closeDialog()}
-  >
+  <div class="modal-backdrop" use:backdropClose={closeDialog}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}

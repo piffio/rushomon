@@ -3,6 +3,7 @@
     PUBLIC_VITE_API_BASE_URL,
     PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { orgsApi } from "$lib/api/orgs";
   import type { Link } from "$lib/types/api";
   import QRCodeStyling from "qr-code-styling";
@@ -210,19 +211,18 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen && link}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="fixed inset-0 z-50 overflow-y-auto"
     aria-labelledby="qr-modal-title"
     role="dialog"
     aria-modal="true"
     tabindex="-1"
-    onclick={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}
   >
     <!-- Backdrop -->
-    <div class="fixed inset-0 bg-gray-900/50 transition-opacity"></div>
+    <div
+      class="fixed inset-0 bg-gray-900/50 transition-opacity"
+      use:backdropClose={onClose}
+    ></div>
 
     <div class="flex min-h-full items-center justify-center p-4">
       <div

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { resolveLogoUrl } from "$lib/api/client";
@@ -2502,18 +2503,7 @@
 
 <!-- Remove Member Confirmation Modal -->
 {#if confirmingRemoveMember}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelRemoveMember}
-    onkeydown={(e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        cancelRemoveMember();
-      }
-    }}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelRemoveMember}>
     <div class="modal" role="dialog" aria-modal="true" tabindex="-1">
       <div class="modal-header">
         <h3>Remove Member?</h3>
@@ -2542,13 +2532,7 @@
 
 <!-- Domain Deletion Confirmation Modal -->
 {#if confirmingDomainHostname}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={closeConfirmDomain}
-    onkeydown={(e) => e.key === "Enter" && closeConfirmDomain()}
-  >
+  <div class="modal-backdrop" use:backdropClose={closeConfirmDomain}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}

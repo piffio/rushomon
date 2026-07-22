@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi } from "$lib/api/admin";
   import { authApi } from "$lib/api/auth";
   import type {
@@ -539,13 +540,7 @@
 
 <!-- Block URL Modal -->
 {#if showBlockUrlModal && selectedReport}
-  <div
-    class="modal-overlay"
-    role="button"
-    tabindex="0"
-    onclick={closeModal}
-    onkeydown={(e) => e.key === "Enter" && closeModal()}
-  >
+  <div class="modal-overlay" use:backdropClose={closeModal}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -578,13 +573,7 @@
 
 <!-- Block Domain Modal -->
 {#if showBlockDomainModal && selectedReport}
-  <div
-    class="modal-overlay"
-    role="button"
-    tabindex="0"
-    onclick={closeModal}
-    onkeydown={(e) => e.key === "Enter" && closeModal()}
-  >
+  <div class="modal-overlay" use:backdropClose={closeModal}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -619,13 +608,7 @@
 
 <!-- Disable Link Modal -->
 {#if showDisableModal && selectedReport}
-  <div
-    class="modal-overlay"
-    role="button"
-    tabindex="0"
-    onclick={closeModal}
-    onkeydown={(e) => e.key === "Enter" && closeModal()}
-  >
+  <div class="modal-overlay" use:backdropClose={closeModal}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -660,13 +643,7 @@
 
 <!-- Dismiss Modal -->
 {#if showDismissModal && selectedReport}
-  <div
-    class="modal-overlay"
-    role="button"
-    tabindex="0"
-    onclick={closeModal}
-    onkeydown={(e) => e.key === "Enter" && closeModal()}
-  >
+  <div class="modal-overlay" use:backdropClose={closeModal}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}

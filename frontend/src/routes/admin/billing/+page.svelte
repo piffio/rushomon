@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi } from "$lib/api/admin";
   import Pagination from "$lib/components/Pagination.svelte";
   import type {
@@ -703,13 +704,7 @@
 
 <!-- Force Transfer Modal -->
 {#if confirmingForceTransfer}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelForceTransfer}
-    onkeydown={(e) => e.key === "Enter" && cancelForceTransfer()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelForceTransfer}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -784,13 +779,7 @@
 
 <!-- Tier Change Modal -->
 {#if confirmingTierChange}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelTierChange}
-    onkeydown={(e) => e.key === "Enter" && cancelTierChange()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelTierChange}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -841,13 +830,7 @@
 
 <!-- Reset Counter Modal -->
 {#if confirmingReset}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelReset}
-    onkeydown={(e) => e.key === "Enter" && cancelReset()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelReset}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -896,13 +879,7 @@
 
 <!-- Subscription Update Modal -->
 {#if confirmingSubscriptionUpdate}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelSubscriptionUpdate}
-    onkeydown={(e) => e.key === "Escape" && cancelSubscriptionUpdate()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelSubscriptionUpdate}>
     <div
       class="modal"
       role="dialog"

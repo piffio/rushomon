@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import type { BillingStatus } from "$lib/api/billing";
   import { billingApi } from "$lib/api/billing";
   import { apiClient } from "$lib/api/client";
@@ -825,10 +826,7 @@
 {#if keyToDelete}
   <div
     class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    role="button"
-    tabindex="0"
-    onclick={() => (keyToDelete = null)}
-    onkeydown={(e) => e.key === "Escape" && (keyToDelete = null)}
+    use:backdropClose={() => (keyToDelete = null)}
   >
     <div
       class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
@@ -919,10 +917,7 @@
 {#if editScopeKey}
   <div
     class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    role="button"
-    tabindex="0"
-    onclick={() => (editScopeKey = null)}
-    onkeydown={(e) => e.key === "Escape" && (editScopeKey = null)}
+    use:backdropClose={() => (editScopeKey = null)}
   >
     <div
       class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"

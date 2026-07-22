@@ -4,6 +4,7 @@
     PUBLIC_VITE_API_BASE_URL,
     PUBLIC_VITE_SHORT_LINK_BASE_URL
   } from "$env/static/public";
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { linksApi } from "$lib/api/links";
   import type { LinkAnalyticsResponse, TopLinkCount } from "$lib/types/api";
   import {
@@ -192,11 +193,7 @@
 <!-- Backdrop -->
 <div
   class="fixed inset-0 bg-black/30 z-40 transition-opacity"
-  role="button"
-  tabindex="-1"
-  aria-label="Close panel"
-  onclick={onclose}
-  onkeydown={(e) => e.key === "Enter" && onclose()}
+  use:backdropClose={onclose}
 ></div>
 
 <!-- Slide-over panel -->
