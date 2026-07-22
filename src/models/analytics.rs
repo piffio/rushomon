@@ -548,23 +548,6 @@ pub struct TopLinkCount {
     pub custom_domain: Option<String>,
 }
 
-/// Pre-aggregated click count for a single link in a calendar month.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LinkMonthlyClick {
-    #[schema(example = "link-123")]
-    pub link_id: String,
-    #[schema(example = "org-123")]
-    pub org_id: String,
-    /// Calendar month in "YYYY-MM" format.
-    #[schema(example = "2026-06")]
-    pub year_month: String,
-    #[schema(example = 42)]
-    pub clicks: i64,
-    #[schema(example = 1717200000)]
-    pub updated_at: i64,
-}
-
 #[derive(Debug, Serialize, ToSchema)]
 pub struct OrgAnalyticsResponse {
     #[schema(example = 1500)]
