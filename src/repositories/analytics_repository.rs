@@ -476,6 +476,73 @@ impl AnalyticsRepository {
         Ok(agents)
     }
 
+    // ── Monthly pre-aggregated counters ────────────────────────────────────
+
+    /// Total clicks for an org in a specific calendar month.
+    /// Reads one aggregated row per link instead of every analytics event.
+    pub async fn get_org_monthly_clicks(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        year_month: &str,
+    ) -> Result<i64> {
+        let stmt = db.prepare(
+            "SELECT COALESCE(SUM(clicks), 0) as count
+             FROM link_monthly_clicks
+             WHERE org_id = ?1 AND year_month = ?2",
+        );
+        let result = stmt
+            .bind(&[org_id.into(), year_month.into()])?
+            .first::<serde_json::Value>(None)
+            .await?;
+        match result {
+            Some(val) => Ok(val["count"].as_f64().unwrap_or(0.0) as i64),
+            None => Ok(0),
+        }
+    }
+
+    /// Top links for an org in a specific calendar month.
+    /// Only reads the small link_monthly_clicks table, ordered by the counter.
+    pub async fn get_org_monthly_top_links(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        year_month: &str,
+        limit: i64,
+    ) -> Result<Vec<TopLinkCount>> {
+        let stmt = db.prepare(
+            "SELECT lmc.link_id, l.short_code, l.title, l.custom_domain, lmc.clicks as count
+             FROM link_monthly_clicks lmc
+             JOIN links l ON lmc.link_id = l.id
+             WHERE lmc.org_id = ?1 AND lmc.year_month = ?2
+             ORDER BY lmc.clicks DESC
+             LIMIT ?3",
+        );
+        let results = stmt
+            .bind(&[org_id.into(), year_month.into(), (limit as f64).into()])?
+            .all()
+            .await?;
+        let rows = results.results::<serde_json::Value>()?;
+        let links = rows
+            .iter()
+            .filter_map(|row| {
+                let link_id = row["link_id"].as_str()?.to_string();
+                let short_code = row["short_code"].as_str()?.to_string();
+                let title = row["title"].as_str().map(|s| s.to_string());
+                let custom_domain = row["custom_domain"].as_str().map(|s| s.to_string());
+                let count = row["count"].as_f64()? as i64;
+                Some(TopLinkCount {
+                    link_id,
+                    short_code,
+                    title,
+                    count,
+                    custom_domain,
+                })
+            })
+            .collect();
+        Ok(links)
+    }
+
     // ── Usage queries ────────────────────────────────────────────────────────
 
     /// Get monthly counter for billing account
