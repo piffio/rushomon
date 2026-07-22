@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi } from "$lib/api/admin";
 
   interface Props {
@@ -54,13 +55,7 @@
 </script>
 
 {#if !submitted}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={onClose}
-    onkeydown={(e) => e.key === "Enter" && onClose()}
-  >
+  <div class="modal-backdrop" use:backdropClose={onClose}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -128,13 +123,7 @@
     </div>
   </div>
 {:else}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={onClose}
-    onkeydown={(e) => e.key === "Enter" && onClose()}
-  >
+  <div class="modal-backdrop" use:backdropClose={onClose}>
     <div
       class="modal success-modal"
       onclick={(e) => e.stopPropagation()}

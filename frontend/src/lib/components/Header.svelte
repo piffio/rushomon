@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { authApi } from "$lib/api/auth";
   import { billingApi } from "$lib/api/billing";
   import { orgsApi } from "$lib/api/orgs";
@@ -253,13 +254,8 @@
 
               {#if orgSwitcherOpen}
                 <div
-                  role="button"
-                  tabindex="-1"
-                  aria-label="Close org switcher"
                   class="fixed inset-0 z-40"
-                  onclick={() => (orgSwitcherOpen = false)}
-                  onkeydown={(e) =>
-                    e.key === "Escape" && (orgSwitcherOpen = false)}
+                  use:backdropClose={() => (orgSwitcherOpen = false)}
                 ></div>
                 <div
                   class="absolute right-0 mt-1 w-72 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden"
@@ -625,12 +621,8 @@
   >
     <!-- Backdrop -->
     <div
-      role="button"
-      tabindex="-1"
-      aria-label="Close dialog"
       class="absolute inset-0 bg-black/40"
-      onclick={() => (showCreateOrg = false)}
-      onkeydown={(e) => e.key === "Escape" && (showCreateOrg = false)}
+      use:backdropClose={() => (showCreateOrg = false)}
     ></div>
     <!-- Dialog -->
     <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">

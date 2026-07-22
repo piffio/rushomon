@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi } from "$lib/api/admin";
   import { authApi } from "$lib/api/auth";
   import Avatar from "$lib/components/Avatar.svelte";
@@ -535,13 +536,7 @@
 
 <!-- Role Change Confirmation Modal -->
 {#if confirmingUserId && confirmingRole}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelRoleChange}
-    onkeydown={(e) => e.key === "Enter" && cancelRoleChange()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelRoleChange}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -597,13 +592,7 @@
 
 <!-- Suspend Confirmation Modal -->
 {#if confirmingSuspend}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelSuspend}
-    onkeydown={(e) => e.key === "Enter" && cancelSuspend()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelSuspend}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -648,13 +637,7 @@
 
 <!-- Delete Confirmation Modal -->
 {#if confirmingDelete}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={cancelDelete}
-    onkeydown={(e) => e.key === "Enter" && cancelDelete()}
-  >
+  <div class="modal-backdrop" use:backdropClose={cancelDelete}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -709,13 +692,7 @@
 
 <!-- Click outside to close dropdown -->
 {#if activeDropdown}
-  <div
-    class="dropdown-overlay"
-    role="button"
-    tabindex="0"
-    onclick={closeDropdown}
-    onkeydown={(e) => e.key === "Enter" && closeDropdown()}
-  ></div>
+  <div class="dropdown-overlay" use:backdropClose={closeDropdown}></div>
 {/if}
 
 <style>

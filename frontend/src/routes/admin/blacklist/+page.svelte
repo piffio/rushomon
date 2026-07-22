@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi } from "$lib/api/admin";
   import type { BlacklistEntry } from "$lib/types/api";
   import { onMount } from "svelte";
@@ -204,13 +205,7 @@
 
 <!-- Add Entry Modal -->
 {#if showAddModal}
-  <div
-    class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={() => (showAddModal = false)}
-    onkeydown={(e) => e.key === "Enter" && (showAddModal = false)}
-  >
+  <div class="modal-backdrop" use:backdropClose={() => (showAddModal = false)}>
     <div
       class="modal"
       onclick={(e) => e.stopPropagation()}
@@ -285,10 +280,7 @@
 {#if showRemoveModal && selectedEntry}
   <div
     class="modal-backdrop"
-    role="button"
-    tabindex="0"
-    onclick={() => (showRemoveModal = false)}
-    onkeydown={(e) => e.key === "Enter" && (showRemoveModal = false)}
+    use:backdropClose={() => (showRemoveModal = false)}
   >
     <div
       class="modal"

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { backdropClose } from "$lib/actions/backdropClose";
   import { adminApi, type Discount, type Product } from "$lib/api/admin";
   import { billingApi, type ProductPrice } from "$lib/api/billing";
   import {
@@ -989,10 +990,7 @@
   {#if confirmingSignupToggle}
     <div
       class="modal-backdrop"
-      role="button"
-      tabindex="0"
-      onclick={() => (confirmingSignupToggle = false)}
-      onkeydown={(e) => e.key === "Enter" && (confirmingSignupToggle = false)}
+      use:backdropClose={() => (confirmingSignupToggle = false)}
     >
       <div
         class="modal"
@@ -1053,11 +1051,7 @@
   {#if confirmingFounderPricingToggle}
     <div
       class="modal-backdrop"
-      role="button"
-      tabindex="0"
-      onclick={() => (confirmingFounderPricingToggle = false)}
-      onkeydown={(e) =>
-        e.key === "Enter" && (confirmingFounderPricingToggle = false)}
+      use:backdropClose={() => (confirmingFounderPricingToggle = false)}
     >
       <div
         class="modal"

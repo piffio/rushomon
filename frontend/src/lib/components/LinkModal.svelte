@@ -12,6 +12,7 @@
     UtmParams
   } from "$lib/types/api";
   import { debounce, fetchUrlTitle } from "$lib/utils/url-title";
+  import { backdropClose } from "$lib/actions/backdropClose";
   import {
     DEFAULT_MIN_CUSTOM_CODE_LENGTH,
     MAX_SHORT_CODE_LENGTH
@@ -246,12 +247,6 @@
     }
   }
 
-  function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  }
-
   async function handleSubmit(e: Event) {
     e.preventDefault();
     loading = true;
@@ -401,15 +396,7 @@
 {#if isOpen}
   <div
     class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-    onclick={handleBackdropClick}
-    role="button"
-    tabindex="0"
-    onkeydown={(e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        handleClose();
-      }
-    }}
+    use:backdropClose={handleClose}
   >
     <div
       class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
