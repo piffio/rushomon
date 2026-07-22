@@ -21,7 +21,7 @@ const sidebars: SidebarsConfig = {
       label: 'API',
       link: {
         type: 'doc',
-        id: 'api',
+        id: 'rushomon-url-shortener-api',
       },
       items: apiItems.slice(1),
     },

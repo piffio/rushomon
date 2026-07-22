@@ -1,11 +1,11 @@
 ---
 id: handle-list-api-keys
 title: "List API keys"
-description: "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars)"
+description: "Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars). Includes `org_ids` showing which organizations each key is scoped to."
 sidebar_label: "List API keys"
 hide_title: true
 hide_table_of_contents: true
-api: eJzFVdtu40YM/RWCeUkCRXbSBTbQU91iu8g27Qa5oA9xYI8lxppmNKPlUPG6hoB+RL+wX1JQUhw7+YA+SRqRZ87hHHI2KGYZMbvHydUF/ErriA8JFhRztrXY4DHDa5KGfQTjHJhc7DOBBj/ROsJjYJCSwDRSkhebG6ECmkicwm1JwGYFEp7Ig43g6ZkYuIOjAkpign///geCd+sOpbRe4NCZKPAB8tJwPMIEQ01slMtFgRmWxheOZs5GmZnazpQGJsgU6+AjRcw2eDYe62NfxoTZrCE8vtWAbYIfxqfvE+68qgps/6IC2zbBSHnDVtaY3W/wJzJMjNn9Q5tsMFKMNvhZHsKTpW71IcGKpAxKekmCCdZGSsxwZGo7GmhH4mfi2CE27FSfSB2zkQal3MQyVMGneY5vT+WKQ9Hk+qFKUEm8AmSjkQu5cWWIkp1/PP/4Lv1Sf0NBz+RCXZEXVMIvCm/ykqq+li86NyjrmgZ8Zd6FYIaLPiAZXn4JXBnBDL/8cQuBYfBVV0DrH0OHZMVp6vWgD+6uL+GmDCzkqUt5x1dhipA3SrUzw9Z6eyBxC6KVtTmlUz/1BwcweTWoDV4XfwtRgHxRB+slAtO3xvKek3WXJlq/BLJSEmdTfwLHxzf9WUN/1vH4GA6Vy4oWYOravWYSx6M+pS9i3wnbhBcDHvUUD+Cu2+ulEXX1NIWfmYwQGP8SD9Z3ugsTy0UwXMDhFQcQS6z1Lu2y7Lqsk1McTf1ZChc+d01BXd4OxGTwd0+4JFN0IgFgPp93z72IDAYdHGa1kVmapq/BBwdwPfQg9B5QARPnYNuaYJjgy83X3/XsKiNCRQqfmAPvxDwG58IKpLQRonCTS8OUTf18Pv8z6sltdM8pkuZNMYMp9hAVxWiWBL1vFlrKVWkEVuQFVhz8copT33ZIgymuzNL6rSEu7Z4hYlPXgQXqbRCsrJQwr82S5mB8AXNnKytz+NYQr6E2bCoS4tgZpY/LdBMC31QLYjg8PbG+oO9UJFDQo2mcZHDamWTAyuBCqIpQE+vOpCmn4/FO+Nn4aOoxwTx4MbloP3lT7bXTTU8dE6TKWB0Kg5gfdydKm6CzOflIOxiTz1eXJz+kY0zezKPVapUufZMGXo6GtDgyy9ppdFpK5RRQh1nfsOP0PB3rUh2iVMbv7NEVejt+33T6phOmA+n/v3mGiSf0XUa1M9arnq4sm2GY36OpLSb4NNycOnB1dbNZmEh37NpWlzuD6K2Q4LNhaxauvyN2rojPn24xQVWzM2vfzNbumhh+Gb9GRXONfm02fcStKm7bnpFS129sH9q2/Q9j276C
+api: eJzdVttuGzcQ/ZUB/VDbWK0kx0CCfarbpoFSJzF8QQpYhkTtjnZZc8kNOWtFEQT0I/qF/ZJiyNXN7uW9T9KSM2fmDOe2EiRLL7J7cXE1gl9w6cVDIgr0uVMNKWtEJq6RWmc8SK1B5qSeEFj4EZce5tYBVQiypQoNqVwSFtB6dCncVghOLoDsIxpQHgw+oQMX4LCACh3Cn7//AdboZUCplCE41tITnENeSedPUhiZXLcFephaV05U4afgK7tQpoRFpfIKrCulUd8ku+sBZV6xb2zQ57bBAsimIhG2QRdkRoXIRCVNoXGilaeJbNSE2YhEOPSNNR69yFbibDDgn8NoXDgnl2Dnz0Mh1ok4HwxfKtwZDo516hsWYr1OhMe8dYqWIrtfiR9QOnQiu39YJyvh0XtlzSS39lFhOH1IRI1UWXa6RBKJaCRVIhN92ai+RyJlSs8fvY6DR/eEzgf41mkmS9T4rM9CqWt9ZWtr0jwXz1/6ytmizfmDaQn2aAeQ9fva5lJX1lP25vWb1y/UL/kaCnxCbZsaDQn2fkP3Jq+wjoHdkF4JWjbY4bPnQURkYhYFku7Pz9bVkkQm3n++Beugy9UQTWXmNiAp0qx63fGDu+tLuKmsIzQYVF74yzCFzVt2NWTGNp0PQPwWhCOrckzHZmyOjuBil/TKGj78YD0BmqKxypAHh19a5Q6qg620npMXFVXosrHpwenpTXx4iA/vT0/hmH1Z4Axk0+idJjp/ElViEGN1bRU22XgSXTyCu2BrU9x8OkzhR4eSEKTZyIMygXchfTWz0hVwfOUskELH8a5UWYXKDXSKk7E529Zl0NuDuOiSPTpcoSwCSQCYTqfh90Aig46Hs5NG0iRN051wpPCh1aR6n/aq/IDPthfl0sAMd0UPvsFczVV+2CFS+Fzh5hEk1AHdupJBEljaFurWU6cc+xJJVyIdwHT6fDv9lZ3rjYrpju7YBAL/TXWjmzF6r21V0eO+2Ol3yaFMqXHjoz89zUJvfWGXW54NyS11CqM52FoRYZFs30jm5MEaUOTBB1TYNacDfmk0/WE/Ov9ueZMdsfF3509StxgDWkviZm2Qmyc7xKijn/wmcR5x+V3Xsjvjl1jKfBkf99jYeHfSOeExXsicmFEHuHsfqnAJCx4xecj2AqxJ/9l7Ywl82zRc6kUo8NE8JIMkwrohzqfW4/OEgYWiyrb094mQcPGwBJdapAu2Ja92ZbOhHDNvobQGhznyZJFwPhgwwvngFaBz1qWh7Vx3MwpiWww1ENS60QXSIby/+fSR21nN/hcpvGX9PZm51dougCoek+TanFqHWUi73zw3sxWX4VgEu2ORwVhEiBq9lyVCbKWzOIYlwQINwcJZU47F2Ky3CXx0BFeyVGbbIy/VQY/sgg7NVihGbNrIEqcgTQFTrWpFU/jSoltCI52skdD50DujXMZGEExbz9DB8bCnTIFfOfULnMtWUwbD0Dc7rAxGhLWHBh1bRlYZDgZ74meDk7ERicitIZkTjxgj64MJcxNdF4nAWiqekx2Z7/eH7DoRWuVoPO5hXLy7uuy9SgcieTaiF4tFWpo2ta7sd2q+L8tGs3RaUa0ZkOd7nGGDdDhMz/issZ5qafaMhEhv95Nn028VmPGQ/t9seN0yQfiV+o2WynBYQnhX3dJ0L2SjwooU1yaRiO3i9JAIXm1YaLWaSY93Tq/XfBzyjpexRDxJp+RMx9VsbzN79/aWsVo2st1qnm0xYSHrrqRZCkbTLX+tVlHiluO4XotEPOKSmfC3WD+s1+u/AFeeEGI=
 sidebar_class_name: "get api-method"
 info_path: docs/rushomon-url-shortener-api
 custom_edit_url: null
@@ -29,7 +29,7 @@ import Translate from "@docusaurus/Translate";
 
 <MethodEndpoint
   method={"get"}
-  path={"/api/keys"}
+  path={"/api/settings/api-keys"}
   context={"endpoint"}
 >
   
@@ -37,11 +37,9 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars)
+Returns all active API keys for the authenticated user. The raw token is never returned here — only the hint (last 4 chars). Includes `org_ids` showing which organizations each key is scoped to.
 
-<ParamsDetails
-  parameters={undefined}
->
+<ParamsDetails>
   
 </ParamsDetails>
 
