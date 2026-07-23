@@ -2896,6 +2896,136 @@
         ]
       }
     },
+    "/api/orgs/{id}/org-domains": {
+      "get": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "List org domains",
+        "description": "Lists all domains for the organization. Any member may view. Pending domains include a best-effort is_cloudflare hint",
+        "operationId": "handle_list_org_domains",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Organization ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of org domains"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Organization not found"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "Add an org domain challenge",
+        "description": "Registers a domain for verification and returns the TXT record to publish. Requires owner or admin role and Business+ tier",
+        "operationId": "handle_add_org_domain",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Organization ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Challenge created; returns domain, token, and DNS instructions"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner/admin and Business+ required"
+          },
+          "409": {
+            "description": "Domain already verified by an organization"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/orgs/{id}/org-domains/{domain}": {
+      "delete": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "Remove an org domain",
+        "description": "Removes a domain from the organization. Requires owner or admin role and Business+ tier",
+        "operationId": "handle_delete_org_domain",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Organization ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domain",
+            "in": "path",
+            "description": "Domain to remove",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain removed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner/admin and Business+ required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
     "/api/orgs/{id}/settings": {
       "get": {
         "tags": [
@@ -2965,6 +3095,49 @@
           },
           "403": {
             "description": "Owner or admin required, or Pro+ required"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          },
+          {
+            "session_cookie": []
+          }
+        ]
+      }
+    },
+    "/api/orgs/{id}/verify-org-domain": {
+      "post": {
+        "tags": [
+          "Organizations"
+        ],
+        "summary": "Verify an org domain",
+        "description": "Checks the domain's TXT record and marks it verified on success. Requires owner or admin role and Business+ tier",
+        "operationId": "handle_verify_org_domain",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Organization ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain verified"
+          },
+          "400": {
+            "description": "DNS record not found or incorrect"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Owner/admin and Business+ required, or domain belongs to another org"
           }
         },
         "security": [
