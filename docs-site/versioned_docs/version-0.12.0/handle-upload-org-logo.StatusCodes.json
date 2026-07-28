@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Logo uploaded, returns the URL"},"400":{"description":"Missing file, too large, or unsupported format"},"401":{"description":"Unauthorized"},"403":{"description":"Owner or admin required, or Pro+ required"}}}

@@ -1,0 +1,1 @@
+{"responses":{"302":{"description":"Redirect to GitHub authorization URL"},"404":{"description":"GitHub OAuth not configured"},"429":{"description":"Rate limit exceeded"}}}

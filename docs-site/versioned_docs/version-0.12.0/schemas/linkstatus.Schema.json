@@ -1,0 +1,1 @@
+{"schema":{"enum":["active","disabled","blocked"],"type":"string","title":"LinkStatus"},"schemaType":"response"}

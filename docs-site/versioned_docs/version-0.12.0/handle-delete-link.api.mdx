@@ -1,0 +1,69 @@
+---
+id: handle-delete-link
+title: "Delete a link"
+description: "Soft-deletes a link belonging to the authenticated organization and removes its KV mapping so it stops redirecting"
+sidebar_label: "Delete a link"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFVltv2zYU/isHzMOSQJadLkALPS1bssFtuga5rAPqIKbFY4mLRKrkUVzX0H8fDinf0rR73FMc6ly+79xXQqHPnW5IWyMycWPnNFBYIaEHCZU2jzDDyppCmwLIApUIsqUSDelcEiqwrpBGf5VsAaRR4LC2T+hBk4d3f0Etm4aVvQVN4Mk2Hhwq7TAnbQqRCNugC+pjJTJRSqMqfIggHhiBSEQjnayR0HmRfVo9A33JKMfnIhGa/20klSIRRtYoMqGVSITDz612qERGrsVE+LzEWopsJWjZsJQnx1i67p6FfWONR8/fX41G/OcFhxGgEl0iTkcn3wrdGY6TdfrrWuj0O5aMJZjb1ijRdYnwmLdO0zIQ/RWlQyeyT/ddshIevdfWPOTWPmoMr/eJIFlwVIItL+4TUSOVlkMZIYbwUSkyMZSNHnJE/XClVSfYmXt6OahXzqo2D0k9uxqLRLSu4uwQNT4bsqXUtb60tTVpnguG94yazWUFCp+wsk2NhvZsZMNhxQKl9ZS9ef3mtWAqa+43nJ+YgHUEVmIWfv1uXS1JZOLtx1uwjsHBO1yKPqmczCgoknVy2V8IrTZzy5Zya0jmxD+xlpox+bZprKNfdjltaui6f4SbKMXp3CfLKJTNW+YZO2FuXWiWje7d9SX40jpCgw448DrHdGIm5uAAzrYtpa3hx/fWE6BRjdWGuGNCBe/2HntpPbcWairRZRMzgOPjm1gkEIvEHx/DIWNZ4Axk01RbTXT+KKrEGAPZRzQbBab0iEuWYYgHcBd89fH2/HqSwm8OJSFIs5YHbQJvJX05s9IpOLxyFkij43SVuijRremoo4l5lcLY5FWrMOjtmDjr+ycCLlGqQBIAptNp+LsnkUHPw9mHRtJDmqZb4UjhfVuRHnzYnVi7fNaUIZcGZgg+tw0qHnu+wVzPdb437XwKH0tcJ0FCHaxbV7CRBJa2hbr11CsvAyeSrkDaH5pRn79O/2Zwg7GabulOTCDw31TXuhlbH7StVoMSHfb6fXFoU1S4xuiPjzO4fckvaA82FLesUhjPwdaaCFWyyZHMyYM1Ycr7YBW2826PXxpdv9+Nzo89r6sjDSL9+5OsWowBrSXlJViDYOcBEFsdn/t14Tzi8icfs9c7v8RC5suY3ENj47ejHoTH+EHmxIx6g9v8UIlLWKBDyEO1K7Am/T56Huf9OEEVGnw8D8UgibBuiOup9fi8YGChqbQtvVwICTcPS3CrRbpgW/J62zZryrHyFrqqwGGO+oldnY5GbOF09DOgc9alYexc96sO4lQNPRDU+g0I0iG8vfnwJ4+zmvGrFC5Yf0dmbqvKLoBK7cGTa3NqHWah7P7xPMxW3IYTEfxORAYTEU3U6L0sEOIonXETLEpJsEBDsHDWFBMxMd2mgA8O4EoW2mxm5KXem5F90KHZCMWITRtZ4DTcJtNK15qm8LlFt4TtVRFmZ5TL2AmCaesZOjg8GWij8AuXvsK5bCvK4CTMzd5WBmPC2kODjj0jq5yMRjvir0ZHEyMSUekcjUdeO/1iOfvj6nLwczr6Zr0uFou0MG1qXTHs1fxQFk3F0mlJdcU7iDRVe/uJd8zNZsfEvc37PS6pWmrDao31VEuzg+M8HAr9wSeeLbe4L3mB/0/3Yb/GCb/QsKl6EiFeq/6y+SRko0OE+QRKRKYVH0J8XPDH1WomPd65quv4OSSfr6dEPEmn5YyDyAeQ9vxbiWwuK48/CMPh9Xp/wfb4fBFm/ygNXyhhhIlMiEQ84jIep919t3OxnV9cXtxeiERwDHfu081JM1sfhKuXTa9WUeKWd3nXbTyF3c7Ouu5fL64mDg==
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete a link"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/links/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-deletes a link belonging to the authenticated organization and removes its KV mapping so it stops redirecting
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-delete-link.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-delete-link.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-delete-link.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

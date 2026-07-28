@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"User deleted"},"400":{"description":"Cannot delete self or last org admin"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"},"404":{"description":"User not found"}}}

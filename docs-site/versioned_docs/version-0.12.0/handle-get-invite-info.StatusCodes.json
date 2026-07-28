@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Invitation details"},"404":{"description":"Token not found, expired, or already accepted"}}}

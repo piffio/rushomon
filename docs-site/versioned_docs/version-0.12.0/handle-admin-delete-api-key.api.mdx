@@ -1,0 +1,69 @@
+---
+id: handle-admin-delete-api-key
+title: "Soft-delete an API key"
+description: "Soft-delete an API key"
+sidebar_label: "Soft-delete an API key"
+hide_title: true
+hide_table_of_contents: true
+api: eJyFVm1v20YM/isE82FJIMtOW6CFPi1bt8FtsgZ5QQfUQXyWaOkW6U69o+J6hv77wJPklybdPkk68e0hnyO5QVuTU6ytmWaYYKFMVtKDyiptHjIqielB1frhkdYYYa2cqojJeUy+bDAjnzpdizImeH41hUdaw/Q9RqjlpFZcYIRGVYQJ6gwjdPS10Y4yTNg1FKFPC6oUJhvkdS1Snp02ObbtvQj72hpPXv6/mkzkcejzI62hizLDNsI3k7PnMndGNVxYp/8ZhF4/FzoXwLCNrm0j9JQ2TvM6QP2FlCOHyZf7NtqgJ++1NQ+ptY+awul9hKxyyUtnC++j71zc2CWPumBBGejThRFWxIWV5NfWc8gyF5jgWNV6HAohb6NHWvvxRmftuLOBEqF7erkWV85mTSof4gcjbFwp1WWufTIWe7FrfGEra+I0RcF0aODCpqqEjJ6otHVFhg9sJONxKQKF9Zy8e/vuLQr+IWE3UtOuaEPaNrgIb79bVynGBD98vgXrQhI+hiQEIggBOkGMBkKIv1APbZZWLKXWsEpZXqlSWmLyTV1bxz/vY9ry7ro/hJtOSjjwnLmZTRvBGa4CLK0DLgi2unfXF+AL65gMOZDE65TimZmZoyM4b7ggwzoNynJ4aT0Dmay22rAfeAXqQBAar00OpLkgl8zMCE5PbzpmQccsf3oKxxLLihag6rrcaZLzJ51Kl2Ng+0hmq9CzS2QkxCO4C776fHs5PYvhV0fqgI2gTcCdKV8srHIZHF85C6zJSbkKnRfkttfkZGZexTA1adlkFPT2TJz3l64LuCCVBZAAMJ/Pw/NAIoEeh7MPteKHOI53wh2Ey6ZkPfrkcmUGs/t4BsiQKgMLAp/amjJgC76mVC91CnZP18fwuaChCAqqYN26XIxEsLYNVI3nXnkdMLFyOfGBmV5f/s7/kuBG02y+gzszAcD/Qx10E7E+ahqdjQpy1Ov35NAmL2mI0Z+eJnD7kl/QHmwgtypjmC7BVpqZsmhbI5WyB2tAswcfrMKuSR7gizvXl/vZ+W/PAzviINKfP6myoS6hleK0AGsI7DIEJFan7/1AnEda/+S76vXOLyhX6bor7rGx3b+TPghP3Q+VsiDqDe7qwwWtYUWOIA1sz8Ca+MfRG8vQtxPKwgWfLgMZFDNVNQufGk/fEwZWmgvb8MtEiOTyiIRctQ4u2Ia93l2bAXLHvJUuS3CUkn4SV28mE7HwZvIayDnr4tB2rvvxCF1XDXcgqPVTE5Qj+HDz6U9pZ5XEn8Xwm+jvySxtWdoVcKE9eHZNyo2jJNDuby/NbCPXcIbB7wwTmGFnoiLvVU7QtdKFXIJVoRhWZBhWzpp8hjPTbgl8dARXKtdm2yMv9EGP7JMO9Vaoy9i8VjnNQZkM5qWuNM/ha0NuDbtlJPTOTi4RJwSmqRbk4PhspE1G34T6GS1VU3ICZ6Fv9rYSmDJVHmpy4plE5Wwy2RN/NTmZGYyw1CkZTzJ2+sFy/sfVxeh1PHk2XlerVZybJrYuH/dqfqzyuhTpuOCqlBnEmsuD+SQz5mY7Y7q5LfO9G1KV0kbUZEmolNmL44eLxcGU225YTN94XJe9uRD5pt85vqCqNUYYtg559nsHRpiE9a1fPe4jlNEvCpvNQnm6c2XbynEojSxEET4pp9VCIMp6or28Z5gsVenpWWwy1GXLSPD4epgucLBRvhh9f6iMwA09BhPECAV/2Djb+3Zvwbr6dHMrsBoBu03IduNYDEve5mXDm00ncSujtm23fsLoFVdt+y84FecX
+sidebar_class_name: "post api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Soft-delete an API key"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/api/admin/api-keys/{id}/delete"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete an API key
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-admin-delete-api-key.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-admin-delete-api-key.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-admin-delete-api-key.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

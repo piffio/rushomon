@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Link deleted"},"401":{"description":"Unauthorized"},"404":{"description":"Link not found"}}}

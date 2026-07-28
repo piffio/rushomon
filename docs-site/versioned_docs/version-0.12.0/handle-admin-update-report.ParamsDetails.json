@@ -1,0 +1,1 @@
+{"parameters":[{"description":"Report ID","in":"path","name":"id","required":true,"schema":{"type":"string"}}]}

@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Updated settings map"},"400":{"description":"Unknown or invalid setting value"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}

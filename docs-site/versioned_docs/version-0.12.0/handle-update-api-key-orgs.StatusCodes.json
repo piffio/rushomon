@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Org scope updated"},"400":{"description":"Empty org list or org not in membership"},"401":{"description":"Unauthorized"},"404":{"description":"Key not found or not owned by user"}}}

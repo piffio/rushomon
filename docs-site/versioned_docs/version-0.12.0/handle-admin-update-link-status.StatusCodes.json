@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Status updated"},"400":{"description":"Invalid status value"},"401":{"description":"Unauthorized"},"403":{"description":"Admin required"}}}
