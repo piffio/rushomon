@@ -9,7 +9,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/adapter-auto": "^7.0.1",
-    "@sveltejs/adapter-cloudflare": "^7.2.8",
+    "@sveltejs/adapter-cloudflare": "^7.2.9",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.65.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
