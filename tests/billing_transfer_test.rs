@@ -421,6 +421,11 @@ async fn invite_billing_user_into_primary_org() -> (String, String) {
 }
 
 /// Helper: remove the billing test user from the primary org to restore clean state.
+///
+/// Accepting the invitation pointed the billing user's session at the primary
+/// org, and authentication requires membership of the session's org — so the
+/// billing user must switch back to their own org BEFORE being removed, or
+/// their session would be rejected for the rest of the run.
 async fn remove_billing_user_from_primary_org(org_id: &str) {
     let admin_client = authenticated_client();
     let billing_client = billing_test_client();
@@ -434,6 +439,31 @@ async fn remove_billing_user_from_primary_org(org_id: &str) {
         .await
         .unwrap();
     let billing_user_id = me["id"].as_str().unwrap().to_string();
+
+    // Switch the billing user's session back to an org they own (their
+    // personal org) before removing their membership of the primary org.
+    let orgs: Value = billing_client
+        .get(format!("{}/api/orgs", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    if let Some(own_org_id) = orgs["orgs"]
+        .as_array()
+        .and_then(|list| {
+            list.iter()
+                .find(|o| o["role"].as_str() == Some("owner") && o["id"].as_str() != Some(org_id))
+        })
+        .and_then(|o| o["id"].as_str())
+    {
+        let _ = billing_client
+            .post(format!("{}/api/auth/switch-org", BASE_URL))
+            .json(&json!({ "org_id": own_org_id }))
+            .send()
+            .await;
+    }
 
     // Attempt removal — ignore errors (member may already be gone).
     let _ = admin_client

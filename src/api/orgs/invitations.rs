@@ -306,7 +306,7 @@ async fn inner_resend_invitation(
         (status = 404, description = "Token not found, expired, or already accepted"),
     )
 )]
-pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+pub async fn handle_get_invite_info(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let token = ctx
         .param("token")
         .ok_or_else(|| Error::RustError("Missing token".to_string()))?
@@ -321,14 +321,29 @@ pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Res
             return Response::from_json(&serde_json::json!({"valid":false,"reason":"not_found"}));
         }
     };
+
+    // If the caller is authenticated and already a member of the org (e.g. from
+    // JIT provisioning), surface that so the frontend can skip straight to the
+    // dashboard rather than showing an accept/expired screen.
+    let is_member = if let Ok(user_ctx) = auth::authenticate_request(&req, &ctx).await {
+        repo.get_member(&db, &invitation.org_id, &user_ctx.user_id)
+            .await?
+            .is_some()
+    } else {
+        false
+    };
+
     let now = crate::utils::now_timestamp();
-    if invitation.accepted_at.is_some() {
-        return Response::from_json(
-            &serde_json::json!({"valid":false,"reason":"already_accepted"}),
-        );
-    }
-    if invitation.expires_at < now {
-        return Response::from_json(&serde_json::json!({"valid":false,"reason":"expired"}));
+    // Only reject accepted/expired invitations for users who aren't already members.
+    if !is_member {
+        if invitation.accepted_at.is_some() {
+            return Response::from_json(
+                &serde_json::json!({"valid":false,"reason":"already_accepted"}),
+            );
+        }
+        if invitation.expires_at < now {
+            return Response::from_json(&serde_json::json!({"valid":false,"reason":"expired"}));
+        }
     }
     let org = repo
         .get_by_id(&db, &invitation.org_id)
@@ -346,6 +361,7 @@ pub async fn handle_get_invite_info(_req: Request, ctx: RouteContext<()>) -> Res
         "invited_by": inviter_name,
         "email": invitation.email,
         "expires_at": invitation.expires_at,
+        "is_member": is_member,
     }))
 }
 
@@ -411,26 +427,30 @@ async fn inner_accept_invite(req: Request, ctx: RouteContext<()>) -> Result<Resp
         ));
     }
 
-    if repo
+    // If the user is already a member (e.g. auto-joined via JIT domain
+    // provisioning before clicking the invite link), gracefully accept the
+    // invite — upgrading their role if the invitation offers a different one —
+    // instead of returning a conflict.
+    if let Some(existing_member) = repo
         .get_member(&db, &invitation.org_id, &user_ctx.user_id)
         .await?
-        .is_some()
     {
-        return Err(AppError::Conflict(
-            "You are already a member of this organization".to_string(),
-        ));
-    }
-
-    repo.add_member(&db, &invitation.org_id, &user_ctx.user_id, &invitation.role)
-        .await?;
-    if repo
-        .get_member(&db, &invitation.org_id, &user_ctx.user_id)
-        .await?
-        .is_none()
-    {
-        return Err(AppError::Internal(
-            "Failed to add member to organization".to_string(),
-        ));
+        if existing_member.role != invitation.role {
+            repo.update_member_role(&db, &invitation.org_id, &user_ctx.user_id, &invitation.role)
+                .await?;
+        }
+    } else {
+        repo.add_member(&db, &invitation.org_id, &user_ctx.user_id, &invitation.role)
+            .await?;
+        if repo
+            .get_member(&db, &invitation.org_id, &user_ctx.user_id)
+            .await?
+            .is_none()
+        {
+            return Err(AppError::Internal(
+                "Failed to add member to organization".to_string(),
+            ));
+        }
     }
     repo.accept_invitation(&db, &token).await?;
 

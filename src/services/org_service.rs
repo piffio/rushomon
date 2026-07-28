@@ -2,8 +2,8 @@
 ///
 /// Handles org limit enforcement and member limit checks.
 /// Orchestrates BillingRepository and OrgRepository.
-use crate::models::{OrgMember, Organization, Tier};
-use crate::repositories::{BillingRepository, LinkRepository, OrgRepository};
+use crate::models::{OrgDomain, OrgMember, Organization, Tier};
+use crate::repositories::{BillingRepository, LinkRepository, OrgDomainRepository, OrgRepository};
 use crate::utils::AppError;
 use chrono::Datelike;
 use worker::d1::D1Database;
@@ -624,4 +624,171 @@ impl OrgService {
         repo.delete(db, org_id).await?;
         Ok(())
     }
+
+    // ─── Organization Domains (JIT provisioning) ──────────────────────────────
+
+    /// Ensure the caller may manage domains for this org: owner/admin role and
+    /// a Business-or-above tier (domain-based provisioning is a Business feature).
+    async fn require_domain_management(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        user_id: &str,
+    ) -> Result<(), AppError> {
+        self.require_owner_or_admin(
+            db,
+            org_id,
+            user_id,
+            "Only org owners and admins can manage domains",
+        )
+        .await?;
+
+        let repo = OrgRepository::new();
+        let org = repo
+            .get_by_id(db, org_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        let tier = self.get_org_tier(db, &org).await;
+        if !matches!(tier, Tier::Business | Tier::Unlimited) {
+            return Err(AppError::Forbidden(
+                "Domain verification requires a Business plan or above.".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// List an org's domains (any member may view). Each domain is augmented with
+    /// a best-effort `is_cloudflare` flag for unverified domains, computed
+    /// server-side so the browser stays within its content-security policy.
+    pub async fn list_domains(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<OrgDomainWithStatus>, AppError> {
+        let org_repo = OrgRepository::new();
+        if org_repo.get_member(db, org_id, user_id).await?.is_none() {
+            return Err(AppError::NotFound("Organization not found".to_string()));
+        }
+
+        let domains = OrgDomainRepository::new().list_by_org(db, org_id).await?;
+
+        let mut out = Vec::with_capacity(domains.len());
+        for domain in domains {
+            // Only pending domains surface the "Open Cloudflare" shortcut, so
+            // skip the extra DNS lookup for already-verified ones.
+            let is_cloudflare = if domain.is_verified {
+                false
+            } else {
+                crate::utils::dns::is_cloudflare_domain(&domain.domain).await
+            };
+            out.push(OrgDomainWithStatus {
+                domain,
+                is_cloudflare,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Add a domain verification challenge to an org. Returns the created
+    /// challenge and the TXT record the admin must publish.
+    pub async fn add_domain_challenge(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        user_id: &str,
+        domain: &str,
+    ) -> Result<(OrgDomain, String), AppError> {
+        self.require_domain_management(db, org_id, user_id).await?;
+
+        let domain = domain.trim().to_lowercase();
+        if domain.is_empty() {
+            return Err(AppError::BadRequest("Domain is required".to_string()));
+        }
+
+        let domain_repo = OrgDomainRepository::new();
+        if let Some(record) = domain_repo.get_by_domain(db, &domain).await?
+            && record.is_verified
+        {
+            return Err(AppError::Conflict(
+                "Domain is already verified by an organization".to_string(),
+            ));
+        }
+
+        let token = uuid::Uuid::new_v4().to_string().replace('-', "");
+        let org_domain = domain_repo
+            .add_challenge(db, org_id, &domain, &token)
+            .await?;
+        let verification_record = format!("rushomon-verification={}", token);
+        Ok((org_domain, verification_record))
+    }
+
+    /// Verify DNS ownership of an org domain by checking its TXT record.
+    pub async fn verify_domain(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        user_id: &str,
+        domain: &str,
+    ) -> Result<(), AppError> {
+        self.require_domain_management(db, org_id, user_id).await?;
+
+        let domain = domain.trim().to_lowercase();
+        if domain.is_empty() {
+            return Err(AppError::BadRequest("Domain is required".to_string()));
+        }
+
+        let domain_repo = OrgDomainRepository::new();
+        let record = domain_repo
+            .get_by_domain(db, &domain)
+            .await?
+            .ok_or_else(|| {
+                AppError::BadRequest(format!(
+                    "DNS record for {domain} not found or incorrect. Please check your DNS settings and try again in a few minutes."
+                ))
+            })?;
+
+        if record.org_id != org_id {
+            return Err(AppError::Forbidden(
+                "Domain does not belong to this organization".to_string(),
+            ));
+        }
+
+        let token = record.verification_token.ok_or_else(|| {
+            AppError::BadRequest("No verification token found for this domain".to_string())
+        })?;
+
+        if crate::utils::dns::verify_dns_txt(&domain, &token).await? {
+            domain_repo.mark_verified(db, &domain).await?;
+            Ok(())
+        } else {
+            Err(AppError::BadRequest(format!(
+                "DNS record for {domain} not found or incorrect. Please check your DNS settings and try again in a few minutes."
+            )))
+        }
+    }
+
+    /// Remove a domain from an org.
+    pub async fn delete_domain(
+        &self,
+        db: &D1Database,
+        org_id: &str,
+        user_id: &str,
+        domain: &str,
+    ) -> Result<(), AppError> {
+        self.require_domain_management(db, org_id, user_id).await?;
+        OrgDomainRepository::new()
+            .delete(db, org_id, domain)
+            .await?;
+        Ok(())
+    }
+}
+
+/// An org domain augmented with a server-computed Cloudflare-nameserver hint.
+#[derive(serde::Serialize)]
+pub struct OrgDomainWithStatus {
+    #[serde(flatten)]
+    pub domain: OrgDomain,
+    pub is_cloudflare: bool,
 }

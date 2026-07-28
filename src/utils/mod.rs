@@ -1,6 +1,7 @@
 pub mod cf_saas;
 pub mod crypto;
 pub mod device;
+pub mod dns;
 pub mod email;
 pub mod env;
 pub mod errors;

@@ -16,6 +16,12 @@
     orgsApi
       .getInviteInfo(data.token)
       .then((info) => {
+        // If they're already a member (e.g. auto-joined via JIT provisioning),
+        // skip the accept screen and go straight to the dashboard.
+        if (info?.valid && info?.is_member) {
+          window.location.href = "/dashboard";
+          return;
+        }
         inviteInfo = info;
       })
       .catch(() => {
@@ -178,16 +184,31 @@
             {/if}
           </div>
 
-          <button
-            onclick={handleAccept}
-            disabled={accepting ||
-              (!!inviteInfo.email &&
-                data.user.email.toLowerCase() !==
-                  inviteInfo.email.toLowerCase())}
-            class="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {accepting ? "Accepting…" : "Accept Invitation"}
-          </button>
+          {#if inviteInfo.is_member}
+            <div
+              class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-800 text-center"
+            >
+              You are already a member of <strong>{inviteInfo.org_name}</strong
+              >.
+            </div>
+            <a
+              href="/dashboard"
+              class="block w-full py-3 bg-gray-900 text-white rounded-xl font-semibold text-center hover:bg-gray-800 transition-all shadow-sm"
+            >
+              Go to Dashboard
+            </a>
+          {:else}
+            <button
+              onclick={handleAccept}
+              disabled={accepting ||
+                (!!inviteInfo.email &&
+                  data.user.email.toLowerCase() !==
+                    inviteInfo.email.toLowerCase())}
+              class="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {accepting ? "Accepting…" : "Accept Invitation"}
+            </button>
+          {/if}
         {:else}
           <!-- Not logged in: prompt to sign in -->
           <p class="text-sm text-gray-600 mb-5 text-center">

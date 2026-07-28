@@ -1,5 +1,5 @@
 use crate::auth::session::{UserContext, get_session, parse_cookie_header, validate_jwt};
-use crate::repositories::{ApiKeyRepository, UserRepository};
+use crate::repositories::{ApiKeyRepository, OrgRepository, UserRepository};
 use crate::utils::time::now_timestamp;
 use hex; // Add hex crate for formatting
 use sha2::{Digest, Sha256};
@@ -215,7 +215,24 @@ pub async fn authenticate_request(
             ));
         };
 
-        // 8. Update the 'last_used_at' timestamp
+        // 8. Verify the user is still a member of the resolved org
+        let org_repo = OrgRepository::new();
+        match org_repo.get_member(&db, &resolved_org_id, &user.id).await {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return Err(AuthError::Unauthorized(
+                    "You are no longer a member of the organization associated with this API key."
+                        .to_string(),
+                ));
+            }
+            Err(_) => {
+                return Err(AuthError::InternalError(
+                    "Failed to validate organization membership".to_string(),
+                ));
+            }
+        }
+
+        // 9. Update the 'last_used_at' timestamp
         if let Err(e) = api_key_repo
             .update_last_used(&db, &api_key_with_tier.id, now_timestamp())
             .await
@@ -223,7 +240,7 @@ pub async fn authenticate_request(
             console_log!("Failed to update API key last_used_at: {:?}", e);
         }
 
-        // 9. Successfully authenticate!
+        // 10. Successfully authenticate!
         return Ok(UserContext {
             user_id: user.id,
             org_id: resolved_org_id,
@@ -399,11 +416,43 @@ pub async fn authenticate_request(
         return Err(AuthError::Forbidden("Account suspended".to_string()));
     }
 
+    // Verify the user is still a member of the session's org. This revokes
+    // access immediately when a user is removed from an org, rather than
+    // waiting for the (long-lived) session/JWT to expire.
+    let org_repo = OrgRepository::new();
+    match org_repo
+        .get_member(&db, &session.org_id, &session.user_id)
+        .await
+    {
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            console_log!(
+                "{}",
+                serde_json::json!({
+                    "event": "auth_user_not_in_org",
+                    "user_id": session.user_id,
+                    "org_id": session.org_id,
+                    "level": "warn"
+                })
+            );
+            return Err(AuthError::Unauthorized(
+                "You are no longer a member of this organization.".to_string(),
+            ));
+        }
+        Err(_) => {
+            return Err(AuthError::InternalError(
+                "Failed to validate organization membership".to_string(),
+            ));
+        }
+    }
+
     Ok(UserContext {
         user_id: session.user_id,
         org_id: session.org_id,
         session_id: claims.session_id,
-        role: claims.role,
+        // Read the role from the DB rather than the JWT claim so that role
+        // changes (e.g. a demotion from admin) take effect immediately.
+        role: user.role,
     })
 }
 

@@ -1,5 +1,5 @@
 use crate::auth::providers::{NormalizedUser, OAuthProviderConfig};
-use crate::models::{Organization, User, user::CreateUserData};
+use crate::models::{OrgInvitation, Organization, User, user::CreateUserData};
 use crate::repositories::{BillingRepository, OrgRepository, UserRepository};
 use serde::{Deserialize, Serialize};
 use worker::{D1Database, Env, Error, Request, Response, Result, console_log, kv::KvStore};
@@ -277,16 +277,69 @@ pub async fn handle_oauth_callback(
     ))
 }
 
+/// For an existing user, apply JIT provisioning against a matched verified-domain
+/// org: add them as a member if they aren't one, auto-accept any matching pending
+/// invitations, and return that org as their active org. Returns `None` if there
+/// is no JIT org to apply.
+async fn apply_jit_provisioning(
+    db: &D1Database,
+    org_repo: &OrgRepository,
+    jit_org: &Option<Organization>,
+    pending_invites: &[OrgInvitation],
+    user_id: &str,
+) -> Result<Option<Organization>> {
+    let Some(org) = jit_org else {
+        return Ok(None);
+    };
+
+    if org_repo.get_member(db, &org.id, user_id).await?.is_none() {
+        org_repo.add_member(db, &org.id, user_id, "member").await?;
+    }
+
+    for invite in pending_invites {
+        if invite.org_id == org.id {
+            let _ = org_repo.accept_invitation(db, &invite.id).await;
+        }
+    }
+
+    Ok(Some(org.clone()))
+}
+
 /// Creates or retrieves a user based on normalized provider profile.
 ///
 /// Account linking strategy (v1):
 /// 1. Look up by (provider, provider_id) → exact match → update profile, return
 /// 2. Look up by email → match found → update provider info + profile (link accounts), return same user/org
-/// 3. No match → new signup flow
+/// 3. No match → JIT domain provisioning, then new signup flow
 async fn create_or_get_user(
     db: &D1Database,
     normalized_user: NormalizedUser,
 ) -> Result<(User, Organization)> {
+    let org_repo = OrgRepository::new();
+    let org_domain_repo = crate::repositories::OrgDomainRepository::new();
+
+    // Just-In-Time provisioning context: if the user's email domain matches a
+    // verified org domain, they are auto-joined to that org on sign-in.
+    let email_domain = normalized_user
+        .email
+        .split('@')
+        .nth(1)
+        .unwrap_or("")
+        .to_lowercase();
+    let jit_org = if email_domain.is_empty() {
+        None
+    } else {
+        org_domain_repo
+            .get_org_by_verified_domain(db, &email_domain)
+            .await?
+    };
+
+    // Pending invitations for this email, evaluated during provisioning so that
+    // an explicitly-invited user can join even when public signups are disabled.
+    let pending_invites = org_repo
+        .get_pending_invitations_by_email(db, &normalized_user.email)
+        .await?;
+
     // Step 1: look up by (provider, provider_id)
     let stmt = db.prepare(
         "SELECT id, email, name, avatar_url, oauth_provider, oauth_id, org_id, role, created_at
@@ -319,7 +372,13 @@ async fn create_or_get_user(
         // Update last login timestamp
         user_repo.update_last_login(db, &updated_user.id).await?;
 
-        let org_repo = OrgRepository::new();
+        if let Some(org) =
+            apply_jit_provisioning(db, &org_repo, &jit_org, &pending_invites, &updated_user.id)
+                .await?
+        {
+            return Ok((updated_user, org));
+        }
+
         let org = org_repo
             .get_by_id(db, &user.org_id)
             .await?
@@ -377,7 +436,13 @@ async fn create_or_get_user(
         // Update last login timestamp
         user_repo.update_last_login(db, &updated_user.id).await?;
 
-        let org_repo = OrgRepository::new();
+        if let Some(org) =
+            apply_jit_provisioning(db, &org_repo, &jit_org, &pending_invites, &updated_user.id)
+                .await?
+        {
+            return Ok((updated_user, org));
+        }
+
         let org = org_repo
             .get_by_id(db, &user.org_id)
             .await?
@@ -386,8 +451,32 @@ async fn create_or_get_user(
         return Ok((updated_user, org));
     }
 
-    // Step 3: new user — check if signups are enabled (first user is always allowed)
+    // Step 3: brand-new user — JIT provisioning takes priority over creating a
+    // personal org. If the email domain matches a verified org, join that org.
     let user_repo = UserRepository::new();
+    if let Some(org) = &jit_org {
+        let create_data = CreateUserData {
+            email: normalized_user.email.clone(),
+            name: normalized_user.name.clone(),
+            avatar_url: normalized_user.avatar_url.clone(),
+            oauth_provider: normalized_user.provider.clone(),
+            oauth_id: normalized_user.provider_id.clone(),
+        };
+        let user = user_repo.create_or_update(db, create_data, &org.id).await?;
+        user_repo.update_last_login(db, &user.id).await?;
+        org_repo.add_member(db, &org.id, &user.id, "member").await?;
+
+        for invite in &pending_invites {
+            if invite.org_id == org.id {
+                let _ = org_repo.accept_invitation(db, &invite.id).await;
+            }
+        }
+
+        return Ok((user, org.clone()));
+    }
+
+    // Step 4: new user with no JIT org — check if signups are enabled.
+    // The first user is always allowed; explicitly-invited users bypass the gate.
     let user_count = user_repo.count(db).await?;
     if user_count > 0 {
         let settings_repo = crate::repositories::SettingsRepository::new();
@@ -395,7 +484,7 @@ async fn create_or_get_user(
             .get_setting(db, "signups_enabled")
             .await?
             .unwrap_or_else(|| "true".to_string());
-        if signups_enabled != "true" {
+        if signups_enabled != "true" && pending_invites.is_empty() {
             return Err(Error::RustError("SIGNUPS_DISABLED".to_string()));
         }
     }

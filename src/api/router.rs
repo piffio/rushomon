@@ -394,6 +394,23 @@ pub async fn run(req: Request, env: Env, is_frontend_domain: bool) -> Result<Res
             "/api/orgs/:id/logo",
             crate::api::orgs::handle_delete_org_logo,
         )
+        // Org identity-domain verification routes (JIT provisioning)
+        .post_async(
+            "/api/orgs/:id/org-domains",
+            crate::api::orgs::handle_add_org_domain,
+        )
+        .get_async(
+            "/api/orgs/:id/org-domains",
+            crate::api::orgs::handle_list_org_domains,
+        )
+        .post_async(
+            "/api/orgs/:id/verify-org-domain",
+            crate::api::orgs::handle_verify_org_domain,
+        )
+        .delete_async(
+            "/api/orgs/:id/org-domains/:domain",
+            crate::api::orgs::handle_delete_org_domain,
+        )
         // Invite routes (GET is public, POST requires auth)
         .get_async(
             "/api/invite/:token",

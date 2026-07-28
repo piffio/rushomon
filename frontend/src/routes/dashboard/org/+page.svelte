@@ -10,6 +10,7 @@
   import { usageApi } from "$lib/api/usage";
   import Avatar from "$lib/components/Avatar.svelte";
   import LoadingButton from "$lib/components/LoadingButton.svelte";
+  import OrgDomains from "$lib/components/OrgDomains.svelte";
   import type {
     OrgDetails,
     OrgInvitation,
@@ -315,6 +316,10 @@
   );
   // Business tier only allows team members (up to 20)
   const canInviteMembers = $derived(
+    ["business", "unlimited"].includes(orgDetails?.org.tier ?? "")
+  );
+  // Domain-based JIT provisioning is a Business+ feature
+  const isBusinessTier = $derived(
     ["business", "unlimited"].includes(orgDetails?.org.tier ?? "")
   );
 
@@ -1795,6 +1800,11 @@
           {/if}
         {/if}
       </div>
+
+      <!-- Domain verification (owner + Business tier only) -->
+      {#if isOwner && isBusinessTier}
+        <OrgDomains orgId={orgDetails.org.id} />
+      {/if}
 
       <!-- Tags Management -->
       <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
