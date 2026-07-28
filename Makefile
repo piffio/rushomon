@@ -43,28 +43,28 @@ docs-gen:
 	echo "✅ Generated docs/openapi/main.json (version: main)" && \
 	./target/debug/generate_openapi > docs/openapi/v$$VERSION.json && \
 	echo "✅ Generated docs/openapi/v$$VERSION.json (version: $$VERSION)" && \
-	cp docs-site/docs/api.info.mdx /tmp/api.info.mdx.bak && \
+	cp docs-site/docs/rushomon-url-shortener-api.info.mdx /tmp/rushomon-url-shortener-api.info.mdx.bak && \
 	cd docs-site && \
 	npm run clean-api-docs && npm run gen-api-docs && \
-	cp /tmp/api.info.mdx.bak docs/api.info.mdx && \
-	echo "✅ Regenerated MDX from main.json (api.info.mdx preserved)" && \
+	cp /tmp/rushomon-url-shortener-api.info.mdx.bak docs/rushomon-url-shortener-api.info.mdx && \
+	echo "✅ Regenerated MDX from main.json (rushomon-url-shortener-api.info.mdx preserved)" && \
 	npx docusaurus docs:version $$VERSION && \
 	echo "✅ Docusaurus version $$VERSION created (versioned_docs/version-$$VERSION/)" && \
-	perl -0777 -i -pe 's/:::warning Unreleased \/ main branch[:::\n\s]+::://g' versioned_docs/version-$$VERSION/api.info.mdx && \
-	echo "✅ Removed Unreleased warning from versioned api.info.mdx"
+	perl -0777 -i -pe 's/:::warning Unreleased \/ main branch[:::\n\s]+::://g' versioned_docs/version-$$VERSION/rushomon-url-shortener-api.info.mdx && \
+	echo "✅ Removed Unreleased warning from versioned rushomon-url-shortener-api.info.mdx"
 
-# Regenerate API docs from main OpenAPI spec without touching hand-crafted api.info.mdx
+# Regenerate API docs from main OpenAPI spec without touching hand-crafted rushomon-url-shortener-api.info.mdx
 docs-dev:
 	@echo "📝 Regenerating development API docs..."
-	@cp docs-site/docs/api.info.mdx /tmp/api.info.mdx.bak && \
+	@cp docs-site/docs/rushomon-url-shortener-api.info.mdx /tmp/rushomon-url-shortener-api.info.mdx.bak && \
 	cargo build --bin generate_openapi --features openapi-gen -q && \
 	mkdir -p docs/openapi && \
 	OPENAPI_VERSION=main ./target/debug/generate_openapi > docs/openapi/main.json && \
 	echo "✅ Generated docs/openapi/main.json" && \
 	cd docs-site && \
 	npm run clean-api-docs && npm run gen-api-docs && \
-	cp /tmp/api.info.mdx.bak docs/api.info.mdx && \
-	echo "✅ Regenerated MDX from main.json (api.info.mdx preserved)"
+	cp /tmp/rushomon-url-shortener-api.info.mdx.bak docs/rushomon-url-shortener-api.info.mdx && \
+	echo "✅ Regenerated MDX from main.json (rushomon-url-shortener-api.info.mdx preserved)"
 
 # Create git tag for current version (reads version at runtime)
 version-tag: docs-gen
@@ -104,4 +104,4 @@ help:
 	@echo "  make version-sync    - Sync version from Cargo.toml to frontend"
 	@echo "  make version-tag     - Create git tag for current version"
 	@echo "  make docs-gen        - Generate OpenAPI specs (main.json + vX.Y.Z.json) and create Docusaurus version"
-	@echo "  make docs-dev        - Regenerate API endpoint docs from main OpenAPI spec (preserves api.info.mdx)"
+	@echo "  make docs-dev        - Regenerate API endpoint docs from main OpenAPI spec (preserves rushomon-url-shortener-api.info.mdx)"
