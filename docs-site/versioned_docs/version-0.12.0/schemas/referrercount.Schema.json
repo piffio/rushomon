@@ -1,0 +1,1 @@
+{"schema":{"properties":{"count":{"example":15,"format":"int64","type":"integer"},"referrer":{"example":"https://google.com","type":"string"}},"required":["referrer","count"],"type":"object","title":"ReferrerCount"},"schemaType":"response"}

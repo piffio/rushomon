@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Access token refreshed, new cookie set"},"401":{"description":"Missing, invalid, or expired refresh token"},"429":{"description":"Rate limit exceeded"}}}

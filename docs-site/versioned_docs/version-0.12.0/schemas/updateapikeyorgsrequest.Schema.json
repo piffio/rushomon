@@ -1,0 +1,1 @@
+{"schema":{"properties":{"org_ids":{"description":"Non-empty list of org IDs this key should be scoped to.","items":{"type":"string"},"type":"array"}},"required":["org_ids"],"type":"object","title":"UpdateApiKeyOrgsRequest"},"schemaType":"response"}

@@ -1,0 +1,33 @@
+---
+id: timerange
+title: "TimeRange"
+description: "Time range specification for analytics queries"
+sidebar_label: "TimeRange"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"type":"days","value":7}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"TimeRange"}
+>
+</Heading>
+
+
+
+Time range specification for analytics queries
+Extensible design that can grow to support custom ranges, timezones, comparisons, etc.
+
+<Schema
+  {...require("./timerange.Schema.json")}
+>
+  
+</Schema>
+            

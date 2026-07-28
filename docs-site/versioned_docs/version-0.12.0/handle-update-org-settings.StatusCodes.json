@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Updated settings"},"400":{"description":"Invalid setting value"},"401":{"description":"Unauthorized"},"403":{"description":"Owner or admin required, or Pro+ required"}}}

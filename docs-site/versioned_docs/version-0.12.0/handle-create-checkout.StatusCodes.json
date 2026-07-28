@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Checkout URL"},"400":{"description":"Missing product_id or invalid request"},"401":{"description":"Unauthorized"},"502":{"description":"Polar API error"}}}

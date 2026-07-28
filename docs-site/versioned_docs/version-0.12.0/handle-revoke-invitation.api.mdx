@@ -1,0 +1,69 @@
+---
+id: handle-revoke-invitation
+title: "Revoke an invitation"
+description: "Cancels a pending invitation. Requires owner or admin role"
+sidebar_label: "Revoke an invitation"
+hide_title: true
+hide_table_of_contents: true
+api: eJylVltv2zYU/isHzMOSQJGdNkALPS1rs8Fd2ga5oAPqIKbFY4mLRKrkUVzX8H8fDin5kqQd1j3ZoL5z/85lKRT63OmGtDUiE2+kybHyIKFBo7QpQJsHTZI/p3CJX1rt0IOdG3RgHUhVawPOVigSYRt0ATlSIhOlNKrCO4cP9h7vNmpEIhrpZI2Ezovs8/KRCx9dIY3+FrAweisSofm5kVSKRBhZo8iEViIRLrqjREauxUT4vMRaimwpaNEwypPTphCrVfLYyGjtzvdNrCF3/9HaLYN9Y41Hz99fDIf8810PYoqUWCXiZHj8FHpjZEuldfpbD3r5FPTxUUl6bwP+5If2jSWY2dYozpTwmLdO0yKU5jeUDp3IPt9yDj16z/nIrb3XGF5vE0Gy4DruFM6L20TUSKVlKiiskDAUnkqRiYFs9MC6wg+WWq0Gm0zzw3baV4L9cQ/PM+XCWdXmIYTTi5FIROsqJh5R47MBG0ld60tbW5PmuXjKgnObywoUPmBlmxoN7ejIBoOKAaX1lL1+9fqV4Gj79Fxx+WN9+yQtxTT8+926WpLIxLtP11yR04sR/IkL0XGGuRKBIum5w/ZC9rWZWdaUW0MyJ/6LtdTsk2+bxjr6dTumNVsvu0e4iiiu+26w7IWyectxxrrPrAMqEdayN5fn4EvrCJlLnHidYzo2Y7O3B6ctlWhI50GYH99bT4BGNVYb8j3lQO4AofU8RlBTiS4bmyM4PLyKPILII394CPvsyxynIJum2kii8wdRJOYYyN6jWQtwSPe4YAy7uAc3wVaXb8+vxym8cSgJQZoeD9qEuJX05dRKp2D/wlkgHRuo1EWJbt1BB2PzIoWRyatWYZDbUnHaNWZ0uESpQpAAMJlMwu8OIoMuDmfvGkl3aZpuwDGE921F+mhnCG7H04cMuTQwRfC5bVABWfAN5nqmc7DbfZjCpxL7Ikiog3brClaSwMK2ULeeOuFFiImkK5B21HTy/HXyFzt3NFKTTbhjEwL491B72Yy1H7WtVkclOuzkO3JoU1TY++gPDzO4fs4uaA82kFtWKYxmYGtNhCpZ10jm5MEa0OTBB62wGaQ78aXR9Pvt7PzYcs+ONEC69wdZtRgTWkvKS7AGwc6CQ6x19Nb3xLnHxS8+Vq8zfo6FzBexuPvGxm8HnRMe4weZE0fUKdzUh0pcwBwdQh7YroD39Xe954nfjRNUocFHs0AGSYR1Q8yn1uNjwsBcU2lbep4ICTcPI7jVYrhgW/J60zZ9yJF5c11V4DBH/cCmToZD1nAyfAnonHVpGDuX3SaFOFVDDwSxbsGCdAjvrj5+4HFWs/8qhTOW38LMbFXZOVCpPXhybU6twyzQ7m/Pw2zJbTgWwe5YZDAWUUWN3ssCIY7SKTfBvJQEczQEc2dNMRZjs1oTeG8PLmShzXpGnuudGdklHZo1KGZs0sgCJyCNgkmla00T+NKiW8DmVAqzM+IyNoJg2nqKDvaPj7RR+JWpr3Am24oyOA5zs9OVwYiw9tCgY8vIIsfD4Rb8xfBgzJdZpXM0HnntdIvl9I+L86OX6fDJep3P52lh2tS6YtCJ+YEsmorRaUl1xTuINFU7+4l3zNV6x8S9zfs9LqlaasNijfVUS7Plx2U4kphaO6fkzo6La5P3+P+8ZLutTPiVBk3V+RTCX3Y3zGchG803ryu8SEQWTsStQya87VyQt4ngS4JFl8up9HjjqtWKn0Ol+ZpKxIN0Wk45Y3ztaM//lchmsvL4g2D3L/tlBU/P52eD6R6l4bMkzC2RCZGIe1zE8zpcSz/jwOPT+mfM7yRudbvauiXfnp2fXZ+JRPAo37q+1xfVtD9Zl89bWS4j4ppPidVqbTScFmxstfoHAdKL+w==
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Revoke an invitation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/orgs/{id}/invitations/{invitation_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Cancels a pending invitation. Requires owner or admin role
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-revoke-invitation.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-revoke-invitation.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-revoke-invitation.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

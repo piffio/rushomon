@@ -1,0 +1,33 @@
+---
+id: utmparams
+title: "UtmParams"
+description: "Standard Google UTM parameters attached to a link."
+sidebar_label: "UtmParams"
+hide_title: true
+hide_table_of_contents: true
+schema: true
+sample: {"utm_campaign":"summer_sale","utm_content":"string","utm_medium":"cpc","utm_ref":"string","utm_source":"google","utm_term":"string"}
+custom_edit_url: null
+---
+
+import Schema from "@theme/Schema";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"UtmParams"}
+>
+</Heading>
+
+
+
+Standard Google UTM parameters attached to a link.
+All fields are optional; only non-empty values are appended to the destination URL.
+
+<Schema
+  {...require("./utmparams.Schema.json")}
+>
+  
+</Schema>
+            

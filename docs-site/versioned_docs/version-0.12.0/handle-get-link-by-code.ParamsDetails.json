@@ -1,0 +1,1 @@
+{"parameters":[{"description":"Short code of the link","in":"path","name":"code","required":true,"schema":{"type":"string"}}]}

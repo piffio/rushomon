@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Event processed or intentionally skipped"},"400":{"description":"Invalid or malformed webhook payload"},"503":{"description":"Transient infrastructure failure"}}}

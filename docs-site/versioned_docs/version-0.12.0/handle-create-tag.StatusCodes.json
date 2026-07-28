@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Tag already exists, returns current tag list"},"201":{"description":"Tag created successfully, returns updated tag list"},"400":{"description":"Invalid tag name"},"401":{"description":"Unauthorized"}}}

@@ -1,0 +1,69 @@
+---
+id: handle-admin-remove-blacklist
+title: "Remove blacklist entry"
+description: "Remove blacklist entry"
+sidebar_label: "Remove blacklist entry"
+hide_title: true
+hide_table_of_contents: true
+api: eJyFVm1v20YM/isE82FJoMhOW6CFPi1ds8FdugZ5QQfUQXyWaOkW6U67o+J6hv77wNNL7CbdPlm+e/jykDySW7Q1OcXamlmGCRbKZCXdq6zS5t5RZR/pflmq9KHUnjHCWjlVEZPzmHzdYkY+dboWcUzw/QAEMuw2MPuAEWq5qRUXGKFRFWGCOsMIHf3daEcZJuwaitCnBVUKky3yphaUZ6dNjm17J2BfW+PJy/2r6VR+9m2fB4udxxm2Eb6Znj5H3RrVcGGd/mcAvX4OOhPyMPrXthF6ShuneRNIvyflyGHy9a6NtujJe23NfWrtg6Zwehchq1wi1OnCu+g7E1fBT1juBwwjrIgLK4nIqCSmEHEuMMGJqvUkpGUySk22OmtRvHOPL2fk0tmsSeUPnF3OMMLGlZJl5tonE9EZu8YXtrImTlMUPvsKLmyqSsjokUpbV2R4T0cymZQCKKzn5N3bd29RuA/BupaMdikbQrbFZfj61bpKMSb48csNWCfOwe8kAQhlIOnvgBgN5SD2Qi60WVnRlFrDKmX5pEpp8ck3dW0d/7zLaay6q/4QrjuU5P+7xF/OILNpIzzDk4CVdcAFwSh7e3UBvrCOyZADCbxOKZ6buTk4gLOGCzKs0yAsh59syG1WW23YDzUFag8IjdcmB9JckEvm5gSOj6+7qoKuqvzxMRyKL2tagqrr8kmSnD/qRLoYA9sHMqOAUHqgjWDExQO4Dbb6eHs5PY3hF0eKCZQZ8KBN4J0pXyytchkcXjoLrMlJugqdF+TGJ3I0N69imJm0bDIKcjsqzvoH1zlckMoCSQBYLBbhdw+RQM/D2fta8X0cx0/gjsKnpmR98tnlygxqd/kMlCFVBpYEPrU1ZcAWfE2pXukU7I6sj+FLQUMSFFRBu3W5KIlgYxuoGs+98CZwYuVy4j01vbzcLv4U505m2eKJ7twEAv9PdZBNRPtJ0+jspCBHvXxfHNrkJQ0++uPjBG5esgvagw3FrcoYZiuwlWamLBpzpFL2YA1o9uCDVnhqkHv84s70p93o/LfloTriAOnPH1XZUBfQSnFagDUEdhUcEq2zD34onAfa/OS77PXGLyhX6aZL7qGx3d1R74Sn7kKlLIx6hU/54YI2sCZHkIZqz8Ca+MfeG8vQtxPKwgOfrUIxKGaqapZ6ajx9XzCw1lzYhl8uhEgejyDkqXV0wTbs9dOzGSh3lbfWZQmOUtKPYurNdCoa3kxfAzlnXRzazlU/HKHrquENBLF+ZoJyBB+vP/8h7awS/7MYzkV+B7OyZWnXwIX24Nk1KTeOklB2f3lpZlt5hnMMdueYwBw7FRV5r3KCrpUu5RGsC8WwJsOwdtbkc5ybdizggwO4VLk2Y4+80Hs9sg861COoi9iiVjktQJkMFqWuNC/g74bcBp5WktA7O1wiRghMUy3JweHpiTYZfZPSz2ilmpITOA19s9eVwIyp8lCTE8skIqfT6Q781fRobjDCUqdkPMnY6QfL2W+XFyev4+mz8bper+PcNLF1+aQX8xOV16Wg44KrUmYQay735pPMmOtxxnRzW+Z7N6QqpY2I1dZzpcyOHz9cKvam3LhfMX3jSV326oLn237b+Iqq1hhh2Dcwwt0NMNGZ7DMy8gW43S6Vp1tXtq0ch5TIEhTho3JaLYWarCXay3eGyUqVnp75JMNctosED6+GqQIv7pMvet8fKiN0Q4/BBDHCB9p0+2Z71+4sVx/OL85vzoVgI3THkIw7x3JY8bYvq95uO8SNDNu2HS2F4SvG2vZfkjbvNA==
+sidebar_class_name: "delete api-method"
+info_path: docs/rushomon-url-shortener-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Remove blacklist entry"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/api/admin/blacklist/{id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Remove blacklist entry
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./handle-admin-remove-blacklist.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./handle-admin-remove-blacklist.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./handle-admin-remove-blacklist.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

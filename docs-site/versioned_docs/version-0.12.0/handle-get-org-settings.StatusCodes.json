@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Org settings"},"401":{"description":"Unauthorized"},"403":{"description":"Not a member of this org"}}}
