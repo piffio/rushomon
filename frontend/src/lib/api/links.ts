@@ -13,6 +13,7 @@ import { apiClient } from "./client";
 
 export interface ImportLinkRow {
   destination_url: string;
+  is_template?: boolean;
   short_code?: string;
   title?: string;
   tags?: string[];

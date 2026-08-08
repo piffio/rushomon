@@ -141,15 +141,30 @@
             {link.short_code}
           </a>
           <span class="text-gray-400">→</span>
-          <a
-            href={link.destination_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-gray-600 hover:text-gray-900 hover:underline truncate"
-            title={link.destination_url}
-          >
-            {getDomain(link.destination_url)}
-          </a>
+          {#if link.is_template}
+            <span
+              class="inline-flex min-w-0 items-center gap-1.5 text-gray-600"
+              title={link.destination_url}
+            >
+              <span
+                class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700"
+                >Template</span
+              >
+              <span class="truncate font-mono text-xs"
+                >{link.destination_url}</span
+              >
+            </span>
+          {:else}
+            <a
+              href={link.destination_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-gray-600 hover:text-gray-900 hover:underline truncate"
+              title={link.destination_url}
+            >
+              {getDomain(link.destination_url)}
+            </a>
+          {/if}
         </div>
       </div>
 

@@ -11,6 +11,8 @@ use worker::*;
 #[derive(Debug, serde::Deserialize)]
 struct ImportLinkRow {
     destination_url: String,
+    #[serde(default)]
+    is_template: bool,
     short_code: Option<String>,
     title: Option<String>,
     tags: Option<Vec<String>>,
@@ -113,6 +115,16 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
 
     for (idx, row) in body.links.iter().enumerate() {
         let row_num = idx + 1;
+
+        if row.is_template {
+            failed += 1;
+            errors.push(ImportError {
+                row: row_num,
+                destination_url: row.destination_url.clone(),
+                reason: "Template links must be created in the link form or API".to_string(),
+            });
+            continue;
+        }
 
         let destination_url = match validate_url(&row.destination_url) {
             Ok(url) => url,
@@ -298,6 +310,7 @@ pub async fn handle_import_links(mut req: Request, ctx: RouteContext<()>) -> Res
             org_id: org_id.to_string(),
             short_code: short_code.clone(),
             destination_url: destination_url.clone(),
+            is_template: false,
             title,
             created_by: user_id.to_string(),
             created_at: now,

@@ -29,6 +29,14 @@ where
     }
 }
 
+/// Serialize a D1 INTEGER boolean as a JSON boolean.
+pub fn serialize_int_as_bool<S>(value: &i64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_bool(*value != 0)
+}
+
 // ─── Structs ──────────────────────────────────────────────────────────────────
 
 /// Dashboard statistics for an organization
@@ -46,6 +54,8 @@ pub struct AdminLinkBase {
     pub org_id: String,
     pub short_code: String,
     pub destination_url: String,
+    #[serde(default, serialize_with = "serialize_int_as_bool")]
+    pub is_template: i64,
     pub title: Option<String>,
     pub created_by: String,
     pub created_at: i64,
@@ -90,8 +100,8 @@ impl LinkRepository {
         let utm_json = link.utm_params.as_ref().and_then(|u| u.to_json_string());
 
         let stmt = db.prepare(
-            "INSERT INTO links (id, org_id, short_code, destination_url, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"
+            "INSERT INTO links (id, org_id, short_code, destination_url, is_template, title, created_by, created_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)"
         );
 
         stmt.bind(&[
@@ -99,6 +109,7 @@ impl LinkRepository {
             link.org_id.clone().into(),
             link.short_code.clone().into(),
             link.destination_url.clone().into(),
+            (if link.is_template { 1.0 } else { 0.0 }).into(),
             link.title
                 .clone()
                 .map(|t| t.into())
@@ -146,7 +157,7 @@ impl LinkRepository {
         org_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE id = ?1
              AND org_id = ?2
@@ -160,7 +171,7 @@ impl LinkRepository {
     /// Get a link by ID without org check — active only (public redirects)
     pub async fn get_by_id_no_auth(&self, db: &D1Database, link_id: &str) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE id = ?1
              AND status = 'active'"
@@ -175,7 +186,7 @@ impl LinkRepository {
         link_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE id = ?1"
         );
@@ -190,7 +201,7 @@ impl LinkRepository {
         org_id: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE short_code = ?1
              AND org_id = ?2
@@ -208,7 +219,7 @@ impl LinkRepository {
         short_code: &str,
     ) -> Result<Option<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE short_code = ?1
              AND status = 'active'"
@@ -230,7 +241,7 @@ impl LinkRepository {
         tags_filter: Option<&[String]>,
     ) -> Result<Vec<Link>> {
         let mut query = String::from(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE org_id = ?1"
         );
@@ -371,6 +382,7 @@ impl LinkRepository {
         link_id: &str,
         org_id: &str,
         destination_url: Option<&str>,
+        is_template: Option<bool>,
         title: Option<&str>,
         status: Option<&str>,
         expires_at: Option<Option<i64>>,
@@ -390,6 +402,12 @@ impl LinkRepository {
         if let Some(url) = destination_url {
             query.push_str(&format!(", destination_url = ?{}", param_count));
             params.push(url.into());
+            param_count += 1;
+        }
+
+        if let Some(value) = is_template {
+            query.push_str(&format!(", is_template = ?{}", param_count));
+            params.push((if value { 1.0 } else { 0.0 }).into());
             param_count += 1;
         }
 
@@ -740,7 +758,7 @@ impl LinkRepository {
     /// Get all active/disabled links for an org (for CSV/JSON export)
     pub async fn get_all_for_export(&self, db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
         let stmt = db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by, created_at, updated_at, expires_at, status, click_count, utm_params, forward_query_params, redirect_type, ios_url, android_url, desktop_url, custom_domain
              FROM links
              WHERE org_id = ?1
              AND status IN ('active', 'disabled')
@@ -763,7 +781,7 @@ impl LinkRepository {
         domain_filter: Option<&str>,
     ) -> Result<Vec<AdminLinkBase>> {
         let mut query = String::from(
-            "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, l.utm_params, l.forward_query_params, l.redirect_type, l.ios_url, l.android_url, l.desktop_url, u.email as creator_email, o.name as org_name
+            "SELECT l.id, l.org_id, l.short_code, l.destination_url, l.is_template, l.title, l.created_by, l.created_at, l.updated_at, l.expires_at, l.status, l.click_count, l.utm_params, l.forward_query_params, l.redirect_type, l.ios_url, l.android_url, l.desktop_url, u.email as creator_email, o.name as org_name
              FROM links l
              JOIN users u ON l.created_by = u.id
              JOIN organizations o ON l.org_id = o.id
@@ -1012,6 +1030,7 @@ mod admin_link_serialization_tests {
             org_id: "org-1".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: 0,
             title: None,
             created_by: "user-1".to_string(),
             created_at: 1234567890,
@@ -1043,6 +1062,7 @@ mod admin_link_serialization_tests {
             org_id: "org-1".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: 0,
             title: None,
             created_by: "user-1".to_string(),
             created_at: 1234567890,
@@ -1073,6 +1093,7 @@ mod admin_link_serialization_tests {
             org_id: "org-1".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: 0,
             title: None,
             created_by: "user-1".to_string(),
             created_at: 1234567890,

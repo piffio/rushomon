@@ -17,6 +17,11 @@ const sidebars: SidebarsConfig = {
       label: 'Permissions & Tiers',
     },
     {
+      type: 'doc',
+      id: 'template-redirects',
+      label: 'Template Redirects',
+    },
+    {
       type: 'category',
       label: 'API',
       link: {

@@ -46,7 +46,7 @@ async fn inner_export_links(
     let links = service.export_links(&db, org_id).await?;
 
     let mut csv = String::from(
-        "short_code,destination_url,title,tags,status,click_count,created_at,expires_at,utm_source,utm_medium,utm_campaign,utm_term,utm_content,utm_ref,forward_query_params\n",
+        "short_code,destination_url,is_template,title,tags,status,click_count,created_at,expires_at,utm_source,utm_medium,utm_campaign,utm_term,utm_content,utm_ref,forward_query_params\n",
     );
 
     for link in &links {
@@ -96,9 +96,10 @@ async fn inner_export_links(
             .unwrap_or("");
 
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             csv_escape(&link.short_code),
             csv_escape(&link.destination_url),
+            link.is_template,
             csv_escape(title),
             csv_escape(&tags_str),
             csv_escape(link.status.as_str()),

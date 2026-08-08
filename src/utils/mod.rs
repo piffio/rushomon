@@ -8,6 +8,7 @@ pub mod http;
 pub mod query_params;
 pub mod short_code;
 pub mod tags;
+pub mod template;
 pub mod time;
 pub mod url;
 pub mod url_normalization;
@@ -20,6 +21,9 @@ pub use http::{get_client_ip, hash_ip};
 pub use query_params::QueryParams;
 pub use short_code::{generate_short_code, generate_short_code_with_length};
 pub use tags::validate_and_normalize_tags;
+pub use template::{
+    TemplateContext, TemplateError, render_redirect_template, validate_redirect_template,
+};
 pub use time::now_timestamp;
 pub use url_normalization::normalize_url_for_blacklist;
-pub use validation::{normalize_tag, validate_short_code, validate_url};
+pub use validation::{normalize_tag, validate_destination, validate_short_code, validate_url};

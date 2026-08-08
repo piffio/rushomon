@@ -5,7 +5,7 @@ use crate::models::link::{CreateLinkRequest, Link, LinkStatus};
 use crate::repositories::{CustomDomainRepository, OrgRepository};
 use crate::services::{LinkService, SettingsService};
 use crate::utils::validate_and_normalize_tags;
-use crate::utils::{now_timestamp, validate_short_code, validate_url};
+use crate::utils::{now_timestamp, validate_destination, validate_short_code};
 use worker::d1::D1Database;
 use worker::*;
 
@@ -14,7 +14,7 @@ use worker::*;
     path = "/api/links",
     tag = "Links",
     summary = "Create a link",
-    description = "Creates a new short link for the authenticated organization. Respects monthly tier limits. Optionally accepts a custom short code (Pro+), UTM parameters (Pro+), tags, expiry, and redirect type",
+    description = "Creates a normal or inline Nunjucks-compatible template link for the authenticated organization. Template links require Pro+, a 307 redirect, and are rendered from safe request context. Respects monthly tier limits and optionally accepts a custom short code, UTM parameters, tags, expiry, and device destinations",
     request_body(content = CreateLinkRequest, description = "Link creation payload"),
     responses(
         (status = 201, description = "Link created", body = Link),
@@ -89,6 +89,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
 
     let expected_fields = [
         "destination_url",
+        "is_template",
         "short_code",
         "title",
         "expires_at",
@@ -106,7 +107,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             if !expected_fields.contains(&field_name.as_str()) {
                 return Response::error(
                     format!(
-                        "Unknown field '{}'. Expected fields: destination_url, short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+), redirect_type (optional, defaults to 301), ios_url (optional, Business+), android_url (optional, Business+), desktop_url (optional, Business+)",
+                        "Unknown field '{}'. Expected fields: destination_url, is_template (optional), short_code (optional), title (optional), expires_at (optional), tags (optional), utm_params (optional, Pro+), forward_query_params (optional, Pro+), redirect_type (optional, defaults to 301), ios_url (optional, Business+), android_url (optional, Business+), desktop_url (optional, Business+), custom_domain (optional)",
                         field_name
                     ),
                     400,
@@ -124,16 +125,48 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         }
     };
 
-    let destination_url = match validate_url(&body.destination_url) {
+    let is_pro_or_above = quota_ctx.is_pro_or_above();
+    if body.is_template && !is_pro_or_above {
+        return Response::error("Template links require a Pro plan or above.", 403);
+    }
+
+    let destination_url = match validate_destination(&body.destination_url, body.is_template) {
         Ok(url) => url,
         Err(e) => {
             return Response::error(format!("Invalid destination URL: {}", e), 400);
         }
     };
 
-    if let Err(e) = link_service.check_blacklist(&db, &destination_url).await {
+    if !body.is_template
+        && let Err(e) = link_service.check_blacklist(&db, &destination_url).await
+    {
         return Ok(e.into_response());
     }
+
+    if body.is_template && body.redirect_type != "307" {
+        return Response::error("Template links require a 307 temporary redirect", 400);
+    }
+
+    let validate_device_url = |destination: &Option<String>| -> Result<Option<String>, String> {
+        destination
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| validate_destination(value, body.is_template))
+            .transpose()
+    };
+    let ios_url = match validate_device_url(&body.ios_url) {
+        Ok(value) => value,
+        Err(error) => return Response::error(format!("Invalid iOS URL: {}", error), 400),
+    };
+    let android_url = match validate_device_url(&body.android_url) {
+        Ok(value) => value,
+        Err(error) => return Response::error(format!("Invalid Android URL: {}", error), 400),
+    };
+    let desktop_url = match validate_device_url(&body.desktop_url) {
+        Ok(value) => value,
+        Err(error) => return Response::error(format!("Invalid desktop URL: {}", error), 400),
+    };
 
     if let Some(ref title) = body.title
         && title.len() > 200
@@ -152,17 +185,18 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         );
     }
 
-    let is_pro_or_above = quota_ctx.is_pro_or_above();
-
     let wants_pro_features = body
         .utm_params
         .as_ref()
         .map(|u| !u.is_empty())
         .unwrap_or(false)
         || body.forward_query_params.is_some()
-        || body.redirect_type != "301";
+        || body.redirect_type != "301"
+        || body.is_template;
     if wants_pro_features && !is_pro_or_above {
-        let error_msg = if body.redirect_type != "301" {
+        let error_msg = if body.is_template {
+            "Template links require a Pro plan or above."
+        } else if body.redirect_type != "301" {
             "Custom redirect types (307) require a Pro plan or above."
         } else {
             "UTM parameters and query parameter forwarding require a Pro plan or above."
@@ -299,6 +333,7 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         org_id: org_id.to_string(),
         short_code: short_code.clone(),
         destination_url: destination_url.clone(),
+        is_template: body.is_template,
         title: body.title,
         created_by: user_id.to_string(),
         created_at: now,
@@ -310,9 +345,9 @@ pub async fn handle_create_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         utm_params,
         forward_query_params: body.forward_query_params,
         redirect_type: body.redirect_type.clone(),
-        ios_url: body.ios_url,
-        android_url: body.android_url,
-        desktop_url: body.desktop_url,
+        ios_url,
+        android_url,
+        desktop_url,
         custom_domain,
     };
 

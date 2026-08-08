@@ -22,6 +22,7 @@
   // ── Step 2: Column mapping ────────────────────────────────────────────────
   type ColKey =
     | "destination_url"
+    | "is_template"
     | "short_code"
     | "title"
     | "tags"
@@ -46,6 +47,12 @@
         "link",
         "href"
       ]
+    },
+    {
+      key: "is_template",
+      label: "Template Link",
+      required: false,
+      aliases: ["is_template", "template"]
     },
     {
       key: "short_code",
@@ -93,6 +100,7 @@
 
   let columnMap = $state<Record<ColKey, string>>({
     destination_url: "",
+    is_template: "",
     short_code: "",
     title: "",
     tags: "",
@@ -131,11 +139,17 @@
     return rawRows.map((row) => {
       const destCol = columnMap.destination_url;
       const scCol = columnMap.short_code;
+      const templateCol = columnMap.is_template;
       const titleCol = columnMap.title;
       const tagsCol = columnMap.tags;
       const expiresCol = columnMap.expires_at;
 
       const destination_url = destCol ? (row[destCol] ?? "").trim() : "";
+      const is_template = templateCol
+        ? ["true", "1", "yes"].includes(
+            (row[templateCol] ?? "").trim().toLowerCase()
+          )
+        : false;
       let rawCode =
         scCol && isProOrAbove ? extractShortCode(row[scCol] ?? "") : "";
       let wasTruncated = false;
@@ -154,6 +168,7 @@
 
       return {
         destination_url,
+        is_template,
         short_code,
         title,
         tags,
@@ -165,8 +180,16 @@
 
   const mappedRows = $derived(
     mappingResult.map(
-      ({ destination_url, short_code, title, tags, expires_at }) => ({
+      ({
         destination_url,
+        is_template,
+        short_code,
+        title,
+        tags,
+        expires_at
+      }) => ({
+        destination_url,
+        is_template,
         short_code,
         title,
         tags,
@@ -181,7 +204,9 @@
 
   const validRows = $derived.by((): ImportLinkRow[] => {
     if (skipInvalidRows) {
-      return mappedRows.filter((r) => isValidUrl(r.destination_url));
+      return mappedRows.filter(
+        (r) => !r.is_template && isValidUrl(r.destination_url)
+      );
     }
     return mappedRows;
   });
@@ -335,6 +360,8 @@
     preview.forEach((row, i) => {
       if (!row.destination_url) {
         errors.set(i, "Missing destination URL");
+      } else if (row.is_template) {
+        errors.set(i, "Template links must be created in the link form or API");
       } else if (!isValidUrl(row.destination_url)) {
         errors.set(i, `Invalid URL: "${row.destination_url}"`);
       }

@@ -360,7 +360,7 @@ impl UserRepository {
     /// All links created by a specific user (for KV cleanup before deletion).
     pub async fn get_links_by_creator(&self, db: &D1Database, user_id: &str) -> Result<Vec<Link>> {
         db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by,
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by,
                     created_at, updated_at, expires_at, status, click_count,
                     utm_params, forward_query_params, redirect_type
              FROM links
@@ -375,7 +375,7 @@ impl UserRepository {
     /// All links belonging to an org (for KV cleanup on suspend).
     pub async fn get_links_by_org(&self, db: &D1Database, org_id: &str) -> Result<Vec<Link>> {
         db.prepare(
-            "SELECT id, org_id, short_code, destination_url, title, created_by,
+            "SELECT id, org_id, short_code, destination_url, is_template, title, created_by,
                     created_at, updated_at, expires_at, status, click_count,
                     utm_params, forward_query_params, redirect_type
              FROM links

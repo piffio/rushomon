@@ -61,6 +61,7 @@
 
   // Form state
   let destinationUrl = $state("");
+  let isTemplate = $state(false);
   let shortCode = $state("");
   let title = $state("");
   let expiresAt = $state("");
@@ -77,6 +78,7 @@
   let utmRef = $state("");
   let forwardQueryParams = $state(false);
   let redirectType = $state("301"); // Default to 301 for SEO
+  let redirectTypeBeforeTemplate = $state("301");
 
   // Device routing state
   let showDeviceRouting = $state(false);
@@ -157,6 +159,7 @@
   // Reset form fields
   function resetForm() {
     destinationUrl = "";
+    isTemplate = false;
     shortCode = "";
     title = "";
     expiresAt = "";
@@ -173,6 +176,7 @@
     utmRef = "";
     forwardQueryParams = false;
     redirectType = "301"; // Reset to default
+    redirectTypeBeforeTemplate = "301";
     showUtmBuilder = false;
     iosUrl = "";
     androidUrl = "";
@@ -192,6 +196,7 @@
       if (link && link.id !== populatedLinkId) {
         // Edit mode: populate with link data (only if not already populated)
         destinationUrl = link.destination_url;
+        isTemplate = link.is_template;
         shortCode = link.short_code;
         title = link.title || "";
         expiresAt = link.expires_at
@@ -268,6 +273,7 @@
 
       let linkData: CreateLinkRequest & Partial<UpdateLinkRequest> = {
         destination_url: destinationUrl.trim(),
+        is_template: isTemplate,
         title: title.trim() || undefined,
         tags: tags.length > 0 ? tags : undefined,
         utm_params: utmParams,
@@ -354,6 +360,7 @@
     // Don't fetch if in edit mode, user has already entered a title, or if URL is invalid
     if (
       isEditMode ||
+      isTemplate ||
       hasUserEnteredTitle ||
       !url.trim() ||
       (!url.startsWith("http://") && !url.startsWith("https://"))
@@ -366,7 +373,7 @@
     try {
       const fetchedTitle = await fetchUrlTitle(url.trim());
       // Only set the title if user hasn't entered one and we got a valid title
-      if (!hasUserEnteredTitle && fetchedTitle) {
+      if (!isTemplate && !hasUserEnteredTitle && fetchedTitle) {
         title = fetchedTitle;
       }
     } catch (err) {
@@ -379,7 +386,7 @@
 
   // Handle URL changes (only in create mode)
   $effect(() => {
-    if (destinationUrl && !isEditMode) {
+    if (destinationUrl && !isEditMode && !isTemplate) {
       fetchTitleForUrl(destinationUrl);
     }
   });
@@ -391,6 +398,20 @@
       hasUserEnteredTitle = true;
     }
   });
+
+  function setTemplateMode(value: boolean) {
+    if (value === isTemplate) return;
+    if (value) {
+      redirectTypeBeforeTemplate = redirectType;
+    }
+    isTemplate = value;
+    if (value) {
+      redirectType = "307";
+      isFetchingTitle = false;
+    } else {
+      redirectType = isProOrAbove ? redirectTypeBeforeTemplate : "301";
+    }
+  }
 </script>
 
 {#if isOpen}
@@ -446,23 +467,108 @@
           </div>
         {/if}
 
+        <!-- Link Type -->
+        <fieldset>
+          <legend class="block text-sm font-medium text-gray-700 mb-2">
+            Link Type
+          </legend>
+          <div class="grid grid-cols-2 gap-2">
+            <label
+              class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors {isTemplate
+                ? 'border-gray-200 bg-white'
+                : 'border-orange-500 bg-orange-50'}"
+            >
+              <input
+                type="radio"
+                name="link-type"
+                checked={!isTemplate}
+                onchange={() => setTemplateMode(false)}
+                disabled={loading}
+                class="mt-0.5 h-4 w-4 text-orange-600 focus:ring-orange-500"
+              />
+              <span>
+                <span class="block text-sm font-medium text-gray-900"
+                  >Normal</span
+                >
+                <span class="block text-xs text-gray-500"
+                  >A fixed destination URL</span
+                >
+              </span>
+            </label>
+            <label
+              class="flex items-start gap-3 rounded-lg border p-3 transition-colors {isTemplate
+                ? 'border-orange-500 bg-orange-50'
+                : 'border-gray-200 bg-white'} {!isProOrAbove
+                ? 'cursor-not-allowed opacity-60'
+                : 'cursor-pointer'}"
+            >
+              <input
+                type="radio"
+                name="link-type"
+                checked={isTemplate}
+                onchange={() => setTemplateMode(true)}
+                disabled={loading || !isProOrAbove}
+                class="mt-0.5 h-4 w-4 text-orange-600 focus:ring-orange-500"
+              />
+              <span>
+                <span
+                  class="flex items-center gap-2 text-sm font-medium text-gray-900"
+                >
+                  Template
+                  <span
+                    class="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-orange-100 text-orange-700 rounded"
+                    >Pro</span
+                  >
+                </span>
+                <span class="block text-xs text-gray-500"
+                  >Render from each visitor request</span
+                >
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
         <!-- Destination URL -->
         <div>
           <label
             for="destination-url"
             class="block text-sm font-medium text-gray-700 mb-2"
           >
-            Destination URL <span class="text-red-500">*</span>
+            {isTemplate ? "Destination Template" : "Destination URL"}
+            <span class="text-red-500">*</span>
           </label>
           <input
             id="destination-url"
-            type="url"
+            type={isTemplate ? "text" : "url"}
             bind:value={destinationUrl}
             required
-            placeholder="https://example.com/very/long/url"
+            placeholder={isTemplate
+              ? "https://example.com/search?q={{ request.query.q | urlencode }}"
+              : "https://example.com/very/long/url"}
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             disabled={loading}
           />
+          {#if isTemplate}
+            <div
+              class="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"
+            >
+              <p>
+                Use Nunjucks-compatible expressions such as
+                <code class="font-mono"
+                  >{"{{ request.query.q | default('') | urlencode }}"}</code
+                >.
+              </p>
+              <p class="mt-1 text-indigo-700">
+                Context: <code>request.url</code>, <code>request.method</code>,
+                <code>request.scheme</code>, <code>request.host</code>,
+                <code>request.path</code>, <code>request.query</code>,
+                <code>request.query_all</code>, <code>request.headers</code>,
+                <code>request.country</code>, <code>request.city</code>,
+                <code>request.device</code>, and <code>link.short_code</code>.
+                URL-encode request values before interpolation.
+              </p>
+            </div>
+          {/if}
         </div>
 
         <!-- Domain Selection -->
@@ -625,7 +731,7 @@
           <select
             id="redirect-type"
             bind:value={redirectType}
-            disabled={loading || !isProOrAbove}
+            disabled={loading || !isProOrAbove || isTemplate}
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           >
             <option value="301">301 - Permanent (SEO Optimized)</option>
@@ -634,7 +740,10 @@
             {/if}
           </select>
           <p class="text-xs text-gray-500 mt-1">
-            {#if !isProOrAbove}
+            {#if isTemplate}
+              Template links always use temporary 307 redirects to prevent
+              caching visitor-specific destinations.
+            {:else if !isProOrAbove}
               <a
                 href="/pricing"
                 class="text-orange-600 hover:text-orange-700 hover:underline"
@@ -968,7 +1077,9 @@
                       <div
                         class="p-3 bg-gray-50 rounded-lg border border-gray-200"
                       >
-                        {@html `<p class="text-xs font-mono text-gray-600 break-all">${buildPreviewUrl()}</p>`}
+                        <p class="text-xs font-mono text-gray-600 break-all">
+                          {buildPreviewUrl()}
+                        </p>
                       </div>
                     </div>
                   {/if}
@@ -1110,7 +1221,7 @@
                     >iOS URL</label
                   >
                   <input
-                    type="url"
+                    type={isTemplate ? "text" : "url"}
                     id="modal-ios-url"
                     bind:value={iosUrl}
                     placeholder="https://apps.apple.com/..."
@@ -1140,7 +1251,7 @@
                     >Android URL</label
                   >
                   <input
-                    type="url"
+                    type={isTemplate ? "text" : "url"}
                     id="modal-android-url"
                     bind:value={androidUrl}
                     placeholder="https://play.google.com/..."
@@ -1174,7 +1285,7 @@
                     >Desktop URL</label
                   >
                   <input
-                    type="url"
+                    type={isTemplate ? "text" : "url"}
                     id="modal-desktop-url"
                     bind:value={desktopUrl}
                     placeholder="https://example.com/desktop-version"

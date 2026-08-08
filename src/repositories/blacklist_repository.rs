@@ -101,7 +101,7 @@ impl BlacklistRepository {
     pub async fn get_candidate_links(&self, db: &D1Database) -> Result<Vec<crate::models::Link>> {
         let results = db
             .prepare(
-                "SELECT id, org_id, short_code, destination_url, title, created_by,
+                "SELECT id, org_id, short_code, destination_url, is_template, title, created_by,
                         created_at, updated_at, expires_at, status, click_count,
                         utm_params, forward_query_params, redirect_type
                  FROM links
@@ -174,6 +174,34 @@ impl BlacklistRepository {
         }
 
         Ok(false)
+    }
+
+    /// Check a rendered template destination using one indexed exact/domain lookup.
+    pub async fn is_rendered_destination_blacklisted(
+        &self,
+        db: &D1Database,
+        destination: &str,
+    ) -> Result<bool> {
+        let normalized =
+            normalize_url_for_blacklist(destination).map_err(worker::Error::RustError)?;
+        let parsed = url::Url::parse(destination)
+            .map_err(|error| worker::Error::RustError(error.to_string()))?;
+        let hostname = parsed
+            .host_str()
+            .unwrap_or_default()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        let result = db
+            .prepare(
+                "SELECT 1 FROM destination_blacklist
+                 WHERE (match_type = 'exact' AND destination = ?1)
+                    OR (match_type = 'domain' AND (?2 = destination OR ?2 LIKE '%.' || destination))
+                 LIMIT 1",
+            )
+            .bind(&[normalized.into(), hostname.into()])?
+            .first::<serde_json::Value>(None)
+            .await?;
+        Ok(result.is_some())
     }
 }
 

@@ -340,6 +340,12 @@
           <div class="card-header">
             <div class="short-code-section">
               <code class="short-code">{link.short_code}</code>
+              {#if link.is_template}
+                <span
+                  class="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700"
+                  >Template</span
+                >
+              {/if}
               <span class="badge {getStatusBadge(link.status)}"
                 >{link.status}</span
               >
@@ -385,6 +391,10 @@
             <button
               class="btn btn-danger"
               onclick={() => confirmBlock(link.id, link.destination_url)}
+              disabled={link.is_template}
+              title={link.is_template
+                ? "Rendered destinations vary by request; disable the link instead"
+                : "Block destination"}
             >
               Block
             </button>
@@ -423,6 +433,12 @@
               <td>
                 <div class="short-code">
                   <code>{link.short_code}</code>
+                  {#if link.is_template}
+                    <span
+                      class="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-700"
+                      >Template</span
+                    >
+                  {/if}
                 </div>
               </td>
               <td>
@@ -518,6 +534,10 @@
                           confirmBlock(link.id, link.destination_url, "exact");
                           closeDropdown();
                         }}
+                        disabled={link.is_template}
+                        title={link.is_template
+                          ? "Rendered destinations vary by request; disable the link instead"
+                          : "Block destination URL"}
                       >
                         Block Destination URL
                       </button>
@@ -527,6 +547,10 @@
                           confirmBlockDomain(link.id, link.destination_url);
                           closeDropdown();
                         }}
+                        disabled={link.is_template}
+                        title={link.is_template
+                          ? "Rendered destinations vary by request; disable the link instead"
+                          : "Block destination domain"}
                       >
                         Block Destination Domain
                       </button>

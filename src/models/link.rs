@@ -79,6 +79,8 @@ pub struct Link {
     pub short_code: String,
     #[schema(example = "https://example.com/very/long/url")]
     pub destination_url: String,
+    /// Whether destination URLs are rendered as inline Nunjucks-compatible templates.
+    pub is_template: bool,
     #[schema(example = "My Awesome Link")]
     pub title: Option<String>,
     #[schema(example = "user-123")]
@@ -133,6 +135,8 @@ impl<'de> Deserialize<'de> for Link {
             org_id: String,
             short_code: String,
             destination_url: String,
+            #[serde(default)]
+            is_template: i64,
             title: Option<String>,
             created_by: String,
             created_at: i64,
@@ -173,6 +177,7 @@ impl<'de> Deserialize<'de> for Link {
             org_id: helper.org_id,
             short_code: helper.short_code,
             destination_url: helper.destination_url,
+            is_template: helper.is_template != 0,
             title: helper.title,
             created_by: helper.created_by,
             created_at: helper.created_at,
@@ -196,6 +201,9 @@ impl<'de> Deserialize<'de> for Link {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkMapping {
     pub destination_url: String,
+    /// Whether destination URLs must be rendered against the request context.
+    #[serde(default)]
+    pub is_template: bool,
     pub link_id: String,
     pub expires_at: Option<i64>,
     pub status: LinkStatus,
@@ -234,6 +242,9 @@ fn default_redirect_type() -> String {
 pub struct CreateLinkRequest {
     #[schema(example = "https://example.com/very/long/url")]
     pub destination_url: String,
+    /// Render destination URLs as inline Nunjucks-compatible templates.
+    #[serde(default)]
+    pub is_template: bool,
     #[schema(example = "my-custom-code")]
     pub short_code: Option<String>,
     #[schema(example = "My Awesome Link")]
@@ -268,6 +279,8 @@ pub struct CreateLinkRequest {
 pub struct UpdateLinkRequest {
     #[schema(example = "https://example.com/new/url")]
     pub destination_url: Option<String>,
+    /// Change whether destination URLs are rendered as templates.
+    pub is_template: Option<bool>,
     #[schema(example = "Updated Title")]
     pub title: Option<String>,
     #[schema(example = "disabled")]
@@ -325,6 +338,7 @@ impl Link {
     pub fn to_mapping(&self, resolved_forward: bool) -> LinkMapping {
         LinkMapping {
             destination_url: self.destination_url.clone(),
+            is_template: self.is_template,
             link_id: self.id.clone(),
             expires_at: self.expires_at,
             status: self.status.clone(),
@@ -349,6 +363,7 @@ mod tests {
             org_id: "org-id".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: false,
             title: None,
             created_by: "user-id".to_string(),
             created_at: 1000000,
@@ -381,6 +396,7 @@ mod tests {
             org_id: "org-id".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: false,
             title: None,
             created_by: "user-id".to_string(),
             created_at: 1000000,
@@ -409,6 +425,7 @@ mod tests {
             org_id: "org-id".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: false,
             title: None,
             created_by: "user-id".to_string(),
             created_at: 1000000,
@@ -435,6 +452,7 @@ mod tests {
             org_id: "org-456".to_string(),
             short_code: "abc123".to_string(),
             destination_url: "https://example.com/path".to_string(),
+            is_template: false,
             title: Some("Test Link".to_string()),
             created_by: "user-789".to_string(),
             created_at: 1000000,
@@ -468,6 +486,7 @@ mod tests {
             org_id: "org-1".to_string(),
             short_code: "test".to_string(),
             destination_url: "https://test.com".to_string(),
+            is_template: false,
             title: None,
             created_by: "user-1".to_string(),
             created_at: 123456,
@@ -537,6 +556,7 @@ mod tests {
             org_id: "org-2".to_string(),
             short_code: "test2".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: false,
             title: None,
             created_by: "user-2".to_string(),
             created_at: 123456,
@@ -570,6 +590,7 @@ mod redirect_type_tests {
         let json = r#"{"destination_url": "https://example.com"}"#;
         let request: CreateLinkRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.redirect_type, "301");
+        assert!(!request.is_template);
     }
 
     #[test]
@@ -615,6 +636,7 @@ mod redirect_type_tests {
             org_id: "org-1".to_string(),
             short_code: "test".to_string(),
             destination_url: "https://example.com".to_string(),
+            is_template: false,
             title: Some("Test".to_string()),
             created_by: "user-1".to_string(),
             created_at: 1234567890,
@@ -658,5 +680,20 @@ mod redirect_type_tests {
 
         let link: Link = serde_json::from_str(json).unwrap();
         assert_eq!(link.redirect_type, "307");
+        assert!(!link.is_template);
+    }
+
+    #[test]
+    fn test_old_link_mapping_defaults_to_static() {
+        let mapping: LinkMapping = serde_json::from_str(
+            r#"{
+                "destination_url":"https://example.com",
+                "link_id":"link-1",
+                "expires_at":null,
+                "status":"active"
+            }"#,
+        )
+        .unwrap();
+        assert!(!mapping.is_template);
     }
 }
