@@ -60,9 +60,36 @@ redirecting and applies blacklist rules to the rendered destination.
 
 Template redirects support inline variable expressions (`{{ }}`), `if`, `for`,
 and `set` blocks, whitespace control, and MiniJinja's built-in filters including
-`default` and `urlencode`. Template source is limited to 4 KiB, rendered output
-to 8 KiB, and execution to 20,000 MiniJinja fuel units to protect redirect
-availability.
+`default` and `urlencode`. They also provide `random` for selecting an item from
+a sequence and `randrange` for generating an integer in a range:
+
+```text
+{{ ["https://a.example", "https://b.example"] | random }}
+```
+
+```text
+{% if randrange(100) < 20 %}https://a.example{% else %}https://b.example{% endif %}
+```
+
+These utilities are suitable for traffic distribution, not security-sensitive
+decisions. Each request is selected independently, so retries can use a
+different destination.
+
+The `now()` function returns the current UTC Unix timestamp in seconds. Use
+`dateformat`, `timeformat`, or `datetimeformat` to create time-based rules or URL
+values:
+
+```text
+https://example.com/archive/{{ now() | dateformat(format="short") }}
+```
+
+The format filters accept `short`, `medium`, `long`, `full`, and documented
+MiniJinja-contrib format strings. `datetimeformat` and `timeformat` also accept
+`iso` and `unix`. Named timezone conversion is not enabled; do not pass a `tz`
+argument. `now()` is always UTC.
+
+Template source is limited to 4 KiB, rendered output to 8 KiB, and execution to
+20,000 MiniJinja fuel units to protect redirect availability.
 
 This is an inline Nunjucks-compatible subset, not the JavaScript Nunjucks
 runtime. Includes, imports, template inheritance, asynchronous filters, custom

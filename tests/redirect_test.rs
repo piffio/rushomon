@@ -908,6 +908,49 @@ async fn test_template_link_renders_request_context_end_to_end() {
 }
 
 #[tokio::test]
+async fn test_template_utility_functions_end_to_end() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "{{ ['https://a.example/path', 'https://b.example/path'] | random }}?date={{ 0 | dateformat(format='short') }}&bucket={{ randrange(1) }}&now={{ now() | datetimeformat(format='unix') }}",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let response = public_client
+        .get(format!(
+            "{}/{}",
+            BASE_URL,
+            link["short_code"].as_str().unwrap()
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.starts_with("https://a.example/path?")
+            || location.starts_with("https://b.example/path?")
+    );
+    assert!(location.contains("date=1970-01-01&bucket=0&now="));
+    let timestamp = location.rsplit('=').next().unwrap().parse::<i64>().unwrap();
+    assert!(timestamp > 0);
+}
+
+#[tokio::test]
 async fn test_template_link_rejects_invalid_configuration() {
     let client = authenticated_client();
 

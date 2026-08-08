@@ -183,6 +183,13 @@ fn validate_source_length(source: &str) -> Result<(), TemplateError> {
 
 fn template_environment() -> Environment<'static> {
     let mut environment = Environment::new();
+    environment.add_filter("dateformat", minijinja_contrib::filters::dateformat);
+    environment.add_filter("datetimeformat", minijinja_contrib::filters::datetimeformat);
+    environment.add_filter("random", minijinja_contrib::filters::random);
+    environment.add_filter("timeformat", minijinja_contrib::filters::timeformat);
+    environment.add_function("now", crate::utils::time::now_timestamp);
+    environment.add_function("randrange", minijinja_contrib::globals::randrange);
+    environment.add_global("RAND_SEED", rand::random::<u64>());
     environment.set_undefined_behavior(UndefinedBehavior::Chainable);
     environment.set_recursion_limit(TEMPLATE_RECURSION_LIMIT);
     environment.set_fuel(Some(TEMPLATE_FUEL));
@@ -299,6 +306,45 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rendered, "https://example.com/?q=hello%20world");
+    }
+
+    #[test]
+    fn random_filter_selects_a_sequence_item() {
+        let rendered = render_redirect_template(
+            "{{ ['https://a.example', 'https://b.example'] | random }}",
+            &context(),
+        )
+        .unwrap();
+        assert!(matches!(
+            rendered.as_str(),
+            "https://a.example" | "https://b.example"
+        ));
+    }
+
+    #[test]
+    fn randrange_returns_a_value_within_bounds() {
+        let rendered = render_redirect_template("{{ randrange(10, 20) }}", &context()).unwrap();
+        let value = rendered.parse::<u8>().unwrap();
+        assert!((10..20).contains(&value));
+    }
+
+    #[test]
+    fn date_and_time_filters_format_unix_timestamps() {
+        let rendered = render_redirect_template(
+            "{{ 0 | dateformat(format='short') }}|{{ 0 | timeformat(format='long') }}|{{ 0 | datetimeformat(format='iso') }}",
+            &context(),
+        )
+        .unwrap();
+        assert_eq!(rendered, "1970-01-01|00:00:00|1970-01-01T00:00:00+00:00");
+    }
+
+    #[test]
+    fn now_returns_a_unix_timestamp() {
+        let rendered =
+            render_redirect_template("{{ now() | datetimeformat(format='unix') }}", &context())
+                .unwrap();
+        let value = rendered.parse::<i64>().unwrap();
+        assert!(value > 0);
     }
 
     #[test]
