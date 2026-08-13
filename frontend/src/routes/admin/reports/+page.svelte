@@ -174,6 +174,7 @@
   }
 
   async function handleBlockDestinationDomain(report: LinkReportWithLink) {
+    if (report.link.is_template) return;
     selectedReport = report;
     showBlockDomainModal = true;
     actionReason = "";
@@ -483,12 +484,18 @@
                         <button
                           class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                           onclick={() => handleBlockDestinationURL(report)}
-                          title="Block this exact URL">Block URL</button
+                          disabled={report.link.is_template}
+                          title={report.link.is_template
+                            ? "Rendered destinations vary by request; disable the link instead"
+                            : "Block this exact URL"}>Block URL</button
                         >
                         <button
                           class="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-colors"
                           onclick={() => handleBlockDestinationDomain(report)}
-                          title="Block this entire domain">Block Domain</button
+                          disabled={report.link.is_template}
+                          title={report.link.is_template
+                            ? "Rendered destinations vary by request; disable the link instead"
+                            : "Block this entire domain"}>Block Domain</button
                         >
                         <button
                           class="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 transition-colors"

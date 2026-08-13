@@ -784,3 +784,412 @@ async fn test_redirect_no_forwarding_strips_visitor_params() {
         .send()
         .await;
 }
+
+#[tokio::test]
+async fn test_template_link_renders_request_context_end_to_end() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/search?q={{ request.query.q | urlencode }}&lang={{ request.headers['accept-language'] | urlencode }}&secret={{ request.headers.authorization }}{{ request.headers.cookie }}{{ request.headers['cf-connecting-ip'] }}{{ request.headers['true-client-ip'] }}{{ request.headers['cf-access-jwt-assertion'] }}",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    assert_eq!(link["is_template"], true);
+    assert_eq!(link["redirect_type"], "307");
+
+    let export = auth_client
+        .get(format!("{}/api/links/export", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(export.starts_with("short_code,destination_url,is_template,"));
+    assert!(export.contains(",true,"));
+
+    let import_response = auth_client
+        .post(format!("{}/api/links/import", BASE_URL))
+        .json(&json!({
+            "links": [{
+                "destination_url": link["destination_url"],
+                "is_template": true
+            }]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(import_response.status(), StatusCode::OK);
+    let import_result: serde_json::Value = import_response.json().await.unwrap();
+    assert_eq!(import_result["created"], 0);
+    assert_eq!(import_result["failed"], 1);
+
+    let response = public_client
+        .get(format!(
+            "{}/{}?q=hello%20world",
+            BASE_URL,
+            link["short_code"].as_str().unwrap()
+        ))
+        .header("accept-language", "en-CA")
+        .header("authorization", "Bearer must-not-leak")
+        .header("cookie", "session=must-not-leak")
+        .header("true-client-ip", "192.0.2.1")
+        .header("cf-access-jwt-assertion", "must-not-leak")
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(
+        response.headers().get("cache-control").unwrap(),
+        "private, no-store"
+    );
+    assert_eq!(
+        response.headers().get("location").unwrap(),
+        "https://example.com/search?q=hello%20world&lang=en-CA&secret="
+    );
+
+    let missing_value_response = public_client
+        .get(format!(
+            "{}/{}",
+            BASE_URL,
+            link["short_code"].as_str().unwrap()
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        missing_value_response.status(),
+        StatusCode::TEMPORARY_REDIRECT
+    );
+    assert_eq!(
+        missing_value_response.headers().get("location").unwrap(),
+        "https://example.com/search?q=&lang=&secret="
+    );
+
+    let update_response = auth_client
+        .put(format!(
+            "{}/api/links/{}",
+            BASE_URL,
+            link["id"].as_str().unwrap()
+        ))
+        .json(&json!({
+            "destination_url": "https://example.com/static",
+            "is_template": false,
+            "redirect_type": "301"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(update_response.status(), StatusCode::OK);
+
+    let static_response = public_client
+        .get(format!(
+            "{}/{}",
+            BASE_URL,
+            link["short_code"].as_str().unwrap()
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(static_response.status(), StatusCode::MOVED_PERMANENTLY);
+    assert_eq!(
+        static_response.headers().get("location").unwrap(),
+        "https://example.com/static"
+    );
+}
+
+#[tokio::test]
+async fn test_template_utility_functions_end_to_end() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "{{ ['https://a.example/path', 'https://b.example/path'] | random }}?date={{ 0 | dateformat(format='short') }}&bucket={{ randrange(1) }}&now={{ now() | datetimeformat(format='unix') }}",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let response = public_client
+        .get(format!(
+            "{}/{}",
+            BASE_URL,
+            link["short_code"].as_str().unwrap()
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    let location = response
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        location.starts_with("https://a.example/path?")
+            || location.starts_with("https://b.example/path?")
+    );
+    assert!(location.contains("date=1970-01-01&bucket=0&now="));
+    let timestamp = location.rsplit('=').next().unwrap().parse::<i64>().unwrap();
+    assert!(timestamp > 0);
+}
+
+#[tokio::test]
+async fn test_template_link_rejects_invalid_configuration() {
+    let client = authenticated_client();
+
+    let permanent_response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/{{ request.query.q }}",
+            "is_template": true,
+            "redirect_type": "301"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(permanent_response.status(), StatusCode::BAD_REQUEST);
+
+    let invalid_syntax_response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/{{ invalid",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid_syntax_response.status(), StatusCode::BAD_REQUEST);
+
+    let oversized_source = format!("https://example.com/{}", "x".repeat(4097));
+    let oversized_response = client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": oversized_source,
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(oversized_response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_template_redirect_failures_do_not_record_clicks() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "{{ request.query.target }}",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+    let short_code = link["short_code"].as_str().unwrap();
+
+    for target in ["/relative", "javascript:alert(1)"] {
+        let response = public_client
+            .get(format!(
+                "{}/{}?target={}",
+                BASE_URL,
+                short_code,
+                urlencoding::encode(target)
+            ))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FOUND);
+        assert!(
+            response
+                .headers()
+                .get("location")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .ends_with("/404")
+        );
+    }
+
+    let persisted: serde_json::Value = auth_client
+        .get(format!(
+            "{}/api/links/{}",
+            BASE_URL,
+            link["id"].as_str().unwrap()
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(persisted["click_count"], 0);
+}
+
+#[tokio::test]
+async fn test_template_redirect_checks_rendered_domain_blacklist() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let blocked_domain = format!("{}.example.net", unique_short_code("template-block"));
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://{{ request.query.host }}/landing",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+
+    let block_response = auth_client
+        .post(format!("{}/api/admin/blacklist", BASE_URL))
+        .json(&json!({
+            "destination": blocked_domain,
+            "match_type": "domain",
+            "reason": "Template redirect integration test"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(block_response.status(), StatusCode::OK);
+
+    let response = public_client
+        .get(format!(
+            "{}/{}?host={}",
+            BASE_URL,
+            link["short_code"].as_str().unwrap(),
+            urlencoding::encode(&blocked_domain)
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert!(
+        response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with("/404")
+    );
+
+    let persisted: serde_json::Value = auth_client
+        .get(format!(
+            "{}/api/links/{}",
+            BASE_URL,
+            link["id"].as_str().unwrap()
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(persisted["click_count"], 0);
+
+    let blacklist_entries: serde_json::Value = auth_client
+        .get(format!("{}/api/admin/blacklist", BASE_URL))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    if let Some(entry) = blacklist_entries.as_array().and_then(|entries| {
+        entries
+            .iter()
+            .find(|entry| entry["destination"].as_str() == Some(blocked_domain.as_str()))
+    }) {
+        let delete_response = auth_client
+            .delete(format!(
+                "{}/api/admin/blacklist/{}",
+                BASE_URL,
+                entry["id"].as_str().unwrap()
+            ))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(delete_response.status(), StatusCode::OK);
+    }
+}
+
+#[tokio::test]
+async fn test_device_destination_templates_and_mode_transition_validation() {
+    let auth_client = authenticated_client();
+    let public_client = test_client();
+    let create_response = auth_client
+        .post(format!("{}/api/links", BASE_URL))
+        .json(&json!({
+            "destination_url": "https://example.com/default",
+            "ios_url": "{{ request.query.ios }}",
+            "is_template": true,
+            "redirect_type": "307"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let link: serde_json::Value = create_response.json().await.unwrap();
+
+    let ios_response = public_client
+        .get(format!(
+            "{}/{}?ios={}",
+            BASE_URL,
+            link["short_code"].as_str().unwrap(),
+            urlencoding::encode("https://apps.example.com/ios")
+        ))
+        .header(
+            "user-agent",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ios_response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(
+        ios_response.headers().get("location").unwrap(),
+        "https://apps.example.com/ios"
+    );
+
+    let invalid_transition = auth_client
+        .put(format!(
+            "{}/api/links/{}",
+            BASE_URL,
+            link["id"].as_str().unwrap()
+        ))
+        .json(&json!({
+            "destination_url": "https://example.com/static",
+            "is_template": false,
+            "redirect_type": "301"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid_transition.status(), StatusCode::BAD_REQUEST);
+}

@@ -32,6 +32,7 @@ export interface Link {
   org_id: string;
   short_code: string;
   destination_url: string;
+  is_template: boolean;
   title: string | null;
   created_by: string;
   created_at: number;
@@ -88,6 +89,7 @@ export interface TagAnalytics {
 
 export interface CreateLinkRequest {
   destination_url: string;
+  is_template?: boolean;
   short_code?: string;
   title?: string;
   expires_at?: number;
@@ -103,6 +105,7 @@ export interface CreateLinkRequest {
 
 export interface UpdateLinkRequest {
   destination_url?: string;
+  is_template?: boolean;
   title?: string;
   expires_at?: number; // Unix timestamp in seconds to set expiration
   clear_expiration?: boolean; // Set to true to clear expiration
@@ -230,6 +233,7 @@ export interface AdminLink {
   org_id: string;
   short_code: string;
   destination_url: string;
+  is_template: boolean;
   title: string | null;
   created_by: string;
   created_at: number;

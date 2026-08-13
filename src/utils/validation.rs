@@ -1,4 +1,5 @@
 use crate::utils::short_code::MAX_SHORT_CODE_LENGTH;
+use crate::utils::template::validate_redirect_template;
 use url::Url;
 
 /// Reserved short codes that cannot be used (prevent conflicts with routes)
@@ -64,6 +65,20 @@ pub fn validate_url(url_str: &str) -> Result<String, String> {
             Ok(url.to_string())
         }
         Err(e) => Err(format!("Invalid URL: {}", e)),
+    }
+}
+
+/// Validate and normalize a static destination or compile an inline redirect template.
+pub fn validate_destination(destination: &str, is_template: bool) -> Result<String, String> {
+    let destination = destination.trim();
+    if destination.is_empty() {
+        return Err("Destination cannot be empty".to_string());
+    }
+    if is_template {
+        validate_redirect_template(destination).map_err(|error| error.to_string())?;
+        Ok(destination.to_string())
+    } else {
+        validate_url(destination)
     }
 }
 

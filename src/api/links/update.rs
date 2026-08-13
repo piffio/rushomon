@@ -3,7 +3,7 @@ use crate::models::link::UpdateLinkRequest;
 use crate::repositories::BlacklistRepository;
 use crate::services::LinkService;
 use crate::utils::validate_and_normalize_tags;
-use crate::utils::{now_timestamp, validate_url};
+use crate::utils::{now_timestamp, validate_destination};
 use serde_json::json;
 use worker::d1::D1Database;
 use worker::*;
@@ -14,12 +14,24 @@ fn json_error(message: &str, status: u16) -> Response {
         .with_status(status)
 }
 
+fn final_device_url<'a>(
+    update: Option<&'a str>,
+    clear: Option<bool>,
+    current: Option<&'a str>,
+) -> Option<&'a str> {
+    if clear == Some(true) {
+        None
+    } else {
+        update.or(current)
+    }
+}
+
 #[utoipa::path(
     put,
     path = "/api/links/{id}",
     tag = "Links",
     summary = "Update a link",
-    description = "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV atomically",
+    description = "Updates a link's normal or inline MiniJinja template destination, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Template links require Pro+, a 307 redirect. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV",
     params(
         ("id" = String, Path, description = "Link ID"),
     ),
@@ -46,22 +58,10 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
         None => return Ok(json_error("Missing link ID", 400)),
     };
 
-    let update_req: UpdateLinkRequest = match req.json::<UpdateLinkRequest>().await {
+    let mut update_req: UpdateLinkRequest = match req.json::<UpdateLinkRequest>().await {
         Ok(req) => req,
         Err(_) => return Ok(json_error("Invalid request body", 400)),
     };
-
-    if let Some(url) = &update_req.destination_url {
-        if let Err(e) = validate_url(url) {
-            return Ok(json_error(&format!("Invalid URL: {}", e), 400));
-        }
-
-        let db = ctx.env.get_binding::<D1Database>("rushomon")?;
-        let blacklist_repo = BlacklistRepository::new();
-        if blacklist_repo.is_blacklisted(&db, url).await? {
-            return Ok(json_error("Destination URL is blocked", 403));
-        }
-    }
 
     if let Some(ref title) = update_req.title
         && title.len() > 200
@@ -94,14 +94,104 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
     let db = ctx.env.get_binding::<D1Database>("rushomon")?;
     let link_service = LinkService::new();
 
-    match link_service.get_link(&db, &link_id, &user_ctx.org_id).await {
+    let existing_link = match link_service.get_link(&db, &link_id, &user_ctx.org_id).await {
         Ok(None) => return Ok(json_error("Link not found", 404)),
-        Ok(Some(_)) => {}
+        Ok(Some(link)) => link,
         Err(e) => return Err(worker::Error::RustError(e.to_string())),
+    };
+
+    let final_is_template = update_req.is_template.unwrap_or(existing_link.is_template);
+    let final_redirect_type = update_req
+        .redirect_type
+        .as_deref()
+        .unwrap_or(&existing_link.redirect_type);
+    if final_is_template && final_redirect_type != "307" {
+        return Ok(json_error(
+            "Template links require a 307 temporary redirect",
+            400,
+        ));
     }
 
-    let wants_redirect_type =
-        update_req.redirect_type.is_some() && update_req.redirect_type.as_deref() != Some("301");
+    let final_destination = update_req
+        .destination_url
+        .as_deref()
+        .unwrap_or(&existing_link.destination_url);
+    let normalized_destination = match validate_destination(final_destination, final_is_template) {
+        Ok(value) => value,
+        Err(error) => {
+            return Ok(json_error(
+                &format!("Invalid destination URL: {}", error),
+                400,
+            ));
+        }
+    };
+    if update_req.destination_url.is_some() {
+        update_req.destination_url = Some(normalized_destination.clone());
+    }
+
+    let final_ios_url = final_device_url(
+        update_req.ios_url.as_deref(),
+        update_req.clear_ios_url,
+        existing_link.ios_url.as_deref(),
+    );
+    let final_android_url = final_device_url(
+        update_req.android_url.as_deref(),
+        update_req.clear_android_url,
+        existing_link.android_url.as_deref(),
+    );
+    let final_desktop_url = final_device_url(
+        update_req.desktop_url.as_deref(),
+        update_req.clear_desktop_url,
+        existing_link.desktop_url.as_deref(),
+    );
+    for (label, destination) in [
+        ("iOS", final_ios_url),
+        ("Android", final_android_url),
+        ("desktop", final_desktop_url),
+    ] {
+        if let Some(destination) = destination
+            && let Err(error) = validate_destination(destination, final_is_template)
+        {
+            return Ok(json_error(
+                &format!("Invalid {} URL: {}", label, error),
+                400,
+            ));
+        }
+    }
+
+    for (label, destination) in [
+        ("iOS", &mut update_req.ios_url),
+        ("Android", &mut update_req.android_url),
+        ("desktop", &mut update_req.desktop_url),
+    ] {
+        if let Some(value) = destination {
+            *value = match validate_destination(value, final_is_template) {
+                Ok(value) => value,
+                Err(error) => {
+                    return Ok(json_error(
+                        &format!("Invalid {} URL: {}", label, error),
+                        400,
+                    ));
+                }
+            };
+        }
+    }
+
+    if !final_is_template
+        && (update_req.destination_url.is_some() || update_req.is_template.is_some())
+    {
+        let blacklist_repo = BlacklistRepository::new();
+        if blacklist_repo
+            .is_blacklisted(&db, &normalized_destination)
+            .await?
+        {
+            return Ok(json_error("Destination URL is blocked", 403));
+        }
+    }
+
+    let wants_redirect_type = final_is_template
+        || (update_req.redirect_type.is_some()
+            && update_req.redirect_type.as_deref() != Some("301"));
     let wants_utm_or_forward = update_req
         .utm_params
         .as_ref()
@@ -201,6 +291,7 @@ pub async fn handle_update_link(mut req: Request, ctx: RouteContext<()>) -> Resu
             &link_id,
             &user_ctx.org_id,
             update_req.destination_url.clone(),
+            update_req.is_template,
             update_req.title.clone(),
             expires_at_value,
             normalized_tags,

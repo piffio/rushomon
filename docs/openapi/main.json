@@ -186,6 +186,10 @@
               "null"
             ]
           },
+          "is_template": {
+            "description": "Render destination URLs as inline MiniJinja templates.",
+            "type": "boolean"
+          },
           "redirect_type": {
             "description": "HTTP redirect type: 301 (permanent) or 307 (temporary).\nDefault is 301, available on Pro+ plans.",
             "example": "301",
@@ -341,6 +345,10 @@
               "null"
             ]
           },
+          "is_template": {
+            "description": "Whether destination URLs are rendered as inline MiniJinja templates.",
+            "type": "boolean"
+          },
           "org_id": {
             "example": "org-789",
             "type": "string"
@@ -399,6 +407,7 @@
           "org_id",
           "short_code",
           "destination_url",
+          "is_template",
           "created_by",
           "created_at",
           "status",
@@ -1018,6 +1027,13 @@
             "example": "https://apps.apple.com/app/id123456789",
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "is_template": {
+            "description": "Change whether destination URLs are rendered as templates.",
+            "type": [
+              "boolean",
               "null"
             ]
           },
@@ -3286,7 +3302,7 @@
         ]
       },
       "post": {
-        "description": "Creates a new short link for the authenticated organization. Respects monthly tier limits. Optionally accepts a custom short code (Pro+), UTM parameters (Pro+), tags, expiry, and redirect type",
+        "description": "Creates a normal or inline MiniJinja template link for the authenticated organization. Template links require Pro+, a 307 redirect, and are rendered from safe request context. Respects monthly tier limits and optionally accepts a custom short code, UTM parameters, tags, expiry, and device destinations",
         "operationId": "handle_create_link",
         "requestBody": {
           "content": {
@@ -3524,7 +3540,7 @@
         ]
       },
       "put": {
-        "description": "Updates a link's destination URL, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV atomically",
+        "description": "Updates a link's normal or inline MiniJinja template destination, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Template links require Pro+, a 307 redirect. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV",
         "operationId": "handle_update_link",
         "parameters": [
           {

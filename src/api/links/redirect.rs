@@ -1,9 +1,12 @@
 use crate::kv;
 use crate::middleware::{RateLimitConfig, RateLimiter, is_kv_rate_limiting_enabled};
 use crate::models::{AnalyticsEvent, link::LinkStatus};
-use crate::repositories::{CustomDomainRepository, LinkRepository};
+use crate::repositories::{BlacklistRepository, CustomDomainRepository, LinkRepository};
 use crate::utils::device::{DeviceType, detect_device};
-use crate::utils::{get_client_ip, get_frontend_url, hash_ip, now_timestamp};
+use crate::utils::{
+    TemplateContext, get_client_ip, get_frontend_url, hash_ip, now_timestamp,
+    render_redirect_template, validate_url,
+};
 use chrono::TimeZone;
 use std::future::Future;
 use std::pin::Pin;
@@ -173,7 +176,55 @@ pub async fn handle_redirect(
         }
     };
 
-    let mut destination_url = Url::parse(effective_destination)?;
+    let rendered_destination;
+    let destination = if mapping.is_template {
+        let template_context =
+            match TemplateContext::from_request(&req, &short_code, custom_host.is_some()) {
+                Ok(context) => context,
+                Err(_) => {
+                    log_template_failure(&mapping.link_id, "request_context");
+                    return template_failure(not_found_url);
+                }
+            };
+        let rendered = match render_redirect_template(effective_destination, &template_context) {
+            Ok(rendered) => rendered,
+            Err(error) => {
+                let category = match error {
+                    crate::utils::TemplateError::OutputTooLong => "output_limit",
+                    _ => "render",
+                };
+                log_template_failure(&mapping.link_id, category);
+                return template_failure(not_found_url);
+            }
+        };
+        rendered_destination = match validate_url(&rendered) {
+            Ok(destination) => destination,
+            Err(_) => {
+                log_template_failure(&mapping.link_id, "invalid_destination");
+                return template_failure(not_found_url);
+            }
+        };
+
+        let db = match ctx.env.get_binding::<D1Database>("rushomon") {
+            Ok(db) => db,
+            Err(_) => {
+                log_template_failure(&mapping.link_id, "blacklist_unavailable");
+                return template_failure(not_found_url);
+            }
+        };
+        let blacklist_result = BlacklistRepository::new()
+            .is_rendered_destination_blacklisted(&db, &rendered_destination)
+            .await;
+        if let Err(category) = template_blacklist_decision(blacklist_result) {
+            log_template_failure(&mapping.link_id, category);
+            return template_failure(not_found_url);
+        }
+        rendered_destination.as_str()
+    } else {
+        effective_destination
+    };
+
+    let mut destination_url = Url::parse(destination)?;
 
     if let Some(ref utm) = mapping.utm_params {
         let pairs: Vec<(&str, &str)> = [
@@ -211,8 +262,21 @@ pub async fn handle_redirect(
         }
     }
 
-    let redirect_status = mapping.redirect_type.parse::<u16>().unwrap_or(301);
-    let response = Response::redirect_with_status(destination_url, redirect_status)?;
+    let redirect_status = if mapping.is_template {
+        307
+    } else {
+        mapping.redirect_type.parse::<u16>().unwrap_or(301)
+    };
+    let response = if mapping.is_template {
+        let headers = Headers::new();
+        headers.set("Location", destination_url.as_str())?;
+        headers.set("Cache-Control", "private, no-store")?;
+        Response::empty()?
+            .with_status(redirect_status)
+            .with_headers(headers)
+    } else {
+        Response::redirect_with_status(destination_url, redirect_status)?
+    };
 
     let referrer = req.headers().get("Referer").ok().flatten();
     let user_agent = req.headers().get("User-Agent").ok().flatten();
@@ -306,4 +370,46 @@ pub async fn handle_redirect(
         response,
         analytics_future: Some(analytics_future),
     })
+}
+
+fn log_template_failure(link_id: &str, category: &str) {
+    console_log!(
+        "{}",
+        serde_json::json!({
+            "event": "template_redirect_failed",
+            "link_id": link_id,
+            "category": category,
+            "level": "warn"
+        })
+    );
+}
+
+fn template_failure(not_found_url: Url) -> Result<RedirectResult> {
+    Ok(RedirectResult {
+        response: Response::redirect_with_status(not_found_url, 302)?,
+        analytics_future: None,
+    })
+}
+
+fn template_blacklist_decision(result: Result<bool>) -> std::result::Result<(), &'static str> {
+    match result {
+        Ok(false) => Ok(()),
+        Ok(true) => Err("blacklisted"),
+        Err(_) => Err("blacklist_unavailable"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::template_blacklist_decision;
+
+    #[test]
+    fn template_blacklist_errors_fail_closed() {
+        assert_eq!(template_blacklist_decision(Ok(false)), Ok(()));
+        assert_eq!(template_blacklist_decision(Ok(true)), Err("blacklisted"));
+        assert_eq!(
+            template_blacklist_decision(Err(worker::Error::RustError("unavailable".to_string()))),
+            Err("blacklist_unavailable")
+        );
+    }
 }

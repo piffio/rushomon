@@ -247,6 +247,7 @@ impl LinkService {
         link_id: &str,
         org_id: &str,
         destination_url: Option<String>,
+        is_template: Option<bool>,
         title: Option<String>,
         expires_at: Option<Option<i64>>,
         tags: Option<Vec<String>>,
@@ -283,6 +284,7 @@ impl LinkService {
                 link_id,
                 org_id,
                 destination_url.as_deref(),
+                is_template,
                 title.as_deref(),
                 status.as_deref(),
                 expires_at,
@@ -299,6 +301,7 @@ impl LinkService {
         // Sync if: status changed, destination_url changed, device URLs changed, redirect_type changed, or expires_at changed
         let needs_kv_sync = status.is_some()
             || destination_url.is_some()
+            || is_template.is_some()
             || ios_url.is_some()
             || android_url.is_some()
             || desktop_url.is_some()
@@ -453,6 +456,7 @@ impl LinkService {
             // Re-enable in KV by storing the mapping
             let mapping = crate::models::LinkMapping {
                 destination_url: link.destination_url.clone(),
+                is_template: link.is_template,
                 link_id: link.id.clone(),
                 expires_at: link.expires_at,
                 status: crate::models::link::LinkStatus::Active,
@@ -633,6 +637,7 @@ impl LinkService {
                     org_id: link.org_id.clone(),
                     short_code: link.short_code.clone(),
                     destination_url: link.destination_url.clone(),
+                    is_template: link.is_template,
                     title: link.title.clone(),
                     created_by: link.created_by.clone(),
                     created_at: link.created_at,
