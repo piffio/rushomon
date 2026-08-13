@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { CustomDomain } from "$lib/api/domains";
+  import { PUBLIC_VITE_DOCS_URL } from "$env/static/public";
   import { linksApi, tagsApi } from "$lib/api/links";
   import TagInput from "$lib/components/TagInput.svelte";
   import type {
@@ -18,6 +19,75 @@
     MAX_SHORT_CODE_LENGTH
   } from "$lib/constants";
   import { createEventDispatcher, onMount } from "svelte";
+
+  const DOCS_URL = PUBLIC_VITE_DOCS_URL || "https://doc.rushomon.cc";
+
+  const TEMPLATE_VARIABLES = [
+    { name: "request.url", example: "https://sho.rt/sale?ref=email" },
+    { name: "request.method", example: "GET" },
+    { name: "request.scheme", example: "https" },
+    { name: "request.host", example: "sho.rt" },
+    { name: "request.path", example: "/sale" },
+    { name: "request.query_string", example: "ref=email&tag=new" },
+    { name: "request.query", example: '{"ref":"email","tag":"new"}' },
+    {
+      name: "request.query_all",
+      example: '{"tag":["sale","new"]}'
+    },
+    {
+      name: "request.headers",
+      example: '{"accept-language":"en-CA,en;q=0.9"}'
+    },
+    { name: "request.user_agent", example: "Mozilla/5.0 ..." },
+    { name: "request.referrer", example: "https://newsletter.example" },
+    {
+      name: "request.accept_language",
+      example: "en-CA,en;q=0.9,fr;q=0.8"
+    },
+    { name: "request.country", example: "CA" },
+    { name: "request.city", example: "Montreal" },
+    { name: "request.device", example: "ios" },
+    { name: "link.short_code", example: "summer-sale" },
+    { name: "link.hostname", example: "sho.rt" },
+    { name: "link.is_custom_domain", example: "true" }
+  ];
+
+  const TEMPLATE_FUNCTIONS = [
+    {
+      name: "now()",
+      href: `${DOCS_URL}/docs/template-redirects#supported-subset`
+    },
+    {
+      name: "randrange()",
+      href: "https://docs.rs/minijinja-contrib/latest/minijinja_contrib/globals/fn.randrange.html"
+    }
+  ];
+  const TEMPLATE_FILTERS = [
+    {
+      name: "default",
+      href: "https://docs.rs/minijinja/latest/minijinja/filters/fn.default.html"
+    },
+    {
+      name: "urlencode",
+      href: "https://docs.rs/minijinja/latest/minijinja/filters/fn.urlencode.html"
+    },
+    {
+      name: "random",
+      href: "https://docs.rs/minijinja-contrib/latest/minijinja_contrib/filters/fn.random.html"
+    },
+    {
+      name: "dateformat",
+      href: "https://docs.rs/minijinja-contrib/latest/minijinja_contrib/filters/fn.dateformat.html"
+    },
+    {
+      name: "timeformat",
+      href: "https://docs.rs/minijinja-contrib/latest/minijinja_contrib/filters/fn.timeformat.html"
+    },
+    {
+      name: "datetimeformat",
+      href: "https://docs.rs/minijinja-contrib/latest/minijinja_contrib/filters/fn.datetimeformat.html"
+    }
+  ];
 
   interface Props {
     link?: Link | null;
@@ -550,23 +620,201 @@
           />
           {#if isTemplate}
             <div
-              class="mt-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"
+              class="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
             >
-              <p>
-                Use Nunjucks-compatible expressions such as
-                <code class="font-mono"
-                  >{"{{ request.query.q | default('') | urlencode }}"}</code
-                >.
-              </p>
-              <p class="mt-1 text-indigo-700">
-                Context: <code>request.url</code>, <code>request.method</code>,
-                <code>request.scheme</code>, <code>request.host</code>,
-                <code>request.path</code>, <code>request.query</code>,
-                <code>request.query_all</code>, <code>request.headers</code>,
-                <code>request.country</code>, <code>request.city</code>,
-                <code>request.device</code>, and <code>link.short_code</code>.
-                URL-encode request values before interpolation.
-              </p>
+              <div class="border-b border-gray-200 bg-white px-4 py-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2">
+                    <svg
+                      class="h-4 w-4 shrink-0 text-indigo-600"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25Zm3.28 4.22a.75.75 0 0 1 0 1.06L4.81 10l2.72 2.72a.75.75 0 0 1-1.06 1.06l-3.25-3.25a.75.75 0 0 1 0-1.06l3.25-3.25a.75.75 0 0 1 1.06 0Zm2.22 6.53a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75Z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                    <p class="text-sm font-semibold text-gray-900">
+                      MiniJinja template
+                    </p>
+                  </div>
+                  <a
+                    href="https://docs.rs/minijinja/latest/minijinja/syntax/index.html#expressions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Expression guide
+                    <svg
+                      class="h-3.5 w-3.5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M11 3.75A.75.75 0 0 1 11.75 3h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V5.56l-6.97 6.97a.75.75 0 0 1-1.06-1.06l6.97-6.97h-2.69a.75.75 0 0 1-.75-.75Z"
+                      />
+                      <path
+                        d="M4.75 5A1.75 1.75 0 0 0 3 6.75v8.5C3 16.216 3.784 17 4.75 17h8.5A1.75 1.75 0 0 0 15 15.25v-4.5a.75.75 0 0 0-1.5 0v4.5a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25v-8.5a.25.25 0 0 1 .25-.25h4.5a.75.75 0 0 0 0-1.5h-4.5Z"
+                      />
+                    </svg>
+                    <span class="sr-only">(opens in a new tab)</span>
+                  </a>
+                </div>
+                <p class="mt-1 text-xs leading-5 text-gray-600">
+                  Build a destination using data from each visitor request.
+                </p>
+                <code
+                  class="mt-2 block overflow-x-auto rounded-lg bg-gray-900 px-3 py-2 font-mono text-xs leading-5 text-gray-100"
+                  >{"https://example.com/search?q={{ request.query.q | default('') | urlencode }}"}</code
+                >
+              </div>
+
+              <div class="space-y-4 px-4 py-3">
+                <details
+                  class="group overflow-hidden rounded-lg border border-gray-200 bg-white"
+                >
+                  <summary
+                    class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 marker:content-none"
+                  >
+                    <span
+                      class="text-[11px] font-semibold uppercase tracking-wide text-gray-600"
+                    >
+                      Available data
+                    </span>
+                    <span class="flex items-center gap-2">
+                      <span class="text-[11px] text-gray-400"
+                        >{TEMPLATE_VARIABLES.length} fields</span
+                      >
+                      <svg
+                        class="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M5.22 7.22a.75.75 0 0 1 1.06 0L10 10.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.28a.75.75 0 0 1 0-1.06Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div
+                    class="grid gap-1.5 border-t border-gray-100 bg-gray-50 p-2.5 sm:grid-cols-2"
+                  >
+                    {#each TEMPLATE_VARIABLES as templateVariable (templateVariable.name)}
+                      <div
+                        class="min-w-0 rounded-lg border border-gray-200 bg-white px-2.5 py-2"
+                      >
+                        <code
+                          class="block font-mono text-[11px] font-semibold text-indigo-700"
+                          >{templateVariable.name}</code
+                        >
+                        <code
+                          class="mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10px] text-gray-500"
+                          title={templateVariable.example}
+                          >{templateVariable.example}</code
+                        >
+                      </div>
+                    {/each}
+                  </div>
+                </details>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <p
+                        class="text-[11px] font-semibold uppercase tracking-wide text-gray-500"
+                      >
+                        Functions
+                      </p>
+                      <a
+                        href="https://docs.rs/minijinja/latest/minijinja/functions/index.html#built-in-functions"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-[11px] font-medium text-emerald-700 hover:underline"
+                      >
+                        View all
+                        <span class="sr-only"
+                          >functions (opens in a new tab)</span
+                        >
+                      </a>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                      {#each TEMPLATE_FUNCTIONS as templateFunction (templateFunction.name)}
+                        <a
+                          href={templateFunction.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="rounded-md border border-gray-200 bg-white px-1.5 py-1 font-mono text-[11px] text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 hover:underline"
+                          title={`Read documentation for ${templateFunction.name}`}
+                        >
+                          {templateFunction.name}
+                          <span class="sr-only">(opens in a new tab)</span>
+                        </a>
+                      {/each}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <p
+                        class="text-[11px] font-semibold uppercase tracking-wide text-gray-500"
+                      >
+                        Useful filters
+                      </p>
+                      <a
+                        href="https://docs.rs/minijinja/latest/minijinja/filters/index.html#built-in-filters"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-[11px] font-medium text-violet-700 hover:underline"
+                      >
+                        View all
+                        <span class="sr-only">filters (opens in a new tab)</span
+                        >
+                      </a>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                      {#each TEMPLATE_FILTERS as templateFilter (templateFilter.name)}
+                        <a
+                          href={templateFilter.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="rounded-md border border-gray-200 bg-white px-1.5 py-1 font-mono text-[11px] text-violet-700 hover:border-violet-300 hover:bg-violet-50 hover:underline"
+                          title={`Read documentation for ${templateFilter.name}`}
+                        >
+                          {templateFilter.name}
+                          <span class="sr-only">(opens in a new tab)</span>
+                        </a>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2 text-xs text-amber-800">
+                  <svg
+                    class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.88c.673 1.166-.17 2.625-1.515 2.625H3.72c-1.347 0-2.188-1.459-1.515-2.625l6.28-10.88ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <p class="leading-5">
+                    Apply <code
+                      class="rounded bg-amber-100 px-1 py-0.5 font-mono font-medium"
+                      >urlencode</code
+                    > to request values used in URLs.
+                  </p>
+                </div>
+              </div>
             </div>
           {/if}
         </div>

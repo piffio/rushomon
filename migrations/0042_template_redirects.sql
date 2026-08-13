@@ -1,4 +1,4 @@
--- Migration 0042: Nunjucks-compatible redirect templates
+-- Migration 0042: MiniJinja redirect templates
 
 ALTER TABLE links ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0
   CHECK (is_template IN (0, 1));

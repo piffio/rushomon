@@ -6,6 +6,9 @@ use std::fmt;
 use std::io::{self, Write};
 use worker::Request;
 
+// Keep the template helper in frontend/src/lib/components/LinkModal.svelte in sync
+// whenever template context fields, functions, or filters change.
+
 pub const MAX_TEMPLATE_SOURCE_BYTES: usize = 4 * 1024;
 pub const MAX_RENDERED_URL_BYTES: usize = 8 * 1024;
 pub const TEMPLATE_FUEL: u64 = 20_000;

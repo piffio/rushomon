@@ -79,7 +79,7 @@ pub struct Link {
     pub short_code: String,
     #[schema(example = "https://example.com/very/long/url")]
     pub destination_url: String,
-    /// Whether destination URLs are rendered as inline Nunjucks-compatible templates.
+    /// Whether destination URLs are rendered as inline MiniJinja templates.
     pub is_template: bool,
     #[schema(example = "My Awesome Link")]
     pub title: Option<String>,
@@ -242,7 +242,7 @@ fn default_redirect_type() -> String {
 pub struct CreateLinkRequest {
     #[schema(example = "https://example.com/very/long/url")]
     pub destination_url: String,
-    /// Render destination URLs as inline Nunjucks-compatible templates.
+    /// Render destination URLs as inline MiniJinja templates.
     #[serde(default)]
     pub is_template: bool,
     #[schema(example = "my-custom-code")]

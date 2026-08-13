@@ -31,7 +31,7 @@ fn final_device_url<'a>(
     path = "/api/links/{id}",
     tag = "Links",
     summary = "Update a link",
-    description = "Updates a link's normal or inline Nunjucks-compatible template destination, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Template links require Pro+ and a 307 redirect. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV",
+    description = "Updates a link's normal or inline MiniJinja template destination, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Template links require Pro+, a 307 redirect. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV",
     params(
         ("id" = String, Path, description = "Link ID"),
     ),

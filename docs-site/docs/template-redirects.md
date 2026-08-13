@@ -7,7 +7,7 @@ title: Template Redirects
 
 Pro, Business, and Unlimited organizations can render a destination from each
 visitor request. Choose **Template** when creating or editing a link, then enter
-an inline Nunjucks-compatible URL template:
+an inline MiniJinja URL template:
 
 ```text
 https://example.com/search?q={{ request.query.q | default('') | urlencode }}
@@ -91,12 +91,12 @@ argument. `now()` is always UTC.
 Template source is limited to 4 KiB, rendered output to 8 KiB, and execution to
 20,000 MiniJinja fuel units to protect redirect availability.
 
-This is an inline Nunjucks-compatible subset, not the JavaScript Nunjucks
-runtime. Includes, imports, template inheritance, asynchronous filters, custom
-global functions, and Nunjucks-only filters such as `dump` and `nl2br` are not
-available. Syntax errors are rejected when the link is saved. A runtime error,
-invalid rendered URL, or unavailable moderation check sends the visitor to the
-standard not-found page and does not record a click.
+Templates use the MiniJinja runtime. Includes, imports, template inheritance,
+asynchronous filters, custom global functions, and unsupported filters such as
+`dump` and `nl2br` are not available. Syntax errors are rejected when the link
+is saved. A runtime error, invalid rendered URL, or unavailable moderation
+check sends the visitor to the standard not-found page and does not record a
+click.
 
 Device-specific destinations use the same mode as the default destination. If
 a link is a template link, every configured device destination must also be a

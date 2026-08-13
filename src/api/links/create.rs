@@ -14,7 +14,7 @@ use worker::*;
     path = "/api/links",
     tag = "Links",
     summary = "Create a link",
-    description = "Creates a normal or inline Nunjucks-compatible template link for the authenticated organization. Template links require Pro+, a 307 redirect, and are rendered from safe request context. Respects monthly tier limits and optionally accepts a custom short code, UTM parameters, tags, expiry, and device destinations",
+    description = "Creates a normal or inline MiniJinja template link for the authenticated organization. Template links require Pro+, a 307 redirect, and are rendered from safe request context. Respects monthly tier limits and optionally accepts a custom short code, UTM parameters, tags, expiry, and device destinations",
     request_body(content = CreateLinkRequest, description = "Link creation payload"),
     responses(
         (status = 201, description = "Link created", body = Link),

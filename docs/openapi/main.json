@@ -187,7 +187,7 @@
             ]
           },
           "is_template": {
-            "description": "Render destination URLs as inline Nunjucks-compatible templates.",
+            "description": "Render destination URLs as inline MiniJinja templates.",
             "type": "boolean"
           },
           "redirect_type": {
@@ -346,7 +346,7 @@
             ]
           },
           "is_template": {
-            "description": "Whether destination URLs are rendered as inline Nunjucks-compatible templates.",
+            "description": "Whether destination URLs are rendered as inline MiniJinja templates.",
             "type": "boolean"
           },
           "org_id": {
@@ -3302,7 +3302,7 @@
         ]
       },
       "post": {
-        "description": "Creates a normal or inline Nunjucks-compatible template link for the authenticated organization. Template links require Pro+, a 307 redirect, and are rendered from safe request context. Respects monthly tier limits and optionally accepts a custom short code, UTM parameters, tags, expiry, and device destinations",
+        "description": "Creates a normal or inline MiniJinja template link for the authenticated organization. Template links require Pro+, a 307 redirect, and are rendered from safe request context. Respects monthly tier limits and optionally accepts a custom short code, UTM parameters, tags, expiry, and device destinations",
         "operationId": "handle_create_link",
         "requestBody": {
           "content": {
@@ -3540,7 +3540,7 @@
         ]
       },
       "put": {
-        "description": "Updates a link's normal or inline Nunjucks-compatible template destination, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Template links require Pro+ and a 307 redirect. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV",
+        "description": "Updates a link's normal or inline MiniJinja template destination, title, tags, expiry, UTM parameters, redirect type, or forward-query-params setting. Template links require Pro+, a 307 redirect. Use clear_expiration=true to remove the expiration date. Updates are written to both D1 and KV",
         "operationId": "handle_update_link",
         "parameters": [
           {
